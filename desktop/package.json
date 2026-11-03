@@ -1,0 +1,30 @@
+{
+  "name": "rivera-quote-studio",
+  "productName": "Rivera Quote Studio",
+  "version": "1.0.0",
+  "description": "Rivera Coil Manufacturing sales app - quotations, workings, tenders, work orders, vendors",
+  "author": "Rivera Coil Manufacturing (I) Pvt Ltd",
+  "license": "UNLICENSED",
+  "main": "main.js",
+  "devDependencies": {
+    "electron": "31.7.7",
+    "electron-builder": "24.13.3"
+  },
+  "build": {
+    "appId": "com.rivera.quotestudio",
+    "productName": "Rivera Quote Studio",
+    "files": ["main.js", "icon.png", "web/**/*"],
+    "directories": { "output": "dist", "buildResources": "build" },
+    "win": { "target": ["nsis", "portable"], "icon": "build/icon.png" },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "Rivera Quote Studio",
+      "artifactName": "RiveraQuoteStudio-Setup.${ext}"
+    },
+    "portable": { "artifactName": "RiveraQuoteStudio-Portable.${ext}" }
+  }
+}

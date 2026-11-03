@@ -266,7 +266,7 @@ details.adv>summary::-webkit-details-marker{display:none}
 <input type="file" id="camPick" hidden accept="image/*" capture="environment">
 <input type="file" id="logoPick" hidden accept="image/png,image/jpeg,image/webp">
 <input type="file" id="importPick" hidden accept=".json">
-<script>window.__RIVERA_LINKS__ = {"site":"https://riverasalesindia-del.github.io/rivera-quote-studio/","apk":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio.apk"};</script>
+<script>window.__RIVERA_LINKS__ = {"site":"https://riverasalesindia-del.github.io/rivera-quote-studio/","apk":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio.apk","win":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Setup.exe","winPortable":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Portable.exe"};</script>
 <script>
 "use strict";
 /* ========= Rivera Quote Studio — core ========= */
@@ -2200,6 +2200,7 @@ async function appLinksPanel() {
   return `<section class="panel"><header><h2>Website & Android app</h2></header><div class="body stack" style="gap:10px">
     ${L.site ? `<div><div class="eyebrow">Open in Chrome</div><div class="row" style="margin-top:4px"><span class="mono" style="font-size:.8rem;overflow-wrap:anywhere">${esc(L.site)}</span><button class="btn sm" data-copy="${esc(L.site)}">Copy</button></div></div>` : ""}
     ${L.apk && !window.RiveraAndroid ? `<div><div class="eyebrow">Android app (APK)</div><div class="row" style="margin-top:4px"><a class="btn sm primary" href="${esc(L.apk)}" target="_blank" rel="noopener">${icon("dl")}Download APK</a><button class="btn sm" data-copy="${esc(L.apk)}">Copy link</button></div><div class="muted" style="font-size:.76rem;margin-top:4px">Open the link on the phone, install, and allow “Install unknown apps” once.</div></div>` : ""}
+    ${L.win ? `<div><div class="eyebrow">Windows laptop / PC app</div><div class="row" style="margin-top:4px"><a class="btn sm primary" href="${esc(L.win)}" target="_blank" rel="noopener">${icon("dl")}Download installer (.exe)</a>${L.winPortable ? `<a class="btn sm" href="${esc(L.winPortable)}" target="_blank" rel="noopener">Portable .exe</a>` : ""}</div><div class="muted" style="font-size:.76rem;margin-top:4px">Or open the website in Chrome / Edge and click “Install app” — works on Windows and Mac.</div></div>` : ""}
     ${window.RiveraAndroid ? `<div class="note ok">You're in the Android app${window.RiveraAndroid.appVersion ? " v" + esc(window.RiveraAndroid.appVersion()) : ""}. Share any PDF, Excel or WhatsApp photo to “Rivera Quotes” to scan it.</div>` : ""}
   </div></section>`;
 }

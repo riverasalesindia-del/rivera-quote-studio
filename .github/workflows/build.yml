@@ -83,3 +83,38 @@ jobs:
             Android app for Rivera Quote Studio.
             Install: download RiveraQuoteStudio.apk on the phone, open it, allow "Install unknown apps" for your browser / file manager once.
           files: dist/*.apk
+
+  windows:
+    name: Windows desktop app
+    runs-on: windows-latest
+    needs: android
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Bundle the web app
+        shell: bash
+        run: |
+          mkdir -p desktop/web
+          cp -r web/* desktop/web/
+          rm -f desktop/web/sw.js
+      - name: Build installer and portable exe
+        working-directory: desktop
+        shell: bash
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+        run: |
+          npm install --no-audit --no-fund
+          npx electron-builder --win --publish never -c.extraMetadata.version=1.0.${{ github.run_number }}
+      - uses: actions/upload-artifact@v4
+        with:
+          name: RiveraQuoteStudio-windows
+          path: desktop/dist/*.exe
+      - name: Add to release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v1.0.${{ github.run_number }}
+          files: |
+            desktop/dist/RiveraQuoteStudio-Setup.exe
+            desktop/dist/RiveraQuoteStudio-Portable.exe
