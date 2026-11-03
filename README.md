@@ -13,6 +13,15 @@ Sales quotation tool for Rivera Coil Manufacturing (I) Pvt Ltd: scan enquiries a
 
 Company costing data (rate card, past jobs, bank details) is **not** in this repository. Load `rivera-data-pack.json` once per device from the Rate Card page, or connect the Synology folder that holds `_rivera_register.json`.
 
+## What the sales team gets
+- **Smart Scan** – PDF, scanned PDF, photo, Excel, Word, CSV, email; every amount re-checked
+- **Auto quote** – one tap: workings → quotation → register → Synology folder → share
+- **Quote workings** – stator (diamond), Roebel bar, armature, equalizer, main pole, interpole, rotor pole, re-insulation
+- **Quotation** – Rivera letterhead, domestic / export / service / GeM terms, PDF · Word · Excel · HTML
+- **Work orders**, **Tenders & GeM** (checklist + annexure kit II–X), **Vendors, price book & RFQ**
+- **Export & share** – any format, WhatsApp, email, or any app on the phone
+- **Synology** – connect the SALES folder once; jobs, registers and tender kits are filed automatically
+
 ## Android app extras
 - Share a PDF, Excel, Word file or WhatsApp photo to **Rivera Quotes** → it opens in Smart Scan
 - "Take photo of a quotation" uses the phone camera

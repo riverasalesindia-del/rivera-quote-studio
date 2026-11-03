@@ -345,6 +345,28 @@ public class MainActivity extends Activity {
                 .show();
     }
 
+    private void launchShare(Intent i, String target, String title) {
+        if ("whatsapp".equals(target)) {
+            for (String pkg : new String[]{"com.whatsapp", "com.whatsapp.w4b"}) {
+                try {
+                    Intent w = new Intent(i);
+                    w.setPackage(pkg);
+                    startActivity(w);
+                    return;
+                } catch (Exception ignored) {
+                }
+            }
+        }
+        if ("email".equals(target)) {
+            i.putExtra(Intent.EXTRA_EMAIL, new String[]{});
+        }
+        try {
+            startActivity(Intent.createChooser(i, title));
+        } catch (Exception e) {
+            toast("No app available to share");
+        }
+    }
+
     private String versionName() {
         try {
             return getPackageManager().getPackageInfo(getPackageName(), 0).versionName;
@@ -370,6 +392,43 @@ public class MainActivity extends Activity {
             } catch (Exception e) {
                 toast("Couldn't save " + name);
             }
+        }
+
+        @JavascriptInterface
+        public void shareFile(final String name, final String mime, final String b64, final String text, final String target) {
+            try {
+                byte[] bytes = Base64.decode(b64, Base64.DEFAULT);
+                File dir = new File(getCacheDir(), "share");
+                if (!dir.exists()) dir.mkdirs();
+                final String safe = name.replaceAll("[\\\\/:*?\"<>|]", "_");
+                File f = new File(dir, safe);
+                try (FileOutputStream os = new FileOutputStream(f)) {
+                    os.write(bytes);
+                }
+                final Uri uri = FileProvider.getUriForFile(MainActivity.this, getPackageName() + ".files", f);
+                final String mt = (mime == null || mime.isEmpty()) ? "application/octet-stream" : mime;
+                runOnUiThread(() -> {
+                    Intent i = new Intent(Intent.ACTION_SEND);
+                    i.setType(mt);
+                    i.putExtra(Intent.EXTRA_STREAM, uri);
+                    if (text != null && !text.isEmpty()) i.putExtra(Intent.EXTRA_TEXT, text);
+                    i.putExtra(Intent.EXTRA_SUBJECT, safe);
+                    i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
+                    launchShare(i, target, "Share " + safe);
+                });
+            } catch (Exception e) {
+                toast("Couldn't share " + name);
+            }
+        }
+
+        @JavascriptInterface
+        public void shareText(final String text, final String target) {
+            runOnUiThread(() -> {
+                Intent i = new Intent(Intent.ACTION_SEND);
+                i.setType("text/plain");
+                i.putExtra(Intent.EXTRA_TEXT, text);
+                launchShare(i, target, "Send message");
+            });
         }
 
         @JavascriptInterface
