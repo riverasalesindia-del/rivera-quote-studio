@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Rivera Quote Studio – Setup</title>
+<style>
+body{margin:0;background:#EEF1F0;color:#14212E;font:15px/1.6 "Segoe UI",Roboto,Arial,sans-serif}
+main{max-width:760px;margin:0 auto;padding:28px 18px 60px}
+h1{font-size:1.6rem;margin:0 0 4px;color:#13283E}h2{font-size:1.1rem;margin:28px 0 8px;color:#8E431D}
+.card{background:#fff;border:1px solid #D6DDDB;border-radius:10px;padding:16px 18px;margin:12px 0}
+ol{padding-left:20px;margin:6px 0}li{margin:5px 0}code{background:#F6E6DA;padding:1px 6px;border-radius:4px;font-size:.9em}
+.note{background:#E3EAF2;border-radius:8px;padding:10px 12px;font-size:.92rem}
+</style></head><body><main>
+<h1>Rivera Quote Studio — office website &amp; app</h1>
+<p>This folder is the complete app. Put it on the Synology once; after that every phone and PC in Rivera can open it as a website or install it as an app.</p>
+
+<h2>1 · Host it on the Synology (one time, IT / admin)</h2>
+<div class="card"><ol>
+<li>DSM → <b>Package Center</b> → install <b>Web Station</b>. This creates the shared folder <code>web</code>.</li>
+<li>Copy this whole folder into <code>web</code> and name it <code>rivera</code> (so you have <code>web/rivera/index.html</code>).</li>
+<li>For phone/PC install the site must open on <b>https</b>: DSM → Control Panel → External Access → <b>DDNS</b> → add a free <code>yourname.synology.me</code> address, then Control Panel → Security → <b>Certificate</b> → Add → Let's Encrypt for that address.</li>
+<li>Open <code>https://yourname.synology.me/rivera/</code> — the Rivera Quote Studio dashboard appears. Share this address with the sales team.</li>
+</ol>
+<p class="note">Inside the office only? <code>http://NAS-IP/rivera/</code> works as a website, but browsers only offer “Install app” on https.</p></div>
+
+<h2>2 · Install the app</h2>
+<div class="card"><ol>
+<li><b>Android</b> (Chrome): open the address → menu ⋮ → <b>Install app</b>. The Rivera icon appears on the home screen.</li>
+<li><b>iPhone / iPad</b> (Safari): open the address → Share → <b>Add to Home Screen</b>.</li>
+<li><b>Windows / Mac</b> (Chrome or Edge): open the address → click the install icon in the address bar, or the <b>Install app</b> button in the left menu. It opens in its own window and can be pinned to the taskbar.</li>
+</ol></div>
+
+<h2>3 · Connect the Synology sales folder (each office PC, once)</h2>
+<div class="card"><ol>
+<li>Map the NAS sales share as a drive (File Explorer → This PC → Map network drive → <code>\\NAS\SALES</code>), or use the Synology Drive Client sync folder.</li>
+<li>In the app: <b>Synology &amp; Files</b> → <b>Choose Synology folder</b> → pick <code>SALES\RCM\2) QUOTATION</code> → Allow.</li>
+<li>Done. Packages are filed into <code>F.Y 2026-27\014_date_CUSTOMER\</code>, and the register and rate card are kept in <code>_rivera_register.json</code> in that folder, so every PC connected to it sees the same register. Next time, tap <b>Reconnect</b> once.</li>
+</ol>
+<p class="note">Phones can't write to network folders: on a phone, “Synology” downloads a ZIP with the same folder structure — open it in the Synology Drive or DS file app.</p></div>
+
+<h2>4 · Updating</h2>
+<div class="card"><p>Replace the files in <code>web/rivera</code> with a new version. Installed apps pick it up the next time they open (close and reopen once).</p></div>
+
+<h2>Office app vs. claude.ai version</h2>
+<div class="card"><ul>
+<li><b>Office app</b> (this folder): works on the office network and offline after the first visit, writes straight into the Synology folder, reads photos and scanned PDFs with on-device OCR.</li>
+<li><b>claude.ai version</b>: adds the Rivera AI deep scan (best for photos, handwriting, unusual formats) and a team register stored online. Use <b>Register → Backup (JSON)</b> and <b>Restore</b> to move quotations between the two.</li>
+</ul></div>
+</main></body></html>

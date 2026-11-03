@@ -1,0 +1,47 @@
+plugins {
+    id 'com.android.application'
+}
+
+def ksPath = System.getenv('RIVERA_KEYSTORE')
+def runNo = (System.getenv('GITHUB_RUN_NUMBER') ?: '1') as Integer
+
+android {
+    namespace 'com.rivera.quotestudio'
+    compileSdk 34
+
+    defaultConfig {
+        applicationId 'com.rivera.quotestudio'
+        minSdk 24
+        targetSdk 34
+        versionCode runNo
+        versionName "1.0.${runNo}"
+    }
+
+    signingConfigs {
+        release {
+            if (ksPath) {
+                storeFile file(ksPath)
+                storePassword System.getenv('RIVERA_KS_PASS')
+                keyAlias 'rivera'
+                keyPassword System.getenv('RIVERA_KS_PASS')
+            }
+        }
+    }
+
+    buildTypes {
+        release {
+            minifyEnabled false
+            signingConfig ksPath ? signingConfigs.release : signingConfigs.debug
+        }
+    }
+
+    compileOptions {
+        sourceCompatibility JavaVersion.VERSION_17
+        targetCompatibility JavaVersion.VERSION_17
+    }
+}
+
+dependencies {
+    implementation 'androidx.webkit:webkit:1.11.0'
+    implementation 'androidx.core:core:1.13.1'
+}

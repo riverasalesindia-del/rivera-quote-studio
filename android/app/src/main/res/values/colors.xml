@@ -1,0 +1,5 @@
+<resources>
+    <color name="rail">#02315B</color>
+    <color name="ground">#EEF1F0</color>
+    <color name="icon_bg">#FFFFFF</color>
+</resources>
