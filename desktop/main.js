@@ -22,6 +22,44 @@ function sendFiles(paths) {
   win.webContents.executeJavaScript(`window.riveraReceiveFiles && window.riveraReceiveFiles(${JSON.stringify(list)})`).catch(() => {});
 }
 
+
+// Look for rivera-data-pack.json in Dropbox (SALES/Rivera Quote Studio), Downloads, Documents, Desktop or next to the app,
+// and hand the newest one to the app so the rate card loads by itself.
+const os = require("os");
+function dropboxRoots() {
+  const out = [];
+  for (const base of [process.env.APPDATA, process.env.LOCALAPPDATA].filter(Boolean)) {
+    try { const j = JSON.parse(fs.readFileSync(path.join(base, "Dropbox", "info.json"), "utf8")); for (const k of Object.keys(j)) if (j[k] && j[k].path) out.push(j[k].path); } catch (e) {}
+  }
+  const h = os.homedir();
+  try { for (const n of fs.readdirSync(h)) if (/dropbox/i.test(n)) out.push(path.join(h, n)); } catch (e) {}
+  return [...new Set(out)];
+}
+function packCandidates() {
+  const h = os.homedir(), c = [];
+  for (const r of dropboxRoots()) for (const s of ["RIVERA Team Folder/SALES/Rivera Quote Studio", "SALES/Rivera Quote Studio", "Rivera Quote Studio", ""]) c.push([path.join(r, s), "Dropbox"]);
+  for (const [d, l] of [["Downloads", "Downloads"], ["Documents/Rivera Quote Studio", "Documents"], ["Documents", "Documents"], ["Desktop", "Desktop"]]) c.push([path.join(h, d), l]);
+  c.push([path.dirname(process.execPath), "the app folder"]);
+  if (process.env.PORTABLE_EXECUTABLE_DIR) c.push([process.env.PORTABLE_EXECUTABLE_DIR, "the app folder"]);
+  return c;
+}
+function findPack() {
+  let best = null;
+  for (const [dir, label] of packCandidates()) {
+    try {
+      const f = path.join(dir, "rivera-data-pack.json"); const st = fs.statSync(f);
+      if (!st.isFile() || st.size > 5e6) continue;
+      const j = JSON.parse(fs.readFileSync(f, "utf8")); if (j.kind !== "rivera-datapack") continue;
+      if (!best || String(j.createdAt || "") > String(best.j.createdAt || "")) best = { j, label };
+    } catch (e) {}
+  }
+  return best;
+}
+function sendPack() {
+  if (!win) return; const b = findPack(); if (!b) return;
+  win.webContents.executeJavaScript(`window.riveraReceivePack && window.riveraReceivePack(${JSON.stringify(b.j)}, ${JSON.stringify(b.label)})`).catch(() => {});
+}
+
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 920, minWidth: 900, minHeight: 600,
@@ -31,7 +69,8 @@ function createWindow() {
   });
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
   win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith("rivera://")) { e.preventDefault(); shell.openExternal(url); } });
-  win.webContents.on("did-finish-load", () => sendFiles(filesFromArgs(process.argv)));
+  win.webContents.on("did-finish-load", () => { sendFiles(filesFromArgs(process.argv)); setTimeout(sendPack, 2500); });
+  win.on("focus", () => { if (Date.now() - (win._pk || 0) > 600000) { win._pk = Date.now(); sendPack(); } });
   win.loadURL("rivera://app/index.html#home");
 }
 

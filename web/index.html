@@ -3258,6 +3258,290 @@ boot = function () {
   setInterval(() => Cloud.sync().catch(() => { }), 120000);
   addEventListener("focus", () => { if (Date.now() - Cloud.last > 30000) Cloud.sync().catch(() => { }); });
 };
+/* ===================== p7: data pack auto-load, health & error centre, autopilot ===================== */
+Object.assign(IC, {
+  health: '<path d="M3 12h4l2-5 4 10 2-5h6"/>',
+  robot: '<rect x="4" y="8" width="16" height="11" rx="3"/><path d="M12 4v4M9 13h.01M15 13h.01M9 16h6"/>'
+});
+
+/* ---------- 1. error log with classification ---------- */
+const ERR_CATS = {
+  signin: { l: "Sign-in & access", fix: "Sign in again. If it says waiting for approval, crm@rivera.co.in has to approve you on the Users page.", go: null },
+  network: { l: "Internet & server", fix: "Check the internet. The app keeps working offline and syncs when the connection is back.", go: null },
+  storage: { l: "Synology & storage", fix: "Reconnect the Synology SALES folder on Synology & Files, or free space on the device.", go: "storage" },
+  pack: { l: "Data pack & rate card", fix: "Load the Rivera data pack, or fill the copper rate on the Rate Card.", go: "pack" },
+  scan: { l: "Scanning & files", fix: "Use a clear PDF, Excel or straight photo. Very blurred or angled photos read badly.", go: "scan" },
+  quote: { l: "Quotation data", fix: "Open the quotation and fill the missing customer, quantity or price.", go: "register" },
+  log: { l: "Error log", fix: "", go: null },
+  bug: { l: "App error", fix: "Reload the app. If it keeps happening, send the error report to crm@rivera.co.in.", go: null }
+};
+function classifyErr(msg) {
+  const m = String(msg || "").toLowerCase();
+  const R = [
+    ["signin", /sign.?in|session|token|password|approv|login|locked|verify|not allowed to use/],
+    ["network", /network|failed to fetch|fetch|offline|timeout|cors|could not load a comp|server/],
+    ["storage", /synology|folder|writable|quota|storage|indexeddb|notallowed|permission|file station|dsm|disk/],
+    ["pack", /data pack|rate card|datapack|copper rate/],
+    ["scan", /scan|ocr|pdf|excel|xlsx|image|photo|couldn't open|read the file|file/],
+    ["quote", /quotation|customer|line|gst|price|total|qty/]
+  ];
+  for (const [c, r] of R) if (r.test(m)) return c;
+  return "bug";
+}
+const ERRLOG = {
+  list: LS.get("errlog", []),
+  add(msg, src) {
+    msg = String(msg || "").slice(0, 300); if (!msg || /ResizeObserver|Script error\.?$/i.test(msg)) return;
+    const hit = this.list.find(x => x.msg === msg);
+    if (hit) { hit.n = (hit.n || 1) + 1; hit.t = Date.now(); }
+    else this.list.unshift({ t: Date.now(), msg, src: src || "", cat: classifyErr(msg), n: 1 });
+    this.list = this.list.slice(0, 80); LS.set("errlog", this.list); healthBadge();
+  },
+  clear() { this.list = []; LS.set("errlog", []); healthBadge(); },
+  recent(days = 7) { return this.list.filter(x => x.t > Date.now() - days * 864e5); }
+};
+const _toast7 = toast;
+toast = function (msg, kind) { if (kind === "bad") ERRLOG.add(msg, "message"); return _toast7(msg, kind); };
+addEventListener("error", e => ERRLOG.add(e.message, (e.filename || "").split("/").pop() + ":" + (e.lineno || "")));
+addEventListener("unhandledrejection", e => ERRLOG.add(e.reason?.message || String(e.reason || "Unknown error"), "promise"));
+
+/* ---------- 2. data pack: auto-find and load ---------- */
+function packIsNewer(p) { return p && p.kind === "rivera-datapack" && (!DATAPACK || String(p.createdAt || "") > String(DATAPACK.createdAt || "")); }
+async function loadPack(p, from, quiet) {
+  if (!p || p.kind !== "rivera-datapack") { toast("That file isn't a Rivera data pack.", "bad"); return false; }
+  applyDataPack(p, { persist: true, override: true }); await Store.saveSettings(); renderRailBrand(); render();
+  LS.set("packFrom", { from: from || "file", t: Date.now() });
+  if (!quiet || from) toast(`Data pack loaded${from ? " automatically from " + from : ""}: rate card, ${HISTORY.length} past jobs, bank details`);
+  return true;
+}
+/* Windows app hands over rivera-data-pack.json found in Dropbox / Downloads / Documents */
+window.riveraReceivePack = (p, from) => { try { if (packIsNewer(p)) loadPack(p, from || "this computer"); } catch (e) { ERRLOG.add("Data pack auto-load failed: " + e.message, "desktop"); } };
+/* Synology / shared folder: pick up rivera-data-pack.json lying in the folder */
+async function packFromDir() {
+  if (!STATE.dir) return;
+  for (const path of [["rivera-data-pack.json"], ["Rivera Quote Studio", "rivera-data-pack.json"]]) {
+    try {
+      let d = STATE.dir; for (const seg of path.slice(0, -1)) d = await d.getDirectoryHandle(seg);
+      const f = await (await d.getFileHandle(path.at(-1))).getFile(); if (f.size > 5e6) continue;
+      const p = JSON.parse(await f.text()); if (packIsNewer(p)) { await loadPack(p, STATE.dir.name + " folder"); }
+      return;
+    } catch { }
+  }
+}
+const _pull7 = NasSync.pull.bind(NasSync);
+NasSync.pull = async function () { await packFromDir(); return _pull7(); };
+/* drop a .json anywhere on the app window */
+addEventListener("dragover", e => { if ([...(e.dataTransfer?.items || [])].some(i => i.kind === "file")) e.preventDefault(); });
+addEventListener("drop", async e => {
+  if (e.target.closest?.("#drop")) return; e.preventDefault();
+  const fs = [...(e.dataTransfer?.files || [])]; if (!fs.length) return;
+  const js = fs.filter(f => /\.json$/i.test(f.name));
+  for (const f of js) await onImport(f);
+  const rest = fs.filter(f => !js.includes(f)); if (rest.length && window.riveraReceiveFiles) { const list = await Promise.all(rest.map(async f => ({ name: f.name, type: f.type, b64: await blobToB64(f) }))); window.riveraReceiveFiles(list); }
+});
+/* files opened with the app (Windows "Open with", Android share): a data pack loads instead of being scanned */
+function hookReceive() {
+  const orig = window.riveraReceiveFiles; if (!orig || orig._p7) return;
+  const w = list => {
+    const packs = [], rest = [];
+    for (const f of list || []) { if (/\.json$/i.test(f.name || "")) { try { const p = JSON.parse(new TextDecoder().decode(b64ToBytes(f.b64))); if (p.kind === "rivera-datapack") { packs.push(p); continue; } } catch { } } rest.push(f); }
+    packs.forEach(p => loadPack(p, "the opened file"));
+    if (rest.length) orig(rest);
+  };
+  w._p7 = 1; window.riveraReceiveFiles = w;
+}
+dataPackBanner = function () {
+  if (DATAPACK) return "";
+  const where = window.RiveraAndroid ? "Tap <b>Load data pack</b> and pick the file from Downloads or Dropbox." : "Drag the file onto this window, or tap <b>Load data pack</b>. The Windows app also loads it by itself when the file is in Dropbox <span class=\"mono\">SALES/Rivera Quote Studio</span>, Downloads or Documents, and the Synology folder loads it when the file is in that folder.";
+  return `<div class="note warn" style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between"><span><b>Load the Rivera data pack</b> (<span class="mono">rivera-data-pack.json</span>) to get the rate card, past jobs and bank details on this device. ${where}</span><button class="btn sm primary" data-loadpack>${icon("up")}Load data pack</button></div>`;
+};
+
+/* ---------- 3. health checks ---------- */
+async function healthChecks() {
+  const H = [], t = todayISO(), add = (sev, cat, title, d, fix) => H.push({ sev, cat, title, d, fix });
+  const inArtifact = !!window.__RIVERA_DATA__;
+  // setup
+  if (!DATAPACK) add("bad", "pack", "Data pack not loaded", "Rate card history, past jobs and bank details are missing on this device.", { l: "Load data pack", go: "pack" });
+  if (!hasRates()) add("bad", "pack", "Copper rate is empty", "Workings cannot be costed until the rate card has a copper rate.", { l: "Open Rate Card", go: "ratecard" });
+  if (!SETTINGS.bank?.acc || !SETTINGS.bank?.ifsc) add("warn", "pack", "Bank details incomplete", "Quotations and GeM EMD letters need account number and IFSC.", { l: "Open Rate Card", go: "ratecard" });
+  // storage
+  if (!inArtifact && !STATE.dir && Store.mode !== "db" && !(AUTH.required() && AUTH.user)) add("warn", "storage", "Not shared with the team", "Quotations are saved only on this device. Connect the Synology SALES folder (or sign in) so everyone sees the same register.", { l: "Connect folder", go: "storage" });
+  const lb = LS.get("lastBackup", 0);
+  if (!inArtifact && !STATE.dir && Date.now() - lb > 7 * 864e5 && STATE.quotes.length) add("warn", "storage", "No backup in the last 7 days", lb ? "Last backup " + new Date(lb).toLocaleDateString("en-IN") : "This device has never been backed up.", { l: "Download backup", act: "backup" });
+  try { const e = await navigator.storage?.estimate?.(); if (e && e.quota && e.usage / e.quota > 0.8) add("bad", "storage", "Device storage almost full", Math.round(e.usage / e.quota * 100) + "% of the app's space is used.", null); } catch { }
+  if (!navigator.onLine) add("warn", "network", "Offline", "Working offline. Changes sync when the internet is back.", null);
+  if (!inArtifact && !AUTH.required()) add("info", "signin", "Team sign-in not switched on yet", "Login with crm@rivera.co.in approval starts once the sign-in server address is set.", null);
+  // quotations
+  const seen = new Map();
+  for (const q of STATE.quotes) {
+    const key = (q.no || "") + "R" + (q.rev || 0); if (q.no) { if (seen.has(key)) add("bad", "quote", "Duplicate quotation number " + q.no + (q.rev ? "R" + q.rev : ""), "Two different quotations carry the same number. Revise one of them.", { l: "Open register", go: "register", q: q.no }); seen.set(key, q); }
+    if (q.status === "draft") continue;
+    if (!q.customer) add("warn", "quote", (q.no || "A quotation") + " has no customer", "Add the customer so follow-ups and the register work.", { l: "Open register", go: "register", q: q.no });
+    if (!num(q.total)) add("warn", "quote", (q.no || "A quotation") + " has zero value", "The price schedule is empty or unpriced.", { l: "Open register", go: "register", q: q.no });
+    if (["sent", "negotiation"].includes(q.status) && q.date) { const vd = num(q.quote?.ctx?.validityDays) || 30, end = addDays(q.date, vd); if (end < t) add("warn", "quote", `${q.no} · validity over`, `${q.customer || ""} — validity ended ${dmy(end)}. Revalidate, revise or mark lost.`, { l: "Open register", go: "register", q: q.no }); }
+  }
+  for (const x of STATE.data.tenders || []) if (["identified", "preparing"].includes(x.status) && x.closing && daysTo(x.closing) >= 0 && daysTo(x.closing) <= 3 && checklistPct(x) < 100) add("bad", "quote", `Tender ${x.bid || ""} closes ${dmy(x.closing)}`, `${x.org || ""} — documents only ${checklistPct(x)}% ready.`, { l: "Open tenders", go: "tenders" });
+  for (const o of STATE.data.orders || []) if (o.due && daysTo(o.due) < 0 && !["dispatched", "invoiced", "paid", "closed"].includes(o.status)) add("bad", "quote", `Delivery overdue · ${o.po || o.customer || ""}`, `${o.customer || ""} — was due ${dmy(o.due)}.`, { l: "Open work orders", go: "orders" });
+  const er = ERRLOG.recent(); if (er.length) add(er.some(x => x.cat === "bug") ? "bad" : "warn", "log", er.length + " error" + (er.length > 1 ? "s" : "") + " in the last 7 days", "See the classified list below.", null);
+  const order = { bad: 0, warn: 1, info: 2 }; return H.sort((a, b) => order[a.sev] - order[b.sev]);
+}
+let _hb = 0;
+async function healthBadge() {
+  clearTimeout(_hb); _hb = setTimeout(async () => { try { const n = (await healthChecks()).filter(h => h.sev === "bad").length; const a = $('#nav [data-r="health"]'); if (!a) return; a.querySelector(".badge")?.remove(); if (n) a.insertAdjacentHTML("beforeend", `<span class="badge">${n}</span>`); } catch { } }, 400);
+}
+function backupNow() {
+  const b = { app: "Rivera Quote Studio", kind: "rivera-backup", savedAt: new Date().toISOString(), quotes: STATE.quotes, data: STATE.data, settings: SETTINGS };
+  saveFile(`Rivera-backup-${todayISO()}.json`, JSON.stringify(b), "application/json"); LS.set("lastBackup", Date.now());
+}
+function doFix(f) {
+  if (!f) return;
+  if (f.act === "backup") { backupNow(); setTimeout(render, 600); return; }
+  if (f.go === "pack") { $("#importPick").click(); return; }
+  if (f.q && typeof REGF !== "undefined") REGF.q = f.q;
+  location.hash = f.go;
+}
+ROUTES.push(["health", "Health & automation", "health"]);
+VIEWS.health = async v => {
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Checks run automatically</div><h1>Health & automation</h1><p>Problems the app found, sorted by how urgent they are, with a one-tap fix. Errors are grouped by type. Autopilot settings are at the bottom.</p></div><div class="row"><button class="btn" id="hRe">${icon("health")}Check again</button></div></div><div id="hBody"><div class="empty">Checking…</div></div>`;
+  const H = await healthChecks(); if (STATE.route !== "health") return;
+  const er = ERRLOG.list, cats = {}; er.forEach(x => (cats[x.cat] ||= []).push(x));
+  const bad = H.filter(h => h.sev === "bad").length, warn = H.filter(h => h.sev === "warn").length;
+  const A = Auto.cfg, log = Auto.log.slice(0, 12);
+  $("#hBody").innerHTML = `
+  <div class="grid g4" style="margin-bottom:16px">
+    <div class="panel kpi"><span class="eyebrow">Needs action now</span><span class="v">${bad}</span><span class="s">red items</span></div>
+    <div class="panel kpi"><span class="eyebrow">Warnings</span><span class="v">${warn}</span><span class="s">amber items</span></div>
+    <div class="panel kpi"><span class="eyebrow">Errors logged</span><span class="v">${er.length}</span><span class="s">${Object.keys(cats).length} types</span></div>
+    <div class="panel kpi"><span class="eyebrow">Autopilot</span><span class="v">${Auto.log.filter(x => x.t > Date.now() - 7 * 864e5).length}</span><span class="s">actions this week</span></div>
+  </div>
+  <section class="panel"><header><h2>Checks</h2>${H.length ? "" : `<span class="chip ok">All good</span>`}</header><div class="body stack" style="gap:8px">${H.length ? H.map((h, i) => `<div class="note ${h.sev === "info" ? "" : h.sev}" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><span><span class="chip">${esc(ERR_CATS[h.cat].l)}</span> <b>${esc(h.title)}</b><br><span class="small">${esc(h.d)}</span></span>${h.fix ? `<button class="btn sm ${h.sev === "bad" ? "primary" : ""}" data-hfix="${i}">${esc(h.fix.l)}</button>` : ""}</div>`).join("") : `<p class="muted">Nothing to fix. Data pack, rate card, storage, quotations, tenders and deliveries all look fine.</p>`}</div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>Errors by type</h2><div class="row" style="gap:6px">${er.length ? `<button class="btn sm" id="hCopy">Copy error report</button><button class="btn sm" id="hMail">${icon("mail")}Email to CRM</button><button class="btn sm" id="hClr">Clear</button>` : ""}</div></header><div class="body stack" style="gap:12px">${er.length ? Object.entries(cats).map(([c, xs]) => `<div><h3 style="margin-bottom:4px">${esc(ERR_CATS[c].l)} <span class="chip">${xs.length}</span></h3><p class="small muted" style="margin:0 0 6px">What to do: ${esc(ERR_CATS[c].fix)}</p>${xs.slice(0, 6).map(x => `<div class="small mono" style="padding:4px 0;border-bottom:1px solid var(--line)">${new Date(x.t).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })} · ${esc(x.msg)}${x.n > 1 ? ` <b>×${x.n}</b>` : ""}</div>`).join("")}</div>`).join("") : `<p class="muted">No errors recorded on this device.</p>`}</div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>Autopilot</h2><span class="muted small">runs when the app opens and every 30 minutes</span></header><div class="body stack" style="gap:10px">
+    <label class="row" style="gap:8px"><input type="checkbox" data-auto="followUp" ${A.followUp ? "checked" : ""}> Set a follow-up date on every sent quotation automatically, <input type="number" min="1" max="60" data-auto="followUpDays" value="${A.followUpDays}" style="width:64px"> days after the quotation date</label>
+    <label class="row" style="gap:8px"><input type="checkbox" data-auto="nextFollow" ${A.nextFollow ? "checked" : ""}> After a follow-up reminder is sent, set the next follow-up 5 days later</label>
+    <label class="row" style="gap:8px"><input type="checkbox" data-auto="expire" ${A.expire ? "checked" : ""}> Mark quotations as Lost when validity ended more than <input type="number" min="15" max="365" data-auto="expireDays" value="${A.expireDays}" style="width:64px"> days ago with no reply</label>
+    <label class="row" style="gap:8px"><input type="checkbox" data-auto="customer" ${A.customer ? "checked" : ""}> Fill customer contact, email, phone, GST and address automatically from earlier quotations</label>
+    <label class="row" style="gap:8px"><input type="checkbox" data-auto="notify" ${A.notify ? "checked" : ""}> Show a desktop / phone notification each morning with follow-ups, tenders closing and deliveries due</label>
+    <div class="row" style="gap:8px"><button class="btn sm" id="aRun">${icon("bolt")}Run autopilot now</button><button class="btn sm" id="aDigest">${icon("wa")}Today's summary on WhatsApp</button><button class="btn sm" id="aDigestM">${icon("mail")}Email summary to CRM</button></div>
+    ${log.length ? `<div><h3 style="margin:6px 0 4px">What autopilot did</h3>${log.map(x => `<div class="small" style="padding:3px 0;border-bottom:1px solid var(--line)">${new Date(x.t).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })} · ${esc(x.m)}</div>`).join("")}</div>` : ""}
+  </div></section>`;
+  $("#hRe").onclick = render;
+  $$("[data-hfix]").forEach(b => b.onclick = () => doFix(H[+b.dataset.hfix].fix));
+  const rep = () => `Rivera Quote Studio error report\n${new Date().toString()}\n${navigator.userAgent}\n\n` + er.map(x => `[${ERR_CATS[x.cat].l}] ${new Date(x.t).toISOString()} ${x.msg}${x.src ? " (" + x.src + ")" : ""}${x.n > 1 ? " x" + x.n : ""}`).join("\n");
+  $("#hCopy")?.addEventListener("click", () => navigator.clipboard?.writeText(rep()).then(() => toast("Error report copied")));
+  $("#hMail")?.addEventListener("click", () => openLink("mailto:crm@rivera.co.in?subject=" + encodeURIComponent("Rivera Quote Studio - error report") + "&body=" + encodeURIComponent(rep().slice(0, 1800))));
+  $("#hClr")?.addEventListener("click", () => { ERRLOG.clear(); render(); });
+  $$("[data-auto]").forEach(el => el.onchange = async () => {
+    const k = el.dataset.auto; Auto.cfg[k] = el.type === "checkbox" ? el.checked : Math.max(num(el.min), Math.min(num(el.max), num(el.value))); Auto.save();
+    if (k === "notify" && el.checked && "Notification" in window && Notification.permission === "default") { const p = await Notification.requestPermission(); if (p !== "granted") { toast("Notifications were blocked in this browser — reminders stay on the dashboard."); } }
+  });
+  $("#aRun").onclick = async () => { const n = await Auto.run(true); toast(n ? `Autopilot made ${n} update${n > 1 ? "s" : ""}` : "Autopilot: nothing to update"); render(); };
+  $("#aDigest").onclick = () => shareText(Auto.digest(), "whatsapp");
+  $("#aDigestM").onclick = () => openLink("mailto:crm@rivera.co.in?subject=" + encodeURIComponent("Rivera sales summary " + dmy(todayISO())) + "&body=" + encodeURIComponent(Auto.digest().replace(/\*/g, "")));
+  healthBadge();
+};
+
+/* ---------- 4. autopilot ---------- */
+const Auto = {
+  cfg: { followUp: true, followUpDays: 7, nextFollow: true, expire: true, expireDays: 60, customer: true, notify: false, ...LS.get("auto", {}) },
+  log: LS.get("autolog", []),
+  save() { LS.set("auto", this.cfg); },
+  note(m) { this.log.unshift({ t: Date.now(), m }); this.log = this.log.slice(0, 100); LS.set("autolog", this.log); },
+  busy: false,
+  async run(manual) {
+    if (this.busy || !STATE.quotes) return 0; this.busy = true; let n = 0; const t = todayISO();
+    try {
+      for (const q of STATE.quotes.slice()) {
+        if (!["sent", "negotiation"].includes(q.status) || !q.date) continue;
+        if (this.cfg.followUp && !q.followUp) { q.followUp = addDays(q.date, this.cfg.followUpDays); if (q.followUp < t) q.followUp = t; if (await Store.saveQuote(q)) { n++; this.note(`Follow-up set for ${q.no} (${q.customer || ""}) on ${dmy(q.followUp)}`); } continue; }
+        if (this.cfg.expire && q.status === "sent") {
+          const end = addDays(q.date, num(q.quote?.ctx?.validityDays) || 30);
+          if (addDays(end, this.cfg.expireDays) < t && (!q.followUp || addDays(q.followUp, 14) < t)) { q.status = "lost"; q.lostReason = q.lostReason || "No reply – validity expired (autopilot)"; if (await Store.saveQuote(q)) { n++; this.note(`${q.no} (${q.customer || ""}) marked Lost — validity ended ${dmy(end)}, no reply`); } }
+        }
+      }
+      if (this.cfg.notify) this.notify();
+    } catch (e) { ERRLOG.add("Autopilot: " + e.message, "autopilot"); }
+    this.busy = false; if (n && ["home", "register"].includes(STATE.route)) render(); healthBadge(); return n;
+  },
+  counts() {
+    const t = todayISO();
+    const fu = STATE.quotes.filter(q => ["sent", "negotiation"].includes(q.status) && q.followUp && q.followUp <= t);
+    const tc = (STATE.data.tenders || []).filter(x => ["identified", "preparing"].includes(x.status) && x.closing && daysTo(x.closing) >= 0 && daysTo(x.closing) <= 3);
+    const od = (STATE.data.orders || []).filter(o => o.due && daysTo(o.due) <= 3 && !["dispatched", "invoiced", "paid", "closed"].includes(o.status));
+    return { fu, tc, od };
+  },
+  notify() {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const day = todayISO(); if (LS.get("notifiedDay", "") === day) return;
+    const { fu, tc, od } = this.counts(); if (!fu.length && !tc.length && !od.length) return;
+    try { new Notification("Rivera Quote Studio — today", { body: `${fu.length} follow-ups due · ${tc.length} tenders closing · ${od.length} deliveries due`, icon: "icons/icon-192.png", tag: "rivera-daily" }); LS.set("notifiedDay", day); } catch { }
+  },
+  digest() {
+    const { fu, tc, od } = this.counts(), t = todayISO();
+    const fy = STATE.quotes.filter(q => q.date && q.date >= addDays(t, -7));
+    const L = [`*Rivera sales — ${dmy(t)}*`, "", `Quotations this week: ${fy.length} (${money(fy.reduce((s, q) => s + qINR(q), 0), "INR", 0)})`, "",
+      `Follow-ups due (${fu.length}):`, ...fu.slice(0, 12).map(q => `• ${q.no} ${q.customer || ""} – ${money(q.total, q.currency, 0)}`), "",
+      `Tenders closing in 3 days (${tc.length}):`, ...tc.map(x => `• ${x.bid || ""} ${x.org || ""} – ${dmy(x.closing)} – docs ${checklistPct(x)}%`), "",
+      `Deliveries due (${od.length}):`, ...od.map(o => `• ${o.po || ""} ${o.customer || ""} – ${dmy(o.due)}`)];
+    return L.join("\n");
+  }
+};
+/* follow-up sent → schedule next one */
+const _shareText7 = shareText;
+shareText = function (text, target) {
+  const r = _shareText7(text, target);
+  if (Auto.cfg.nextFollow && /follow.?up|status of our quotation/i.test(text || "")) {
+    const m = (text || "").match(/quotation\s+([A-Z0-9/\-]+?)(?:R(\d+))?\s+dated/i);
+    const q = m && STATE.quotes.find(x => x.no === m[1]);
+    if (q) { q.followUp = addDays(todayISO(), 5); q.lastFollowUp = todayISO(); Store.saveQuote(q).then(() => Auto.note(`Reminder sent for ${q.no}; next follow-up ${dmy(q.followUp)}`)); }
+  }
+  return r;
+};
+
+/* ---------- 5. customer master + auto-fill on the quotation ---------- */
+function customerMaster() {
+  const M = new Map();
+  const put = (o, t) => { const n = (o.name || "").trim(); if (!n) return; const k = n.toLowerCase(); const c = M.get(k) || { name: n, t: 0 }; if (t >= c.t) { for (const f of ["contact", "email", "phone", "gstin", "address"]) if (o[f]) c[f] = o[f]; c.t = t; } else for (const f of ["contact", "email", "phone", "gstin", "address"]) if (o[f] && !c[f]) c[f] = o[f]; M.set(k, c); };
+  for (const q of STATE.quotes) put(q.quote?.to || { name: q.customer, email: q.email }, num(q.updatedAt));
+  for (const h of HISTORY) put({ name: h.customer || h.project }, 0);
+  return M;
+}
+const _quote7 = VIEWS.quote;
+VIEWS.quote = v => {
+  _quote7(v);
+  if (!Auto.cfg.customer) return;
+  const inp = $('[data-p="to.name"]', v); if (!inp) return;
+  const M = customerMaster(); if (!M.size) return;
+  const dl = document.createElement("datalist"); dl.id = "custList"; dl.innerHTML = [...M.values()].map(c => `<option value="${esc(c.name)}">`).join(""); v.appendChild(dl); inp.setAttribute("list", "custList"); inp.setAttribute("autocomplete", "off");
+  const fill = () => {
+    const c = M.get(inp.value.trim().toLowerCase()); if (!c) return; let n = 0;
+    for (const f of ["contact", "email", "phone", "gstin", "address"]) { const el = $(`[data-p="to.${f}"]`, v); if (el && !el.value.trim() && c[f]) { el.value = c[f]; el.dispatchEvent(new Event("input", { bubbles: true })); n++; } }
+    if (n) toast(`Filled ${n} customer detail${n > 1 ? "s" : ""} from earlier quotations`);
+  };
+  inp.addEventListener("change", fill);
+};
+
+/* ---------- 6. dashboard: health strip + daily summary ---------- */
+const _home7 = VIEWS.home;
+VIEWS.home = v => {
+  _home7(v);
+  healthChecks().then(H => {
+    if (STATE.route !== "home") return; const bad = H.filter(h => h.sev === "bad"), warn = H.filter(h => h.sev === "warn");
+    const row = $("#gsBtn", v)?.parentElement; if (!row || $("#hStrip", v)) return;
+    row.insertAdjacentHTML("beforeend", `<button class="btn sm" id="hStrip">${icon("health")}${bad.length ? `<span class="chip bad">${bad.length} to fix</span>` : warn.length ? `<span class="chip warn">${warn.length} warnings</span>` : `<span class="chip ok">All good</span>`}</button><button class="btn sm" id="dSum">${icon("wa")}Today's summary</button>`);
+    $("#hStrip", v).onclick = () => location.hash = "health"; $("#dSum", v).onclick = () => shareText(Auto.digest(), "whatsapp");
+  });
+};
+
+/* ---------- boot ---------- */
+const _boot7 = boot;
+boot = function () {
+  _boot7(); hookReceive();
+  const go = () => { Auto.run(); healthBadge(); packFromDir(); };
+  const wait = setInterval(() => { if (STATE.loaded) { clearInterval(wait); setTimeout(go, 1500); } }, 300);
+  setInterval(() => Auto.run(), 30 * 60000);
+  addEventListener("online", healthBadge); addEventListener("offline", healthBadge);
+};
 boot();
 
 </script>
