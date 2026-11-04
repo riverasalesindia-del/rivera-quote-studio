@@ -10,6 +10,7 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Rivera Quotes">
+<meta name="referrer" content="no-referrer">
 <meta name="robots" content="noindex, nofollow">
 <link rel="manifest" href="manifest.webmanifest">
 <link rel="icon" type="image/png" sizes="32x32" href="icons/favicon-32.png">
@@ -248,6 +249,39 @@ details.adv>summary::-webkit-details-marker{display:none}
 .share-btn.wa svg{color:#1FAF5A}
 .share-btn:hover{border-color:var(--copper)}
 .brand b sup{font-size:.5em;letter-spacing:0;margin-left:1px;vertical-align:super}
+
+/* ---- sign-in, admin, search ---- */
+body.locked{overflow:hidden}
+.auth-ov{position:fixed;inset:0;z-index:200;display:flex;align-items:center;justify-content:center;padding:16px;overflow:auto;background:radial-gradient(1200px 600px at 10% -10%,rgba(254,105,2,.22),transparent 60%),radial-gradient(900px 600px at 110% 110%,rgba(2,169,240,.22),transparent 60%),#02315B}
+.auth-card{background:var(--surface);color:var(--ink);width:min(420px,100%);border-radius:16px;padding:24px 22px 16px;box-shadow:0 24px 60px rgba(0,0,0,.35);border-top:5px solid #FE6902;margin:auto}
+.auth-card h2{margin:14px 0 12px;font-size:1.35rem}
+.auth-brand{display:flex;gap:10px;align-items:center}.auth-brand img{width:44px;height:44px;object-fit:contain}
+.auth-brand b{display:block;font-family:var(--f-display);font-weight:800;letter-spacing:.06em;color:#02315B}.auth-brand small{color:var(--muted);font-size:.78rem}
+:root[data-theme="dark"] .auth-brand b{color:#fff}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .auth-brand b{color:#fff}}
+.auth-links{display:flex;justify-content:space-between;gap:10px;font-size:.85rem;flex-wrap:wrap}
+.auth-links a,.auth-foot a{color:var(--copper-ink);font-weight:600;text-decoration:none}
+.auth-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:18px;padding-top:12px;border-top:1px solid var(--line);font-size:.72rem;color:var(--muted)}
+.auth-foot svg{width:13px;height:13px;vertical-align:-2px}
+.btn.block{width:100%;justify-content:center}
+.small{font-size:.8rem}
+.spin{display:inline-block;width:14px;height:14px;border:2px solid currentColor;border-right-color:transparent;border-radius:50%;animation:spin .7s linear infinite;margin-right:6px;vertical-align:-2px}
+@keyframes spin{to{transform:rotate(360deg)}}
+.user-chip{display:flex;align-items:center;gap:8px;padding:10px 12px;margin:0 8px 6px;border-radius:10px;background:rgba(255,255,255,.06)}
+.user-chip .av{flex:none;width:30px;height:30px;border-radius:50%;display:grid;place-items:center;background:#FE6902;color:#fff;font-weight:700}
+.user-chip .who{min-width:0;flex:1;line-height:1.2}.user-chip .who b{display:block;font-size:.82rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.user-chip .who small{display:block;font-size:.68rem;opacity:.7;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.badge{margin-left:auto;background:#FE6902;color:#fff;border-radius:999px;font-size:.7rem;font-weight:700;padding:1px 7px}
+.tone-ok{color:var(--ok,#1a7f37)}.tone-warn{color:#b54708}.tone-bad{color:#b42318}
+kbd{font-family:var(--f-mono,monospace);font-size:.68rem;border:1px solid var(--line);border-bottom-width:2px;border-radius:4px;padding:0 5px;color:var(--muted);margin-left:6px}
+.sheet.gs{padding:0;overflow:hidden;display:flex;flex-direction:column;align-self:flex-start;margin-top:8vh}
+.gs-in{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line)}.gs-in svg{width:18px;height:18px;flex:none;color:var(--muted)}
+.gs-in input{border:0;outline:0;background:transparent;font-size:1rem;flex:1;min-width:0;padding:4px 0;box-shadow:none}
+.gs-r{max-height:60vh;overflow:auto;padding:6px}
+.gs-item{display:block;width:100%;text-align:left;background:none;border:0;border-radius:8px;padding:9px 10px;color:inherit;cursor:pointer;font:inherit}
+.gs-item:hover,.gs-item:focus{background:var(--surface-2,rgba(2,49,91,.06));outline:0}
+.gs-item small{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:var(--copper-ink);font-weight:700}
+.gs-item b{display:block;font-size:.9rem}.gs-item span{display:block;font-size:.76rem;color:var(--muted)}
 </style>
 <div class="shell">
   <aside class="rail" aria-label="Main navigation">
@@ -266,7 +300,7 @@ details.adv>summary::-webkit-details-marker{display:none}
 <input type="file" id="camPick" hidden accept="image/*" capture="environment">
 <input type="file" id="logoPick" hidden accept="image/png,image/jpeg,image/webp">
 <input type="file" id="importPick" hidden accept=".json">
-<script>window.__RIVERA_LINKS__ = {"site":"https://riverasalesindia-del.github.io/rivera-quote-studio/","apk":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio.apk","win":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Setup.exe","winPortable":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Portable.exe"};</script>
+<script>window.__RIVERA_LINKS__ = {"site":"https://riverasalesindia-del.github.io/rivera-quote-studio/","apk":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio.apk","win":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Setup.exe","winPortable":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Portable.exe"};window.__RIVERA_AUTH__ = {"api":""};</script>
 <script>
 "use strict";
 /* ========= Rivera Quote Studio — core ========= */
@@ -1795,13 +1829,12 @@ VIEWS.workings = v => {
         <label class="f">Final rate/coil override ₹<input type="number" step="any" data-p="override" value="${w.override ?? ""}" placeholder="auto"></label>
       </div>
       <label class="f" style="margin-top:12px">Notes for the team<textarea data-p="notes" rows="2">${esc(w.notes || "")}</textarea></label></div></section>
-      <section class="panel"><header><h2>Engineering tools</h2></header><div class="body stack">
-        <details class="adv" ${num(w.tape?.h) ? "open" : ""}><summary>Tape calculation (rolls of tape per coil)</summary><div class="fields" style="margin-top:10px">
-          ${[["h", "Height mm"], ["w", "Width mm"], ["l", "Length mm"], ["layers", "Layers"], ["pitch", "Pitch mm (half-lap)"], ["roll", "Roll length m"]].map(([k, l]) => `<label class="f">${l}<input type="number" step="any" data-p="tape.${k}" value="${w.tape?.[k] ?? ""}"></label>`).join("")}</div>
-          <div class="kv" style="margin-top:10px" id="tapeOut"></div></details>
-        <details class="adv" ${(w.insTable || []).length ? "open" : ""}><summary>Insulation price build-up (per coil)</summary><div id="insTbl" style="margin-top:10px"></div></details>
-        <details class="adv"><summary>Copper price sensitivity & negotiation ladder</summary><div id="sens" style="margin-top:10px"></div></details>
-      </div></section>
+      <section class="panel" id="tapePanel"><header><h2>Tape calculation <span class="muted" style="font-weight:500">· rolls of tape per coil</span></h2></header><div class="body">
+        <div class="fields">${[["h", "Height mm"], ["w", "Width mm"], ["l", "Length mm"], ["layers", "Layers"], ["pitch", "Pitch mm (half-lap)"], ["roll", "Roll length m"], ["rollPrice", "Price per roll ₹"]].map(([k, l]) => `<label class="f">${l}<input type="number" step="any" data-p="tape.${k}" value="${w.tape?.[k] ?? ""}"></label>`).join("")}</div>
+        <dl class="kv" style="margin-top:12px" id="tapeOut"></dl>
+        <div class="row" style="margin-top:10px"><button class="btn sm" id="tapePreset">Typical RR main wall (50 m roll, half-lap)</button><button class="btn sm dark" id="tapeToIns">${icon("plus")}Add tape to insulation build-up</button></div></div></section>
+      <section class="panel" id="insPanel"><header><h2>Insulation price build-up <span class="muted" style="font-weight:500">· per coil</span></h2></header><div class="body"><div id="insTbl"></div></div></section>
+      <section class="panel"><header><h2>Copper sensitivity & negotiation ladder</h2></header><div class="body"><div id="sens"></div></div></section>
     </div>
     <aside class="stack" style="position:sticky;top:calc(12px + env(safe-area-inset-top,0px))">
       <section class="panel"><header><h2>Quoted price</h2><span class="chip" data-out="bandChip"></span></header><div class="body stack" style="gap:12px">
@@ -1873,7 +1906,9 @@ function updateW() {
   const band = o("band"); if (band) { const max = c.band[1] * 1.6, pct = v => Math.min(100, Math.max(0, v / max * 100)); band.innerHTML = `<div class="zone" style="left:${pct(c.band[0])}%;width:${pct(c.band[1]) - pct(c.band[0])}%"></div><div class="mark" style="left:calc(${pct(c.perKg)}% - 1px)"></div>`; const bl = $("#bandLbl"); if (bl) bl.innerHTML = `<span>Band ₹${fmt(c.band[0], "INR", 0)} – ₹${fmt(c.band[1], "INR", 0)}</span><span>This job ₹${fmt(c.perKg, "INR", 0)}/kg</span>`; }
   const adv = o("advice"); if (adv) { adv.className = "note " + ({ ok: "ok", low: "warn", high: "bad", na: "" })[c.bandState]; adv.textContent = c.bandState === "low" ? `₹${fmt(c.perKg, "INR", 0)}/kg is under the ${typeLabel(w.type)} band. Check insulation and manufacturing amounts, or the copper weight, before quoting.` : c.bandState === "high" ? `₹${fmt(c.perKg, "INR", 0)}/kg is above the band. Fine for special conductors or small quantities with heavy fixtures; otherwise expect negotiation.` : c.bandState === "ok" ? `In line with Rivera's past ${typeLabel(w.type).toLowerCase()} quotations (₹${fmt(c.band[0], "INR", 0)}–${fmt(c.band[1], "INR", 0)} per kg copper).` : "Enter the copper weight per coil to benchmark this price."; }
   const comps = o("comps"); if (comps) { const kg = c.kgTotal; const list = HISTORY.filter(h => (w.type === "roebel") === (h.type === "roebel")).sort((a, b) => Math.abs(a.kg - kg) - Math.abs(b.kg - kg)).slice(0, 4); comps.innerHTML = `<table class="t"><thead><tr><th>Job</th><th class="n">Kg</th><th class="n">Rate/coil</th><th class="n">₹/kg</th></tr></thead><tbody>${list.map(h => `<tr><td>${esc(h.project)}</td><td class="n mono">${h.kg}</td><td class="n mono">${fmt(h.rate, "INR", 0)}</td><td class="n mono">${fmt(h.rate / h.kg, "INR", 0)}</td></tr>`).join("")}</tbody></table>`; }
-  const tp = o("tapeOut") || $("#tapeOut"); if (tp) { const t = tapeCalc(w.tape || {}); tp.innerHTML = `<dt>Per turn length</dt><dd class="mono">${fmt(t.perTurn)} mm</dd><dt>Total turns</dt><dd class="mono">${fmt(t.turns)}</dd><dt>Tape length</dt><dd class="mono">${fmt(t.meters)} m</dd><dt>Rolls per coil</dt><dd class="mono"><b>${fmt(t.rolls)}</b> (${fmt(Math.ceil(t.rolls * num(w.qty)), "INR", 0)} rolls for ${fmt(num(w.qty), "INR", 0)} coils)</dd>`; }
+  const tp = o("tapeOut") || $("#tapeOut"); if (tp) { const t = tapeCalc(w.tape || {}); tp.innerHTML = `<dt>Per turn length</dt><dd class="mono">${fmt(t.perTurn)} mm</dd><dt>Total turns</dt><dd class="mono">${fmt(t.turns)}</dd><dt>Tape length</dt><dd class="mono">${fmt(t.meters)} m</dd><dt>Rolls per coil</dt><dd class="mono"><b>${fmt(t.rolls)}</b> (${fmt(Math.ceil(t.rolls * num(w.qty)), "INR", 0)} rolls for ${fmt(num(w.qty), "INR", 0)} coils)</dd>${num(w.tape?.rollPrice) ? `<dt>Tape cost / coil</dt><dd class="mono"><b>₹${fmt(t.rolls * num(w.tape.rollPrice))}</b> · job ₹${fmt(Math.ceil(t.rolls * num(w.qty)) * num(w.tape.rollPrice), "INR", 0)}</dd>` : ""}`; }
+  const tpp = $("#tapePreset"); if (tpp && !tpp.onclick) { tpp.onclick = () => { w.tape = Object.assign({ layers: 7, pitch: 12.5, roll: 50, rollPrice: 500 }, w.tape || {}, { layers: num(w.tape?.layers) || 7, pitch: num(w.tape?.pitch) || 12.5, roll: num(w.tape?.roll) || 50, rollPrice: num(w.tape?.rollPrice) || 500 }); ["layers", "pitch", "roll", "rollPrice"].forEach(k => { const e = $(`[data-p="tape.${k}"]`); if (e) e.value = w.tape[k]; }); updateW(); }; }
+  const tti = $("#tapeToIns"); if (tti && !tti.onclick) { tti.onclick = () => { const t = tapeCalc(w.tape || {}); if (!t.rolls) return toast("Enter height, width, length, layers, pitch and roll length first"); w.insTable ||= []; const ex = w.insTable.find(x => /^Tape \(calculated\)/.test(x.desc)); const row = { desc: "Tape (calculated) – rolls/coil", qty: +t.rolls.toFixed(3), price: num(w.tape.rollPrice) }; if (ex) Object.assign(ex, row); else w.insTable.unshift(row); const el = $("#insTbl"); if (el) el.dataset.n = -1; drawIns(); toast("Tape added: " + fmt(t.rolls) + " rolls/coil"); $("#insPanel")?.scrollIntoView({ behavior: "smooth", block: "start" }); }; }
   drawIns(); drawSens(c);
 }
 function drawIns() {
@@ -2965,6 +3000,263 @@ VIEWS.ratecard = v => {
     <div class="fields">${[["Bank", "name"], ["Branch", "branch"], ["Account no.", "acc"], ["IFSC", "ifsc"]].map(([l, k]) => `<label class="f">${l}<input type="text" data-p="bankDomestic.${k}" value="${esc(D[k] ?? "")}"></label>`).join("")}</div>
     <button class="btn primary" id="expSave">${icon("save")}Save export & banking</button></div></section>`);
   $("#expSave").onclick = async () => { if (await Store.saveSettings()) toast("Export & banking details saved"); };
+};
+/* ========= Sign-in, admin approval, team cloud sync, global search, follow-ups ========= */
+Object.assign(IC, {
+  users: '<circle cx="9" cy="8" r="3.2"/><path d="M3 20c.6-3.4 3-5.4 6-5.4s5.4 2 6 5.4"/><circle cx="17" cy="9" r="2.4"/><path d="M16.5 14.2c2.4.2 4 1.8 4.5 4.6"/>',
+  lock: '<rect x="4.5" y="10.5" width="15" height="10" rx="2"/><path d="M8 10.5V7.5a4 4 0 0 1 8 0v3"/>',
+  search: '<circle cx="11" cy="11" r="6.5"/><path d="m20 20-4.2-4.2"/>',
+  bell: '<path d="M6 16V11a6 6 0 0 1 12 0v5l1.5 2h-15z"/><path d="M10 20.5a2 2 0 0 0 4 0"/>'
+});
+const AUTH = {
+  KEY: "rqs.auth", API_KEY: "rqs.api",
+  get api() { return (window.__RIVERA_AUTH__ && window.__RIVERA_AUTH__.api) || localStorage.getItem(this.API_KEY) || ""; },
+  get s() { try { return JSON.parse(localStorage.getItem(this.KEY) || "null"); } catch { return null; } },
+  set s(v) { try { v ? localStorage.setItem(this.KEY, JSON.stringify(v)) : localStorage.removeItem(this.KEY); } catch { } },
+  get user() { return this.s?.user || null; },
+  get isAdmin() { return this.user?.role === "admin"; },
+  valid() { const s = this.s; if (!s?.token) return false; try { const exp = +atob(s.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/")).split("|")[1]; return exp > Date.now(); } catch { return false; } },
+  required() { return !window.__RIVERA_DATA__ && !!this.api; },
+  async call(action, body = {}, timeout = 30000) {
+    if (!this.api) throw new Error("Sign-in server is not set up yet");
+    const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), timeout);
+    try {
+      const r = await fetch(this.api, { method: "POST", headers: { "Content-Type": "text/plain;charset=utf-8" }, body: JSON.stringify({ action, ...body, token: body.token ?? this.s?.token }), signal: ctl.signal, redirect: "follow" });
+      const d = await r.json();
+      if (d.auth === false) { this.expired(); throw new Error(d.error); }
+      if (!d.ok) throw new Error(d.error || "Server error");
+      return d;
+    } catch (e) { if (e.name === "AbortError") throw new Error("Server not responding — check the internet connection"); if (e instanceof TypeError) throw new Error("Can't reach the sign-in server — check the internet connection"); throw e; }
+    finally { clearTimeout(t); }
+  },
+  async hash(pw, email) {
+    const enc = new TextEncoder(), key = await crypto.subtle.importKey("raw", enc.encode(pw), "PBKDF2", false, ["deriveBits"]);
+    const bits = await crypto.subtle.deriveBits({ name: "PBKDF2", hash: "SHA-256", salt: enc.encode("rivera-quote-studio|" + email.trim().toLowerCase()), iterations: 150000 }, key, 256);
+    return [...new Uint8Array(bits)].map(b => b.toString(16).padStart(2, "0")).join("");
+  },
+  device() { const ua = navigator.userAgent; return (/Android/.test(ua) ? "Android app" : /Electron/.test(ua) ? "Windows app" : /iPhone|iPad/.test(ua) ? "iPhone/iPad" : /Windows/.test(ua) ? "Windows browser" : /Mac/.test(ua) ? "Mac browser" : "Browser"); },
+  expired() { if (!this.s) return; const email = this.user?.email; this.s = null; showLogin({ email, msg: "Your session ended — please sign in again." }); },
+  async signedIn(d) {
+    this.s = { token: d.token, user: d.user, at: Date.now() };
+    hideLogin(); renderUserChip();
+    await Cloud.pack(true); Cloud.sync(true);
+  }
+};
+function pwRules(p) { const bad = []; if (p.length < 8) bad.push("8+ characters"); if (!/[A-Za-z]/.test(p) || !/\d/.test(p)) bad.push("letters and numbers"); return bad; }
+/* ---------- login screen ---------- */
+function showLogin(o = {}) {
+  let ov = $("#authOv"); if (!ov) { ov = document.createElement("div"); ov.id = "authOv"; ov.className = "auth-ov"; document.body.appendChild(ov); }
+  document.body.classList.add("locked");
+  let mode = o.mode || "login", email = o.email || localStorage.getItem("rqs.lastEmail") || "";
+  const draw = (msg = o.msg || "", kind = "") => {
+    o.msg = "";
+    const T = { login: "Sign in", register: "Request access", verify: "Verify your email", forgot: "Reset password", reset: "Set a new password", pending: "Waiting for approval", server: "Server settings" }[mode];
+    const f = (id, label, type = "text", extra = "") => `<label class="f">${label}<input id="${id}" type="${type}" ${extra}></label>`;
+    let body = "";
+    if (mode === "login") body = `${f("aE", "Email", "email", `autocomplete="username" value="${esc(email)}" placeholder="sales@rivera.co.in"`)}${f("aP", "Password", "password", 'autocomplete="current-password"')}
+      <button class="btn primary block" id="aGo">${icon("lock")}Sign in</button>
+      <div class="auth-links"><a href="#" data-m="register">Request access</a><a href="#" data-m="forgot">Forgot password?</a></div>`;
+    if (mode === "register") body = `${f("aN", "Your name", "text", 'autocomplete="name"')}${f("aE", "Work email", "email", `autocomplete="username" value="${esc(email)}"`)}${f("aP", "Choose a password", "password", 'autocomplete="new-password"')}${f("aP2", "Repeat password", "password", 'autocomplete="new-password"')}
+      <p class="muted small">We email you a 6-digit code to confirm the address. The admin (crm@rivera.co.in) then approves your access.</p>
+      <button class="btn primary block" id="aGo">Send verification code</button><div class="auth-links"><a href="#" data-m="login">Back to sign in</a><a href="#" data-m="verify">I have a code</a></div>`;
+    if (mode === "verify") body = `${f("aE", "Email", "email", `value="${esc(email)}"`)}${f("aC", "6-digit code from your email", "text", 'inputmode="numeric" maxlength="6" autocomplete="one-time-code"')}
+      <button class="btn primary block" id="aGo">Verify</button><div class="auth-links"><a href="#" data-m="register">Send a new code</a><a href="#" data-m="login">Back to sign in</a></div>`;
+    if (mode === "forgot") body = `${f("aE", "Email", "email", `value="${esc(email)}"`)}<button class="btn primary block" id="aGo">Email me a reset code</button><div class="auth-links"><a href="#" data-m="login">Back to sign in</a><a href="#" data-m="reset">I have a code</a></div>`;
+    if (mode === "reset") body = `${f("aE", "Email", "email", `value="${esc(email)}"`)}${f("aC", "6-digit code", "text", 'inputmode="numeric" maxlength="6"')}${f("aP", "New password", "password", 'autocomplete="new-password"')}${f("aP2", "Repeat new password", "password", 'autocomplete="new-password"')}<button class="btn primary block" id="aGo">Set password</button><div class="auth-links"><a href="#" data-m="login">Back to sign in</a></div>`;
+    if (mode === "pending") body = `<div class="note warn"><b>${esc(email)}</b> is registered and waiting for the admin to approve access. An email has gone to <b>crm@rivera.co.in</b>. You'll get an email once approved — then sign in.</div><button class="btn block" data-m="login" style="margin-top:14px">Back to sign in</button>`;
+    if (mode === "server") body = `${f("aS", "Sign-in server URL (Google Apps Script web app)", "url", `value="${esc(AUTH.api)}" placeholder="https://script.google.com/macros/s/…/exec"`)}<button class="btn primary block" id="aGo">Save & test</button><div class="auth-links"><a href="#" data-m="login">Back</a></div>`;
+    ov.innerHTML = `<div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="aT">
+      <div class="auth-brand"><img src="${RIVERA_MARK}" alt=""><div><b>RIVERA<sup>™</sup></b><small>Quote Studio</small></div></div>
+      <h2 id="aT">${T}</h2>${msg ? `<div class="note ${kind || "warn"}" style="margin-bottom:12px">${esc(msg)}</div>` : ""}
+      <form class="stack" id="aForm" onsubmit="return false">${body}</form>
+      <div class="auth-foot"><span>${icon("lock")} Private to Rivera Coil Manufacturing (I) Pvt Ltd</span>${mode !== "server" ? '<a href="#" data-m="server">Server</a>' : ""}</div></div>`;
+    $$("[data-m]", ov).forEach(a => a.onclick = e => { e.preventDefault(); email = ($("#aE")?.value || email).trim(); mode = a.dataset.m; draw(); });
+    const first = $("input:not([value]), input[value='']", ov) || $("input", ov); setTimeout(() => (mode === "login" && email ? $("#aP") : first)?.focus(), 50);
+    const go = $("#aGo"); if (!go) return;
+    go.onclick = async () => {
+      const v = id => ($("#" + id)?.value || "").trim(); email = v("aE").toLowerCase() || email;
+      const busy = t => { go.disabled = true; go.dataset.t = go.innerHTML; go.innerHTML = `<span class="spin"></span>${t}`; };
+      try {
+        if (mode === "server") { let u = v("aS"); if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(u)) throw new Error("Paste the https://script.google.com/macros/s/…/exec URL"); localStorage.setItem(AUTH.API_KEY, u); busy("Testing…"); await AUTH.call("ping"); mode = "login"; return draw("Server connected.", "ok"); }
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) throw new Error("Enter a valid email address");
+        localStorage.setItem("rqs.lastEmail", email);
+        if (mode === "login") { const p = $("#aP").value; if (!p) throw new Error("Enter your password"); busy("Signing in…"); const d = await AUTH.call("login", { email, pw: await AUTH.hash(p, email), device: AUTH.device(), token: "" }); if (d.status === "approved") return AUTH.signedIn(d); mode = d.status === "pending" ? "pending" : "login"; return draw(d.status === "revoked" ? "Access for this account was removed by the admin. Contact crm@rivera.co.in." : "", "bad"); }
+        if (mode === "register") { const n = v("aN"), p = $("#aP").value; if (!n) throw new Error("Enter your name"); const bad = pwRules(p); if (bad.length) throw new Error("Password needs " + bad.join(" and ")); if (p !== $("#aP2").value) throw new Error("Passwords don't match"); busy("Sending code…"); await AUTH.call("register", { email, name: n, pw: await AUTH.hash(p, email), token: "" }); mode = "verify"; return draw("Code sent to " + email + ". Check inbox and spam.", "ok"); }
+        if (mode === "verify") { busy("Verifying…"); const d = await AUTH.call("verify", { email, code: v("aC"), token: "" }); if (d.status === "approved" && d.token) return AUTH.signedIn(d); mode = "pending"; return draw(); }
+        if (mode === "forgot") { busy("Sending…"); await AUTH.call("forgot", { email, token: "" }); mode = "reset"; return draw("If the account exists, a reset code was sent to " + email + ".", "ok"); }
+        if (mode === "reset") { const p = $("#aP").value; const bad = pwRules(p); if (bad.length) throw new Error("Password needs " + bad.join(" and ")); if (p !== $("#aP2").value) throw new Error("Passwords don't match"); busy("Saving…"); await AUTH.call("reset", { email, code: v("aC"), pw: await AUTH.hash(p, email), token: "" }); mode = "login"; return draw("Password changed — sign in now.", "ok"); }
+      } catch (e) { draw(e.message || String(e), "bad"); }
+    };
+    $("#aForm").onsubmit = e => { e.preventDefault(); go.click(); return false; };
+  };
+  draw();
+}
+function hideLogin() { $("#authOv")?.remove(); document.body.classList.remove("locked"); }
+function renderUserChip() {
+  const foot = $("#railFoot"); if (!foot || !AUTH.required()) return;
+  let c = $("#userChip"); if (!c) { c = document.createElement("div"); c.id = "userChip"; c.className = "user-chip"; foot.parentNode.insertBefore(c, foot); }
+  const u = AUTH.user; if (!u) { c.innerHTML = ""; return; }
+  c.innerHTML = `<span class="av">${esc((u.name || u.email)[0].toUpperCase())}</span><span class="who"><b>${esc(u.name || u.email)}</b><small>${esc(u.role)} · ${esc(u.email)}</small></span><button class="btn ghost sm" id="ucOut" title="Sign out" aria-label="Sign out">${icon("lock")}</button>`;
+  $("#ucOut").onclick = () => signOut();
+  renderNav(); markNav();
+}
+async function signOut(silent) {
+  if (!silent && !confirm("Sign out? Unsynced work is uploaded first, then private data is removed from this device.")) return;
+  try { await Cloud.sync(true); } catch (e) { if (!silent && !confirm("Couldn't upload to the team register (" + e.message + "). Sign out anyway and lose unsynced work on this device?")) return; }
+  const email = AUTH.user?.email; AUTH.s = null;
+  Object.keys(localStorage).filter(k => k.startsWith("rqs.") && !["rqs.api", "rqs.lastEmail", "rqs.theme"].includes(k)).forEach(k => localStorage.removeItem(k));
+  location.hash = "home"; location.reload();
+  showLogin({ email });
+}
+/* ---------- idle lock ---------- */
+const Idle = { MIN: 45, t: 0, init() { const bump = () => { this.t = Date.now(); }; ["pointerdown", "keydown", "touchstart"].forEach(e => addEventListener(e, bump, { passive: true })); bump(); setInterval(() => { if (AUTH.required() && AUTH.s && Date.now() - this.t > this.MIN * 6e4) { const email = AUTH.user?.email; Cloud.sync(true).catch(() => { }); AUTH.s = null; showLogin({ email, msg: "Locked after " + this.MIN + " minutes without use. Sign in to continue — your work is kept." }); } }, 30000); } };
+/* ---------- team cloud register ---------- */
+const Cloud = {
+  timer: null, busy: false, last: 0,
+  on() { return AUTH.required() && AUTH.valid() && !!AUTH.api; },
+  async pack(force) {
+    if (!this.on()) return;
+    try { const d = await AUTH.call("pack"); if (d.pack) { applyDataPack(d.pack, { override: true, persist: true }); renderRailBrand(); if (force) render(); } }
+    catch (e) { console.warn("pack", e); }
+  },
+  schedule() { if (!this.on()) return; clearTimeout(this.timer); this.timer = setTimeout(() => this.sync().catch(() => { }), 3000); },
+  async sync(throwErr) {
+    if (!this.on()) { if (throwErr && AUTH.required() && AUTH.s) throw new Error("not signed in"); return; }
+    if (this.busy) return; this.busy = true;
+    try {
+      setSync("", "Syncing with team register…");
+      const snap = { quotes: STATE.quotes, data: STATE.data, deleted: [...NasSync.deleted].slice(-1500), settings: SETTINGS.updatedAt ? { ...SETTINGS, logo: undefined } : undefined };
+      const d = await AUTH.call("sync", { snapshot: snap }, 60000), R = d.register || {};
+      const del = new Set(R.deleted || []);
+      const mergeL = (mine, theirs, pre = "") => { const m = new Map(mine.map(x => [x.id, x])); for (const x of theirs || []) { const o = m.get(x.id); if (!o || num(x.updatedAt) >= num(o.updatedAt)) m.set(x.id, x); } return [...m.values()].filter(x => !del.has(pre + x.id)); };
+      STATE.quotes = mergeL(STATE.quotes, R.quotes); LS.set("quotes", STATE.quotes);
+      for (const c of COLLS) { STATE.data[c] = mergeL(STATE.data[c] || [], R.data?.[c], c + ":"); LS.set(c, STATE.data[c]); }
+      del.forEach(k => NasSync.deleted.add(k));
+      if (R.settings && num(R.settings.updatedAt) > num(SETTINGS.updatedAt)) { const logo = SETTINGS.logo; SETTINGS = mergeDeep(SETTINGS, R.settings); if (logo) SETTINGS.logo = logo; LS.set("settings", SETTINGS); renderRailBrand(); }
+      this.last = Date.now(); setSync("on", `Team register · ${STATE.quotes.length} quotes · ${new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}`);
+      if (["home", "register", "orders", "tenders", "vendors"].includes(STATE.route) && !document.activeElement?.matches("input,textarea,select")) render();
+    } catch (e) { setSync("local", "Offline — saved on this device"); if (throwErr) throw e; }
+    finally { this.busy = false; }
+  }
+};
+const _nasSchedule = NasSync.schedule.bind(NasSync);
+NasSync.schedule = function () { _nasSchedule(); Cloud.schedule(); };
+/* ---------- admin: users, activity, data pack ---------- */
+ROUTES.push(["users", "Users & access", "users"]);
+VIEWS.users = v => {
+  if (!AUTH.isAdmin) { v.innerHTML = `<div class="topbar"><div><h1>Users & access</h1><p>Only the admin (crm@rivera.co.in) can manage users.</p></div></div>${accountPanel()}`; bindAccount(); return; }
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Admin · ${esc(AUTH.user.email)}</div><h1>Users & access</h1><p>Anyone can request access with their email; nobody gets in until you approve. You get an email at crm@rivera.co.in for every request, with Approve / Reject buttons.</p></div>
+    <div class="row"><button class="btn" id="uRef">Refresh</button></div></div>
+    <div class="stack"><div class="grid g4" id="uKpi"></div>
+    <section class="panel"><header><h2>Team members</h2><label class="row small" style="gap:6px"><input type="checkbox" id="uMail"> Email me on every sign-in</label></header><div class="scroll" id="uTbl"><div class="muted" style="padding:16px">Loading…</div></div></section>
+    <section class="panel"><header><h2>Private data pack on the server</h2></header><div class="body stack"><p class="muted">The rate card, past jobs and bank details are kept on the sign-in server and sent only to approved users after sign-in. Upload a new pack whenever the rate card changes.</p>
+      <div class="row"><button class="btn dark" id="uPackCur" ${DATAPACK ? "" : "disabled"}>Upload the pack loaded on this device</button><button class="btn" id="uPackFile">${icon("up")}Upload a pack file…</button><button class="btn" id="uPackRc">Upload with my current rate card</button></div></div></section>
+    <section class="panel"><header><h2>Activity log</h2></header><div class="scroll" id="uLog" style="max-height:420px"></div></section>
+    ${accountPanel()}</div>`;
+  bindAccount();
+  const load = async () => {
+    try {
+      const [u, l, me] = await Promise.all([AUTH.call("users"), AUTH.call("log"), AUTH.call("me")]);
+      $("#uMail").checked = !!me.settings?.loginMail;
+      const L = u.users, cnt = s => L.filter(x => x.status === s).length;
+      $("#uKpi").innerHTML = [["Approved", cnt("approved"), "ok"], ["Waiting", cnt("pending"), cnt("pending") ? "warn" : ""], ["Revoked", cnt("revoked"), ""], ["Admins", L.filter(x => x.role === "admin" && x.status === "approved").length, ""]].map(([k, n, c]) => `<div class="panel kpi"><span class="eyebrow">${k}</span><span class="v ${c ? "tone-" + c : ""}">${n}</span></div>`).join("");
+      const ord = { pending: 0, approved: 1, unverified: 2, revoked: 3 };
+      $("#uTbl").innerHTML = `<table class="t"><thead><tr><th>User</th><th>Status</th><th>Role</th><th>Last sign-in</th><th>Requested</th><th></th></tr></thead><tbody>${L.sort((a, b) => ord[a.status] - ord[b.status] || a.email.localeCompare(b.email)).map(x => {
+        const main = x.email === "crm@rivera.co.in";
+        return `<tr><td><b>${esc(x.name)}</b><div class="muted mono small">${esc(x.email)}</div></td><td><span class="chip ${({ approved: "ok", pending: "warn", revoked: "bad" })[x.status] || ""}">${esc(x.status === "unverified" ? "email not verified" : x.status)}</span>${x.approvedBy && x.status === "approved" ? `<div class="muted small">by ${esc(x.approvedBy)}</div>` : ""}</td>
+        <td>${main ? "admin" : `<select data-role="${esc(x.email)}" style="width:auto">${["sales", "admin", "viewer"].map(r => `<option ${r === x.role ? "selected" : ""}>${r}</option>`).join("")}</select>`}</td>
+        <td class="mono small">${x.lastLogin ? new Date(x.lastLogin).toLocaleString("en-IN") : "—"}</td><td class="mono small">${x.created ? dmy(x.created.slice(0, 10)) : ""}</td>
+        <td class="row" style="flex-wrap:nowrap">${main ? "" : (x.status !== "approved" ? `<button class="btn sm primary" data-st="approved" data-u="${esc(x.email)}">Approve</button>` : `<button class="btn sm" data-st="revoked" data-u="${esc(x.email)}">Revoke</button>`) + `<button class="btn ghost sm" data-del="${esc(x.email)}" aria-label="Delete">${icon("x")}</button>`}</td></tr>`; }).join("")}</tbody></table>`;
+      $("#uLog").innerHTML = `<table class="t"><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th></tr></thead><tbody>${l.log.map(r => `<tr><td class="mono small" style="white-space:nowrap">${new Date(r.time).toLocaleString("en-IN")}</td><td class="small">${esc(r.email)}</td><td><span class="chip ${/fail|lock|revoke|reject/.test(r.action) ? "bad" : /login$|approve/.test(r.action) ? "ok" : ""}">${esc(r.action)}</span></td><td class="small">${esc(r.detail)}</td></tr>`).join("")}</tbody></table>`;
+      const pend = cnt("pending"); setBadge(pend);
+      $$("[data-st]").forEach(b => b.onclick = async () => { b.disabled = true; try { await AUTH.call("setUser", { email: b.dataset.u, status: b.dataset.st }); toast(b.dataset.st === "approved" ? "Approved — they've been emailed" : "Access revoked"); load(); } catch (e) { toast(e.message, "bad"); b.disabled = false; } });
+      $$("[data-role]").forEach(s => s.onchange = async () => { try { await AUTH.call("setUser", { email: s.dataset.role, role: s.value }); toast("Role updated"); } catch (e) { toast(e.message, "bad"); load(); } });
+      $$("[data-del]").forEach(b => b.onclick = async () => { if (!confirm("Delete " + b.dataset.del + "? They'd have to request access again.")) return; try { await AUTH.call("deleteUser", { email: b.dataset.del }); load(); } catch (e) { toast(e.message, "bad"); } });
+    } catch (e) { $("#uTbl").innerHTML = `<div class="note bad" style="margin:16px">${esc(e.message)}</div>`; }
+  };
+  load();
+  $("#uRef").onclick = load;
+  $("#uMail").onchange = async e => { try { await AUTH.call("config", { loginMail: e.target.checked }); toast(e.target.checked ? "You'll get an email on every sign-in" : "Sign-in emails off (access requests still emailed)"); } catch (er) { toast(er.message, "bad"); } };
+  const up = async pack => { try { await AUTH.call("putPack", { pack }, 60000); toast("Data pack uploaded — approved users get it at next sign-in"); } catch (e) { toast(e.message, "bad"); } };
+  $("#uPackCur").onclick = () => DATAPACK && up(DATAPACK);
+  $("#uPackRc").onclick = () => up(buildDataPack());
+  $("#uPackFile").onclick = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".json"; i.onchange = async () => { try { const p = JSON.parse(await i.files[0].text()); if (p.kind !== "rivera-datapack") throw new Error("Not a Rivera data pack"); applyDataPack(p, { override: true, persist: true }); await up(p); } catch (e) { toast(e.message, "bad"); } }; i.click(); };
+};
+function accountPanel() {
+  if (!AUTH.user) return "";
+  return `<section class="panel"><header><h2>My account</h2></header><div class="body"><div class="fields">
+    <label class="f">Current password<input type="password" id="acO" autocomplete="current-password"></label><label class="f">New password<input type="password" id="acN" autocomplete="new-password"></label><label class="f">Repeat new password<input type="password" id="acN2" autocomplete="new-password"></label></div>
+    <div class="row" style="margin-top:12px"><button class="btn dark" id="acGo">Change password</button><button class="btn" id="acSync">Sync now</button><button class="btn" id="acOut">${icon("lock")}Sign out</button></div></div></section>`;
+}
+function bindAccount() {
+  if (!$("#acGo")) return;
+  $("#acGo").onclick = async () => { const e = AUTH.user.email, n = $("#acN").value; const bad = pwRules(n); if (bad.length) return toast("Password needs " + bad.join(" and "), "bad"); if (n !== $("#acN2").value) return toast("Passwords don't match", "bad"); try { await AUTH.call("password", { old: await AUTH.hash($("#acO").value, e), pw: await AUTH.hash(n, e) }); toast("Password changed"); ["acO", "acN", "acN2"].forEach(i => $("#" + i).value = ""); } catch (er) { toast(er.message, "bad"); } };
+  $("#acSync").onclick = () => Cloud.sync(true).then(() => toast("Synced with the team register")).catch(e => toast(e.message, "bad"));
+  $("#acOut").onclick = () => signOut();
+}
+function setBadge(n) { const a = $('#nav [data-r="users"]'); if (!a) return; a.querySelector(".badge")?.remove(); if (n) a.insertAdjacentHTML("beforeend", `<span class="badge">${n}</span>`); }
+/* nav: Users only for admins, "My account" for others */
+const _renderNav6 = renderNav;
+renderNav = function () {
+  const keep = ROUTES.slice(); const i = ROUTES.findIndex(r => r[0] === "users");
+  if (i >= 0) { if (!AUTH.required() || !AUTH.user) ROUTES.splice(i, 1); else if (!AUTH.isAdmin) ROUTES[i] = ["users", "My account", "users"]; }
+  _renderNav6(); ROUTES.length = 0; keep.forEach(r => ROUTES.push(r));
+};
+/* ---------- global search (Ctrl+K or / ) ---------- */
+function openSearch() {
+  let ov = $("#gsOv"); if (ov) return;
+  ov = document.createElement("div"); ov.id = "gsOv"; ov.className = "sheet-ov"; ov.innerHTML = `<div class="sheet gs" role="dialog" aria-label="Search"><div class="gs-in">${icon("search")}<input id="gsQ" placeholder="Search quotations, customers, orders, tenders, vendors…" autocomplete="off"><kbd>Esc</kbd></div><div id="gsR" class="gs-r"></div></div>`;
+  document.body.appendChild(ov);
+  const close = () => ov.remove(); ov.onclick = e => { if (e.target === ov) close(); };
+  const q = $("#gsQ"); q.focus();
+  const run = () => {
+    const s = q.value.trim().toLowerCase(); if (!s) { $("#gsR").innerHTML = `<p class="muted small" style="padding:12px">Type a customer, quotation number, PO, bid number, rating or vendor.</p>`; return; }
+    const hit = (o, keys) => keys.map(k => o[k]).join(" ").toLowerCase().includes(s);
+    const R = [
+      ...STATE.quotes.filter(x => hit(x, ["no", "customer", "subject", "rating", "country"])).slice(0, 8).map(x => ({ g: "Quotation", t: `${x.no}${x.rev ? "R" + x.rev : ""} · ${x.customer || ""}`, d: `${dmy(x.date)} · ${(x.subject || "").slice(0, 70)} · ${money(x.total, x.currency, 0)}`, go: () => { REGF.q = x.no || ""; location.hash = "register"; } })),
+      ...(STATE.data.orders || []).filter(x => hit(x, ["po", "customer", "desc"])).slice(0, 5).map(x => ({ g: "Work order", t: `${x.po || ""} · ${x.customer || ""}`, d: `${dmy(x.date)} · ${(x.desc || "").slice(0, 70)}`, go: () => location.hash = "orders" })),
+      ...(STATE.data.tenders || []).filter(x => hit(x, ["bid", "org", "items", "contract"])).slice(0, 5).map(x => ({ g: "Tender", t: `${x.bid || ""} · ${x.org || ""}`, d: `Closing ${dmy(x.closing)} · ${(x.items || "").slice(0, 60)}`, go: () => location.hash = "tenders" })),
+      ...(STATE.data.vendors || []).filter(x => hit(x, ["name", "city", "items", "gstin", "contact"])).slice(0, 5).map(x => ({ g: "Vendor", t: x.name || "", d: [x.city, x.items].filter(Boolean).join(" · ").slice(0, 80), go: () => location.hash = "vendors" })),
+      ...ROUTES.filter(r => r[1].toLowerCase().includes(s)).map(r => ({ g: "Go to", t: r[1], d: "", go: () => location.hash = r[0] }))
+    ];
+    $("#gsR").innerHTML = R.length ? R.map((r, i) => `<button class="gs-item" data-i="${i}"><small>${esc(r.g)}</small><b>${esc(r.t)}</b>${r.d ? `<span>${esc(r.d)}</span>` : ""}</button>`).join("") : `<p class="muted small" style="padding:12px">Nothing found for “${esc(q.value)}”.</p>`;
+    $$(".gs-item", ov).forEach(b => b.onclick = () => { close(); R[+b.dataset.i].go(); if (location.hash.slice(1) === STATE.route) render(); });
+  };
+  q.oninput = run; run();
+  q.onkeydown = e => { if (e.key === "Escape") close(); if (e.key === "Enter") $(".gs-item", ov)?.click(); if (e.key === "ArrowDown") { e.preventDefault(); $(".gs-item", ov)?.focus(); } };
+  ov.onkeydown = e => { if (e.key === "Escape") close(); };
+}
+addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k" || e.key === "/" && !e.target.closest("input,textarea,select,[contenteditable]")) { if (document.body.classList.contains("locked")) return; e.preventDefault(); openSearch(); } });
+/* ---------- follow-ups & validity alerts on the dashboard ---------- */
+function followUps() {
+  const t = todayISO(), soon = d => d && d <= addDays(t, 2);
+  const open = STATE.quotes.filter(q => ["sent", "draft", "negotiation"].includes(q.status) || !q.status);
+  const due = open.filter(q => soon(q.followUp)).map(q => ({ k: q.followUp < t ? "bad" : "warn", t: `Follow up ${q.no} · ${q.customer || ""}`, d: q.followUp < t ? "overdue since " + dmy(q.followUp) : "due " + dmy(q.followUp), q }));
+  const stale = open.filter(q => !q.followUp && q.date && q.status === "sent" && q.date <= addDays(t, -10)).map(q => ({ k: "warn", t: `No reply on ${q.no} · ${q.customer || ""}`, d: "sent " + dmy(q.date) + " — call the customer", q }));
+  return [...due, ...stale].slice(0, 8);
+}
+const _home6 = VIEWS.home;
+VIEWS.home = v => {
+  _home6(v);
+  const f = followUps();
+  const top = $(".topbar", v);
+  const bar = `<div class="row" style="margin:-4px 0 14px;gap:8px"><button class="btn sm" id="gsBtn">${icon("search")}Search everything <kbd>Ctrl K</kbd></button>${AUTH.user ? `<span class="chip ok">${icon("lock")} Signed in as ${esc(AUTH.user.name || AUTH.user.email)}</span>` : ""}</div>`;
+  const fu = f.length ? `<section class="panel"><header><h2>${icon("bell")} Follow-ups due</h2><span class="chip warn">${f.length}</span></header><div class="body stack" style="gap:6px">${f.map((x, i) => `<div class="note ${x.k}" style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><span><b>${esc(x.t)}</b> — ${esc(x.d)}</span><span class="row" style="gap:6px"><button class="btn sm" data-fu="${i}" data-n="3">Snooze 3 days</button><button class="btn sm" data-fw="${i}">WhatsApp reminder</button></span></div>`).join("")}</div></section>` : "";
+  if (top) top.insertAdjacentHTML("afterend", bar + fu); else v.insertAdjacentHTML("afterbegin", bar + fu);
+  $("#gsBtn", v).onclick = openSearch;
+  $$("[data-fu]", v).forEach(b => b.onclick = async () => { const q = f[+b.dataset.fu].q; q.followUp = addDays(todayISO(), +b.dataset.n); await Store.saveQuote(q); render(); });
+  $$("[data-fw]", v).forEach(b => b.onclick = () => { const q = f[+b.dataset.fw].q; const msg = `Dear Sir/Madam, greetings from Rivera Coil Manufacturing. Kindly let us know the status of our quotation ${q.no}${q.rev ? "R" + q.rev : ""} dated ${dmy(q.date)} for ${(q.subject || "coils").slice(0, 80)}. We will be glad to clarify anything. Regards, Sales – Rivera`; if (typeof shareText === "function") shareText(msg, "whatsapp"); else open("https://wa.me/?text=" + encodeURIComponent(msg)); });
+};
+/* ---------- boot gate ---------- */
+const _boot6 = boot;
+boot = function () {
+  _boot6(); Idle.init();
+  if (!AUTH.required()) return;
+  document.documentElement.classList.add("auth");
+  if (!AUTH.valid()) { AUTH.s = null; showLogin(); }
+  else { renderUserChip(); Cloud.pack(false).then(() => Cloud.sync().catch(() => { })); AUTH.call("me").then(d => { AUTH.s = { ...AUTH.s, user: d.user }; renderUserChip(); if (AUTH.isAdmin) AUTH.call("users").then(u => setBadge(u.users.filter(x => x.status === "pending").length)).catch(() => { }); }).catch(() => { }); }
+  setInterval(() => Cloud.sync().catch(() => { }), 120000);
+  addEventListener("focus", () => { if (Date.now() - Cloud.last > 30000) Cloud.sync().catch(() => { }); });
 };
 boot();
 
