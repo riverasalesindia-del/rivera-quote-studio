@@ -1377,7 +1377,8 @@ async function buildPdf(draw) {
       else { page.drawRectangle({ x, y: y - 40, width: 40, height: 40, color: NAVY }); const pts = [[8, 20], [15, 9], [25, 9], [32, 20], [25, 31], [15, 31], [8, 20]]; for (let i = 0; i < pts.length - 1; i++) page.drawLine({ start: { x: x + pts[i][0], y: y - 40 + pts[i][1] }, end: { x: x + pts[i + 1][0], y: y - 40 + pts[i + 1][1] }, thickness: 2.4, color: COP }); x += 50; }
       page.drawText(winAnsi(C.name), { x, y: y - 16, size: 14, font: FB, color: NAVY });
       page.drawText(winAnsi([C.tagline].filter(Boolean).join("")), { x, y: y - 28, size: 7.8, font: F, color: GREY });
-      page.drawText(winAnsi([C.address, C.gstin && "GSTIN " + C.gstin, C.phone, C.email].filter(Boolean).join("  |  ")), { x, y: y - 38, size: 7.8, font: F, color: GREY });
+      const hl = ctx.wrap([C.address, C.gstin && "GSTIN " + C.gstin, C.phone, C.email].filter(Boolean).join("  |  "), 7.4, W - M - x, F).slice(0, 2);
+      hl.forEach((ln, i) => page.drawText(ln, { x, y: y - 37 - i * 9, size: 7.4, font: F, color: GREY })); if (hl.length > 1) y -= 8;
       page.drawRectangle({ x: M, y: y - 48, width: W - 2 * M, height: 2.2, color: COP });
       y -= 62;
     },
@@ -2709,6 +2710,261 @@ VIEWS.storage = v => {
   const note = v.querySelector(".note"); if (note && !CAP.inViewer && "showDirectoryPicker" in window) note.insertAdjacentHTML("afterend", `<label class="row" style="gap:8px;font-size:.84rem"><input type="checkbox" id="autoFile" ${SETTINGS.autoFile !== false ? "checked" : ""}> File every saved quotation into the Synology folder automatically</label>`);
   $("#autoFile")?.addEventListener("change", async e => { SETTINGS.autoFile = e.target.checked; await Store.saveSettings(); });
   v.querySelectorAll(".note").forEach(n => { n.innerHTML = n.innerHTML.replace("Pick the <b>2) QUOTATION</b> folder", "Pick the <b>SALES</b> folder"); });
+};
+/* ========= Export (Incoterms® 2020, air/sea freight, LUT) & tender EMD / ePBG ========= */
+DEFAULT_SETTINGS.export = { iec: "", lutArn: "", lutFy: "2026-27", adCode: "", hs: "8503.00.10", portSea: "Chennai Port (INMAA)", portAir: "Chennai Air Cargo (MAA)", insurancePct: 0.3, origin: "India", rodtep: "" };
+DEFAULT_SETTINGS.bankDomestic = { name: "", acc: "", ifsc: "", branch: "", type: "CA" };
+SETTINGS = mergeDeep(DEFAULT_SETTINGS, SETTINGS);
+
+/* ---------- Incoterms® 2020 reference ---------- */
+const INCOTERMS = [
+  { k: "EXW", n: "Ex Works", sea: false, place: "Rivera factory, Erode", risk: "When goods are placed at the buyer's disposal at Rivera's works, not loaded.", ins: "No obligation.", exp: "Buyer", imp: "Buyer", carriage: "Buyer" },
+  { k: "FCA", n: "Free Carrier", sea: false, place: "named airport / port / forwarder", risk: "When goods are handed to the buyer's carrier at the named place (loaded if at Rivera's premises).", ins: "No obligation.", exp: "Rivera", imp: "Buyer", carriage: "Buyer" },
+  { k: "FAS", n: "Free Alongside Ship", sea: true, place: "named port of shipment", risk: "When goods are placed alongside the vessel at the port of shipment.", ins: "No obligation.", exp: "Rivera", imp: "Buyer", carriage: "Buyer" },
+  { k: "FOB", n: "Free On Board", sea: true, place: "named port of shipment", risk: "When goods are on board the vessel at the port of shipment.", ins: "No obligation.", exp: "Rivera", imp: "Buyer", carriage: "Buyer" },
+  { k: "CPT", n: "Carriage Paid To", sea: false, place: "named place of destination", risk: "When goods are handed to the first carrier in India; Rivera pays carriage to destination.", ins: "No obligation.", exp: "Rivera", imp: "Buyer", carriage: "Rivera" },
+  { k: "CIP", n: "Carriage and Insurance Paid To", sea: false, place: "named place of destination", risk: "When goods are handed to the first carrier in India; Rivera pays carriage and insurance to destination.", ins: "Rivera insures 110% of value, Institute Cargo Clauses (A) — all risks.", exp: "Rivera", imp: "Buyer", carriage: "Rivera" },
+  { k: "CFR", n: "Cost and Freight", sea: true, place: "named port of destination", risk: "When goods are on board the vessel in India; Rivera pays sea freight to the destination port.", ins: "No obligation.", exp: "Rivera", imp: "Buyer", carriage: "Rivera" },
+  { k: "CIF", n: "Cost, Insurance and Freight", sea: true, place: "named port of destination", risk: "When goods are on board the vessel in India; Rivera pays freight and insurance to the destination port.", ins: "Rivera insures 110% of value, minimum Institute Cargo Clauses (C).", exp: "Rivera", imp: "Buyer", carriage: "Rivera" },
+  { k: "DAP", n: "Delivered At Place", sea: false, place: "named place of destination", risk: "At the named destination, ready for unloading.", ins: "No obligation (Rivera carries the risk, so it insures).", exp: "Rivera", imp: "Buyer", carriage: "Rivera" },
+  { k: "DPU", n: "Delivered at Place Unloaded", sea: false, place: "named place of destination", risk: "At the named destination, unloaded.", ins: "No obligation (Rivera carries the risk, so it insures).", exp: "Rivera", imp: "Buyer", carriage: "Rivera" },
+  { k: "DDP", n: "Delivered Duty Paid", sea: false, place: "named place of destination", risk: "At the named destination, cleared for import with duties and taxes paid.", ins: "No obligation (Rivera carries the risk, so it insures).", exp: "Rivera", imp: "Rivera", carriage: "Rivera" }
+];
+const ITERM = Object.fromEntries(INCOTERMS.map(t => [t.k, t]));
+const MODES = { sea_lcl: "Sea · LCL (part container)", sea_fcl: "Sea · FCL (full container)", air: "Air cargo", road: "Road (Nepal / Bangladesh / Bhutan)", courier: "Courier (samples)" };
+const PAYMENTS = {
+  tt100: "100% advance by T/T (SWIFT) with the Purchase Order.",
+  tt5050: "50% advance by T/T with the Purchase Order; balance 50% by T/T against scanned copy of shipping documents, before release of original documents.",
+  lc: "100% by irrevocable Letter of Credit at sight, confirmed by a first-class bank, opened within 7 days of PO, allowing partial shipment and transhipment, valid for at least 60 days after shipment. All bank charges outside India on buyer's account.",
+  cad: "Cash Against Documents (D/P at sight) through Rivera's bank.",
+  da30: "Documents against Acceptance, 30 days from Bill of Lading / Airway Bill date (subject to credit approval)."
+};
+const EXPORT_DOCS = [["inv", "Commercial invoice"], ["pl", "Packing list"], ["sb", "Shipping bill / Let Export Order (customs, India)"], ["bl", "Bill of Lading (sea) / Air Waybill (air)"], ["coo", "Certificate of Origin (non-preferential, chamber / DGFT)"], ["coop", "Preferential Certificate of Origin (FTA, if eligible)"], ["insc", "Insurance certificate (CIF / CIP)"], ["tc", "Routine test certificates of coils"], ["ispm", "ISPM-15 heat-treatment mark on wooden crates"], ["lut", "LUT copy (export without IGST)"]];
+
+/* ---------- export model on a quotation ---------- */
+function expDefaults(Q) {
+  const X = SETTINGS.export;
+  return { mode: "sea_lcl", term: Q.incoterm && Q.incoterm !== "FOR" ? Q.incoterm : "FOB", place: "", pol: X.portSea, pod: "", packing: 0, haulage: 0, clearance: 0, freightManual: "", insPct: num(X.insurancePct) || 0.3, dest: 0, unload: 0, dutyPct: 0, vatPct: 0, impClear: 0,
+    pieces: [{ n: 1, l: 120, w: 80, h: 60, kg: 250, net: 200 }], airRate: 0, airSurch: 0, airMin: 0, lclRate: 0, fclCount: 1, fclRate: 0, roadRate: 0,
+    alt: {}, gstMode: "lut", payment: "tt5050", docs: { inv: true, pl: true, sb: true, bl: true, coo: true, tc: true, ispm: true, lut: true }, portDisch: "", finalDest: "" };
+}
+function freightCalc(E) {
+  const P = E.pieces || [];
+  const gross = P.reduce((s, p) => s + num(p.n) * num(p.kg), 0), net = P.reduce((s, p) => s + num(p.n) * num(p.net || p.kg), 0);
+  const cbm = P.reduce((s, p) => s + num(p.n) * num(p.l) * num(p.w) * num(p.h) / 1e6, 0);
+  const vol = P.reduce((s, p) => s + num(p.n) * num(p.l) * num(p.w) * num(p.h) / 6000, 0);
+  const chg = Math.ceil(Math.max(gross, vol) * 2) / 2;
+  const rt = Math.max(cbm, gross / 1000, 1);
+  let auto = 0, basis = "";
+  if (E.mode === "air" || E.mode === "courier") { auto = Math.max(num(E.airMin), chg * (num(E.airRate) + num(E.airSurch))); basis = `${fmt(chg, "INR", 1)} kg chargeable (actual ${fmt(gross, "INR", 1)} kg, volumetric ${fmt(vol, "INR", 1)} kg at L×W×H/6000)`; }
+  else if (E.mode === "sea_lcl") { auto = rt * num(E.lclRate); basis = `${fmt(rt, "INR", 2)} RT (W/M: ${fmt(cbm, "INR", 2)} CBM vs ${fmt(gross / 1000, "INR", 2)} t, minimum 1)`; }
+  else if (E.mode === "sea_fcl") { auto = num(E.fclCount) * num(E.fclRate); basis = `${num(E.fclCount)} container(s)`; }
+  else { auto = num(E.roadRate); basis = "truck / lump sum"; }
+  const freight = E.freightManual !== "" && E.freightManual != null ? num(E.freightManual) : auto;
+  return { gross, net, cbm, vol, chg, rt, auto, freight, basis };
+}
+function incotermLadder(Q) {
+  const E = Q.exp, fx = Q.currency === "INR" ? 1 : (SETTINGS.fx[Q.currency] || 1);
+  const base = quoteTotals({ ...Q, lines: Q.lines.filter(l => !l.exportAddon), showGst: false }).sub * fx;
+  const fc = freightCalc(E);
+  const pre = num(E.packing) + num(E.haulage) + num(E.clearance);
+  const fca = base + pre, carriage = fca + fc.freight;
+  const ins = v => v * 1.1 * num(E.insPct) / 100;
+  const insCIF = ins(carriage), dap = carriage + insCIF + num(E.dest), dpu = dap + num(E.unload);
+  const duty = (carriage + insCIF) * num(E.dutyPct) / 100, vat = (carriage + insCIF + duty) * num(E.vatPct) / 100;
+  const rows = { EXW: base, FCA: fca, FAS: fca, FOB: fca, CPT: carriage, CFR: carriage, CIP: carriage + insCIF, CIF: carriage + insCIF, DAP: dap, DPU: dpu, DDP: dpu + duty + vat + num(E.impClear) };
+  return { base, fx, fc, ins: insCIF, rows, toQ: v => v / fx };
+}
+function exportClauses(Q) {
+  const E = Q.exp, X = SETTINGS.export, T = ITERM[E.term], L = incotermLadder(Q), C = Q.currency;
+  const place = E.place || (T?.k === "EXW" ? "Rivera factory, Erode, India" : "");
+  const alts = Object.keys(E.alt || {}).filter(k => E.alt[k] && k !== E.term);
+  const pb = `${E.term} ${place} — Incoterms® 2020. ${T ? T.risk + " Insurance: " + T.ins + " Export clearance: " + T.exp + "; import clearance, duties and taxes: " + T.imp + "." : ""}${alts.length ? "\nAlternative price basis (total):\n" + alts.map(k => `• ${k} ${k === "EXW" ? "Erode" : k === "FCA" || k === "FOB" || k === "FAS" ? (E.mode === "air" ? X.portAir : E.pol) : (E.pod || E.place || "destination")}: ${money(L.toQ(L.rows[k]), C)}`).join("\n") : ""}${T?.sea && ["air", "courier", "road"].includes(E.mode) ? "\nNote: " + E.term + " is a sea-transport term; for air or road shipment FCA / CPT / CIP apply." : ""}`;
+  const gst = E.gstMode === "lut" ? `Supply meant for export under Letter of Undertaking${X.lutArn ? " (ARN " + X.lutArn + ", F.Y " + X.lutFy + ")" : ""} without payment of integrated tax (zero-rated supply, Sec. 16 IGST Act).` : "Supply meant for export on payment of integrated tax (IGST refund claimed by Rivera); the price is not affected.";
+  const comp = `Goods of Indian origin. HS code ${X.hs}. ${gst}${X.iec ? " IEC: " + X.iec + "." : ""} Port of loading: ${E.mode === "air" ? X.portAir : E.pol}${E.portDisch ? "; port of discharge: " + E.portDisch : ""}${E.finalDest ? "; final destination: " + E.finalDest : ""}. Mode: ${MODES[E.mode]}. Import duties, taxes and clearance at destination are the buyer's responsibility${E.term === "DDP" ? " except under DDP, where Rivera pays them as quoted" : ""}.`;
+  const docs = EXPORT_DOCS.filter(([k]) => E.docs?.[k]).map(([, l]) => "• " + l).join("\n");
+  const pack = `Seaworthy / airworthy export packing: coils wrapped in VCI polythene with silica gel, braced in wooden crates heat-treated and marked as per ISPM-15. Crate dimensions and weights as per packing list${L.fc.gross ? ` (estimated ${fmt(L.fc.gross, "INR", 0)} kg gross, ${fmt(L.fc.cbm, "INR", 2)} CBM)` : ""}.`;
+  return [
+    { title: "Price basis — Incoterms® 2020", body: pb, on: true, auto: "exp" },
+    { title: "Payment terms", body: PAYMENTS[E.payment] + "\nBank: " + [SETTINGS.bank.name, SETTINGS.bank.acc && "A/c " + SETTINGS.bank.acc, SETTINGS.bank.swift && "SWIFT " + SETTINGS.bank.swift, SETTINGS.bank.branch].filter(Boolean).join(", ") + ".", on: true, auto: "exp" },
+    { title: "Export compliance", body: comp, on: true, auto: "exp" },
+    { title: "Export packing", body: pack, on: true, auto: "exp" },
+    { title: "Shipping documents provided", body: docs || "As agreed.", on: true, auto: "exp" }
+  ];
+}
+function applyExport(Q) {
+  const E = Q.exp, L = incotermLadder(Q);
+  Q.incoterm = E.term;
+  Q.lines = Q.lines.filter(l => !l.exportAddon);
+  const add = L.toQ(L.rows[E.term] - L.base);
+  if (Math.abs(add) > 0.5) Q.lines.push({ desc: `Export packing, inland haulage, customs clearance${["CPT", "CIP", "CFR", "CIF", "DAP", "DPU", "DDP"].includes(E.term) ? ", " + (E.mode === "air" ? "air" : E.mode.startsWith("sea") ? "ocean" : "road") + " freight" : ""}${["CIP", "CIF", "DAP", "DPU", "DDP"].includes(E.term) ? ", cargo insurance" : ""}${E.term === "DDP" ? ", import duty & taxes" : ""} up to ${E.place || E.pod || "named place"} (${E.term}, Incoterms® 2020)`, qty: 1, unit: "LS", rate: r2(add), amount: r2(add), exportAddon: true });
+  const keep = Q.clauses.filter(c => c.auto !== "exp" && !/^(price|payment terms|taxes & duties)$/i.test(c.title));
+  Q.clauses = [...exportClauses(Q), ...keep];
+  Q.bank = true; Q.showGst = false;
+}
+
+/* ---------- Export proforma invoice & packing list ---------- */
+function proformaBlocks(Q) {
+  const C = SETTINGS.company, X = SETTINGS.export, E = Q.exp || expDefaults(Q), K = SETTINGS.bank, cur = Q.currency, t = quoteTotals(Q);
+  const hd = x => ({ t: x, b: true, fill: "02315B", color: "FFFFFF" });
+  return [{ logo: true }, { t: C.name, b: true, sz: 13, color: "02315B", after: 0 }, { t: [C.address, C.gstin && "GSTIN " + C.gstin, X.iec && "IEC " + X.iec, C.phone, C.email].filter(Boolean).join(" · "), sz: 8.5, color: "555555", border: true, after: 160 },
+    { t: "PROFORMA INVOICE (EXPORT)", b: true, sz: 14, align: "center", after: 120 },
+    { table: [[{ t: "PI No. " + Q.no.replace("/QT/", "/PI/") + (Q.rev ? "R" + Q.rev : ""), b: true }, { t: "Date: " + dmy(Q.date), b: true }], [{ t: "Exporter:\n" + C.name + "\n" + C.address }, { t: "Consignee / Buyer:\n" + [Q.to.name, Q.to.address, Q.to.contact].filter(Boolean).join("\n") }], [{ t: "Country of origin: " + X.origin + "\nCountry of final destination: " + (E.finalDest || Q.to.address?.split(",").slice(-1)[0]?.trim() || "") }, { t: "Terms of delivery: " + E.term + " " + (E.place || "") + " (Incoterms® 2020)\nTerms of payment: " + PAYMENTS[E.payment] }], [{ t: "Port of loading: " + (E.mode === "air" ? X.portAir : E.pol) + "\nMode: " + MODES[E.mode] }, { t: "Port of discharge: " + (E.portDisch || "—") + "\nFinal destination: " + (E.finalDest || "—") }]], widths: [4950, 4950] },
+    { t: "", after: 60 },
+    { table: [[hd("S.No"), hd("Description of goods"), hd("HS code"), hd("Qty"), hd(`Unit price (${cur})`), hd(`Amount (${cur})`)], ...Q.lines.map((l, i) => [{ t: String(i + 1) }, { t: l.desc }, { t: l.exportAddon ? "—" : X.hs }, { t: l.unit === "LS" ? "LS" : fmt(l.qty, cur, 0) + " " + (l.unit || "Nos") }, { t: fmt(l.rate, cur) }, { t: fmt(qLineAmt(l), cur) }]), [{ t: "" }, { t: "Total " + E.term, b: true }, { t: "" }, { t: "" }, { t: "" }, { t: fmt(t.sub, cur), b: true }]], widths: [600, 4300, 1100, 1000, 1400, 1500] },
+    { t: [{ t: "Amount in words: ", b: true }, { t: amountInWords(t.sub, cur, E.term) }], before: 100 },
+    { t: E.gstMode === "lut" ? `SUPPLY MEANT FOR EXPORT UNDER BOND OR LETTER OF UNDERTAKING WITHOUT PAYMENT OF INTEGRATED TAX${X.lutArn ? " — LUT ARN " + X.lutArn + " (F.Y " + X.lutFy + ")" : ""}` : "SUPPLY MEANT FOR EXPORT ON PAYMENT OF INTEGRATED TAX", b: true, sz: 9, before: 100 },
+    { t: "BANK DETAILS FOR REMITTANCE", b: true, before: 140 }, { t: `Beneficiary: ${C.name}\nBank: ${K.name}${K.branch ? ", " + K.branch : ""}\nAccount No: ${K.acc}   ·   SWIFT: ${K.swift}   ·   IFSC: ${K.ifsc}${X.adCode ? "\nAD code: " + X.adCode : ""}` },
+    { t: "We declare that this invoice shows the actual price of the goods described and that all particulars are true and correct.", sz: 9, before: 140 },
+    { t: "For " + C.name, b: true, before: 200, after: 500 }, { t: C.signatory || "Authorized Signature" }];
+}
+function packingBlocks(Q) {
+  const E = Q.exp, C = SETTINGS.company, fc = freightCalc(E); const hd = x => ({ t: x, b: true, fill: "02315B", color: "FFFFFF" }); let n = 0;
+  return [{ logo: true }, { t: C.name, b: true, sz: 13, color: "02315B", after: 0 }, { t: C.address, sz: 8.5, color: "555555", border: true, after: 160 }, { t: "PACKING LIST", b: true, sz: 14, align: "center" }, { t: `Ref: ${Q.no}${Q.rev ? "R" + Q.rev : ""} · ${Q.to.name} · ${E.term} ${E.place || ""} · ${MODES[E.mode]}`, sz: 9, after: 120 },
+    { table: [[hd("Crate No."), hd("Contents"), hd("L×W×H (cm)"), hd("Net kg"), hd("Gross kg"), hd("CBM")], ...E.pieces.flatMap(p => Array.from({ length: Math.max(1, num(p.n)) }, () => { n++; return [{ t: String(n) }, { t: p.contents || "Stator coils" }, { t: `${p.l}×${p.w}×${p.h}` }, { t: fmt(num(p.net || p.kg), "INR", 1) }, { t: fmt(num(p.kg), "INR", 1) }, { t: fmt(num(p.l) * num(p.w) * num(p.h) / 1e6, "INR", 3) }]; })), [{ t: "" }, { t: "Total " + n + " crates", b: true }, { t: "" }, { t: fmt(fc.net, "INR", 1), b: true }, { t: fmt(fc.gross, "INR", 1), b: true }, { t: fmt(fc.cbm, "INR", 3), b: true }]], widths: [1100, 3300, 1700, 1200, 1300, 1300] },
+    { t: `Air chargeable weight (L×W×H/6000): ${fmt(fc.chg, "INR", 1)} kg · Marks: RIVERA / ${Q.to.name} / ${E.finalDest || E.pod || ""} / Crate 1–${n} · Wooden crates heat-treated as per ISPM-15.`, sz: 9, before: 120 }];
+}
+
+/* ---------- Quotation screen: export panel ---------- */
+const _quote5 = VIEWS.quote;
+VIEWS.quote = v => {
+  _quote5(v);
+  const Q = STATE.quote; const isExp = Q.template === "export" || Q.currency !== "INR";
+  const anchor = $("#qLines")?.closest("section"); if (!anchor) return;
+  const sec = document.createElement("section"); sec.className = "panel"; sec.id = "expPanel";
+  if (!isExp) { sec.innerHTML = `<div class="body row" style="justify-content:space-between"><span class="muted" style="font-size:.84rem">Exporting this job? Switch on the export builder for Incoterms® 2020 prices, air / sea freight and export documents.</span><button class="btn sm" id="expOn">${icon("vendor")}Make this an export quotation</button></div>`; anchor.after(sec); $("#expOn").onclick = () => { Q.template = "export"; if (Q.currency === "INR") Q.currency = "USD"; Q.exp = expDefaults(Q); Q.clauses = tcClauses("export", { ...Q.ctx, incoterm: Q.exp.term, party: Q.to.name || "purchaser" }); saveDrafts(); render(); }; return; }
+  Q.exp ||= expDefaults(Q); const E = Q.exp, X = SETTINGS.export;
+  const fld = (l, k, ty = "number", extra = "") => `<label class="f">${l}<input type="${ty}" step="any" data-x="${k}" value="${esc(getPath(E, k) ?? "")}" ${extra}></label>`;
+  sec.innerHTML = `<header><div><div class="eyebrow">Export · India → international</div><h2>Incoterms® 2020 price builder</h2></div><div class="row"><select data-x="term" aria-label="Main Incoterm" style="width:auto">${INCOTERMS.map(t => `<option value="${t.k}" ${E.term === t.k ? "selected" : ""}>${t.k} — ${t.n}</option>`).join("")}</select></div></header>
+  <div class="body stack" style="gap:14px">
+    <div class="fields">
+      <label class="f">Shipment mode<select data-x="mode">${Object.entries(MODES).map(([k, l]) => `<option value="${k}" ${E.mode === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      ${fld("Named place (Incoterm)", "place", "text", `placeholder="${esc(ITERM[E.term]?.place || "")}"`)}
+      ${fld("Port of loading", "pol", "text")}${fld("Port of discharge", "portDisch", "text")}${fld("Final destination", "finalDest", "text")}
+    </div>
+    <div><div class="eyebrow" style="margin-bottom:6px">Crates / pieces (for freight, packing list and AWB)</div><div class="scroll"><table class="t"><thead><tr><th class="n">No. of crates</th><th class="n">L cm</th><th class="n">W cm</th><th class="n">H cm</th><th class="n">Gross kg / crate</th><th class="n">Net kg / crate</th><th>Contents</th><th></th></tr></thead><tbody>${E.pieces.map((p, i) => `<tr>${["n", "l", "w", "h", "kg", "net"].map(k => `<td class="n"><input class="mini2" type="number" step="any" data-x="pieces.${i}.${k}" value="${p[k] ?? ""}"></td>`).join("")}<td><input type="text" data-x="pieces.${i}.contents" value="${esc(p.contents || "Stator coils")}"></td><td><button class="btn ghost sm" data-pdx="${i}" aria-label="Remove crate row">${icon("x")}</button></td></tr>`).join("")}</tbody></table></div><button class="btn sm" id="pAdd" style="margin-top:6px">${icon("plus")}Add crate size</button></div>
+    <div class="fields" id="frtFields">
+      ${E.mode === "air" || E.mode === "courier" ? fld("Air rate ₹ / kg", "airRate") + fld("Surcharges ₹ / kg (FSC + SSC)", "airSurch") + fld("Minimum charge ₹", "airMin") : E.mode === "sea_lcl" ? fld("LCL rate ₹ / RT (W/M)", "lclRate") : E.mode === "sea_fcl" ? fld("Containers", "fclCount") + fld("Rate ₹ / container", "fclRate") : fld("Truck freight ₹", "roadRate")}
+      ${fld("Freight override ₹ (blank = calculated)", "freightManual")}
+      ${fld("Export packing ₹ (ISPM-15 crates)", "packing")}${fld("Inland haulage Erode → port ₹", "haulage")}${fld("CHA, customs & THC (origin) ₹", "clearance")}
+      ${fld("Cargo insurance % (on 110%)", "insPct")}${fld("Destination charges ₹ (DAP)", "dest")}${fld("Unloading ₹ (DPU)", "unload")}${fld("Import duty % (DDP)", "dutyPct")}${fld("Import VAT / GST % (DDP)", "vatPct")}${fld("Import clearance ₹ (DDP)", "impClear")}
+    </div>
+    <div class="note" id="frtNote"></div>
+    <div class="scroll"><table class="t" id="ladder"></table></div>
+    <div class="grid g2">
+      <label class="f">GST treatment<select data-x="gstMode"><option value="lut" ${E.gstMode === "lut" ? "selected" : ""}>Under LUT — export without IGST (zero-rated)</option><option value="igst" ${E.gstMode === "igst" ? "selected" : ""}>On payment of IGST — refund claimed</option></select></label>
+      <label class="f">Payment terms<select data-x="payment">${Object.entries(PAYMENTS).map(([k, l]) => `<option value="${k}" ${E.payment === k ? "selected" : ""}>${esc(l.split(";")[0].split(",")[0])}</option>`).join("")}</select></label>
+    </div>
+    <div><div class="eyebrow" style="margin-bottom:6px">Shipping documents Rivera will provide</div><div class="grid g2" style="gap:4px">${EXPORT_DOCS.map(([k, l]) => `<label class="row" style="gap:8px;font-size:.84rem;flex-wrap:nowrap"><input type="checkbox" data-xd="${k}" ${E.docs?.[k] ? "checked" : ""}>${esc(l)}</label>`).join("")}</div></div>
+    ${!X.iec || !X.lutArn ? `<div class="note warn">Add Rivera's IEC and this year's LUT ARN in Rate Card → Export & banking so they print on the quotation and proforma invoice.</div>` : ""}
+    <div class="row"><button class="btn primary" id="expApply">${icon("bolt")}Apply to quotation</button><button class="btn" id="expPI">${icon("doc")}Proforma invoice</button><button class="btn" id="expPL">${icon("list")}Packing list</button><button class="btn ghost sm" id="expOff">Back to domestic</button></div>
+  </div>`;
+  anchor.after(sec);
+  const draw = () => {
+    const L = incotermLadder(Q), cur = Q.currency;
+    $("#frtNote").innerHTML = `Freight: <b>${money(L.fc.freight)}</b> · ${esc(L.fc.basis)}${L.fc.cbm ? ` · ${fmt(L.fc.cbm, "INR", 2)} CBM` : ""} · FX ₹${fmt(L.fx, "INR", 2)} per ${esc(cur)}`;
+    $("#ladder").innerHTML = `<thead><tr><th>Offer</th><th>Term</th><th>Risk passes to buyer</th><th>Insurance</th><th class="n">Total (${esc(cur)})</th><th class="n">Per unit</th></tr></thead><tbody>${INCOTERMS.map(t => { const q1 = Q.lines.find(l => !l.exportAddon)?.qty || 1; const bad = t.sea && ["air", "courier", "road"].includes(E.mode); return `<tr ${t.k === E.term ? 'class="sum"' : ""} style="${bad ? "opacity:.5" : ""}"><td><input type="checkbox" data-alt="${t.k}" ${E.alt?.[t.k] || t.k === E.term ? "checked" : ""} ${t.k === E.term ? "disabled" : ""} aria-label="Offer ${t.k}"></td><td><b>${t.k}</b><div class="muted" style="font-size:.7rem">${esc(t.n)}${bad ? " · sea only" : ""}</div></td><td style="font-size:.76rem;min-width:220px">${esc(t.risk)}</td><td style="font-size:.74rem;min-width:140px">${esc(t.ins)}</td><td class="n mono">${money(L.toQ(L.rows[t.k]), cur)}</td><td class="n mono">${fmt(L.toQ(L.rows[t.k]) / q1, cur)}</td></tr>`; }).join("")}</tbody>`;
+    $$("[data-alt]").forEach(c => c.onchange = () => { E.alt[c.dataset.alt] = c.checked; saveDrafts(); });
+  };
+  draw();
+  sec.addEventListener("input", e => { const el = e.target; if (!el.dataset.x) return; setPath(E, el.dataset.x, el.type === "number" ? (el.value === "" ? "" : +el.value) : el.value); if (el.dataset.x === "mode" || el.dataset.x === "term") { if (el.dataset.x === "mode") E.pol = E.mode === "air" ? X.portAir : X.portSea; saveDrafts(); render(); return; } draw(); saveDrafts(); });
+  sec.addEventListener("change", e => { const el = e.target; if (el.dataset.xd) { E.docs[el.dataset.xd] = el.checked; saveDrafts(); } });
+  $$("[data-pdx]", sec).forEach(b => b.onclick = () => { E.pieces.splice(+b.dataset.pdx, 1); render(); });
+  $("#pAdd").onclick = () => { E.pieces.push({ n: 1, l: 100, w: 80, h: 60, kg: 150, net: 120, contents: "Stator coils" }); render(); };
+  $("#expApply").onclick = () => { applyExport(Q); saveDrafts(); render(); toast(`Quotation set to ${E.term} ${E.place || ""} with export terms`); };
+  $("#expPI").onclick = () => openShare({ title: "Proforma invoice (export)", base: "PROFORMA_" + Q.no.replace(/\//g, "_") + "_" + Q.to.name, text: `Proforma invoice ${Q.no.replace("/QT/", "/PI/")} — ${E.term} ${E.place || ""}`, formats: [F.docx("Proforma invoice (Word)", () => buildDocx(proformaBlocks(Q), brandLogo())), F.json("Data", () => Q)] });
+  $("#expPL").onclick = () => openShare({ title: "Packing list", base: "PACKING_LIST_" + Q.no.replace(/\//g, "_"), text: "Packing list " + Q.no, formats: [F.docx("Packing list (Word)", () => buildDocx(packingBlocks(Q), brandLogo())), F.xlsx("Packing list (Excel)", () => { let n = 0; const rows = E.pieces.flatMap(p => Array.from({ length: Math.max(1, num(p.n)) }, () => { n++; return [cell(n), cell(p.contents || "Stator coils"), cell(num(p.l)), cell(num(p.w)), cell(num(p.h)), cell(num(p.net || p.kg), 1), cell(num(p.kg), 1), { f: `C${n + 2}*D${n + 2}*E${n + 2}/1000000`, v: num(p.l) * num(p.w) * num(p.h) / 1e6, s: 4 }, { f: `C${n + 2}*D${n + 2}*E${n + 2}/6000`, v: num(p.l) * num(p.w) * num(p.h) / 6000, s: 4 }]; })); return buildXlsx([{ name: "Packing List", cells: [[{ v: `PACKING LIST — ${Q.no} — ${Q.to.name}`, s: 1 }], hdr(["Crate", "Contents", "L cm", "W cm", "H cm", "Net kg", "Gross kg", "CBM", "Vol. kg (/6000)"]), ...rows, [cell("Total"), cell(""), cell(""), cell(""), cell(""), { f: `SUM(F3:F${n + 2})`, v: freightCalc(E).net, s: 6 }, { f: `SUM(G3:G${n + 2})`, v: freightCalc(E).gross, s: 6 }, { f: `SUM(H3:H${n + 2})`, v: freightCalc(E).cbm, s: 6 }, { f: `SUM(I3:I${n + 2})`, v: freightCalc(E).vol, s: 6 }]], merges: ["A1:I1"], cols: [8, 30, 8, 8, 8, 10, 10, 10, 13] }]); })] });
+  $("#expOff").onclick = () => { Q.template = "domestic"; Q.currency = "INR"; Q.lines = Q.lines.filter(l => !l.exportAddon); Q.clauses = tcClauses("domestic", { ...Q.ctx, party: "purchaser" }); delete Q.exp; saveDrafts(); render(); };
+};
+/* export proforma in the share sheet for export quotes */
+const _openShare5 = openShare;
+openShare = function (opts) {
+  if (opts.title?.startsWith("Quotation ") && STATE.quote && (STATE.quote.template === "export" || STATE.quote.currency !== "INR")) {
+    const Q = STATE.quote; opts.formats = [...opts.formats, { key: "pi", label: "Proforma invoice", ext: "docx", make: () => buildDocx(proformaBlocks(Q), brandLogo()) }];
+  }
+  _openShare5(opts);
+};
+/* new international quotations start with the export builder */
+const _qfw5 = quoteFromWorkings;
+quoteFromWorkings = function (w) { const Q = _qfw5(w); if (Q.currency !== "INR") { Q.exp = expDefaults(Q); Q.exp.place = w.party?.country || ""; } return Q; };
+
+/* ---------- Tenders: EMD & ePBG when exemption does not apply ---------- */
+const EMD_MODES = { exempt_mse: "Exempted — MSE (Udyam)", exempt_startup: "Exempted — DPIIT start-up", required: "EMD required (not exempted)", not_required: "No EMD in this bid" };
+const EMD_PAY = { bg: "Bank guarantee (e-BG via GeM / bank)", online: "Online transfer (NEFT / RTGS) to buyer account", fdr: "Fixed deposit receipt (FDR) pledged", dd: "Demand draft", surety: "Insurance surety bond" };
+const EMD_ST = { na: "—", to_pay: "To be paid", paid: "Paid / submitted", refunded: "Refunded", adjusted: "Adjusted to PBG", forfeited: "Forfeited" };
+const PBG_ST = { na: "—", to_submit: "To submit", submitted: "Submitted", released: "Released", invoked: "Invoked" };
+const addDays = (d, n) => { if (!d) return ""; const x = new Date(d); x.setDate(x.getDate() + num(n)); return x.toISOString().slice(0, 10); };
+const _tenderForm5 = tenderForm;
+tenderForm = function (t) {
+  t.emdMode ||= /exempt/i.test(t.emd || "") ? "exempt_mse" : "exempt_mse";
+  _tenderForm5(t);
+  const f = $("#tForm"); const h3 = [...f.querySelectorAll("h3")].find(h => /checklist/i.test(h.textContent)); if (!h3) return;
+  const B = SETTINGS.bankDomestic, C = SETTINGS.company;
+  const sel = (l, k, opts) => `<label class="f">${l}<select data-tf="${k}">${Object.entries(opts).map(([a, b]) => `<option value="${a}" ${t[k] === a ? "selected" : ""}>${b}</option>`).join("")}</select></label>`;
+  const inp = (l, k, ty = "text", ph = "") => `<label class="f">${l}<input type="${ty}" step="any" data-tf="${k}" value="${esc(t[k] ?? "")}" placeholder="${esc(ph)}"></label>`;
+  h3.insertAdjacentHTML("beforebegin", `<h3 style="margin:16px 0 6px">EMD (bid security)</h3>
+    <div class="fields">${sel("EMD status in this bid", "emdMode", EMD_MODES)}</div>
+    <div id="emdExempt" class="note" style="margin-top:8px"></div>
+    <div id="emdReq" style="margin-top:8px"><div class="fields">
+      ${inp("EMD % of estimated value", "emdPct", "number", "e.g. 1 or 2")}${inp("EMD amount ₹", "emdAmount", "number")}${sel("Payment / instrument", "emdPay", EMD_PAY)}${sel("EMD status", "emdStatus", EMD_ST)}
+      ${inp("Bid validity (days)", "bidValidity", "number", "90")}${inp("EMD validity up to", "emdValidity", "date")}${inp("Paid / submitted on", "emdPaidOn", "date")}${inp("Refund / adjusted on", "emdRefundOn", "date")}
+    </div>
+    <div class="eyebrow" style="margin:10px 0 4px">Pay to — buyer's account / BG beneficiary (from the bid document)</div>
+    <div class="fields">${inp("Beneficiary name", "payeeName")}${inp("Bank", "payeeBank")}${inp("Account no.", "payeeAcc")}${inp("IFSC", "payeeIfsc")}${inp("Branch", "payeeBranch")}${inp("BG / UTR / FDR / DD no.", "emdRef")}${inp("Issuing bank (Rivera side)", "emdIssuer", "text", B.name)}</div>
+    <div class="note" style="margin-top:8px">Refunds come back to Rivera's account: <b>${esc([B.name, B.branch, B.acc && "A/c " + B.acc, B.ifsc && "IFSC " + B.ifsc].filter(Boolean).join(" · ") || "add it in Rate Card → Export & banking")}</b>. On GeM, unsuccessful bidders' EMD is normally released after the bid is finalised; keep the BG valid for the bid validity plus 45 days unless the bid says otherwise.</div></div>
+    <h3 style="margin:16px 0 6px">Performance security (ePBG) after award</h3>
+    <div class="fields">${inp("ePBG % of order value", "pbgPct", "number", "as per bid, e.g. 3 / 5")}${inp("ePBG amount ₹", "pbgAmount", "number")}${sel("ePBG status", "pbgStatus", PBG_ST)}${inp("BG no.", "pbgRef")}${inp("Issuing bank", "pbgIssuer", "text", B.name)}${inp("Valid up to", "pbgValidity", "date")}</div>`);
+  const refresh = () => {
+    const m = f.querySelector('[data-tf="emdMode"]').value; $("#emdReq").hidden = m !== "required";
+    $("#emdExempt").hidden = m === "required"; $("#emdExempt").innerHTML = m === "exempt_mse" ? `Exempted as MSE — upload the Udyam certificate <b>${esc(C.udyam || "(add Udyam no. in Rate Card)")}</b> and confirm the bid allows MSE exemption for this item (some bids make EMD mandatory for all).` : m === "exempt_startup" ? "Exempted as a DPIIT-recognised start-up — upload the DPIIT certificate." : "No EMD asked in this bid.";
+  };
+  const calcAmt = () => { const v = num(f.querySelector('[data-tf="value"]')?.value), p = num(f.querySelector('[data-tf="emdPct"]').value), a = f.querySelector('[data-tf="emdAmount"]'); if (v && p && !a.dataset.touched) a.value = Math.round(v * p / 100); const pv = num(t.contractValue || v), pp = num(f.querySelector('[data-tf="pbgPct"]').value), pa = f.querySelector('[data-tf="pbgAmount"]'); if (pv && pp && !pa.dataset.touched) pa.value = Math.round(pv * pp / 100); const cl = f.querySelector('[data-tf="closing"]').value, bv = num(f.querySelector('[data-tf="bidValidity"]').value) || 90, ev = f.querySelector('[data-tf="emdValidity"]'); if (cl && !ev.dataset.touched) ev.value = addDays(cl, bv + 45); };
+  f.querySelector('[data-tf="emdMode"]').addEventListener("change", refresh);
+  ["emdAmount", "pbgAmount", "emdValidity"].forEach(k => f.querySelector(`[data-tf="${k}"]`).addEventListener("input", e => e.target.dataset.touched = 1));
+  ["value", "emdPct", "pbgPct", "closing", "bidValidity"].forEach(k => f.querySelector(`[data-tf="${k}"]`)?.addEventListener("input", calcAmt));
+  refresh(); calcAmt();
+  const save = $("#tfSave"); save.addEventListener("click", () => { const m = f.querySelector('[data-tf="emdMode"]').value; const emdIn = f.querySelector('[data-tf="emd"]'); const txt = m === "required" ? `₹${fmt(num(f.querySelector('[data-tf="emdAmount"]').value), "INR", 0)} · ${EMD_PAY[f.querySelector('[data-tf="emdPay"]').value].split(" (")[0]}` : EMD_MODES[m]; t.emd = txt; if (emdIn) emdIn.value = txt; }, true);
+};
+/* EMD in tender list + KPI of money blocked in EMD / BG */
+const _tenders5 = VIEWS.tenders;
+VIEWS.tenders = v => {
+  _tenders5(v);
+  const ts = STATE.data.tenders;
+  const blocked = ts.filter(t => t.emdMode === "required" && ["paid"].includes(t.emdStatus)).reduce((s, t) => s + num(t.emdAmount), 0) + ts.filter(t => t.pbgStatus === "submitted").reduce((s, t) => s + num(t.pbgAmount), 0);
+  const k = v.querySelector(".grid.g4 .panel.kpi:last-child"); if (k) k.innerHTML = `<span class="eyebrow">EMD & BG blocked</span><span class="v">${compactINR(blocked)}</span><span class="s">${ts.filter(t => t.emdMode === "required").length} bids with EMD · MSE exempt: ${ts.filter(t => (t.emdMode || "exempt_mse") === "exempt_mse").length}</span>`;
+  v.querySelectorAll("[data-ted]").forEach(b => { const t = ts.find(x => x.id === b.dataset.ted); if (!t) return; const td = b.closest("tr").children[1]; td.insertAdjacentHTML("beforeend", `<div style="margin-top:2px"><span class="chip ${t.emdMode === "required" ? (t.emdStatus === "paid" ? "warn" : t.emdStatus === "refunded" ? "ok" : "bad") : ""}">EMD: ${esc(t.emdMode === "required" ? `₹${fmt(num(t.emdAmount), "INR", 0)} ${EMD_ST[t.emdStatus || "to_pay"]}` : (EMD_MODES[t.emdMode || "exempt_mse"] || "").split(" — ")[0] + (t.emdMode === "exempt_mse" || !t.emdMode ? " MSE" : ""))}</span></div>`); });
+};
+/* BG / EMD reminders on the dashboard */
+const _home5 = VIEWS.home;
+VIEWS.home = v => {
+  _home5(v);
+  const due = STATE.data.tenders.flatMap(t => [t.emdMode === "required" && t.emdStatus === "paid" && t.emdValidity ? { t, what: "EMD / BG valid till", d: t.emdValidity } : null, t.pbgStatus === "submitted" && t.pbgValidity ? { t, what: "ePBG valid till", d: t.pbgValidity } : null, t.emdMode === "required" && (!t.emdStatus || t.emdStatus === "to_pay") && t.closing ? { t, what: "Pay EMD before closing", d: t.closing } : null]).filter(x => x && daysTo(x.d) <= 30).sort((a, b) => a.d.localeCompare(b.d));
+  if (!due.length) return;
+  const col = [...v.querySelectorAll("h3")].find(h => h.textContent === "Tenders closing")?.parentElement; if (!col) return;
+  col.insertAdjacentHTML("beforeend", `<h3 style="margin:12px 0 6px">EMD & bank guarantees</h3>${due.map(x => `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b style="font-size:.85rem">${esc(x.t.org)} · ${esc(x.t.bid)}</b><div class="row" style="gap:6px;margin-top:2px"><span class="muted" style="font-size:.74rem">${esc(x.what)}</span>${dueChip(x.d)}</div></div>`).join("")}`);
+};
+/* Annexure X: EMD row reflects the real status */
+const _annex5 = annexureBlocks;
+annexureBlocks = function (t) {
+  const B = _annex5(t); const emdTxt = t.emdMode === "required" ? `₹${fmt(num(t.emdAmount), "INR", 0)} by ${EMD_PAY[t.emdPay || "bg"]}${t.emdRef ? ", ref " + t.emdRef : ""}` : t.emdMode === "exempt_startup" ? "EXEMPTED (DPIIT start-up)" : t.emdMode === "not_required" ? "Not applicable" : `EXEMPTED (MSE — ${SETTINGS.company.udyam || "Udyam"})`;
+  for (const b of B) if (b.table) for (const r of b.table) if (r[0]?.t === "EMD") r[1].t = emdTxt;
+  const D = SETTINGS.bankDomestic; if (D.acc) for (const b of B) if (b.table && b.table.some(r => r[0]?.t === "GST No.")) b.table.push([{ t: "Bank account for refunds / payments" }, { t: `${D.name}${D.branch ? ", " + D.branch : ""} · A/c ${D.acc} · IFSC ${D.ifsc}` }]);
+  return B;
+};
+
+/* ---------- Rate card: export & banking settings ---------- */
+const _rate5 = VIEWS.ratecard;
+VIEWS.ratecard = v => {
+  _rate5(v);
+  const X = SETTINGS.export, D = SETTINGS.bankDomestic;
+  const aside = v.querySelector("aside.stack"); if (!aside) return;
+  aside.insertAdjacentHTML("afterbegin", `<section class="panel"><header><h2>Export & banking</h2></header><div class="body stack" style="gap:10px">
+    <div class="fields">${[["IEC (Import Export Code)", "export.iec"], ["LUT ARN (GST RFD-11)", "export.lutArn"], ["LUT financial year", "export.lutFy"], ["AD code (bank, ICEGATE)", "export.adCode"], ["HS code for coils", "export.hs"], ["Sea port of loading", "export.portSea"], ["Airport of loading", "export.portAir"], ["Cargo insurance %", "export.insurancePct"]].map(([l, p]) => `<label class="f">${l}<input type="text" data-p="${p}" value="${esc(getPath(SETTINGS, p) ?? "")}"></label>`).join("")}</div>
+    <div class="note">LUT is valid for one financial year — file a fresh RFD-11 before the first export each April, or exports must be invoiced with IGST.</div>
+    <div class="eyebrow">Domestic bank — EMD refunds, GeM payments</div>
+    <div class="fields">${[["Bank", "name"], ["Branch", "branch"], ["Account no.", "acc"], ["IFSC", "ifsc"]].map(([l, k]) => `<label class="f">${l}<input type="text" data-p="bankDomestic.${k}" value="${esc(D[k] ?? "")}"></label>`).join("")}</div>
+    <button class="btn primary" id="expSave">${icon("save")}Save export & banking</button></div></section>`);
+  $("#expSave").onclick = async () => { if (await Store.saveSettings()) toast("Export & banking details saved"); };
 };
 boot();
 
