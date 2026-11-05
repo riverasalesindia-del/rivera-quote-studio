@@ -3952,6 +3952,7 @@ boot = function () {
 /* ===================== p9: admin-created logins, sign-in approval, stay signed in ===================== */
 Object.assign(IC, { eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>' });
 const ADMIN_ID = "crm@rivera.co.in";
+const ADMIN_PAGE = /admin\.html$/i.test(location.pathname);
 const PEND = { get() { try { return JSON.parse(localStorage.getItem("rqs.pend") || "null"); } catch { return null; } }, set(v) { try { v ? localStorage.setItem("rqs.pend", JSON.stringify(v)) : localStorage.removeItem("rqs.pend"); } catch { } } };
 Idle.init = () => { };   // stay signed in until the person signs out
 AUTH.expired = function () { if (!this.s) return; this.s = null; showLogin({ msg: "This device was signed out by the admin. Sign in again." }); };
@@ -3960,7 +3961,8 @@ let _poll = 0;
 showLogin = function (o = {}) {
   let ov = $("#authOv"); if (!ov) { ov = document.createElement("div"); ov.id = "authOv"; ov.className = "auth-ov"; document.body.appendChild(ov); }
   document.body.classList.add("locked"); clearInterval(_poll);
-  let mode = o.mode || (PEND.get() ? "waiting" : "login"), setupAdmin = false, uid0 = "";
+  let mode = o.mode || (PEND.get() ? "waiting" : "login"), setupAdmin = false;
+  if (!ADMIN_PAGE && !["login", "waiting"].includes(mode)) mode = "login";
   const draw = (msg = o.msg || "", kind = "") => {
     o.msg = ""; clearInterval(_poll);
     const T = { login: "Sign in", waiting: "Waiting for approval", setup: "Set up the admin account", verify: "Verify the admin email", forgot: "Forgot password", reset: "Set a new admin password", server: "Server settings" }[mode];
@@ -3969,8 +3971,7 @@ showLogin = function (o = {}) {
     let body = "";
     if (mode === "login") body = `${f("aE", "Username", "text", 'autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Your username"')}${pw("aP", "Password", "current-password")}
       <button class="btn primary block" id="aGo">${icon("lock")}Sign in</button>
-      <div class="auth-links"><span class="muted small">Logins are created by the admin</span><a href="#" data-m="forgot">Forgot password?</a></div>
-      ${setupAdmin ? `<div class="note" style="margin-top:6px">First time? <a href="#" data-m="setup"><b>Set up the admin account</b></a> for ${ADMIN_ID}.</div>` : ""}`;
+      ${ADMIN_PAGE ? `<div class="auth-links"><span class="muted small">Admin sign-in</span><a href="#" data-m="forgot">Forgot password?</a></div>${setupAdmin ? `<div class="note" style="margin-top:6px">First time? <a href="#" data-m="setup"><b>Set up the admin account</b></a> for ${ADMIN_ID}.</div>` : ""}` : `<p class="muted small" style="margin:2px 0 0;text-align:center">Forgot your password? Ask the admin to reset it.</p>`}`;
     if (mode === "waiting") { const p = PEND.get() || {}; body = `<div class="wait"><span class="spin lg"></span><div><b>${esc(p.name || p.user || "")}</b>, your sign-in is waiting for the admin.<br><span class="muted small">An email has gone to ${ADMIN_ID}. This screen opens the app by itself as soon as it's approved — you can keep it open.</span></div></div><button class="btn block" id="aCancel" style="margin-top:14px">Cancel and use another login</button>`; }
     if (mode === "setup") body = `<p class="muted small">Only for ${ADMIN_ID}. A 6-digit code goes to that mailbox to prove it's yours. After this, you create logins for the team from <b>Users & access</b>.</p>${f("aN", "Your name", "text", 'autocomplete="name"')}${pw("aP", "Admin password", "new-password")}${pw("aP2", "Repeat password", "new-password")}<button class="btn primary block" id="aGo">Email me the code</button><div class="auth-links"><a href="#" data-m="login">Back to sign in</a><a href="#" data-m="verify">I have a code</a></div>`;
     if (mode === "verify") body = `${f("aC", "6-digit code sent to " + ADMIN_ID, "text", 'inputmode="numeric" maxlength="6" autocomplete="one-time-code"')}<button class="btn primary block" id="aGo">Verify and open the app</button><div class="auth-links"><a href="#" data-m="setup">Send a new code</a><a href="#" data-m="login">Back to sign in</a></div>`;
@@ -3979,9 +3980,9 @@ showLogin = function (o = {}) {
     if (mode === "server") body = `${f("aS", "Sign-in server URL (Google Apps Script web app)", "url", `value="${esc(AUTH.api)}" placeholder="https://script.google.com/macros/s/…/exec"`)}<button class="btn primary block" id="aGo">Save & test</button><div class="auth-links"><a href="#" data-m="login">Back</a></div>`;
     ov.innerHTML = `<div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="aT">
       <div class="auth-brand"><img src="${RIVERA_MARK}" alt=""><div><b>RIVERA<sup>™</sup></b><small>Quote Studio</small></div></div>
-      <h2 id="aT">${T}</h2>${msg ? `<div class="note ${kind || "warn"}" style="margin-bottom:12px">${esc(msg)}</div>` : ""}
+      <h2 id="aT">${T}${ADMIN_PAGE && mode === "login" ? ' <span class="chip">Admin</span>' : ""}</h2>${msg ? `<div class="note ${kind || "warn"}" style="margin-bottom:12px">${esc(msg)}</div>` : ""}
       <form class="stack" id="aForm" onsubmit="return false" autocomplete="on">${body}</form>
-      <div class="auth-foot"><span>${icon("lock")} Private to Rivera Coil Manufacturing (I) Pvt Ltd</span>${mode !== "server" ? '<a href="#" data-m="server">Server</a>' : ""}</div></div>`;
+      <div class="auth-foot"><span>${icon("lock")} Private to Rivera Coil Manufacturing (I) Pvt Ltd</span>${ADMIN_PAGE && mode !== "server" ? '<a href="#" data-m="server">Server</a>' : ""}</div></div>`;
     $$("[data-m]", ov).forEach(a => a.onclick = e => { e.preventDefault(); mode = a.dataset.m; draw(); });
     $$("[data-eye]", ov).forEach(b => b.onclick = () => { const i = $("#" + b.dataset.eye); i.type = i.type === "password" ? "text" : "password"; i.focus(); });
     setTimeout(() => $("input", ov)?.focus(), 60);
@@ -4002,7 +4003,9 @@ showLogin = function (o = {}) {
         if (mode === "server") { const u = v("aS"); if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(u)) throw new Error("Paste the https://script.google.com/macros/s/…/exec URL"); localStorage.setItem(AUTH.API_KEY, u); busy("Testing…"); await AUTH.call("ping"); mode = "login"; return draw("Server connected.", "ok"); }
         if (mode === "login") {
           const id = v("aE").toLowerCase(), p = $("#aP").value; if (!id) throw new Error("Enter your username"); if (!p) throw new Error("Enter your password");
+          if (ADMIN_PAGE && id !== ADMIN_ID) throw new Error("This page is for the admin only. Team members use the team sign-in link.");
           busy("Signing in…"); const d = await AUTH.call("login", { email: id, pw: await AUTH.hash(p, id), device: AUTH.device(), token: "" });
+          if (ADMIN_PAGE && d.user && d.user.role !== "admin") { throw new Error("This page is for the admin only."); }
           if (d.status === "approved") return AUTH.signedIn(d);
           if (d.status === "waiting") { PEND.set({ sid: d.sid, nonce: d.nonce, user: id, at: Date.now() }); mode = "waiting"; return draw(); }
           return draw("Couldn't sign in.", "bad");
@@ -4016,7 +4019,7 @@ showLogin = function (o = {}) {
     $("#aForm").onsubmit = e => { e.preventDefault(); go.click(); return false; };
   };
   draw();
-  if (mode === "login" && AUTH.api) AUTH.call("ping", { token: "" }).then(d => { if (d.setup && mode === "login") { setupAdmin = true; draw(); } }).catch(() => { });
+  if (ADMIN_PAGE && mode === "login" && AUTH.api) AUTH.call("ping", { token: "" }).then(d => { if (d.setup && mode === "login") { setupAdmin = true; draw(); } }).catch(() => { });
 };
 const _signedIn9 = AUTH.signedIn.bind(AUTH);
 AUTH.signedIn = async function (d) { try { localStorage.removeItem("rqs.lastEmail"); } catch { } await _signedIn9(d); setTimeout(() => { autoSeed(); Admin9.poll(); }, 1500); };
