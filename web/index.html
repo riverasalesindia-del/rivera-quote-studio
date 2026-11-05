@@ -1027,7 +1027,7 @@ function newWorkings(o = {}) {
   const w = {
     id: uid(), title: o.title || "", customer: o.customer || "", date: o.date || todayISO(), type, method, qty,
     insSystem: o.insSystem || "RR", currency: o.currency || "INR", fx: o.currency && o.currency !== "INR" ? (SETTINGS.fx[o.currency] || 1) : 1,
-    gst: o.market === "international" ? 0 : rc.gst, profit: method === "pct" ? pctSet.profit : t.profit, profitOn: "basic",
+    gst: o.market === "international" ? 0 : rc.gst, profit: method === "pct" ? pctSet.profit : t.profit, profitOn: method === "pct" ? "copper" : "basic",
     wkit: o.wkit ? (t.wkit || 150000) : 0, fixture: method === "pct" ? 0 : t.fixture, freight: 0, special: 0, discount: 0, roundTo: rc.roundTo, override: null,
     rows: [], tape: { h: 0, w: 0, l: 0, layers: 0, pitch: 12.5, roll: 50 }, insTable: [], notes: "", sourceScanId: o.sourceScanId || null
   };
@@ -1069,6 +1069,7 @@ function calc(w) {
   const p = num(w.profit) / 100;
   let profitTotal, profitRpc;
   if (w.profitOn === "total") { profitTotal = (basicTotal + wkit + fixture) * p; profitRpc = q ? profitTotal / q : 0; }
+  else if (w.profitOn === "copper") { profitRpc = cuPerCoil * p; profitTotal = profitRpc * q; }
   else { profitRpc = basicRpc * p; profitTotal = profitRpc * q; }
   const totalA = basicTotal + (w.profitOn === "total" ? 0 : profitTotal) + wkit;
   let totalAB = totalA + fixture + (w.profitOn === "total" ? profitTotal : 0) + freight + special;
@@ -1291,7 +1292,7 @@ function workingsSheet(w) {
   put(r, 0, { v: "Basic", s: 5 }); put(r, 1, { v: "", s: 5 }); put(r, 2, { v: "", s: 5 }); put(r, 3, { f: `SUM(D${R(first)}:D${last})`, v: c.basicRpc, s: 6 }); put(r, 4, { v: "", s: 5 }); put(r, 5, { f: `SUM(F${R(first)}:F${last})`, v: c.basicTotal, s: 6 }); r++;
   let profitRef = null, wkRef = null, fxRef = null;
   const p = num(w.profit);
-  if (w.profitOn !== "total") { profitRef = R(r); put(r, 0, { v: `Profit ${p}%`, s: 5 }); put(r, 1, { v: "", s: 5 }); put(r, 2, { v: p / 100, s: 7 }); put(r, 3, { f: `D${basic}*C${R(r)}`, v: c.profitRpc, s: 4 }); put(r, 4, { v: num(w.qty), s: 8 }); put(r, 5, { f: `D${R(r)}*E${R(r)}`, v: c.profitTotal, s: 4 }); r++; }
+  if (w.profitOn !== "total") { profitRef = R(r); put(r, 0, { v: `Profit ${p}%`, s: 5 }); put(r, 1, { v: "", s: 5 }); put(r, 2, { v: p / 100, s: 7 }); put(r, 3, w.profitOn === "copper" ? { v: c.profitRpc, s: 4 } : { f: `D${basic}*C${R(r)}`, v: c.profitRpc, s: 4 }); put(r, 4, { v: num(w.qty), s: 8 }); put(r, 5, { f: `D${R(r)}*E${R(r)}`, v: c.profitTotal, s: 4 }); r++; }
   if (c.wkit) { wkRef = R(r); put(r, 0, { v: "", s: 3 }); put(r, 1, { v: "Winding Kit", s: 3 }); put(r, 2, { v: 1, s: 8 }); put(r, 3, { v: c.wkit, s: 4 }); put(r, 4, { v: 1, s: 8 }); put(r, 5, { f: `D${R(r)}*E${R(r)}`, v: c.wkit, s: 4 }); r++; }
   const totA = R(r); put(r, 0, { v: "Total(A)", s: 5 }); for (let i = 1; i < 5; i++) put(r, i, { v: "", s: 5 });
   put(r, 5, { f: [`F${basic}`, profitRef && `F${profitRef}`, wkRef && `F${wkRef}`].filter(Boolean).join("+"), v: c.totalA, s: 6 }); r++;
@@ -1823,7 +1824,7 @@ VIEWS.workings = v => {
       <div class="scroll"><table class="t wtable"><thead><tr><th>Sl</th><th>Description · basis</th><th class="n">Price</th><th class="n">Kg / value</th><th class="n">Rate/Coil</th><th class="n">Qty/Nos</th><th class="n">Total INR</th><th></th></tr></thead><tbody id="wRows"></tbody></table></div></section>
       <section class="panel"><header><h2>Profit, kit, fixture & extras</h2></header><div class="body"><div class="fields">
         <label class="f">Profit %<input type="number" step="any" data-p="profit" value="${w.profit}"></label>
-        <label class="f">Profit applied on<select data-p="profitOn"><option value="basic" ${w.profitOn === "basic" ? "selected" : ""}>Basic (coil cost)</option><option value="total" ${w.profitOn === "total" ? "selected" : ""}>Basic + kit + fixture</option></select></label>
+        <label class="f">Profit applied on<select data-p="profitOn"><option value="basic" ${w.profitOn === "basic" ? "selected" : ""}>Basic (coil cost)</option><option value="copper" ${w.profitOn === "copper" ? "selected" : ""}>Copper value (% method)</option><option value="total" ${w.profitOn === "total" ? "selected" : ""}>Basic + kit + fixture</option></select></label>
         <label class="f">Winding kit (A) ₹<input type="number" step="any" data-p="wkit" value="${w.wkit}"></label>
         <label class="f">Fixture (B) ₹<input type="number" step="any" data-p="fixture" value="${w.fixture}"></label>
         <label class="f">Freight / CIF / CPT ₹<input type="number" step="any" data-p="freight" value="${w.freight}"></label>
@@ -3746,27 +3747,36 @@ VIEWS.biddesk = v => {
   const live = (STATE.data.tenders || []).filter(t => ["identified", "preparing", "submitted", "technical", "ra"].includes(t.status) && t.bidx).sort((a, b) => (a.closing || "9").localeCompare(b.closing || "9"));
   v.innerHTML = `<div class="topbar"><div><div class="eyebrow">GeM · automatic bid preparation</div><h1>GeM Bid Desk</h1><p>Drop the GeM bid PDF. The app reads it, checks Rivera's eligibility, matches your stored company documents, builds the compliance matrix, cover letter, annexures and upload map, and routes it for approval. The authorised person then uploads and e-signs on GeM — GeM requires that step to be done by a person.</p></div>
   <div class="row"><a class="btn" href="https://bidplus.gem.gov.in/all-bids" target="_blank" rel="noopener">Open GeM bids</a><button class="btn" id="bdAlert">Paste GeM alert</button></div></div>
-  <section class="panel"><div class="body"><div class="drop" id="bdDrop" tabindex="0" role="button">${icon("up")}<b>Drop the GeM bid document (PDF) here or tap to choose</b><span class="muted">Corrigendum PDFs too — the app compares them with the stored bid and flags changes.</span></div><input type="file" id="bdPick" accept=".pdf,.txt" hidden><div id="bdStep" class="muted small" style="margin-top:8px"></div></div></section>
+  <section class="panel"><div class="body"><div class="drop" id="bdDrop" tabindex="0" role="button">${icon("up")}<b>Drop GeM bid PDFs here — one or many at once</b><span class="muted">Each bid is read, checked and prepared on its own. A GeM bid list or alert PDF with many bid numbers adds them all. Corrigendum PDFs are compared with the stored bid.</span></div><input type="file" id="bdPick" accept=".pdf,.txt" multiple hidden><div id="bdStep" class="muted small" style="margin-top:8px"></div></div></section>
   <div id="bdOut"></div>
   <section class="panel" style="margin-top:16px"><header><h2>Bids in preparation</h2><span class="chip">${live.length}</span></header><div class="body stack" style="gap:8px">${live.length ? live.map(t => { const r = t.bidx.ready || {}; return `<div class="note ${r.pct === 100 ? "ok" : r.pct > 60 ? "warn" : "bad"}" style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap"><span><b>${esc(t.bid)}</b> · ${esc(t.org || "")} ${t.closing ? dueChip(t.closing) : ""}<br><span class="small">${r.pct ?? 0}% ready · ${esc(apprLine(t))}</span></span><button class="btn sm" data-bdopen="${esc(t.id)}">Open</button></div>`; }).join("") : `<p class="muted">No bids yet. Drop a GeM bid PDF above.</p>`}</div></section>`;
   const pick = $("#bdPick"), drop = $("#bdDrop");
   drop.onclick = () => pick.click(); drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") pick.click(); };
   ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); drop.classList.add("over"); }));
   drop.addEventListener("dragleave", () => drop.classList.remove("over"));
-  drop.addEventListener("drop", e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) analyseBidFile(f); });
-  pick.onchange = () => { const f = pick.files[0]; pick.value = ""; if (f) analyseBidFile(f); };
+  drop.addEventListener("drop", e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove("over"); analyseMany([...e.dataTransfer.files]); });
+  pick.onchange = () => { const fs = [...pick.files]; pick.value = ""; analyseMany(fs); };
   $("#bdAlert").onclick = pasteAlert;
   $$("[data-bdopen]").forEach(b => b.onclick = () => { const t = STATE.data.tenders.find(x => x.id === b.dataset.bdopen); BID = { t: clone(t), B: t.bidx.B }; drawBid(); });
   if (BID) drawBid();
 };
 function apprLine(t) { const a = t.appr || {}; return ["bid", "price", "pack"].map(k => `${{ bid: "Bid/no-bid", price: "Price", pack: "Pack" }[k]}: ${a[k]?.ok ? "✓ " + a[k].by.split("@")[0] : a[k]?.ok === false ? "✗" : "pending"}`).join(" · "); }
-async function analyseBidFile(f) {
+async function analyseMany(fs) {
+  fs = fs.filter(f => /\.(pdf|txt)$/i.test(f.name)); if (!fs.length) return;
+  if (fs.length === 1) return analyseBidFile(fs[0]);
+  const res = []; for (const f of fs) res.push([f.name, await analyseBidFile(f, { quiet: true })]);
+  const o = $("#bdOut"); if (o) o.innerHTML = `<section class="panel" style="margin-top:16px"><header><h2>${fs.length} files read</h2></header><div class="body stack" style="gap:6px">${res.map(([n, r]) => `<div class="note ${!r ? "bad" : r.list ? "" : r.block ? "warn" : "ok"}" style="display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;align-items:center"><span><b>${esc(r?.bid || n)}</b> <span class="muted small">${esc(n)}</span><br><span class="small">${!r ? "Could not read this file" : r.list ? r.list + " bid numbers · " + r.added + " added to Tenders" : r.pct + "% ready" + (r.block ? " · " + r.block + " blocking" : " · ready for approval")}</span></span>${r?.bid ? `<button class="btn sm" data-bdo="${esc(r.bid)}">Open</button>` : ""}</div>`).join("")}</div></section>`;
+  $$("[data-bdo]").forEach(b => b.onclick = () => { const t = STATE.data.tenders.find(x => x.bid === b.dataset.bdo); BID = { t: clone(t), B: t.bidx.B }; drawBid(); });
+}
+async function analyseBidFile(f, o) {
   const step = m => { const s = $("#bdStep"); if (s) s.textContent = m; };
   try {
     step("Reading " + f.name + " …");
     let text = /\.txt$/i.test(f.name) ? await f.text() : (await readPdf(await f.arrayBuffer(), step)).text;
-    if (text.replace(/\s/g, "").length < 200) { step(""); toast("This PDF is a scanned image with no text. Download the original bid PDF from GeM (it has text) and drop that.", "bad"); return; }
+    if (!/\.txt$/i.test(f.name) && text.replace(/\s/g, "").length < 200 && !/GEM\/\d{4}\//.test(text)) { step(""); toast("This PDF is a scanned image with no text. Download the original bid PDF from GeM (it has text) and drop that.", "bad"); return; }
+    const allIds = [...new Set(text.match(/GEM\/\d{4}\/[BR]\/\d{5,}/g) || [])];
     const B = parseGemBid(text); B.file = f.name; B.read = new Date().toISOString();
+    if (allIds.length > 1 && B.found < 6) { let n = 0; for (const id of allIds) { if (STATE.data.tenders.some(t => t.bid === id)) continue; const i = text.indexOf(id), ctx = text.slice(Math.max(0, i - 200), i + 300); await DB.put("tenders", { id: id.replace(/[^A-Za-z0-9]+/g, "-"), bid: id, portal: "GeM", status: "identified", items: (ctx.match(/(stator|rotor|roebel|armature|pole|coil|rewind)[^\n]{0,80}/i) || [""])[0], closing: toISO(ctx.match(/\d{2}-\d{2}-\d{4}/g)?.slice(-1)[0] || ""), check: {}, emd: "Exempted (MSE)", fit: FIT_WORDS.test(ctx), log: [{ at: new Date().toISOString(), by: who(), what: "Added from bid list " + f.name }] }); n++; } step(`${allIds.length} bid numbers in ${f.name} — ${n} new tenders added. Drop each bid's own PDF to prepare it.`); return { list: allIds.length, added: n }; }
     if (!B.bid) { toast("No GeM bid number found in this file. Is it the GeM bid document?", "bad"); step(""); return; }
     let t = STATE.data.tenders.find(x => x.bid === B.bid || x.id === B.bid.replace(/[^A-Za-z0-9]+/g, "-"));
     const prev = t?.bidx?.B;
@@ -3778,7 +3788,7 @@ async function analyseBidFile(f) {
     t.bidx = { B, ready, rowsN: rows.length }; GEM_DOCS.forEach(([k]) => { if (rows.some(r => r.status !== "missing" && ((k === "msme" && /mse/i.test(r.req)) || (k === "mii" && /make in india/i.test(r.req)) || (k === "gst" && /gst/i.test(r.req))))) t.check[k] = true; });
     if (t.status === "identified" && ready.pct) t.status = "preparing";
     audit(t, `Bid document read (${B.found} fields) — ${ready.pct}% ready`);
-    await DB.put("tenders", t); BID = { t, B }; step(`Read ${B.found} fields from ${f.name}`); drawBid();
+    await DB.put("tenders", t); BID = { t, B }; step(`Read ${B.found} fields from ${f.name}`); if (!o?.quiet) drawBid(); return { bid: B.bid, pct: ready.pct, block: ready.block.length };
   } catch (e) { step(""); toast("Couldn't read the bid: " + (e.message || e), "bad"); }
 }
 function drawBid() {
