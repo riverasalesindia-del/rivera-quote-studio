@@ -3320,12 +3320,13 @@ window.riveraReceivePack = (p, from) => { try { if (packIsNewer(p)) loadPack(p, 
 /* Synology / shared folder: pick up rivera-data-pack.json lying in the folder */
 async function packFromDir() {
   if (!STATE.dir) return;
-  for (const path of [["rivera-data-pack.json"], ["Rivera Quote Studio", "rivera-data-pack.json"]]) {
+  for (const sub of [[], ["Rivera Quote Studio"]]) {
     try {
-      let d = STATE.dir; for (const seg of path.slice(0, -1)) d = await d.getDirectoryHandle(seg);
-      const f = await (await d.getFileHandle(path.at(-1))).getFile(); if (f.size > 5e6) continue;
-      const p = JSON.parse(await f.text()); if (packIsNewer(p)) { await loadPack(p, STATE.dir.name + " folder"); }
-      return;
+      let d = STATE.dir; for (const seg of sub) d = await d.getDirectoryHandle(seg);
+      for await (const [n, h] of d.entries()) {
+        if (h.kind !== "file" || !/^rivera-data-pack.*\.json$/i.test(n)) continue;
+        try { const f = await h.getFile(); if (f.size > 5e6) continue; const p = JSON.parse(await f.text()); if (packIsNewer(p)) await loadPack(p, STATE.dir.name + " folder"); } catch { }
+      }
     } catch { }
   }
 }

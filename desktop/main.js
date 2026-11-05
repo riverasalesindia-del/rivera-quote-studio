@@ -46,12 +46,15 @@ function packCandidates() {
 function findPack() {
   let best = null;
   for (const [dir, label] of packCandidates()) {
-    try {
-      const f = path.join(dir, "rivera-data-pack.json"); const st = fs.statSync(f);
-      if (!st.isFile() || st.size > 5e6) continue;
-      const j = JSON.parse(fs.readFileSync(f, "utf8")); if (j.kind !== "rivera-datapack") continue;
-      if (!best || String(j.createdAt || "") > String(best.j.createdAt || "")) best = { j, label };
-    } catch (e) {}
+    let names = []; try { names = fs.readdirSync(dir).filter(n => /^rivera-data-pack.*\.json$/i.test(n)); } catch (e) {}
+    for (const n of names) {
+      try {
+        const f = path.join(dir, n); const st = fs.statSync(f);
+        if (!st.isFile() || st.size > 5e6) continue;
+        const j = JSON.parse(fs.readFileSync(f, "utf8")); if (j.kind !== "rivera-datapack") continue;
+        if (!best || String(j.createdAt || "") > String(best.j.createdAt || "")) best = { j, label };
+      } catch (e) {}
+    }
   }
   return best;
 }
