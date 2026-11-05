@@ -127,6 +127,27 @@ function api(d) {
   if (a === "me") return { ok: true, user: pub(me), settings: { loginMail: cfg("loginMail", "1") === "1" } };
   if (a === "logout") { var so = findSession(me.sid); if (so) { so.status = "ended"; so.decidedAt = new Date(); so.decidedBy = "signed out"; saveSession(so); } log(me.email, "logout", ""); return { ok: true }; }
   if (a === "pack") { var p = getBlob("datapack"); return { ok: true, pack: p }; }
+  if (a === "gemAlerts") {
+    var gc = CacheService.getScriptCache(), hit = gc.get("gemAlerts");
+    if (hit && !d.fresh) return { ok: true, alerts: JSON.parse(hit), cached: true };
+    var out = [], seen = {}, th = GmailApp.search('("GEM/20" OR from:gem.gov.in OR from:bidplus.gem.gov.in) newer_than:60d', 0, 80);
+    th.forEach(function (t) { t.getMessages().forEach(function (m) {
+      var subj = m.getSubject() || "", txt = subj + "\n" + (m.getPlainBody() || ""), re = /GEM\/\d{4}\/[BR]\/\d{5,}/g, mm, hits = [];
+      while ((mm = re.exec(txt))) hits.push({ id: mm[0], at: mm.index, end: mm.index + mm[0].length });
+      hits.forEach(function (h, i) {
+        if (seen[h.id]) return; seen[h.id] = 1;
+        var prevEnd = i ? hits[i - 1].end : 0, next = i + 1 < hits.length ? hits[i + 1].at : txt.length;
+        var back = txt.slice(Math.max(prevEnd, h.at - 120), h.at), fwd = txt.slice(h.end, Math.min(next, h.end + 700));
+        var ctx = (back + " " + h.id + " " + fwd).replace(/\s+/g, " ");
+        var date = (fwd.match(/\d{2}[-\/]\d{2}[-\/]\d{4}(?:\s+\d{2}:\d{2}(?::\d{2})?)?/) || [""])[0];
+        var link = (fwd.match(/https?:\/\/[^\s"'<>]*gem\.gov\.in[^\s"'<>]*/i) || [""])[0];
+        out.push({ bid: h.id, subject: subj.slice(0, 200), ctx: ctx.slice(0, 700), item: fwd.replace(/\s+/g, " ").replace(/^[\s:.,-]*(item\s*:?\s*)?/i, "").split(/bid end|end date|https?:|\bview\b/i)[0].slice(0, 160).trim(), end: date, link: link, date: m.getDate().toISOString(), from: String(m.getFrom()).slice(0, 80) });
+      });
+    }); });
+    var js = JSON.stringify(out); if (js.length < 95000) gc.put("gemAlerts", js, 600);
+    log(me.email, "gem-alerts", out.length + " bids");
+    return { ok: true, alerts: out };
+  }
   if (a === "sync") {
     var lock = LockService.getScriptLock(); lock.waitLock(20000);
     try {

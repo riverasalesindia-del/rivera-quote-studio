@@ -286,6 +286,15 @@ kbd{font-family:var(--f-mono,monospace);font-size:.68rem;border:1px solid var(--
 .pw-wrap{position:relative;display:block}.pw-wrap input{padding-right:44px;width:100%}.pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:8px;cursor:pointer;color:var(--muted,#667);display:flex}.pw-eye svg{width:18px;height:18px}
 .wait{display:flex;gap:14px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel2,rgba(2,49,91,.04))}.spin.lg{width:26px;height:26px;border-width:3px;flex:none}
 .panel>header h2 svg,h2 svg,h3 svg{width:18px;height:18px;flex:none;vertical-align:-3px;margin-right:4px}
+.hero-strip{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:14px;overflow:hidden;margin:0 0 16px}
+.hero-strip>div{background:linear-gradient(160deg,#02315B,#04477f);color:#fff;padding:14px 16px;display:flex;flex-direction:column;gap:4px;min-width:0}
+.hero-strip>div.warn{background:linear-gradient(160deg,#b45309,#e56a0a)}
+.hero-strip span{font-size:.68rem;letter-spacing:.08em;text-transform:uppercase;opacity:.8}.hero-strip b{font-size:1.6rem;line-height:1}
+@media(max-width:720px){.hero-strip{grid-template-columns:repeat(2,minmax(0,1fr))}.hero-strip>div:last-child{grid-column:1/-1}}
+.feed-row{display:flex;gap:12px;align-items:center;padding:10px 12px;border:1px solid var(--line);border-radius:12px;flex-wrap:wrap}
+.feed-row.hot{border-color:#e56a0a;background:rgba(229,106,10,.06)}
+.feed-fit{flex:none;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:.85rem;background:var(--panel2,#eef1f0);color:#02315B}
+.feed-row.hot .feed-fit{background:#e56a0a;color:#fff}
 </style>
 <div class="shell">
   <aside class="rail" aria-label="Main navigation">
@@ -4273,6 +4282,149 @@ VIEWS.library = v => {
 };
 /* keep team sync light: documents that came with the data pack aren't re-uploaded on every sync */
 function syncData() { return { ...STATE.data, docs: (STATE.data.docs || []).filter(d => !d.fromPack) }; }
+/* ===================== p11: tender-specific document set (PDF for GeM + Word), GeM alert feed, Bid Desk polish ===================== */
+
+/* ---------- Word-style blocks → PDF (GeM accepts PDF uploads) ---------- */
+async function blocksPdf(blocks) {
+  return buildPdf(async c => {
+    for (const b of blocks) {
+      if (b.pagebreak) { c.newPage(); continue; }
+      if (b.logo) continue;                       // the PDF header already carries the logo and company name
+      if (b.t && (b.t === SETTINGS.company.name || b.t === SETTINGS.company.address)) continue;
+      if (b.table) {
+        const total = (b.widths || b.table[0].map(() => 1)).reduce((s, x) => s + x, 0), avail = c.W - 2 * c.M;
+        const cols = b.table[0].map((h, i) => ({ h: (h.t ?? h) + "", w: avail * (b.widths ? b.widths[i] : 1) / total }));
+        c.table(cols, b.table.slice(1).map(r => r.map(x => (x?.t ?? x ?? "") + "")), { size: 8.6 });
+        continue;
+      }
+      if (b.before) c.gap(Math.min(30, b.before / 12));
+      const size = b.sz ? Math.min(14, b.sz * 0.85) : 9.6;
+      if (b.align === "center") { const w = c.F.widthOfTextAtSize(winAnsi(b.t || ""), size); c.y; c.text(b.t || "", { size, bold: !!b.b, indent: Math.max(0, (c.W - 2 * c.M - w) / 2) }); }
+      else if (b.align === "right") { c.ensure(size + 4); c.textRight(b.t || "", { size, bold: !!b.b }); c.gap(size + 4); }
+      else c.text(b.t || "", { size, bold: !!b.b, color: b.color === "555555" ? c.GREY : b.color === "02315B" ? c.NAVY : c.INK, after: b.after != null ? b.after / 20 : 3 });
+      if (b.border) c.gap(4);
+    }
+  });
+}
+
+/* ---------- documents written for THIS bid ---------- */
+function bidHead(title, t, B) {
+  const C = SETTINGS.company;
+  return [{ logo: true }, { t: C.name, b: true, sz: 13, color: "02315B", after: 0 }, { t: C.address, sz: 9, color: "555555", border: true, after: 200 },
+  { t: "Date: " + dmy(todayISO()), align: "right" }, { t: "To,", before: 80 }, { t: (B.office ? B.office + ", " : "") + (B.org || t.org || "The Buyer") }, ...(B.dept ? [{ t: B.dept }] : []),
+  { t: `Sub: ${title} — GeM Bid No. ${t.bid}${B.published ? " dated " + dmy(B.published) : ""}${B.category ? " for " + B.category : ""}`, b: true, before: 140, after: 120 }];
+}
+const bidSign = () => [{ t: "For " + SETTINGS.company.name, b: true, before: 360 }, { t: "", before: 300 }, { t: (SETTINGS.company.signatory || "Authorised Signatory") + " (Signature & Seal)" }];
+function warrantyText(B) {
+  const m = (B.atc || []).concat(B.warrantyRaw ? [B.warrantyRaw] : []).join(" ").match(/(\d{1,2})\s*months?[^.]{0,80}(commission|install|use)[^.]{0,120}(\d{1,2})\s*months?/i);
+  return m ? [m[1], m[3]] : ["12", "18"];
+}
+function bidDocSet(t, B, rows, el) {
+  const C = SETTINGS.company, org = B.org || t.org || "the Buyer", sim = (el?.sim || []).slice(0, 5), [wm1, wm2] = warrantyText(B);
+  const items = (B.items || []).length ? B.items : [{ desc: B.category || t.items || "Item as per bid", qty: B.qty || "", unit: "Nos" }];
+  const D = [];
+  D.push({ slot: "01 Cover letter", file: "Cover_Letter", blocks: coverBlocks(t, B, rows) });
+  D.push({ slot: "02 OEM authorisation (Certificate requested in ATC)", file: "OEM_Authorisation_Undertaking", blocks: [...bidHead("Authorisation & undertaking by Indian manufacturer (Annexure-A)", t, B),
+    { t: `WHEREAS we, M/s. ${C.name}, are established and reputable manufacturers of the tendered / offered items, having our factory at ${C.address}, we hereby confirm that we are the Original Equipment Manufacturer (OEM) of the offered items and are bidding directly.` },
+    { t: "We also undertake that:", before: 80 },
+    { t: `i) We will accept full responsibility for the satisfactory execution of the order, including warranty / guarantee obligations.` },
+    { t: `ii) We will provide the requisite inspection and testing facilities at our works for orders placed by ${org}.` },
+    { t: `iii) We extend our full support and commitment for all terms and conditions including guarantee and warranty as per GTC, STC, ATC and the technical specifications of this bid for the entire contract period.` },
+    { t: `iv) We are not banned, delisted, debarred or put on holiday by any Government or quasi-Government agency or Public Sector Undertaking in India.` }, ...bidSign()] });
+  D.push({ slot: "03 Experience & past performance", file: "Past_Performance_Proveness", blocks: [...bidHead("Self-certificate for proven-ness and past performance", t, B),
+    { t: "“The items covered in the Purchase Order(s) / Rate Contract(s) copies enclosed with our offer have been fully executed and have performed satisfactorily as per the provisions of the respective Purchase Order(s) / Rate Contract(s), and all complaints / claims lodged by the purchaser, if any, have been attended to and no complaints / claims are pending.”" },
+    ...(sim.length ? [{ t: "Orders enclosed as proof of past performance:", b: true, before: 120 }, { widths: [500, 2600, 3200, 1700], table: [["#", "PO / contract", "Customer · description", "Value ₹"].map(x => ({ t: x })), ...sim.map((x, i) => [String(i + 1), x.o.po, `${x.o.customer} — ${x.o.desc}`, fmt(x.val, "INR", 0)].map(v => ({ t: v })))] }] : []), ...bidSign()] });
+  D.push({ slot: "04 MSE & Make in India", file: "MSE_MII_Declaration", blocks: [...bidHead("MSE status and Make in India (Class-I local supplier) declaration", t, B),
+    { t: `We are a Micro / Small Enterprise registered under Udyam No. ${C.udyam || "—"} (manufacturer). We request exemption from EMD${/yes/i.test(B.mseExempt || "") ? ", and from experience and turnover criteria," : ""} as applicable to MSEs under the Public Procurement Policy for MSEs. The Udyam certificate is enclosed.` },
+    { t: "Self-certificate for local content (Make in India):", b: true, before: 120 },
+    { t: "We hereby confirm in respect of the quoted item(s) that the local content (value added in India) is equal to or more than 100%, and the item offered meets the local content requirement for a Class-I Local Supplier as per the Public Procurement (Make in India) Order." },
+    { t: "Location of local value addition: " + C.address }, ...bidSign()] });
+  D.push({ slot: "05 Warranty", file: "Warranty_Certificate", blocks: [...bidHead("Warranty certificate", t, B),
+    { t: `The offered items are guaranteed against any manufacturing defect for a period of ${wm1} months from the date of commissioning / installation / use, or ${wm2} months from the date of receipt and acceptance at the consignee's store, whichever is earlier. Any defect arising from faulty material, design or workmanship during this period will be remedied, repaired or replaced by us at our own cost, without any extra cost to ${org}.` }, ...bidSign()] });
+  const atc = (B.atc || []).slice(0, 40);
+  D.push({ slot: "06 ATC compliance", file: "ATC_Compliance", blocks: [...bidHead("Compliance to Additional Terms & Conditions (ATC)", t, B),
+    { t: "We have read and understood the GTC, STC and ATC of the above bid and accept them without any deviation." },
+    ...(atc.length ? [{ widths: [500, 6000, 1500], table: [["#", "ATC clause (from the bid document)", "Rivera's response"].map(x => ({ t: x })), ...atc.map((l, i) => [String(i + 1), l.slice(0, 400), "Accepted / Complied"].map(v => ({ t: v })))] }] : [{ t: "All clauses: Accepted / Complied." }]), ...bidSign()] });
+  D.push({ slot: "07 BoQ & technical compliance", file: "Technical_Compliance", blocks: [...bidHead("Technical compliance statement (BoQ specification)", t, B),
+    { widths: [500, 4300, 1000, 2200], table: [["#", "Item as per bid", "Qty", "Rivera offer"].map(x => ({ t: x })), ...items.map((x, i) => [String(i + 1), x.desc, `${x.qty || ""} ${x.unit || ""}`.trim(), "Complied — manufactured by RIVERA as per bid specification; routine tests as per IS/IEC"].map(v => ({ t: v })))] },
+    { t: "Quality plan, routine test report format and raw-material test certificates are enclosed.", before: 120 }, ...bidSign()] });
+  D.push({ slot: "08 Annexures II–X", file: "Annexures_II-X", blocks: annexureBlocks({ ...t, org, published: B.published || t.published, items: B.category || t.items }) });
+  return D;
+}
+async function buildBidPack(t, B, rows, el, appr) {
+  const JSZip = await getZip(), z = new JSZip(), set = bidDocSet(t, B, rows, el);
+  for (const d of set) { z.file(`GeM upload (PDF)/${d.slot.slice(0, 2)}_${d.file}.pdf`, await blocksPdf(d.blocks)); z.file(`Editable (Word)/${d.slot.slice(0, 2)}_${d.file}.docx`, await buildDocx(d.blocks, brandLogo())); }
+  z.file("Compliance_Matrix.xlsx", await buildXlsx(matrixSheet(t, B, rows, el)));
+  const map = Object.entries(uploadMap(rows)).map(([s, ds]) => `[${s}]\n` + [...new Map(ds.map(d => [d.id, d])).values()].map(d => `  ${docTitle(d)}\n  ${docLink(d)}`).join("\n")).join("\n\n");
+  z.file("GeM_Upload_Guide.txt", `GeM bid ${B.bid} — ${B.org || ""}\nBid end: ${B.endRaw || ""}\nApproved price: ${appr?.price?.price ? "Rs. " + fmt(appr.price.price, "INR", 0) : "not yet approved"}${appr?.price?.floor ? "   RA floor: Rs. " + fmt(appr.price.floor, "INR", 0) : ""}\n\nPrepared for this bid (folder "GeM upload (PDF)"):\n${set.map(d => "  " + d.slot).join("\n")}\n\nCompany documents to attach from Dropbox:\n${map}\n\nFinal step (authorised person): sign in to GeM, open the bid, upload the PDFs in the matching slots, enter the approved price, verify with eSign / DSC / OTP, download the acknowledgement.\n`);
+  return { blob: await z.generateAsync({ type: "blob" }), set };
+}
+
+/* ---------- Bid Desk: replace the pack builder with the full tender-specific set ---------- */
+const _drawBid11 = drawBid;
+drawBid = function () {
+  _drawBid11();
+  const o = $("#bdOut"); if (!o || !BID) return; const { t, B } = BID;
+  const el = eligibility(B), rows = complianceMatrix(B, el);
+  const set = bidDocSet(t, B, rows, el);
+  const btn = $("#bdPack"); if (!btn) return;
+  btn.closest(".body").insertAdjacentHTML("afterbegin", `<div class="note ok" style="margin-bottom:4px"><b>${set.length} documents written for this bid</b> — buyer, bid number, dates, items, warranty and past orders filled in automatically:<div class="small" style="margin-top:4px">${set.map(d => esc(d.slot.slice(3))).join(" · ")}</div></div>`);
+  const nb = btn.cloneNode(true); nb.innerHTML = `${icon("dl")}Build full bid pack (PDF + Word)`; btn.replaceWith(nb);
+  nb.onclick = async () => {
+    nb.disabled = true; nb.innerHTML = `<span class="spin"></span>Writing ${set.length} documents…`;
+    try {
+      const { blob } = await buildBidPack(t, B, rows, el, t.appr);
+      const base = safeName(`${t.published || todayISO()}_GEM_${B.org || t.org}_${B.bid}`);
+      if (STATE.dir) { try { await writeToDir(`RCM/3) TENDER/INPROGRESS/${base}/BID_PACK_${safeName(B.bid)}.zip`, blob); toast("Bid pack filed to the Synology tender folder"); } catch { } }
+      await saveFile(`BID_PACK_${safeName(B.bid)}.zip`, blob); audit(t, "Full bid pack built (" + set.length + " documents)"); await DB.put("tenders", t);
+    } catch (e) { toast("Couldn't build the pack: " + e.message, "bad"); }
+    nb.disabled = false; nb.innerHTML = `${icon("dl")}Build full bid pack (PDF + Word)`;
+  };
+};
+
+/* ---------- GeM alert feed (from GeM emails in the server's Gmail) ---------- */
+const FEED = { list: LS.get("gemFeed", []), at: LS.get("gemFeedAt", 0), err: "", busy: false };
+const fitScore = a => { const s = (a.item ? a.item + " " + a.ctx.slice(0, 160) : a.ctx + " " + a.subject).toLowerCase(); let n = 0; for (const w of ["stator", "rotor", "coil", "roebel", "bar", "winding", "rewind", "armature", "pole", "generator", "motor", "insulat", "mica", "varnish"]) if (s.includes(w)) n++; if (/ncl|mcl|ccl|secl|wcl|coal|ntpc|bhel|nhpc|tneb|tangedco|hindustan copper/.test(s)) n++; return Math.min(100, n * 25); };
+async function loadFeed(fresh) {
+  if (FEED.busy || !AUTH.required() || !AUTH.valid()) return; FEED.busy = true;
+  try {
+    const d = await AUTH.call("gemAlerts", { fresh: !!fresh }, 60000); FEED.err = "";
+    FEED.list = (d.alerts || []).map(a => ({ ...a, fit: fitScore(a), closing: toISO(String(a.end || "").replace(/\//g, "-")) })).sort((a, b) => b.fit - a.fit || String(a.closing).localeCompare(String(b.closing)));
+    FEED.at = Date.now(); LS.set("gemFeed", FEED.list.slice(0, 200)); LS.set("gemFeedAt", FEED.at);
+    let added = 0;
+    for (const a of FEED.list) if (a.fit >= 50 && (!a.closing || a.closing >= todayISO()) && !STATE.data.tenders.some(x => x.bid === a.bid)) { await DB.put("tenders", { id: a.bid.replace(/[^A-Za-z0-9]+/g, "-"), bid: a.bid, portal: "GeM", status: "identified", items: a.item || (a.ctx.match(/(stator|rotor|roebel|armature|pole|coil|rewind|winding)[^;\n]{0,90}/i) || [a.subject])[0], closing: a.closing, check: {}, emd: "Exempted (MSE)", fit: true, link: a.link, log: [{ at: new Date().toISOString(), by: "GeM alert", what: "Added automatically from GeM email" }] }); added++; }
+    if (added) { toast(`${added} new GeM bid${added > 1 ? "s" : ""} for Rivera added to Tenders`); if (["biddesk", "tenders", "home"].includes(STATE.route)) render(); }
+  } catch (e) { FEED.err = /Unknown action|gmail|Gmail|permission|authori/i.test(e.message) ? "setup" : e.message; }
+  FEED.busy = false; if (STATE.route === "biddesk") drawFeed();
+}
+function drawFeed() {
+  const box = $("#bdFeed"); if (!box) return; const L = FEED.list.filter(a => !a.closing || a.closing >= todayISO());
+  box.innerHTML = `<header><h2>New on GeM for Rivera</h2><div class="row" style="gap:6px"><span class="muted small">${FEED.at ? "checked " + new Date(FEED.at).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : ""}</span><button class="btn sm" id="fdRef">${FEED.busy ? '<span class="spin"></span>' : ""}Check now</button></div></header><div class="body stack" style="gap:8px">
+  ${FEED.err === "setup" ? `<div class="note warn">GeM alert reading is not switched on yet on the server. Forward GeM's bid alert emails to the server mailbox and allow mail reading once — then new bids show here every 30 minutes.</div>` : FEED.err ? `<div class="note bad">${esc(FEED.err)}</div>` : ""}
+  ${L.length ? L.slice(0, 30).map(a => { const t = STATE.data.tenders.find(x => x.bid === a.bid); return `<div class="feed-row ${a.fit >= 50 ? "hot" : ""}"><div class="feed-fit" title="Match with Rivera's products">${a.fit}%</div><div style="min-width:0;flex:1"><b class="mono small">${esc(a.bid)}</b>${a.closing ? " " + dueChip(a.closing) : ""}<div class="small" style="overflow-wrap:anywhere">${esc(a.item || a.subject)}</div></div><div class="row" style="gap:6px">${a.link ? `<a class="btn sm" href="${esc(a.link)}" target="_blank" rel="noopener">Bid PDF</a>` : `<a class="btn sm" href="https://bidplus.gem.gov.in/all-bids" target="_blank" rel="noopener">Find on GeM</a>`}${t?.bidx ? `<button class="btn sm primary" data-fdo="${esc(t.id)}">${t.bidx.ready?.pct ?? 0}% ready</button>` : `<span class="chip">${t ? "in Tenders" : "not a match"}</span>`}</div></div>`; }).join("") : FEED.err ? "" : `<p class="muted small" style="margin:0">No GeM alert emails found yet.</p>`}
+  </div>`;
+  $("#fdRef").onclick = () => { loadFeed(true); drawFeed(); };
+  $$("[data-fdo]", box).forEach(b => b.onclick = () => { const t = STATE.data.tenders.find(x => x.id === b.dataset.fdo); BID = { t: clone(t), B: t.bidx.B }; drawBid(); $("#bdOut").scrollIntoView({ behavior: "smooth" }); });
+}
+
+/* ---------- Bid Desk view: hero strip + feed ---------- */
+const _bd11 = VIEWS.biddesk;
+VIEWS.biddesk = v => {
+  _bd11(v);
+  const ts = STATE.data.tenders || [], live = ts.filter(t => ["identified", "preparing"].includes(t.status)), ready = ts.filter(t => t.bidx?.ready?.pct === 100 && ["identified", "preparing"].includes(t.status));
+  const soon = live.filter(t => t.closing && daysTo(t.closing) >= 0 && daysTo(t.closing) <= 3), won = ts.filter(t => t.status === "awarded").length, dec = ts.filter(t => ["awarded", "not_awarded"].includes(t.status)).length;
+  $(".topbar", v)?.insertAdjacentHTML("afterend", `<div class="hero-strip"><div><span>Live bids</span><b>${live.length}</b></div><div><span>Ready to submit</span><b>${ready.length}</b></div><div class="${soon.length ? "warn" : ""}"><span>Closing in 3 days</span><b>${soon.length}</b></div><div><span>GeM win rate</span><b>${dec ? Math.round(won / dec * 100) + "%" : "—"}</b></div><div><span>Company documents</span><b>${(STATE.data.docs || []).length}</b></div></div>`);
+  const first = v.querySelector("section.panel"); first?.insertAdjacentHTML("afterend", `<section class="panel" id="bdFeed" style="margin-top:16px"></section>`);
+  drawFeed(); if (Date.now() - FEED.at > 10 * 60000) loadFeed();
+};
+const _home11 = VIEWS.home;
+VIEWS.home = v => {
+  _home11(v);
+  const hot = FEED.list.filter(a => a.fit >= 50 && (!a.closing || a.closing >= todayISO())).length;
+  if (hot) $("#gsBtn", v)?.parentElement?.insertAdjacentHTML("beforeend", `<a class="btn sm primary" href="#biddesk">${icon("gem")}${hot} GeM bid${hot > 1 ? "s" : ""} for Rivera</a>`);
+};
+const _boot11 = boot;
+boot = function () { _boot11(); setTimeout(() => loadFeed(), 6000); setInterval(() => loadFeed(), 30 * 60000); };
 boot();
 
 </script>
