@@ -3358,6 +3358,7 @@ function hookReceive() {
 }
 dataPackBanner = function () {
   if (DATAPACK) return "";
+  if (AUTH.required() && AUTH.user && !AUTH.isAdmin) return `<div class="note" style="margin-bottom:16px"><span class="spin"></span>Loading Rivera company data (rate card, past jobs, documents) from the server…</div>`;
   const where = window.RiveraAndroid ? "Tap <b>Load data pack</b> and pick the file from Downloads or Dropbox." : "Drag the file onto this window, or tap <b>Load data pack</b>. The Windows app also loads it by itself when the file is in Dropbox <span class=\"mono\">SALES/Rivera Quote Studio</span>, Downloads or Documents, and the Synology folder loads it when the file is in that folder.";
   return `<div class="note warn" style="margin-bottom:16px;display:flex;flex-wrap:wrap;gap:10px;align-items:center;justify-content:space-between"><span><b>Load the Rivera data pack</b> (<span class="mono">rivera-data-pack.json</span>) to get the rate card, past jobs and bank details on this device. ${where}</span><button class="btn sm primary" data-loadpack>${icon("up")}Load data pack</button></div>`;
 };
@@ -3560,18 +3561,18 @@ COLLS.push("docs"); STATE.data.docs = LS.get("docs", []);
 const DOC_TYPES = {
   gst: "GST registration", pan: "Company PAN", cin: "Certificate of incorporation", udyam: "Udyam / MSE certificate", mii: "Make in India certificate",
   oem: "OEM / proven-ness", experience: "Experience – past contract / PO", crac: "CRAC / completion", turnover: "CA turnover certificate",
-  balance: "Audited balance sheet / ITR", iso: "ISO / quality certificate", test: "Test report", qap: "QAP", warranty: "Warranty certificate",
+  balance: "Audited balance sheet / ITR", boq: "BoQ supporting documents", iso: "ISO / quality certificate", test: "Test report", qap: "QAP", warranty: "Warranty certificate",
   bank: "Bank mandate / cancelled cheque", auth: "Authorisation letter", atc: "ATC compliance", profile: "Company profile", annex: "Annexure templates",
   dpiit: "DPIIT recognition", iec: "Import-export code", lei: "LEI certificate", moa: "MoA / AoA", lut: "LUT (export without IGST)", other: "Other"
 };
 const dbxUrl = p => p ? "https://www.dropbox.com/preview" + encodeURI(p).replace(/#/g, "%23").replace(/\?/g, "%3F") + "?role=work" : "";
 const docLink = d => d.url || dbxUrl(d.path);
 const docExpired = d => d.expiry && d.expiry < todayISO();
-function docsOf(type) { return (STATE.data.docs || []).filter(d => d.type === type); }
+function docsOf(type) { return (STATE.data.docs || []).filter(d => d.type === type).sort((a, b) => (b.set === "gem-upload") - (a.set === "gem-upload")); }
 async function seedDocs(force) {
   const src = DATAPACK?.docs || []; if (!src.length) return 0;
   const have = new Set((STATE.data.docs || []).map(d => d.id)); let n = 0;
-  for (const d of src) if (force || !have.has(d.id)) { await DB.put("docs", { ...d }); n++; }
+  for (const d of src) if ((force || !have.has(d.id)) && !NasSync.deleted.has("docs:" + d.id)) { await DB.put("docs", { ...d }); n++; }
   return n;
 }
 
@@ -3684,7 +3685,7 @@ function eligibility(B) {
 const REQ_MAP = [
   [/experience/i, ["experience", "crac"], "Experience criteria"], [/past performance/i, ["experience", "crac"], "Past performance"],
   [/turnover/i, ["turnover", "balance"], "Bidder turnover"], [/oem/i, ["oem"], "OEM authorisation"],
-  [/atc|certificate \(requested/i, ["atc"], "ATC certificates"], [/boq|specification|technical|test/i, ["test", "qap"], "BoQ / specification compliance"],
+  [/atc|certificate \(requested/i, ["atc", "annex"], "ATC certificates"], [/boq|specification|technical|test/i, ["boq", "test", "qap"], "BoQ / specification compliance"],
   [/msme|mse|udyam/i, ["udyam"], "MSE certificate"], [/make in india|mii|local content/i, ["mii"], "Make in India"],
   [/gst/i, ["gst"], "GST"], [/pan\b/i, ["pan"], "PAN"], [/iso|quality/i, ["iso", "qap"], "Quality certificate"], [/additional doc/i, ["annex", "profile"], "Additional document (see ATC)"]
 ];
@@ -3934,6 +3935,7 @@ Auto.notify = function () {
 const _cpack8 = Cloud.pack.bind(Cloud);
 Cloud.pack = async function (force) {
   await _cpack8(force);
+  try { if (await seedDocs()) if (["library", "biddesk"].includes(STATE.route)) render(); } catch { }
   try {
     if (!AUTH.isAdmin || !DATAPACK) return;
     const d = await AUTH.call("pack"); const sv = d.pack;
@@ -3947,7 +3949,7 @@ buildDataPack = function () { return { ...(_bdp8()), history: HISTORY, quotes: D
 const _boot8 = boot;
 boot = function () {
   _boot8();
-  const w = setInterval(() => { if (STATE.loaded) { clearInterval(w); setTimeout(async () => { if (!(STATE.data.docs || []).length) { const n = await seedDocs(); if (n && ["library", "biddesk"].includes(STATE.route)) render(); } }, 1200); } }, 300);
+  const w = setInterval(() => { if (STATE.loaded) { clearInterval(w); setTimeout(async () => { const n = await seedDocs(); if (n && ["library", "biddesk"].includes(STATE.route)) render(); }, 1200); } }, 300);
 };
 /* ===================== p9: admin-created logins, sign-in approval, stay signed in ===================== */
 Object.assign(IC, { eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>' });
