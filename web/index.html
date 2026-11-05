@@ -3130,7 +3130,7 @@ const Cloud = {
     if (this.busy) return; this.busy = true;
     try {
       setSync("", "Syncing with team register…");
-      const snap = { quotes: STATE.quotes, data: STATE.data, deleted: [...NasSync.deleted].slice(-1500), settings: SETTINGS.updatedAt ? { ...SETTINGS, logo: undefined } : undefined };
+      const snap = { quotes: STATE.quotes, data: syncData(), deleted: [...NasSync.deleted].slice(-1500), settings: SETTINGS.updatedAt ? { ...SETTINGS, logo: undefined } : undefined };
       const d = await AUTH.call("sync", { snapshot: snap }, 60000), R = d.register || {};
       const del = new Set(R.deleted || []);
       const mergeL = (mine, theirs, pre = "") => { const m = new Map(mine.map(x => [x.id, x])); for (const x of theirs || []) { const o = m.get(x.id); if (!o || num(x.updatedAt) >= num(o.updatedAt)) m.set(x.id, x); } return [...m.values()].filter(x => !del.has(pre + x.id)); };
@@ -3572,7 +3572,7 @@ function docsOf(type) { return (STATE.data.docs || []).filter(d => d.type === ty
 async function seedDocs(force) {
   const src = DATAPACK?.docs || []; if (!src.length) return 0;
   const have = new Set((STATE.data.docs || []).map(d => d.id)); let n = 0;
-  for (const d of src) if ((force || !have.has(d.id)) && !NasSync.deleted.has("docs:" + d.id)) { await DB.put("docs", { ...d }); n++; }
+  for (const d of src) if ((force || !have.has(d.id)) && !NasSync.deleted.has("docs:" + d.id)) { await DB.put("docs", { ...d, fromPack: 1 }); n++; }
   return n;
 }
 
@@ -3696,7 +3696,7 @@ function complianceMatrix(B, el) {
     const ds = types.flatMap(docsOf).filter(d => !used.has(d.id + req));
     const live = ds.filter(d => !docExpired(d)); ds.forEach(d => used.add(d.id + req));
     const ex = el?.R.find(r => r.st === "exempt" && ((/turnover/i.test(req) && r.k === "turnover") || (/experience/i.test(req) && r.k === "years")));
-    rows.push({ req, src, mandatory, docs: live.slice(0, 6), status: ex ? "exempt" : live.length ? "met" : ds.length ? "expired" : "missing", note: ex ? ex.d : "" });
+    rows.push({ req, src, mandatory, docs: live.slice(0, 4), status: ex ? "exempt" : live.length ? "met" : ds.length ? "expired" : "missing", note: ex ? ex.d : "" });
   };
   const seen = new Set();
   for (const d of B.docList || []) { const m = REQ_MAP.find(([re]) => re.test(d)); const key = m ? m[2] : d; if (seen.has(key)) continue; seen.add(key); add(m ? m[2] + (m[2] === d ? "" : " — “" + d + "”") : d, m ? m[1] : ["other"], "Bid: documents required from seller"); }
@@ -3895,7 +3895,7 @@ function docForm(d) {
   <div class="row" style="margin-top:12px"><button class="btn primary" id="dfSave">${icon("save")}Save</button><button class="btn" id="dfX">Close</button>${d.id ? `<span class="spacer"></span><button class="btn danger sm" id="dfDel">Remove</button>` : ""}</div></div>`;
   f.scrollIntoView({ behavior: "smooth", block: "start" });
   $("#dfX").onclick = () => f.hidden = true;
-  $("#dfSave").onclick = async () => { $$("[data-df]", f).forEach(i => d[i.dataset.df] = i.value.trim()); if (/^https?:/.test(d.path)) { d.url = d.path; d.path = ""; } else d.url = ""; if (!d.title) { toast("Give the document a title.", "bad"); return; } d.id ||= "d_" + uid(); if (await DB.put("docs", d)) { toast("Saved"); render(); } };
+  $("#dfSave").onclick = async () => { $$("[data-df]", f).forEach(i => d[i.dataset.df] = i.value.trim()); if (/^https?:/.test(d.path)) { d.url = d.path; d.path = ""; } else d.url = ""; if (!d.title) { toast("Give the document a title.", "bad"); return; } d.id ||= "d_" + uid(); d.fromPack = 0; if (await DB.put("docs", d)) { toast("Saved"); render(); } };
   $("#dfDel")?.addEventListener("click", async () => { await DB.del("docs", d.id); render(); });
 }
 
@@ -4042,7 +4042,7 @@ async function autoSeed() {
   if (!STATE.quotes.length) for (const q of seedQuotes()) if (!del.has(q.id)) { await Store.saveQuote(q); n++; }
   for (const [c, src] of [["tenders", DATAPACK.tenders], ["orders", DATAPACK.orders], ["vendors", DATAPACK.vendors], ["docs", DATAPACK.docs]]) {
     if ((STATE.data[c] || []).length || !src?.length) continue;
-    for (const x of src) if (!del.has(c + ":" + x.id)) { await DB.put(c, c === "tenders" ? { ...x, check: x.check || {} } : { ...x }); n++; }
+    for (const x of src) if (!del.has(c + ":" + x.id)) { await DB.put(c, c === "tenders" ? { ...x, check: x.check || {} } : c === "docs" ? { ...x, fromPack: 1 } : { ...x }); n++; }
   }
   LS.set("seeded.v1", true); if (n) { render(); toast(`Loaded ${n} past quotations, tenders, work orders, vendors and documents`); }
 }
@@ -4143,6 +4143,136 @@ boot = function () {
   if (!AUTH.required()) { const w = setInterval(() => { if (STATE.loaded) { clearInterval(w); setTimeout(autoSeed, 2000); } }, 300); return; }
   if (AUTH.valid()) setTimeout(() => { autoSeed(); Admin9.poll(); }, 2500);
 };
+/* Tender document classifier — shared by the app (Windows Dropbox scan) and the build-time indexer. */
+const DOCIX = (() => {
+  const SKIP = /(whatsapp|screenshot|bandicam|^img[-_ ]?\d|\bimg\d|expense|ticket|flight|taxi|hotel|indigo|e-ticket|safe ?x?press|docket|payment process|mom_|\bmom\b|rework|reject material|^~\$|\.tmp$|thumbs\.db|desktop\.ini|transport charge|rent)/i;
+  const EXT = /\.(pdf|docx?|xlsx?)$/i;
+  const RULES = [
+    ["extension", /extension|delivery period|dp extension/i, "Delivery extension letter"],
+    ["iso", /\biso\b|9001|14001|45001/i, "ISO certificate"],
+    ["crac", /crac/i, "CRAC – consignee receipt & acceptance"],
+    ["epbg", /e-?pbg|bank guarantee|\bpbg\b/i, "ePBG / performance bank guarantee"],
+    ["udyam", /udyam|msme|\bmse\b/i, "Udyam / MSE certificate"],
+    ["mii", /\bmii\b|make in india|local content/i, "Make in India certificate"],
+    ["dpiit", /dipp|dpiit|startup/i, "DPIIT start-up recognition"],
+    ["oem", /oem|proven/i, "OEM / proven-ness certificate"],
+    ["atc", /\batc\b/i, "ATC documents"],
+    ["annex", /annex/i, "Annexures"],
+    ["qap", /\bqap\b|quality assurance plan|standard for .*manufactur|testing procedure|work instruction|process flow/i, "Quality plan / procedures"],
+    ["stock", /stock list|raw material/i, "Raw-material stock list & test certificates"],
+    ["machines", /machines?,? equipments?|tools list|plant (and|&) machinery/i, "Machines, equipment & tools list"],
+    ["process", /making process|manufacturing process|process\b/i, "Coil making process"],
+    ["declaration", /banning|lowest price|quality certificate|commercial checklist|technical checklist|quality control|declaration|undertaking/i, "Declarations & checklists"],
+    ["cin", /incorporation|\bcin\b|\bmoa\b|\baoa\b/i, "Incorporation / MoA"], ["tan", /\btan\b/i, "TAN"],
+    ["schedule", /schedule ?-? ?[a-z]\b|questionnaire/i, "Tender schedules / questionnaire (filled)"],
+    ["gst", /\bgst\b/i, "GST registration"], ["pan", /\be ?pan\b|\bpan card\b/i, "Company PAN"], ["iec", /\biec\b/i, "Import-export code"],
+    ["spec", /\btps\b|tps item|stator coil for|rotor coil for|technical particular|specification|drawing/i, "Item specification / drawing"],
+    ["test", /test ?report|technical data|data ?sheet|technical sheet|technical parameter|type test|routine test|pd test|final report - pd/i, "Test report / technical data"],
+    ["warranty", /warranty|guarantee certificate/i, "Warranty certificate"],
+    ["auth", /authori[sz]ation|aut[ _]let/i, "Authorisation letter"],
+    ["bank", /bank mandate|cancel+ed cheque|neft mandate|neft/i, "Bank mandate"],
+    ["profile", /profile/i, "Company profile"],
+    ["boq", /\bboq\b|price ?bid|price break|rate split|per unit rate/i, "BoQ / price schedule"],
+    ["experience", /work awarded|\bwo\b|work ?order|po +for|\bgemc[-_ ]?\d|purchase order|\bp\.?o\.?[ _-]?(no|\d)|rate contract|\brc ?po\b|contract/i, "Past contract / PO"],
+    ["invoice", /tax ?invoice|invoice/i, "Tax invoice (proof of supply)"],
+    ["completion", /completion|performance certificate|satisfactory/i, "Completion / performance certificate"],
+    ["pastbid", /tendernotice|tender ?doc|gem[-_ ]?bidding|bid ?doc|\bnit\b|gem\/\d{4}|bid[-_ ]?\d{6,}/i, "Past bid document (reference)"]
+  ];
+  const ORGS = [["MCL", /\bmcl\b|mahanadi/i, "Mahanadi Coalfields Limited"], ["NCL", /\bncl\b|northern coal/i, "Northern Coalfields Limited"], ["CCL", /\bccl\b|central coal/i, "Central Coalfields Limited"], ["HCL", /\bhcl\b|hindustan copper/i, "Hindustan Copper Limited"], ["TNEB", /tneb|tangedco|kadamb|kadamp/i, "TNEB / TANGEDCO"], ["NTPC", /ntpc/i, "NTPC"], ["BHEL", /bhel/i, "BHEL"], ["RKM", /\brkm\b/i, "RKM Powergen"], ["KSK", /\bksk\b/i, "KSK Fabricators"], ["TGRS", /tgrs/i, "Turbine Generator Rebuild Solutions"], ["Fitwell", /fitwell/i, "Fitwell Power Projects"], ["Sarda", /sarda/i, "Sarda Energy"], ["SECL", /\bsecl\b/i, "South Eastern Coalfields"], ["WCL", /\bwcl\b/i, "Western Coalfields"]];
+  const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+  function classify(path, meta = {}) {
+    const name0 = path.split("/").pop(), low = path.toLowerCase(), name = name0.replace(/\.(pdf|docx?|xlsx?)$/i, "").replace(/[_\-.()]+/g, " ") + "." + (name0.split(".").pop());
+    if (!EXT.test(name) || SKIP.test(name) || SKIP.test(path.split("/").slice(-2, -1)[0] || "")) return null;
+    const rule = RULES.find(([, re]) => re.test(name)) || (/work awarded/i.test(low) && /\/(awarded|work order|po)\//i.test(low) ? RULES.find(r => r[0] === "experience") : null);
+    if (!rule) return null;
+    const [type, , label] = rule;
+    let org = null; for (const seg of path.split("/").reverse()) { const sN = seg.replace(/[_\-.()]+/g, " "); org = ORGS.find(([, re]) => re.test(sN)); if (org) break; }
+    const gemc = (path.match(/GEMC[-_ ]?(\d{12,15})/i) || [])[1], bid = (path.match(/BID[-_ ]?(\d{7})/i) || path.match(/GEM\/\d{4}\/B\/(\d{7})/i) || [])[1];
+    const fy = (path.match(/F\.?Y\.? ?(\d{2}-\d{2})/i) || [])[1] || "";
+    const status = /work awarded/i.test(low) ? "awarded" : /not awarded/i.test(low) ? "not awarded" : /inprogress|in progress/i.test(low) ? "in progress" : "";
+    const nice = name0.replace(EXT, "").replace(/[_]+/g, " ").replace(/\s+/g, " ").trim();
+    return {
+      id: "f_" + hash(path.toLowerCase()), type, title: `${label}${org ? " · " + org[0] : ""} — ${nice}`.slice(0, 160), path,
+      customer: org ? org[2] : "", ref: gemc ? "GEMC-" + gemc : bid ? "Bid " + bid : "", fy, status, date: meta.date || "", size: meta.size || 0, src: "dropbox-index"
+    };
+  }
+  function index(files) {
+    const out = [], seen = new Map();
+    for (const f of files) {
+      const d = classify(f.path, f); if (!d) continue;
+      const key = d.type + "|" + f.path.split("/").pop().toLowerCase().replace(/\s*\(\d+\)/g, "") + "|" + (f.size || "");
+      const prev = seen.get(key); if (prev && (prev.date || "") >= (d.date || "")) continue;   // keep newest copy of duplicates
+      if (prev) out.splice(out.indexOf(prev), 1);
+      seen.set(key, d); out.push(d);
+    }
+    return out;
+  }
+  return { classify, index, RULES };
+})();
+if (typeof module !== "undefined") module.exports = DOCIX;
+/* ===================== p10: full Dropbox tender-document index, auto-update, admin-only library ===================== */
+Object.assign(DOC_TYPES, {
+  epbg: "ePBG / bank guarantee", invoice: "Tax invoice (proof of supply)", completion: "Completion / performance certificate", extension: "Delivery extension letter",
+  pastbid: "Past bid document (reference)", spec: "Item specification / drawing", stock: "Raw-material stock list & test certificates", machines: "Machines & equipment list",
+  process: "Coil making process", declaration: "Declarations & checklists", tan: "TAN", schedule: "Tender schedules / questionnaire"
+});
+const docLabel = t => DOC_TYPES[t] || t;
+const docFile = d => (d.path || d.url || "").split("/").pop();
+const docTitle = d => d.title || `${docLabel(d.type)}${d.customer ? " · " + d.customer.split(" ")[0] : ""} — ${docFile(d).replace(/\.(pdf|docx?|xlsx?)$/i, "").replace(/_+/g, " ")}`;
+/* matching: more evidence types per requirement now that the whole tender folder is indexed */
+REQ_MAP.splice(0, 2, [/experience/i, ["experience", "crac", "completion"], "Experience criteria"], [/past performance/i, ["experience", "crac", "invoice", "completion"], "Past performance"]);
+REQ_MAP.push([/declaration|banning|lowest price|undertaking/i, ["declaration", "annex"], "Declarations"], [/stock|raw material/i, ["stock"], "Raw-material stock & test certificates"], [/machin|equipment|infrastructure/i, ["machines"], "Machines & equipment"]);
+/* titles everywhere the library is listed */
+const _docsOf10 = docsOf;
+docsOf = function (type) { return _docsOf10(type).map(d => d.title ? d : { ...d, title: docTitle(d) }).sort((a, b) => (b.set === "gem-upload") - (a.set === "gem-upload") || (b.status === "awarded") - (a.status === "awarded") || String(b.date || "").localeCompare(String(a.date || ""))); };
+
+/* ---------- Windows app: scan the synced Dropbox folders and keep the library current ---------- */
+window.riveraDocScan = async (files, root) => {
+  try {
+    if (!Array.isArray(files) || !files.length) return;
+    const have = new Map((STATE.data.docs || []).map(d => [String(d.path || "").toLowerCase(), d]));
+    const found = DOCIX.index(files); let added = 0, updated = 0;
+    for (const d of found) {
+      const k = d.path.toLowerCase(), old = have.get(k);
+      if (NasSync.deleted.has("docs:" + d.id)) continue;
+      if (!old) { await DB.put("docs", { ...d, title: undefined, src: "dx" }); added++; }
+      else if (old.src === "dx" && (old.date || "") < (d.date || "")) { await DB.put("docs", { ...old, date: d.date, missing: false }); updated++; }
+    }
+    const live = new Set(files.map(f => f.path.toLowerCase()));
+    for (const d of STATE.data.docs || []) if (d.src === "dx" && d.path && !live.has(d.path.toLowerCase()) && !d.missing && files.length > 50 && found.some(x => d.path.toLowerCase().startsWith(x.path.toLowerCase().split("/").slice(0, 5).join("/")))) { await DB.put("docs", { ...d, missing: true }); updated++; }
+    LS.set("docScan", { at: Date.now(), root: root || "", files: files.length, docs: found.length, added, updated });
+    if (added || updated) { if (["library", "biddesk"].includes(STATE.route)) render(); if (added) toast(`${added} new tender document${added > 1 ? "s" : ""} found in Dropbox and added`); }
+  } catch (e) { ERRLOG.add("Dropbox scan: " + e.message, "desktop"); }
+};
+
+/* ---------- Company documents: admin only, grouped and filterable ---------- */
+const _renderNav10 = renderNav;
+renderNav = function () {
+  const keep = ROUTES.slice(), i = ROUTES.findIndex(r => r[0] === "library");
+  if (i >= 0 && AUTH.required() && !AUTH.isAdmin) ROUTES.splice(i, 1);
+  _renderNav10(); ROUTES.length = 0; keep.forEach(r => ROUTES.push(r));
+};
+VIEWS.library = v => {
+  if (AUTH.required() && !AUTH.isAdmin) { v.innerHTML = `<div class="topbar"><div><h1>Company documents</h1><p>The document library is managed by the admin. The GeM Bid Desk picks the right documents for every bid automatically.</p></div></div>`; return; }
+  const all = (STATE.data.docs || []).filter(d => !d.missing || STATE.libMissing), q = (STATE.libq || "").toLowerCase(), tf = STATE.libType || "";
+  const counts = {}; all.forEach(d => counts[d.type] = (counts[d.type] || 0) + 1);
+  const list = all.filter(d => (!tf || d.type === tf) && (!q || (docTitle(d) + " " + d.path + " " + (d.customer || "") + " " + (d.ref || "")).toLowerCase().includes(q))).sort((a, b) => docLabel(a.type).localeCompare(docLabel(b.type)) || String(b.date || "").localeCompare(String(a.date || ""))).slice(0, 400);
+  const scan = LS.get("docScan", null), exp = all.filter(docExpired);
+  const core = ["gst", "pan", "udyam", "mii", "oem", "experience", "crac", "test", "qap", "bank", "turnover", "iso", "lut"], missing = core.filter(t => !counts[t]);
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Admin · GeM formats & certificates</div><h1>Company documents</h1><p>Every tender document in Dropbox (SALES ▸ RCM ▸ 3) TENDER and FINANCE ▸ COMPANY DOCUMENTS), sorted by what it proves. The Bid Desk uses these automatically. ${scan ? `Last Dropbox scan ${new Date(scan.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} · ${scan.docs} documents.` : "The Windows app on a PC with Dropbox re-scans every 30 minutes and adds new files by itself."}</p></div><div class="row"><button class="btn" id="lbNew">${icon("plus")}Add document</button>${DATAPACK?.docs?.length ? `<button class="btn" id="lbSeed">Reload from data pack</button>` : ""}</div></div>
+  <div class="grid g4" style="margin-bottom:16px"><div class="panel kpi"><span class="eyebrow">Documents</span><span class="v">${all.length}</span><span class="s">${Object.keys(counts).length} types</span></div><div class="panel kpi"><span class="eyebrow">Past contracts & CRAC</span><span class="v">${(counts.experience || 0) + (counts.crac || 0)}</span><span class="s">experience proof</span></div><div class="panel kpi"><span class="eyebrow">Test reports & specs</span><span class="v">${(counts.test || 0) + (counts.spec || 0)}</span><span class="s">BoQ compliance</span></div><div class="panel kpi"><span class="eyebrow">Expired</span><span class="v">${exp.length}</span><span class="s">${missing.length} key types missing</span></div></div>
+  ${missing.length ? `<div class="note warn" style="margin-bottom:16px"><b>Not found in Dropbox yet:</b> ${missing.map(t => esc(docLabel(t))).join(" · ")}. Put them in Dropbox (or tap Add document) so bids never stop.</div>` : ""}
+  <div class="chips-row" style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px"><button class="chip ${!tf ? "ok" : ""}" data-lt="">All ${all.length}</button>${Object.entries(counts).sort((a, b) => b[1] - a[1]).map(([t, n]) => `<button class="chip ${tf === t ? "ok" : ""}" data-lt="${esc(t)}">${esc(docLabel(t))} ${n}</button>`).join("")}</div>
+  <section class="panel" id="lbForm" hidden></section>
+  <section class="panel"><header><h2>${tf ? esc(docLabel(tf)) : "All documents"}</h2><input type="text" id="lbq" placeholder="Search customer, GEMC, file…" value="${esc(STATE.libq || "")}" style="max-width:260px"></header><div class="scroll">${list.length ? `<table class="t"><thead><tr><th>Document</th><th>Customer / ref</th><th>Date</th><th></th></tr></thead><tbody>${list.map(d => `<tr><td style="min-width:300px"><a href="${esc(docLink(d))}" target="_blank" rel="noopener"><b class="small">${esc(docTitle(d))}</b></a>${d.set === "gem-upload" ? ` <span class="chip ok">GeM upload set</span>` : d.status === "awarded" ? ` <span class="chip">awarded bid</span>` : ""}${d.missing ? ` <span class="chip bad">moved/deleted in Dropbox</span>` : ""}<div class="muted mono" style="font-size:.64rem;word-break:break-all">${esc((d.path || d.url || "").replace(/^\/[^/]+ Team Folder/, ""))}</div></td><td class="small">${esc([d.customer, d.ref].filter(Boolean).join(" · "))}</td><td class="small">${d.expiry ? `<span class="chip ${docExpired(d) ? "bad" : "ok"}">valid to ${dmy(d.expiry)}</span>` : esc(dmy(d.date || ""))}</td><td><button class="btn sm" data-lbe="${esc(d.id)}">Edit</button></td></tr>`).join("")}</tbody></table>${list.length === 400 ? `<p class="muted small" style="padding:8px 16px">Showing the first 400 — search to narrow down.</p>` : ""}` : `<div class="empty"><b>No documents match</b>Try another search or type.</div>`}</div></section>`;
+  $("#lbq").oninput = e => { STATE.libq = e.target.value; const p = e.target.selectionStart; render(); const i = $("#lbq"); i.focus(); i.setSelectionRange(p, p); };
+  $$("[data-lt]").forEach(b => b.onclick = () => { STATE.libType = b.dataset.lt; render(); });
+  $("#lbNew").onclick = () => docForm({ type: "other" });
+  $("#lbSeed")?.addEventListener("click", async () => { const n = await seedDocs(true); toast(`${n} documents loaded`); render(); });
+  $$("[data-lbe]").forEach(b => b.onclick = () => docForm(clone(STATE.data.docs.find(x => x.id === b.dataset.lbe))));
+};
+/* keep team sync light: documents that came with the data pack aren't re-uploaded on every sync */
+function syncData() { return { ...STATE.data, docs: (STATE.data.docs || []).filter(d => !d.fromPack) }; }
 boot();
 
 </script>
