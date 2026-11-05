@@ -283,6 +283,9 @@ kbd{font-family:var(--f-mono,monospace);font-size:.68rem;border:1px solid var(--
 .gs-item small{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:var(--copper-ink);font-weight:700}
 .gs-item b{display:block;font-size:.9rem}.gs-item span{display:block;font-size:.76rem;color:var(--muted)}
 .kv-r{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;min-width:0}.kv-r b{font-size:.86rem;overflow-wrap:anywhere}
+.pw-wrap{position:relative;display:block}.pw-wrap input{padding-right:44px;width:100%}.pw-eye{position:absolute;right:4px;top:50%;transform:translateY(-50%);border:0;background:transparent;padding:8px;cursor:pointer;color:var(--muted,#667);display:flex}.pw-eye svg{width:18px;height:18px}
+.wait{display:flex;gap:14px;align-items:flex-start;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--panel2,rgba(2,49,91,.04))}.spin.lg{width:26px;height:26px;border-width:3px;flex:none}
+.panel>header h2 svg,h2 svg,h3 svg{width:18px;height:18px;flex:none;vertical-align:-3px;margin-right:4px}
 </style>
 <div class="shell">
   <aside class="rail" aria-label="Main navigation">
@@ -3935,6 +3938,195 @@ const _boot8 = boot;
 boot = function () {
   _boot8();
   const w = setInterval(() => { if (STATE.loaded) { clearInterval(w); setTimeout(async () => { if (!(STATE.data.docs || []).length) { const n = await seedDocs(); if (n && ["library", "biddesk"].includes(STATE.route)) render(); } }, 1200); } }, 300);
+};
+/* ===================== p9: admin-created logins, sign-in approval, stay signed in ===================== */
+Object.assign(IC, { eye: '<path d="M2 12s3.6-7 10-7 10 7 10 7-3.6 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/>', key: '<circle cx="8" cy="15" r="4"/><path d="m11 12 9-9M17 6l3 3M15 8l2 2"/>' });
+const ADMIN_ID = "crm@rivera.co.in";
+const PEND = { get() { try { return JSON.parse(localStorage.getItem("rqs.pend") || "null"); } catch { return null; } }, set(v) { try { v ? localStorage.setItem("rqs.pend", JSON.stringify(v)) : localStorage.removeItem("rqs.pend"); } catch { } } };
+Idle.init = () => { };   // stay signed in until the person signs out
+AUTH.expired = function () { if (!this.s) return; this.s = null; showLogin({ msg: "This device was signed out by the admin. Sign in again." }); };
+
+let _poll = 0;
+showLogin = function (o = {}) {
+  let ov = $("#authOv"); if (!ov) { ov = document.createElement("div"); ov.id = "authOv"; ov.className = "auth-ov"; document.body.appendChild(ov); }
+  document.body.classList.add("locked"); clearInterval(_poll);
+  let mode = o.mode || (PEND.get() ? "waiting" : "login"), setupAdmin = false, uid0 = "";
+  const draw = (msg = o.msg || "", kind = "") => {
+    o.msg = ""; clearInterval(_poll);
+    const T = { login: "Sign in", waiting: "Waiting for approval", setup: "Set up the admin account", verify: "Verify the admin email", forgot: "Forgot password", reset: "Set a new admin password", server: "Server settings" }[mode];
+    const f = (id, label, type = "text", extra = "") => `<label class="f">${label}<input id="${id}" type="${type}" ${extra}></label>`;
+    const pw = (id, label, ac) => `<label class="f">${label}<span class="pw-wrap"><input id="${id}" type="password" autocomplete="${ac}"><button type="button" class="pw-eye" data-eye="${id}" aria-label="Show password">${icon("eye")}</button></span></label>`;
+    let body = "";
+    if (mode === "login") body = `${f("aE", "Username", "text", 'autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Your username"')}${pw("aP", "Password", "current-password")}
+      <button class="btn primary block" id="aGo">${icon("lock")}Sign in</button>
+      <div class="auth-links"><span class="muted small">Logins are created by the admin</span><a href="#" data-m="forgot">Forgot password?</a></div>
+      ${setupAdmin ? `<div class="note" style="margin-top:6px">First time? <a href="#" data-m="setup"><b>Set up the admin account</b></a> for ${ADMIN_ID}.</div>` : ""}`;
+    if (mode === "waiting") { const p = PEND.get() || {}; body = `<div class="wait"><span class="spin lg"></span><div><b>${esc(p.name || p.user || "")}</b>, your sign-in is waiting for the admin.<br><span class="muted small">An email has gone to ${ADMIN_ID}. This screen opens the app by itself as soon as it's approved — you can keep it open.</span></div></div><button class="btn block" id="aCancel" style="margin-top:14px">Cancel and use another login</button>`; }
+    if (mode === "setup") body = `<p class="muted small">Only for ${ADMIN_ID}. A 6-digit code goes to that mailbox to prove it's yours. After this, you create logins for the team from <b>Users & access</b>.</p>${f("aN", "Your name", "text", 'autocomplete="name"')}${pw("aP", "Admin password", "new-password")}${pw("aP2", "Repeat password", "new-password")}<button class="btn primary block" id="aGo">Email me the code</button><div class="auth-links"><a href="#" data-m="login">Back to sign in</a><a href="#" data-m="verify">I have a code</a></div>`;
+    if (mode === "verify") body = `${f("aC", "6-digit code sent to " + ADMIN_ID, "text", 'inputmode="numeric" maxlength="6" autocomplete="one-time-code"')}<button class="btn primary block" id="aGo">Verify and open the app</button><div class="auth-links"><a href="#" data-m="setup">Send a new code</a><a href="#" data-m="login">Back to sign in</a></div>`;
+    if (mode === "forgot") body = `<div class="note"><b>Team members:</b> ask the admin (${ADMIN_ID}) to reset your password — it takes a few seconds in Users & access.</div><p class="muted small" style="margin:10px 0 6px">Admin only:</p><button class="btn block" id="aGo">Email a reset code to ${ADMIN_ID}</button><div class="auth-links"><a href="#" data-m="login">Back to sign in</a><a href="#" data-m="reset">I have a code</a></div>`;
+    if (mode === "reset") body = `${f("aC", "6-digit code", "text", 'inputmode="numeric" maxlength="6"')}${pw("aP", "New password", "new-password")}${pw("aP2", "Repeat new password", "new-password")}<button class="btn primary block" id="aGo">Set password</button><div class="auth-links"><a href="#" data-m="login">Back to sign in</a></div>`;
+    if (mode === "server") body = `${f("aS", "Sign-in server URL (Google Apps Script web app)", "url", `value="${esc(AUTH.api)}" placeholder="https://script.google.com/macros/s/…/exec"`)}<button class="btn primary block" id="aGo">Save & test</button><div class="auth-links"><a href="#" data-m="login">Back</a></div>`;
+    ov.innerHTML = `<div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="aT">
+      <div class="auth-brand"><img src="${RIVERA_MARK}" alt=""><div><b>RIVERA<sup>™</sup></b><small>Quote Studio</small></div></div>
+      <h2 id="aT">${T}</h2>${msg ? `<div class="note ${kind || "warn"}" style="margin-bottom:12px">${esc(msg)}</div>` : ""}
+      <form class="stack" id="aForm" onsubmit="return false" autocomplete="on">${body}</form>
+      <div class="auth-foot"><span>${icon("lock")} Private to Rivera Coil Manufacturing (I) Pvt Ltd</span>${mode !== "server" ? '<a href="#" data-m="server">Server</a>' : ""}</div></div>`;
+    $$("[data-m]", ov).forEach(a => a.onclick = e => { e.preventDefault(); mode = a.dataset.m; draw(); });
+    $$("[data-eye]", ov).forEach(b => b.onclick = () => { const i = $("#" + b.dataset.eye); i.type = i.type === "password" ? "text" : "password"; i.focus(); });
+    setTimeout(() => $("input", ov)?.focus(), 60);
+    if (mode === "waiting") {
+      $("#aCancel").onclick = () => { PEND.set(null); mode = "login"; draw(); };
+      const check = async () => {
+        const p = PEND.get(); if (!p) return;
+        try { const d = await AUTH.call("loginStatus", { sid: p.sid, nonce: p.nonce, token: "" }); if (d.status === "approved") { clearInterval(_poll); PEND.set(null); return AUTH.signedIn(d); } if (d.status !== "waiting") { clearInterval(_poll); PEND.set(null); mode = "login"; draw("The admin did not approve this sign-in. Contact " + ADMIN_ID + ".", "bad"); } }
+        catch (e) { if (/not found/i.test(e.message)) { clearInterval(_poll); PEND.set(null); mode = "login"; draw(e.message, "bad"); } }
+      };
+      _poll = setInterval(check, 4000); check(); return;
+    }
+    const go = $("#aGo"); if (!go) return;
+    go.onclick = async () => {
+      const v = id => ($("#" + id)?.value || "").trim();
+      const busy = t => { go.disabled = true; go.innerHTML = `<span class="spin"></span>${t}`; };
+      try {
+        if (mode === "server") { const u = v("aS"); if (!/^https:\/\/script\.google(usercontent)?\.com\//.test(u)) throw new Error("Paste the https://script.google.com/macros/s/…/exec URL"); localStorage.setItem(AUTH.API_KEY, u); busy("Testing…"); await AUTH.call("ping"); mode = "login"; return draw("Server connected.", "ok"); }
+        if (mode === "login") {
+          const id = v("aE").toLowerCase(), p = $("#aP").value; if (!id) throw new Error("Enter your username"); if (!p) throw new Error("Enter your password");
+          busy("Signing in…"); const d = await AUTH.call("login", { email: id, pw: await AUTH.hash(p, id), device: AUTH.device(), token: "" });
+          if (d.status === "approved") return AUTH.signedIn(d);
+          if (d.status === "waiting") { PEND.set({ sid: d.sid, nonce: d.nonce, user: id, at: Date.now() }); mode = "waiting"; return draw(); }
+          return draw("Couldn't sign in.", "bad");
+        }
+        if (mode === "setup") { const n = v("aN"), p = $("#aP").value; if (!n) throw new Error("Enter your name"); const bad = pwRules(p); if (bad.length) throw new Error("Password needs " + bad.join(" and ")); if (p !== $("#aP2").value) throw new Error("Passwords don't match"); busy("Sending code…"); await AUTH.call("register", { email: ADMIN_ID, name: n, pw: await AUTH.hash(p, ADMIN_ID), token: "" }); mode = "verify"; return draw("Code sent to " + ADMIN_ID + ". Check inbox and spam.", "ok"); }
+        if (mode === "verify") { busy("Verifying…"); const d = await AUTH.call("verify", { email: ADMIN_ID, code: v("aC"), device: AUTH.device(), token: "" }); if (d.token) return AUTH.signedIn(d); throw new Error("Couldn't verify"); }
+        if (mode === "forgot") { busy("Sending…"); await AUTH.call("forgot", { email: ADMIN_ID, token: "" }); mode = "reset"; return draw("If the admin account exists, a reset code was sent to " + ADMIN_ID + ".", "ok"); }
+        if (mode === "reset") { const p = $("#aP").value; const bad = pwRules(p); if (bad.length) throw new Error("Password needs " + bad.join(" and ")); if (p !== $("#aP2").value) throw new Error("Passwords don't match"); busy("Saving…"); await AUTH.call("reset", { email: ADMIN_ID, code: v("aC"), pw: await AUTH.hash(p, ADMIN_ID), token: "" }); mode = "login"; return draw("Password changed — sign in now.", "ok"); }
+      } catch (e) { draw(e.message || String(e), "bad"); }
+    };
+    $("#aForm").onsubmit = e => { e.preventDefault(); go.click(); return false; };
+  };
+  draw();
+  if (mode === "login" && AUTH.api) AUTH.call("ping", { token: "" }).then(d => { if (d.setup && mode === "login") { setupAdmin = true; draw(); } }).catch(() => { });
+};
+const _signedIn9 = AUTH.signedIn.bind(AUTH);
+AUTH.signedIn = async function (d) { try { localStorage.removeItem("rqs.lastEmail"); } catch { } await _signedIn9(d); setTimeout(() => { autoSeed(); Admin9.poll(); }, 1500); };
+
+signOut = async function (silent) {
+  if (!silent && !confirm("Sign out of this device? Your work is uploaded to the team register first.")) return;
+  try { await Cloud.sync(true); } catch (e) { if (!silent && !confirm("Couldn't upload to the team register (" + e.message + "). Sign out anyway and lose unsynced work on this device?")) return; }
+  try { await AUTH.call("logout", {}, 8000); } catch { }
+  AUTH.s = null; PEND.set(null);
+  Object.keys(localStorage).filter(k => k.startsWith("rqs.") && !["rqs.api", "rqs.theme"].includes(k)).forEach(k => localStorage.removeItem(k));
+  location.hash = "home"; location.reload();
+};
+
+/* ---------- fill an empty device from the data pack (once) ---------- */
+async function autoSeed() {
+  if (!DATAPACK || LS.get("seeded.v1", false)) return;
+  const del = NasSync.deleted; let n = 0;
+  if (!STATE.quotes.length) for (const q of seedQuotes()) if (!del.has(q.id)) { await Store.saveQuote(q); n++; }
+  for (const [c, src] of [["tenders", DATAPACK.tenders], ["orders", DATAPACK.orders], ["vendors", DATAPACK.vendors], ["docs", DATAPACK.docs]]) {
+    if ((STATE.data[c] || []).length || !src?.length) continue;
+    for (const x of src) if (!del.has(c + ":" + x.id)) { await DB.put(c, c === "tenders" ? { ...x, check: x.check || {} } : { ...x }); n++; }
+  }
+  LS.set("seeded.v1", true); if (n) { render(); toast(`Loaded ${n} past quotations, tenders, work orders, vendors and documents`); }
+}
+
+/* ---------- admin: pending sign-ins badge + alert ---------- */
+const Admin9 = {
+  seen: new Set(), t: 0,
+  async poll() {
+    clearTimeout(this.t); if (!AUTH.isAdmin || !AUTH.valid()) return;
+    try {
+      const d = await AUTH.call("sessions"); const pend = d.sessions.filter(s => s.status === "pending");
+      setBadge(pend.length);
+      for (const s of pend) if (!this.seen.has(s.sid)) { this.seen.add(s.sid); if (this.seen.size > pend.length || document.visibilityState === "visible") toast(`${s.user} is waiting to sign in on ${s.device || "a device"} — open Users & access`); try { if (Notification?.permission === "granted") new Notification("Sign-in request", { body: `${s.user} · ${s.device || ""}`, tag: s.sid }); } catch { } }
+      if (STATE.route === "users" && pend.length !== this.last) { this.last = pend.length; if (!document.activeElement?.matches("input,select,textarea")) render(); }
+    } catch { }
+    this.t = setTimeout(() => this.poll(), 30000);
+  }
+};
+
+/* ---------- Users & access (admin) / My account (others) ---------- */
+const genPw = () => { const a = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz", d = "23456789"; const r = n => [...crypto.getRandomValues(new Uint32Array(n))]; const s = r(7).map(x => a[x % a.length]).join("") + r(3).map(x => d[x % d.length]).join(""); return s.slice(0, 4) + "-" + s.slice(4); };
+VIEWS.users = v => {
+  if (!AUTH.isAdmin) { v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Signed in as ${esc(AUTH.user?.email || "")}</div><h1>My account</h1><p>You stay signed in on this device until you sign out. Logins and password resets are handled by the admin (${ADMIN_ID}).</p></div></div>${accountPanel()}`; bindAccount(); return; }
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Admin · ${esc(AUTH.user.email)}</div><h1>Users & access</h1><p>You create every login here. When someone signs in, you get an email and a request below — they get in only after you approve. They stay signed in until they sign out, or until you sign their device out.</p></div><div class="row"><button class="btn" id="uRef">Refresh</button></div></div>
+  <div class="stack">
+    <div class="grid g4" id="uKpi"><div class="panel kpi"><span class="eyebrow">Loading…</span><span class="v">—</span></div></div>
+    <section class="panel" id="uPendP"><header><h2>Sign-in requests</h2><span class="chip" id="uPendN">…</span></header><div class="body stack" id="uPend" style="gap:8px"><span class="muted small">Loading…</span></div></section>
+    <section class="panel"><header><h2>Create a login</h2></header><div class="body">
+      <div class="fields"><label class="f">Person's name<input id="nuN" type="text" placeholder="e.g. Sales Team"></label><label class="f">Username<input id="nuU" type="text" autocapitalize="none" spellcheck="false" placeholder="e.g. sales@rivera.co.in or sales1"></label><label class="f">Role<select id="nuR"><option value="sales">Sales — full app, no user admin</option><option value="admin">Admin — everything</option></select></label><label class="f">Contact email (optional)<input id="nuC" type="email" placeholder="for your records"></label></div>
+      <div class="fields" style="margin-top:10px"><label class="f">Password<span class="pw-wrap"><input id="nuP" type="text" autocomplete="off"><button type="button" class="pw-eye" id="nuG" title="Generate">${icon("key")}</button></span></label></div>
+      <p class="muted small" style="margin:8px 0">Give the username and password to the person yourself (WhatsApp or in person). They type them on the sign-in page; you approve the sign-in once.</p>
+      <div class="row"><button class="btn primary" id="nuGo">${icon("plus")}Create login</button><button class="btn" id="nuCopy">Copy login details</button></div></div></section>
+    <section class="panel"><header><h2>Team logins</h2></header><div class="scroll" id="uTbl"><div class="muted" style="padding:16px">Loading…</div></div></section>
+    <section class="panel"><header><h2>Signed-in devices</h2></header><div class="scroll" id="uSess"><div class="muted" style="padding:16px">Loading…</div></div></section>
+    <section class="panel"><header><h2>Private data pack on the server</h2></header><div class="body stack"><p class="muted">Rate card, past jobs, bank details and the company document list are kept on the sign-in server and sent only to signed-in users. Your device uploads a newer pack automatically.</p>
+      <div class="row"><button class="btn dark" id="uPackCur" ${DATAPACK ? "" : "disabled"}>Upload the pack on this device</button><button class="btn" id="uPackFile">${icon("up")}Upload a pack file…</button></div></div></section>
+    <section class="panel"><header><h2>Activity log</h2></header><div class="scroll" id="uLog" style="max-height:420px"></div></section>
+    ${accountPanel()}</div>`;
+  bindAccount();
+  const fmtT = t => t ? new Date(t).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—";
+  const load = async () => {
+    try {
+      const [u, s, l] = await Promise.all([AUTH.call("users"), AUTH.call("sessions"), AUTH.call("log")]);
+      const U = u.users.filter(x => x.status !== "unverified"), S = s.sessions, pend = S.filter(x => x.status === "pending"), act = S.filter(x => x.status === "approved");
+      const name = id => U.find(x => x.email === id)?.name || id;
+      $("#uKpi").innerHTML = [["Team logins", U.length, ""], ["Waiting to sign in", pend.length, pend.length ? "warn" : ""], ["Signed-in devices", act.length, "ok"], ["Disabled", U.filter(x => x.status === "revoked").length, ""]].map(([k, n, c]) => `<div class="panel kpi"><span class="eyebrow">${k}</span><span class="v ${c ? "tone-" + c : ""}">${n}</span></div>`).join("");
+      $("#uPendN").textContent = pend.length; $("#uPendN").className = "chip " + (pend.length ? "warn" : "");
+      $("#uPend").innerHTML = pend.length ? pend.map(x => `<div class="note warn" style="display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap"><span><b>${esc(name(x.user))}</b> <span class="mono small">${esc(x.user)}</span><br><span class="small">${esc(x.device || "device")} · ${fmtT(x.created)}</span></span><span class="row" style="gap:6px"><button class="btn sm primary" data-ss="approved" data-sid="${esc(x.sid)}">Approve sign-in</button><button class="btn sm" data-ss="rejected" data-sid="${esc(x.sid)}">Reject</button></span></div>`).join("") : `<p class="muted small" style="margin:0">No one is waiting. New requests appear here and in your email.</p>`;
+      setBadge(pend.length);
+      $("#uTbl").innerHTML = `<table class="t"><thead><tr><th>Name / username</th><th>Role</th><th>Status</th><th>Last sign-in</th><th>Devices</th><th></th></tr></thead><tbody>${U.sort((a, b) => (a.email === ADMIN_ID ? -1 : b.email === ADMIN_ID ? 1 : a.name.localeCompare(b.name))).map(x => {
+        const main = x.email === ADMIN_ID, dev = act.filter(z => z.user === x.email).length;
+        return `<tr><td><b>${esc(x.name)}</b><div class="muted mono small">${esc(x.email)}${x.contact && x.contact !== x.email ? " · " + esc(x.contact) : ""}</div></td>
+        <td>${main ? `<span class="chip">admin</span>` : `<select data-role="${esc(x.email)}" style="width:auto">${["sales", "admin"].map(r => `<option ${r === x.role ? "selected" : ""}>${r}</option>`).join("")}</select>`}</td>
+        <td><span class="chip ${x.status === "approved" ? "ok" : "bad"}">${x.status === "approved" ? "active" : "disabled"}</span></td><td class="small">${fmtT(x.lastLogin)}</td><td>${dev}</td>
+        <td><div class="row" style="flex-wrap:nowrap;gap:6px">${main ? "" : `<button class="btn sm" data-rp="${esc(x.email)}">${icon("key")}Reset password</button>${x.status === "approved" ? `<button class="btn sm" data-st="revoked" data-u="${esc(x.email)}">Disable</button>` : `<button class="btn sm primary" data-st="approved" data-u="${esc(x.email)}">Enable</button>`}<button class="btn ghost sm" data-del="${esc(x.email)}" aria-label="Delete login">${icon("x")}</button>`}</div></td></tr>`; }).join("")}</tbody></table>`;
+      const devs = S.filter(x => x.status === "approved");
+      $("#uSess").innerHTML = devs.length ? `<table class="t"><thead><tr><th>Person</th><th>Device</th><th>Signed in</th><th>Last active</th><th></th></tr></thead><tbody>${devs.map(x => `<tr><td><b>${esc(name(x.user))}</b><div class="muted mono small">${esc(x.user)}</div></td><td>${esc(x.device || "—")}${x.sid === AUTH.sid ? ` <span class="chip ok">this device</span>` : ""}</td><td class="small">${fmtT(x.decidedAt || x.created)}</td><td class="small">${fmtT(x.lastSeen)}</td><td>${x.user === AUTH.user.email && x.sid === AUTH.sid ? "" : `<button class="btn sm" data-ss="revoked" data-sid="${esc(x.sid)}">Sign out device</button>`}</td></tr>`).join("")}</tbody></table>` : `<p class="muted" style="padding:16px;margin:0">No devices signed in.</p>`;
+      $("#uLog").innerHTML = `<table class="t"><thead><tr><th>Time</th><th>User</th><th>Action</th><th>Detail</th></tr></thead><tbody>${l.log.map(r => `<tr><td class="mono small" style="white-space:nowrap">${fmtT(r.time)}</td><td class="small">${esc(r.email)}</td><td><span class="chip ${/fail|lock|revoke|reject|blocked/.test(r.action) ? "bad" : /^login$|approve|create/.test(r.action) ? "ok" : ""}">${esc(r.action)}</span></td><td class="small">${esc(r.detail)}</td></tr>`).join("")}</tbody></table>`;
+      $$("[data-ss]").forEach(b => b.onclick = async () => { b.disabled = true; try { await AUTH.call("setSession", { sid: b.dataset.sid, status: b.dataset.ss }); toast({ approved: "Sign-in approved — they're in", rejected: "Sign-in rejected", revoked: "Device signed out" }[b.dataset.ss]); load(); } catch (e) { toast(e.message, "bad"); b.disabled = false; } });
+      $$("[data-st]").forEach(b => b.onclick = async () => { b.disabled = true; try { await AUTH.call("setUser", { email: b.dataset.u, status: b.dataset.st }); toast(b.dataset.st === "approved" ? "Login enabled" : "Login disabled — all their devices are signed out"); load(); } catch (e) { toast(e.message, "bad"); b.disabled = false; } });
+      $$("[data-role]").forEach(s => s.onchange = async () => { try { await AUTH.call("setUser", { email: s.dataset.role, role: s.value }); toast("Role updated"); } catch (e) { toast(e.message, "bad"); load(); } });
+      $$("[data-rp]").forEach(b => b.onclick = async () => { const id = b.dataset.rp, np = genPw(); if (!confirm(`Reset the password for ${id}?\n\nNew password: ${np}\n\nIt is copied so you can send it to them.`)) return; try { await AUTH.call("setUser", { email: id, pw: await AUTH.hash(np, id) }); navigator.clipboard?.writeText(`Rivera Quote Studio\n${location.origin + location.pathname}\nUsername: ${id}\nPassword: ${np}`).catch(() => { }); toast("Password reset — details copied"); } catch (e) { toast(e.message, "bad"); } });
+      $$("[data-del]").forEach(b => b.onclick = async () => { if (!confirm("Delete the login " + b.dataset.del + "?")) return; try { await AUTH.call("deleteUser", { email: b.dataset.del }); load(); } catch (e) { toast(e.message, "bad"); } });
+    } catch (e) { $("#uTbl").innerHTML = `<div class="note bad" style="margin:16px">${esc(e.message)}</div>`; }
+  };
+  load(); $("#uRef").onclick = load;
+  $("#nuG").onclick = () => { $("#nuP").value = genPw(); };
+  const details = () => `Rivera Quote Studio\n${location.origin + location.pathname}\nUsername: ${$("#nuU").value.trim().toLowerCase()}\nPassword: ${$("#nuP").value}`;
+  $("#nuCopy").onclick = () => navigator.clipboard?.writeText(details()).then(() => toast("Login details copied"), () => toast(details()));
+  $("#nuGo").onclick = async () => {
+    const id = $("#nuU").value.trim().toLowerCase(), n = $("#nuN").value.trim(), p = $("#nuP").value;
+    try {
+      if (!n) throw new Error("Enter the person's name"); if (!/^[a-z0-9][a-z0-9._@-]{2,79}$/.test(id)) throw new Error("Username: 3+ letters, numbers, . _ - or @, no spaces");
+      const bad = pwRules(p); if (bad.length) throw new Error("Password needs " + bad.join(" and "));
+      $("#nuGo").disabled = true; await AUTH.call("createUser", { email: id, name: n, role: $("#nuR").value, contact: $("#nuC").value.trim(), pw: await AUTH.hash(p, id) });
+      navigator.clipboard?.writeText(details()).catch(() => { }); toast(`Login created for ${n} — details copied to send them`); ["nuN", "nuU", "nuC", "nuP"].forEach(i => $("#" + i).value = ""); load();
+    } catch (e) { toast(e.message, "bad"); } finally { $("#nuGo").disabled = false; }
+  };
+  if (!$("#nuP").value) $("#nuP").value = genPw();
+  const up = async pack => { try { await AUTH.call("putPack", { pack }, 60000); toast("Data pack uploaded — signed-in users get it automatically"); } catch (e) { toast(e.message, "bad"); } };
+  $("#uPackCur").onclick = () => DATAPACK && up(buildDataPack());
+  $("#uPackFile").onclick = () => { const i = document.createElement("input"); i.type = "file"; i.accept = ".json"; i.onchange = async () => { try { const p = JSON.parse(await i.files[0].text()); if (p.kind !== "rivera-datapack") throw new Error("Not a Rivera data pack"); applyDataPack(p, { override: true, persist: true }); await up(p); } catch (e) { toast(e.message, "bad"); } }; i.click(); };
+};
+accountPanel = function () {
+  if (!AUTH.user) return "";
+  return `<section class="panel"><header><h2>My account</h2><span class="muted small">${esc(AUTH.user.name)} · ${esc(AUTH.user.email)} · ${esc(AUTH.user.role)}</span></header><div class="body"><div class="fields">
+    <label class="f">Current password<input type="password" id="acO" autocomplete="current-password"></label><label class="f">New password<input type="password" id="acN" autocomplete="new-password"></label><label class="f">Repeat new password<input type="password" id="acN2" autocomplete="new-password"></label></div>
+    <div class="row" style="margin-top:12px"><button class="btn dark" id="acGo">Change password</button><button class="btn" id="acSync">Sync now</button><button class="btn" id="acOut">${icon("lock")}Sign out of this device</button></div></div></section>`;
+};
+/* token now carries the device session id */
+const _signedIn9b = AUTH.signedIn;
+AUTH.signedIn = async function (d) { try { const sid = atob(d.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/")).split("|")[3]; d.sid = sid; } catch { } return _signedIn9b.call(this, d); };
+Object.defineProperty(AUTH, "sid", { get() { try { return atob(this.s.token.split(".")[0].replace(/-/g, "+").replace(/_/g, "/")).split("|")[3]; } catch { return ""; } } });
+
+const _boot9 = boot;
+boot = function () {
+  _boot9();
+  if (!AUTH.required()) { const w = setInterval(() => { if (STATE.loaded) { clearInterval(w); setTimeout(autoSeed, 2000); } }, 300); return; }
+  if (AUTH.valid()) setTimeout(() => { autoSeed(); Admin9.poll(); }, 2500);
 };
 boot();
 
