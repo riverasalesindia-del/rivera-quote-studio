@@ -282,6 +282,7 @@ kbd{font-family:var(--f-mono,monospace);font-size:.68rem;border:1px solid var(--
 .gs-item:hover,.gs-item:focus{background:var(--surface-2,rgba(2,49,91,.06));outline:0}
 .gs-item small{display:block;font-size:.66rem;text-transform:uppercase;letter-spacing:.08em;color:var(--copper-ink);font-weight:700}
 .gs-item b{display:block;font-size:.9rem}.gs-item span{display:block;font-size:.76rem;color:var(--muted)}
+.kv-r{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;min-width:0}.kv-r b{font-size:.86rem;overflow-wrap:anywhere}
 </style>
 <div class="shell">
   <aside class="rail" aria-label="Main navigation">
@@ -300,7 +301,7 @@ kbd{font-family:var(--f-mono,monospace);font-size:.68rem;border:1px solid var(--
 <input type="file" id="camPick" hidden accept="image/*" capture="environment">
 <input type="file" id="logoPick" hidden accept="image/png,image/jpeg,image/webp">
 <input type="file" id="importPick" hidden accept=".json">
-<script>window.__RIVERA_LINKS__ = {"site":"https://riverasalesindia-del.github.io/rivera-quote-studio/","apk":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio.apk","win":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Setup.exe","winPortable":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Portable.exe"};window.__RIVERA_AUTH__ = {"api":""};</script>
+<script>window.__RIVERA_LINKS__ = {"site":"https://riverasalesindia-del.github.io/rivera-quote-studio/","apk":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio.apk","win":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Setup.exe","winPortable":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Portable.exe"};window.__RIVERA_AUTH__ = {"api":"https://script.google.com/macros/s/AKfycbyQ2QR_G9qbU7KaCBVa6gO9w0hRkVeaSiqqCNOVAjQaVolGdUmgfy0FWQis14vo_By3/exec"};</script>
 <script>
 "use strict";
 /* ========= Rivera Quote Studio — core ========= */
@@ -3541,6 +3542,398 @@ boot = function () {
   const wait = setInterval(() => { if (STATE.loaded) { clearInterval(wait); setTimeout(go, 1500); } }, 300);
   setInterval(() => Auto.run(), 30 * 60000);
   addEventListener("online", healthBadge); addEventListener("offline", healthBadge);
+};
+/* ===================== p8: GeM Bid Desk — read bid, match documents, check eligibility, build pack, approvals ===================== */
+Object.assign(IC, {
+  gem: '<path d="M6 3h12l3 6-9 12L3 9z"/><path d="M3 9h18M9 3l3 18M15 3l-3 18"/>',
+  folder: '<path d="M3 6h6l2 2h10v11H3z"/>',
+  shield: '<path d="M12 3l8 3v6c0 5-3.5 8-8 9-4.5-1-8-4-8-9V6z"/><path d="m9 12 2 2 4-4"/>'
+});
+COLLS.push("docs"); STATE.data.docs = LS.get("docs", []);
+
+/* ---------- company document library ---------- */
+const DOC_TYPES = {
+  gst: "GST registration", pan: "Company PAN", cin: "Certificate of incorporation", udyam: "Udyam / MSE certificate", mii: "Make in India certificate",
+  oem: "OEM / proven-ness", experience: "Experience – past contract / PO", crac: "CRAC / completion", turnover: "CA turnover certificate",
+  balance: "Audited balance sheet / ITR", iso: "ISO / quality certificate", test: "Test report", qap: "QAP", warranty: "Warranty certificate",
+  bank: "Bank mandate / cancelled cheque", auth: "Authorisation letter", atc: "ATC compliance", profile: "Company profile", annex: "Annexure templates",
+  dpiit: "DPIIT recognition", iec: "Import-export code", lei: "LEI certificate", moa: "MoA / AoA", lut: "LUT (export without IGST)", other: "Other"
+};
+const dbxUrl = p => p ? "https://www.dropbox.com/preview" + encodeURI(p).replace(/#/g, "%23").replace(/\?/g, "%3F") + "?role=work" : "";
+const docLink = d => d.url || dbxUrl(d.path);
+const docExpired = d => d.expiry && d.expiry < todayISO();
+function docsOf(type) { return (STATE.data.docs || []).filter(d => d.type === type); }
+async function seedDocs(force) {
+  const src = DATAPACK?.docs || []; if (!src.length) return 0;
+  const have = new Set((STATE.data.docs || []).map(d => d.id)); let n = 0;
+  for (const d of src) if (force || !have.has(d.id)) { await DB.put("docs", { ...d }); n++; }
+  return n;
+}
+
+/* ---------- read a GeM bid document ---------- */
+const DEV = /[\u0900-\u097F\u200c\u200d]+/g;
+function bidLines(text) { return text.split(/\n/).map(l => l.replace(DEV, " ").replace(/\s*\/\s*(?=\s|$)/g, " ").replace(/[ \t]+/g, " ").trim()).filter(Boolean); }
+function grab(lines, re, valRe) {
+  for (let i = 0; i < lines.length; i++) {
+    const m = lines[i].match(re); if (!m) continue;
+    let rest = lines[i].slice(m.index + m[0].length).replace(/^[\s:/\-–()]+/, "").trim();
+    if (!rest && lines[i + 1]) rest = lines[i + 1];
+    if (valRe) { const v = rest.match(valRe) || (lines[i + 1] || "").match(valRe); if (v) return { v: v[1] ?? v[0], src: lines[i].slice(0, 160), line: i }; continue; }
+    if (rest) return { v: rest, src: lines[i].slice(0, 160), line: i };
+  }
+  return null;
+}
+const DMY = /(\d{2})-(\d{2})-(\d{4})(?:\s+(\d{2}):(\d{2})(?::\d{2})?)?/, DMYG = /(\d{2}-\d{2}-\d{4}(?:\s+\d{2}:\d{2}(?::\d{2})?)?)/;
+const toISO = s => { const m = DMY.exec(s || ""); return m ? `${m[3]}-${m[2]}-${m[1]}` : ""; };
+const toTime = s => { const m = DMY.exec(s || ""); return m && m[4] ? `${m[4]}:${m[5]}` : ""; };
+function inrWords(s) {
+  if (!s) return 0; const t = String(s).replace(/,/g, ""); const n = parseFloat(t.match(/[\d.]+/)?.[0] || "0");
+  if (/crore/i.test(t)) return n * 1e7; if (/lakh|lac/i.test(t)) return n * 1e5; return n;
+}
+function parseGemBid(text) {
+  const L = bidLines(text), F = {}, put = (k, r, conv) => { if (r) F[k] = { v: conv ? conv(r.v) : r.v.trim(), src: r.src }; };
+  const bn = text.match(/GEM\/\d{4}\/[BR]\/\d{5,}/); if (bn) F.bid = { v: bn[0], src: "Bid number" };
+  put("endRaw", grab(L, /Bid End Date\s*\/?\s*Time/i, DMYG));
+  put("openRaw", grab(L, /Bid Opening Date\s*\/?\s*Time/i, DMYG));
+  put("dated", grab(L, /\bDated\b/i, DMYG));
+  put("validity", grab(L, /Bid Offer Validity/i, /(\d+)\s*\(?Days?/i));
+  put("ministry", grab(L, /Ministry\s*\/?\s*State Name/i));
+  put("dept", grab(L, /Department Name/i));
+  put("org", grab(L, /Organisation Name/i));
+  put("office", grab(L, /Office Name/i));
+  put("qty", grab(L, /Total Quantity/i, /([\d,.]+)/));
+  put("category", grab(L, /Item Category/i));
+  put("turnover", grab(L, /Minimum Average Annual Turnover of the bidder/i, /([\d.,]+\s*(?:Lakh|Lac|Crore)\s*(?:\(s\))?)/i) || grab(L, /Minimum Average Annual Turnover of the bidder[^)]*\)/i, /([\d.,]+)/));
+  put("oemTurnover", grab(L, /Average Turn ?over of OEM/i, /([\d.,]+\s*(?:Lakh|Lac|Crore)?)/i));
+  put("expYears", grab(L, /Years of Past Experience Required/i, /(\d+)\s*Year/i));
+  put("mseExempt", grab(L, /MSE Exemption for Years of Experience/i, /\b(Yes|No)\b/i));
+  put("startupExempt", grab(L, /Startup Exemption for Years of Experience/i, /\b(Yes|No)\b/i));
+  put("docsReq", grab(L, /Document required from seller/i));
+  put("bidToRa", grab(L, /Bid to RA enabled/i, /\b(Yes|No)\b/i));
+  put("raRule", grab(L, /RA Qualification Rule/i));
+  put("bidType", grab(L, /Type of Bid/i));
+  put("evalMethod", grab(L, /Evaluation Method/i));
+  put("estValue", grab(L, /Estimated Bid Value/i, /([\d,]+(?:\.\d+)?)/));
+  put("emdReq", grab(L, /EMD Detail|EMD Required/i, /Required\s*\W*\s*(Yes|No)/i) || grab(L, /^Required\b/i, /\b(Yes|No)\b/i));
+  put("emdAmt", grab(L, /EMD Amount/i, /([\d,]+(?:\.\d+)?)/));
+  put("pbgPct", grab(L, /ePBG Percentage/i, /([\d.]+)/));
+  put("pbgMonths", grab(L, /Duration of ePBG required/i, /(\d+)/));
+  put("mii", grab(L, /MII Compliance/i, /\b(Yes|No)\b/i));
+  put("msePref", grab(L, /MSE Purchase Preference/i, /\b(Yes|No)\b/i));
+  put("delivery", grab(L, /Delivery Days|Delivery Period/i, /(\d+)/));
+  put("inspection", grab(L, /Inspection Required/i, /\b(Yes|No)\b/i));
+  put("pastPerf", grab(L, /Past Performance/i, /(\d+)\s*%/));
+  const items = []; for (const l of L) { const m = l.match(/^(?:\d+\s+)?(.{6,80}?)\s+(\d+(?:\.\d+)?)\s+(Nos?|Pieces?|Set|Sets|Kg|Lot|Each|Unit|pcs)\b/i); if (m && /coil|bar|winding|rotor|stator|armature|pole|rewind/i.test(m[1])) items.push({ desc: m[1].trim(), qty: +m[2], unit: m[3] }); }
+  const out = {}; for (const [k, o] of Object.entries(F)) out[k] = o.v;
+  out.closing = toISO(out.endRaw); out.closingTime = toTime(out.endRaw); out.opening = toISO(out.openRaw);
+  out.published = toISO(out.dated); out.estValue = num(String(out.estValue || "").replace(/,/g, "")); out.emdAmt = num(String(out.emdAmt || "").replace(/,/g, "")); out.qty = num(String(out.qty || "").replace(/,/g, ""));
+  out.turnoverINR = inrWords(out.turnover); out.items = items.slice(0, 20);
+  out.docList = String(out.docsReq || "").split(/,|;/).map(s => s.replace(/\*.*$/, "").trim()).filter(s => s.length > 2 && !/^in case|^any bidder/i.test(s));
+  out.atc = L.filter(l => /\b(shall|must|mandatory|reject|disqualif)/i.test(l) && l.length > 40).slice(0, 40);
+  out.src = Object.fromEntries(Object.entries(F).map(([k, o]) => [k, o.src]));
+  out.found = Object.keys(F).length;
+  return out;
+}
+
+/* ---------- eligibility + compliance (deterministic) ---------- */
+const FIT_WORDS = /stator|rotor|coil|roebel|bar\b|winding|rewind|armature|pole|interpole|equali[sz]er|generator|motor|insulat|mica|varnish/i;
+function similarOrders(B) {
+  const keys = (B.category + " " + (B.items || []).map(i => i.desc).join(" ") + " " + (B.title || "")).toLowerCase().match(/[a-z]{4,}/g) || [];
+  const want = new Set(keys.filter(k => FIT_WORDS.test(k)));
+  const end = B.closing || todayISO(), from = addDays(end, -365 * 3 - 31);
+  const src = [...(STATE.data.orders || []), ...((DATAPACK?.orders || []).filter(o => !(STATE.data.orders || []).some(x => x.id === o.id)))];
+  return src.filter(o => o.date && o.date >= from && o.date <= end).map(o => {
+    const t = (o.desc + " " + o.customer).toLowerCase(); const hit = [...want].filter(k => t.includes(k)).length;
+    return { o, hit, val: num(o.taxable) || num(o.total), govt: /limited|ltd|coal|tneb|tangedco|ntpc|bhel|nhpc|hindustan|power house|gemc/i.test(o.customer + " " + o.po) };
+  }).filter(x => x.hit || !want.size).sort((a, b) => b.val - a.val);
+}
+function eligibility(B) {
+  const R = [], ok = (k, l, st, d) => R.push({ k, l, st, d });
+  const mse = /yes/i.test(B.mseExempt || ""), startup = /yes/i.test(B.startupExempt || "");
+  const isMSE = !!SETTINGS.company.udyam, isStartup = !!(STATE.data.docs || []).find(d => d.type === "dpiit");
+  // turnover
+  if (B.turnoverINR) {
+    if (mse && isMSE) ok("turnover", "Minimum turnover " + B.turnover, "exempt", "MSE exemption applies — Udyam " + SETTINGS.company.udyam);
+    else if (startup && isStartup) ok("turnover", "Minimum turnover " + B.turnover, "exempt", "Start-up exemption applies (DPIIT recognised)");
+    else { const tv = Object.values(SETTINGS.company.turnover || {}).map(num).filter(Boolean); const avg = tv.length ? tv.slice(-3).reduce((s, x) => s + x, 0) / Math.min(3, tv.length) : 0; ok("turnover", "Minimum turnover " + B.turnover, !avg ? "missing" : avg >= B.turnoverINR ? "met" : "fail", avg ? "Average of last 3 FY ₹" + fmt(avg, "INR", 0) : "Enter FY turnover figures below"); }
+  }
+  // experience
+  const yrs = num(B.expYears); if (yrs) {
+    const since = num((SETTINGS.company.cin || "").match(/(\d{4})PTC/)?.[1]) || 2021, have = new Date().getFullYear() - since;
+    if (mse && isMSE) ok("years", yrs + " years experience", "exempt", "MSE exemption applies");
+    else ok("years", yrs + " years experience", have >= yrs ? "met" : "fail", `Company incorporated ${since} (${have} years)`);
+  }
+  // past performance / value-based experience
+  const sim = similarOrders(B), est = num(B.estValue);
+  if (est) {
+    const c40 = sim.filter(x => x.val >= est * .4).length, c50 = sim.filter(x => x.val >= est * .5).length, c80 = sim.filter(x => x.val >= est * .8).length;
+    const pass = c40 >= 3 || c50 >= 2 || c80 >= 1;
+    ok("value", "Similar orders vs estimated value ₹" + fmt(est, "INR", 0), pass ? "met" : sim.length ? "partial" : "missing", `≥80%: ${c80} · ≥50%: ${c50} · ≥40%: ${c40} in the last 3 years (rule: 1×80% or 2×50% or 3×40%)`);
+  }
+  if (B.pastPerf) ok("pastperf", `Past performance ${B.pastPerf}% of bid quantity`, sim.length ? "met" : "missing", sim.length ? `${sim.length} similar orders in 3 years — largest ${sim[0].o.customer} (${sim[0].o.po})` : "No similar order found in the last 3 years");
+  if (/yes/i.test(B.emdReq || "")) ok("emd", "EMD ₹" + fmt(B.emdAmt, "INR", 0), isMSE ? "exempt" : "missing", isMSE ? "MSE exempt — upload Udyam certificate" : "Arrange EMD");
+  if (num(B.pbgPct)) ok("pbg", `ePBG ${B.pbgPct}% for ${B.pbgMonths || "?"} months`, "info", "After award — not waived for MSEs");
+  if (/yes/i.test(B.mii || "")) ok("mii", "Make in India", docsOf("mii").length ? "met" : "missing", "Class-I local supplier self-certificate");
+  return { R, sim };
+}
+const REQ_MAP = [
+  [/experience/i, ["experience", "crac"], "Experience criteria"], [/past performance/i, ["experience", "crac"], "Past performance"],
+  [/turnover/i, ["turnover", "balance"], "Bidder turnover"], [/oem/i, ["oem"], "OEM authorisation"],
+  [/atc|certificate \(requested/i, ["atc"], "ATC certificates"], [/boq|specification|technical|test/i, ["test", "qap"], "BoQ / specification compliance"],
+  [/msme|mse|udyam/i, ["udyam"], "MSE certificate"], [/make in india|mii|local content/i, ["mii"], "Make in India"],
+  [/gst/i, ["gst"], "GST"], [/pan\b/i, ["pan"], "PAN"], [/iso|quality/i, ["iso", "qap"], "Quality certificate"], [/additional doc/i, ["annex", "profile"], "Additional document (see ATC)"]
+];
+const EVERGREEN = [["udyam", "MSE (Udyam) certificate — EMD exemption"], ["mii", "Make in India Class-I self-certificate"], ["gst", "GST registration"], ["pan", "Company PAN"], ["oem", "Manufacturer / proven-ness certificate"], ["bank", "Bank mandate"]];
+function complianceMatrix(B, el) {
+  const rows = [], used = new Set();
+  const add = (req, types, src, mandatory = true) => {
+    const ds = types.flatMap(docsOf).filter(d => !used.has(d.id + req));
+    const live = ds.filter(d => !docExpired(d)); ds.forEach(d => used.add(d.id + req));
+    const ex = el?.R.find(r => r.st === "exempt" && ((/turnover/i.test(req) && r.k === "turnover") || (/experience/i.test(req) && r.k === "years")));
+    rows.push({ req, src, mandatory, docs: live.slice(0, 6), status: ex ? "exempt" : live.length ? "met" : ds.length ? "expired" : "missing", note: ex ? ex.d : "" });
+  };
+  const seen = new Set();
+  for (const d of B.docList || []) { const m = REQ_MAP.find(([re]) => re.test(d)); const key = m ? m[2] : d; if (seen.has(key)) continue; seen.add(key); add(m ? m[2] + (m[2] === d ? "" : " — “" + d + "”") : d, m ? m[1] : ["other"], "Bid: documents required from seller"); }
+  for (const [t, l] of EVERGREEN) if (![...seen].some(s => s.toLowerCase().includes(l.split(" ")[0].toLowerCase()))) add(l, [t], "Rivera standard GeM upload", t !== "bank");
+  if (/yes/i.test(B.emdReq || "")) add("EMD exemption proof", ["udyam"], "Bid: EMD required");
+  return rows;
+}
+function readiness(rows, el) {
+  const need = rows.filter(r => r.mandatory); const okN = need.filter(r => ["met", "exempt"].includes(r.status)).length;
+  const fails = (el?.R || []).filter(r => r.st === "fail");
+  const block = [...need.filter(r => !["met", "exempt"].includes(r.status)).map(r => r.req + " — " + (r.status === "expired" ? "expired" : "missing")), ...fails.map(r => r.l + " — not met")];
+  return { pct: need.length ? Math.round(okN / need.length * 100) : 0, block };
+}
+
+/* ---------- approvals & audit ---------- */
+const who = () => AUTH.user?.email || (window.__RIVERA_DATA__ ? "owner" : "this device");
+const canApprove = () => !AUTH.required() || AUTH.isAdmin;
+function audit(t, what) { (t.log ||= []).unshift({ at: new Date().toISOString(), by: who(), what }); t.log = t.log.slice(0, 200); }
+
+/* ---------- pack builder ---------- */
+function coverBlocks(t, B, rows) {
+  const C = SETTINGS.company, D = dmy(todayISO());
+  return [{ logo: true }, { t: C.name, b: true, sz: 13, color: "02315B", after: 0 }, { t: C.address, sz: 9, color: "555555", border: true, after: 200 },
+  { t: "Date: " + D, align: "right" }, { t: "To,", before: 120 }, { t: (B.office || "The Purchase Officer") + "," }, { t: (B.org || t.org || "") + "," }, { t: B.dept || "" },
+  { t: `Sub: Submission of bid against GeM Bid No. ${t.bid}${B.category ? " — " + B.category : ""}`, b: true, before: 160 },
+  { t: "Dear Sir / Madam," , before: 120 },
+  { t: `We, ${C.name}, a manufacturer of HV motor and generator stator coils, Roebel bars, armature and pole coils registered as an MSE (${C.udyam || "Udyam"}), hereby submit our bid for the above requirement. We have read and accept all the terms and conditions of the bid including GTC, STC and ATC without any deviation.` },
+  { t: `Our offer is valid for ${B.validity || 90} days from the bid end date. Delivery will be made within ${B.delivery ? B.delivery + " days" : "the period stipulated in the bid"}.` },
+  { t: "The following documents are enclosed:", before: 120 },
+  { widths: [500, 3300, 4300, 1300], table: [["#", "Requirement", "Document enclosed", "Status"].map(x => ({ t: x, b: true, fill: "02315B", color: "FFFFFF" })), ...rows.map((r, i) => [String(i + 1), r.req, r.docs.map(d => d.title).join("; ") || r.note || "—", r.status === "exempt" ? "Exempted" : r.status === "met" ? "Enclosed" : "To be enclosed"].map(t => ({ t })))] },
+  { t: "Thanking you,", before: 200 }, { t: "Yours faithfully,", before: 60 }, { t: "For " + C.name, b: true, before: 300 }, { t: C.signatory || "Authorised Signatory" }];
+}
+function matrixSheet(t, B, rows, el) {
+  const H = ["#", "Requirement", "Source", "Mandatory", "Status", "Rivera evidence", "Dropbox path", "Note"];
+  return [{ name: "Compliance", cells: [[{ v: `COMPLIANCE MATRIX — ${t.bid} — ${B.org || t.org || ""}`, s: 1 }], hdr(H), ...rows.map((r, i) => [cell(i + 1), cell(r.req), cell(r.src), cell(r.mandatory ? "Yes" : "No"), cell(r.status.toUpperCase()), cell(r.docs.map(d => d.title).join("\n")), cell(r.docs.map(d => d.path).join("\n")), cell(r.note)])], merges: ["A1:H1"], cols: [4, 40, 26, 9, 10, 46, 70, 30] },
+  { name: "Eligibility", cells: [hdr(["Check", "Result", "Detail"]), ...el.R.map(r => [cell(r.l), cell(r.st.toUpperCase()), cell(r.d)])], cols: [44, 10, 80] },
+  { name: "Similar orders", cells: [hdr(["Date", "PO / contract", "Customer", "Description", "Value ₹"]), ...el.sim.map(x => [cell(dmy(x.o.date)), cell(x.o.po), cell(x.o.customer), cell(x.o.desc), cell(x.val, 1)])], cols: [11, 30, 34, 56, 15] },
+  { name: "Bid data", cells: [hdr(["Field", "Value", "Read from"]), ...Object.entries(B).filter(([k, v]) => typeof v !== "object" && v !== "" && !["found"].includes(k)).map(([k, v]) => [cell(k), cell(v), cell(B.src?.[k] || "")])], cols: [18, 50, 80] }];
+}
+function uploadMap(rows) {
+  const slot = r => /experience|past performance/i.test(r.req) ? "Experience criteria / Past performance" : /turnover/i.test(r.req) ? "Bidder turnover" : /oem/i.test(r.req) ? "OEM authorisation certificate" : /atc|additional/i.test(r.req) ? "Certificate (requested in ATC) / Additional doc" : /mse|udyam|emd/i.test(r.req) ? "MSE certificate (EMD exemption)" : /make in india/i.test(r.req) ? "Make in India declaration" : "Other documents";
+  const M = {}; rows.forEach(r => (M[slot(r)] ||= []).push(...(r.docs.length ? r.docs : r.status === "exempt" ? docsOf("udyam") : []))); return M;
+}
+
+/* ---------- Bid Desk view ---------- */
+ROUTES.splice(ROUTES.findIndex(r => r[0] === "tenders") + 1, 0, ["biddesk", "GeM Bid Desk", "gem"], ["library", "Company documents", "folder"]);
+let BID = null;
+VIEWS.biddesk = v => {
+  const live = (STATE.data.tenders || []).filter(t => ["identified", "preparing", "submitted", "technical", "ra"].includes(t.status) && t.bidx).sort((a, b) => (a.closing || "9").localeCompare(b.closing || "9"));
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">GeM · automatic bid preparation</div><h1>GeM Bid Desk</h1><p>Drop the GeM bid PDF. The app reads it, checks Rivera's eligibility, matches your stored company documents, builds the compliance matrix, cover letter, annexures and upload map, and routes it for approval. The authorised person then uploads and e-signs on GeM — GeM requires that step to be done by a person.</p></div>
+  <div class="row"><a class="btn" href="https://bidplus.gem.gov.in/all-bids" target="_blank" rel="noopener">Open GeM bids</a><button class="btn" id="bdAlert">Paste GeM alert</button></div></div>
+  <section class="panel"><div class="body"><div class="drop" id="bdDrop" tabindex="0" role="button">${icon("up")}<b>Drop the GeM bid document (PDF) here or tap to choose</b><span class="muted">Corrigendum PDFs too — the app compares them with the stored bid and flags changes.</span></div><input type="file" id="bdPick" accept=".pdf,.txt" hidden><div id="bdStep" class="muted small" style="margin-top:8px"></div></div></section>
+  <div id="bdOut"></div>
+  <section class="panel" style="margin-top:16px"><header><h2>Bids in preparation</h2><span class="chip">${live.length}</span></header><div class="body stack" style="gap:8px">${live.length ? live.map(t => { const r = t.bidx.ready || {}; return `<div class="note ${r.pct === 100 ? "ok" : r.pct > 60 ? "warn" : "bad"}" style="display:flex;gap:10px;justify-content:space-between;align-items:center;flex-wrap:wrap"><span><b>${esc(t.bid)}</b> · ${esc(t.org || "")} ${t.closing ? dueChip(t.closing) : ""}<br><span class="small">${r.pct ?? 0}% ready · ${esc(apprLine(t))}</span></span><button class="btn sm" data-bdopen="${esc(t.id)}">Open</button></div>`; }).join("") : `<p class="muted">No bids yet. Drop a GeM bid PDF above.</p>`}</div></section>`;
+  const pick = $("#bdPick"), drop = $("#bdDrop");
+  drop.onclick = () => pick.click(); drop.onkeydown = e => { if (e.key === "Enter" || e.key === " ") pick.click(); };
+  ["dragenter", "dragover"].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); drop.classList.add("over"); }));
+  drop.addEventListener("dragleave", () => drop.classList.remove("over"));
+  drop.addEventListener("drop", e => { e.preventDefault(); e.stopPropagation(); drop.classList.remove("over"); const f = e.dataTransfer.files[0]; if (f) analyseBidFile(f); });
+  pick.onchange = () => { const f = pick.files[0]; pick.value = ""; if (f) analyseBidFile(f); };
+  $("#bdAlert").onclick = pasteAlert;
+  $$("[data-bdopen]").forEach(b => b.onclick = () => { const t = STATE.data.tenders.find(x => x.id === b.dataset.bdopen); BID = { t: clone(t), B: t.bidx.B }; drawBid(); });
+  if (BID) drawBid();
+};
+function apprLine(t) { const a = t.appr || {}; return ["bid", "price", "pack"].map(k => `${{ bid: "Bid/no-bid", price: "Price", pack: "Pack" }[k]}: ${a[k]?.ok ? "✓ " + a[k].by.split("@")[0] : a[k]?.ok === false ? "✗" : "pending"}`).join(" · "); }
+async function analyseBidFile(f) {
+  const step = m => { const s = $("#bdStep"); if (s) s.textContent = m; };
+  try {
+    step("Reading " + f.name + " …");
+    let text = /\.txt$/i.test(f.name) ? await f.text() : (await readPdf(await f.arrayBuffer(), step)).text;
+    if (text.replace(/\s/g, "").length < 200) { step(""); toast("This PDF is a scanned image with no text. Download the original bid PDF from GeM (it has text) and drop that.", "bad"); return; }
+    const B = parseGemBid(text); B.file = f.name; B.read = new Date().toISOString();
+    if (!B.bid) { toast("No GeM bid number found in this file. Is it the GeM bid document?", "bad"); step(""); return; }
+    let t = STATE.data.tenders.find(x => x.bid === B.bid || x.id === B.bid.replace(/[^A-Za-z0-9]+/g, "-"));
+    const prev = t?.bidx?.B;
+    t = t ? clone(t) : { id: B.bid.replace(/[^A-Za-z0-9]+/g, "-"), bid: B.bid, portal: "GeM", status: "identified", check: {}, emd: "Exempted (MSE)" };
+    if (prev) { const diff = ["closing", "closingTime", "qty", "estValue", "emdReq", "turnover", "expYears", "delivery", "bidToRa"].filter(k => String(prev[k] ?? "") !== String(B[k] ?? "") && B[k]); if (diff.length) { audit(t, "Corrigendum read — changed: " + diff.map(k => `${k} ${prev[k] ?? "—"} → ${B[k]}`).join("; ")); toast("Corrigendum: " + diff.join(", ") + " changed — review the bid", "bad"); } }
+    Object.assign(t, { org: B.org || t.org || B.dept || "", published: B.published || t.published, closing: B.closing || t.closing, items: B.category || t.items, value: B.estValue || t.value, closingTime: B.closingTime });
+    if (/yes/i.test(B.emdReq || "")) { t.emdMode = SETTINGS.company.udyam ? "exempt_mse" : "required"; t.emdAmount = B.emdAmt; }
+    const el = eligibility(B), rows = complianceMatrix(B, el), ready = readiness(rows, el);
+    t.bidx = { B, ready, rowsN: rows.length }; GEM_DOCS.forEach(([k]) => { if (rows.some(r => r.status !== "missing" && ((k === "msme" && /mse/i.test(r.req)) || (k === "mii" && /make in india/i.test(r.req)) || (k === "gst" && /gst/i.test(r.req))))) t.check[k] = true; });
+    if (t.status === "identified" && ready.pct) t.status = "preparing";
+    audit(t, `Bid document read (${B.found} fields) — ${ready.pct}% ready`);
+    await DB.put("tenders", t); BID = { t, B }; step(`Read ${B.found} fields from ${f.name}`); drawBid();
+  } catch (e) { step(""); toast("Couldn't read the bid: " + (e.message || e), "bad"); }
+}
+function drawBid() {
+  const o = $("#bdOut"); if (!o || !BID) return; const { t, B } = BID;
+  const el = eligibility(B), rows = complianceMatrix(B, el), rd = readiness(rows, el), A = t.appr || {};
+  const fitPct = Math.min(100, Math.round(((B.category || "") + " " + (B.items || []).map(i => i.desc).join(" ")).split(/\W+/).filter(w => FIT_WORDS.test(w)).length * 25));
+  const hist = HISTORY.filter(h => /coil|bar/i.test(h.project)); const perUnit = num(B.estValue) && num(B.qty) ? B.estValue / B.qty : 0;
+  const st = s => ({ met: ["ok", "Met"], exempt: ["ok", "Exempt"], partial: ["warn", "Partial"], missing: ["bad", "Missing"], expired: ["bad", "Expired"], fail: ["bad", "Not met"], info: ["", "Note"] }[s] || ["", s]);
+  const F = (l, k, f) => `<div class="kv-r"><span class="muted small">${l}</span><b>${esc(f ? f(B[k]) : B[k] || "—")}</b></div>`;
+  const M = uploadMap(rows);
+  o.innerHTML = `
+  <section class="panel" style="margin-top:16px"><header><h2>${esc(B.bid)}</h2><div class="row" style="gap:6px"><span class="chip ${rd.pct === 100 ? "ok" : rd.pct > 60 ? "warn" : "bad"}">${rd.pct}% ready</span><span class="chip">${fitPct}% fit</span>${t.closing ? dueChip(t.closing) : ""}</div></header>
+  <div class="body"><div class="grid g4" style="gap:10px">${F("Buyer", "org")}${F("Department", "dept")}${F("Item category", "category")}${F("Quantity", "qty")}${F("Bid end", "endRaw")}${F("Estimated value", "estValue", v => v ? "₹" + fmt(v, "INR", 0) : "—")}${F("Bid type", "bidType")}${F("Evaluation", "evalMethod")}${F("Bid to RA", "bidToRa")}${F("RA rule", "raRule")}${F("EMD", "emdReq", v => v ? v + (B.emdAmt ? " · ₹" + fmt(B.emdAmt, "INR", 0) : "") : "—")}${F("ePBG", "pbgPct", v => v ? v + "% · " + (B.pbgMonths || "?") + " months" : "—")}${F("Min. turnover", "turnover")}${F("Experience", "expYears", v => v ? v + " years" : "—")}${F("MSE exemption", "mseExempt")}${F("Delivery", "delivery", v => v ? v + " days" : "—")}</div>
+  ${B.found < 8 ? `<div class="note warn" style="margin-top:10px">Only ${B.found} fields could be read from this file. Check the values against the bid PDF before approving.</div>` : ""}
+  ${rd.block.length ? `<div class="note bad" style="margin-top:10px"><b>Blocking before submission:</b><br>${rd.block.map(esc).join("<br>")}</div>` : `<div class="note ok" style="margin-top:10px"><b>All mandatory items are covered.</b> Approve below, then upload on GeM.</div>`}</div></section>
+  <div class="split" style="margin-top:16px">
+  <section class="panel"><header><h2>Eligibility</h2></header><div class="body stack" style="gap:6px">${el.R.length ? el.R.map(r => `<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:nowrap;border-bottom:1px solid var(--line);padding:6px 0"><span><b class="small">${esc(r.l)}</b><br><span class="muted small">${esc(r.d)}</span></span><span class="chip ${st(r.st)[0]}">${st(r.st)[1]}</span></div>`).join("") : `<p class="muted small">No turnover, experience or EMD conditions were found in the file.</p>`}
+  <details style="margin-top:8px"><summary class="small">FY turnover figures used for checks</summary><div class="fields" style="margin-top:8px">${["2023-24", "2024-25", "2025-26"].map(y => `<label class="f">FY ${y} ₹<input type="number" data-to="${y}" value="${esc(SETTINGS.company.turnover?.[y] ?? "")}"></label>`).join("")}</div></details></div></section>
+  <section class="panel"><header><h2>Price guidance</h2></header><div class="body stack" style="gap:6px">
+    <div class="small">${perUnit ? `Buyer's estimate per unit: <b>₹${fmt(perUnit, "INR", 0)}</b> (₹${fmt(B.estValue, "INR", 0)} ÷ ${B.qty})` : "No estimated value in the bid."}</div>
+    <div class="small">MSE purchase preference: ${/yes/i.test(B.msePref || "") ? "<b>Yes</b> — within L1 + 15% Rivera can match L1 for part of the quantity." : "not stated"}</div>
+    <div class="small">Past Rivera jobs on file: ${hist.length}. Use workings for the exact cost.</div>
+    <div class="row" style="gap:6px"><button class="btn sm" id="bdWork">${icon("sheet")}Cost it in workings</button></div>
+    <label class="f">Bid price ₹ (total, all-inclusive)<input type="number" id="bdPrice" value="${esc(BID.dp ?? A.price?.price ?? t.ourPrice ?? "")}"></label>
+    <label class="f">RA floor price ₹ (lowest Rivera will go)<input type="number" id="bdFloor" value="${esc(BID.df ?? A.price?.floor ?? "")}"></label>
+  </div></section></div>
+  <section class="panel" style="margin-top:16px"><header><h2>Compliance matrix</h2><span class="muted small">documents matched from Company documents</span></header><div class="scroll"><table class="t"><thead><tr><th>#</th><th>Requirement</th><th>Rivera document</th><th>Status</th></tr></thead><tbody>${rows.map((r, i) => `<tr><td>${i + 1}</td><td style="min-width:220px"><b class="small">${esc(r.req)}</b><div class="muted" style="font-size:.7rem">${esc(r.src)}${r.mandatory ? "" : " · optional"}</div></td><td style="min-width:260px">${r.docs.length ? r.docs.map(d => `<a class="small" href="${esc(docLink(d))}" target="_blank" rel="noopener">${esc(d.title)}</a>`).join("<br>") : `<span class="muted small">${esc(r.note || "Add it on Company documents")}</span>`}</td><td><span class="chip ${st(r.status)[0]}">${st(r.status)[1]}</span></td></tr>`).join("")}</tbody></table></div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>Approvals</h2><span class="muted small">${canApprove() ? "you can approve" : "only crm@rivera.co.in can approve"}</span></header><div class="body stack" style="gap:8px">
+    ${[["bid", "1. Bid / no-bid decision"], ["price", "2. Price and RA floor"], ["pack", "3. Bid pack ready for GeM upload"]].map(([k, l]) => `<div class="row" style="justify-content:space-between;gap:8px;flex-wrap:wrap;border-bottom:1px solid var(--line);padding:6px 0"><span><b class="small">${l}</b><br><span class="muted small">${A[k] ? (A[k].ok ? "Approved" : "Rejected") + " by " + esc(A[k].by) + " · " + new Date(A[k].at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }) + (k === "price" && A[k].price ? " · ₹" + fmt(A[k].price, "INR", 0) + (A[k].floor ? " / floor ₹" + fmt(A[k].floor, "INR", 0) : "") : "") : "Waiting"}</span></span><span class="row" style="gap:6px">${canApprove() ? `<button class="btn sm primary" data-ap="${k}" data-ok="1" ${k === "pack" && rd.block.length ? "disabled title=\"Fix the blocking items first\"" : ""}>Approve</button><button class="btn sm" data-ap="${k}" data-ok="0">Reject</button>` : `<button class="btn sm" data-ask="${k}">${icon("mail")}Ask CRM to approve</button>`}</span></div>`).join("")}
+  </div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>Bid pack</h2></header><div class="body stack" style="gap:10px">
+    <div class="row" style="gap:6px;flex-wrap:wrap"><button class="btn primary" id="bdPack">${icon("dl")}Build bid pack</button><button class="btn" id="bdKit">Annexures II–X (Word)</button><button class="btn" id="bdMatrix">Compliance matrix (Excel)</button><button class="btn" id="bdCover">Cover letter (Word)</button></div>
+    <div><h3 style="margin:4px 0">GeM upload map</h3><p class="muted small" style="margin:0 0 6px">Open GeM in your own browser, sign in yourself, and upload each file in the slot shown. Tap a file to open it in Dropbox.</p>${Object.entries(M).map(([slot, ds]) => `<div style="padding:6px 0;border-bottom:1px solid var(--line)"><b class="small">${esc(slot)}</b><div>${ds.length ? [...new Map(ds.map(d => [d.id, d])).values()].map(d => `<a class="small" href="${esc(docLink(d))}" target="_blank" rel="noopener">${esc(d.title)}</a>`).join(" · ") : `<span class="muted small">—</span>`}</div></div>`).join("")}</div>
+    <div class="note"><b>Final step on GeM (person):</b> sign in to GeM → Bids → find ${esc(B.bid)} → Participate → upload the files above → enter the approved price → verify with eSign / DSC / OTP → download the acknowledgement. GeM's terms do not allow this step to be done by a bot.</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap"><a class="btn" href="https://bidplus.gem.gov.in/all-bids" target="_blank" rel="noopener">Open GeM</a><button class="btn sm" data-copy="${esc(B.bid)}">Copy bid number</button>${A.price?.price ? `<button class="btn sm" data-copy="${esc(String(A.price.price))}">Copy approved price</button>` : ""}<button class="btn primary" id="bdDone">Mark submitted on GeM</button></div>
+  </div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>Result & audit trail</h2></header><div class="body stack" style="gap:8px">
+    <div class="fields"><label class="f">L1 price ₹<input type="number" data-rs="l1" value="${esc(t.result?.l1 ?? "")}"></label><label class="f">Rivera rank<input type="number" data-rs="rank" value="${esc(t.result?.rank ?? "")}"></label><label class="f">No. of bidders<input type="number" data-rs="bidders" value="${esc(t.result?.bidders ?? "")}"></label><label class="f">L1 seller<input type="text" data-rs="winner" value="${esc(t.result?.winner ?? "")}"></label></div>
+    <button class="btn sm" id="bdRes" style="align-self:flex-start">Save result</button>
+    <div>${(t.log || []).slice(0, 20).map(l => `<div class="small" style="padding:3px 0;border-bottom:1px solid var(--line)">${new Date(l.at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" })} · <b>${esc(l.by)}</b> · ${esc(l.what)}</div>`).join("")}</div>
+  </div></section>`;
+  const save = async () => { await DB.put("tenders", BID.t); };
+  $("#bdPrice").oninput = e => BID.dp = e.target.value; $("#bdFloor").oninput = e => BID.df = e.target.value;
+  $$("[data-to]", o).forEach(i => i.onchange = async () => { SETTINGS.company.turnover = { ...(SETTINGS.company.turnover || {}), [i.dataset.to]: num(i.value) }; await Store.saveSettings(); drawBid(); });
+  $("#bdWork").onclick = () => { const type = /bar|roebel/i.test(B.category) ? "roebel" : /armature/i.test(B.category) ? "armature" : /pole/i.test(B.category) ? "mainpole" : "diamond"; STATE.work = newWorkings({ type, customer: B.org }); STATE.work.title = `${B.org || ""} ${B.bid}`.toUpperCase(); STATE.work.subject = B.category; STATE.work.tenderId = t.id; saveDrafts(); location.hash = "workings"; };
+  $$("[data-ap]", o).forEach(b => b.onclick = async () => {
+    const k = b.dataset.ap, okv = b.dataset.ok === "1"; const rec = { ok: okv, by: who(), at: new Date().toISOString() };
+    if (k === "price") { rec.price = num($("#bdPrice").value); rec.floor = num($("#bdFloor").value); if (okv && !rec.price) { toast("Enter the bid price first.", "bad"); return; } if (rec.floor && rec.floor > rec.price) { toast("Floor price cannot be above the bid price.", "bad"); return; } t.ourPrice = rec.price; }
+    (t.appr ||= {})[k] = rec; audit(t, `${k} ${okv ? "approved" : "rejected"}${rec.price ? " at ₹" + fmt(rec.price, "INR", 0) : ""}`);
+    if (k === "bid" && !okv) t.status = "not_attended"; await save(); drawBid();
+  });
+  $$("[data-ask]", o).forEach(b => b.onclick = () => { const k = b.dataset.ask; audit(t, "Approval requested: " + k); save(); openLink("mailto:crm@rivera.co.in?subject=" + encodeURIComponent(`Approve ${k} — GeM ${B.bid}`) + "&body=" + encodeURIComponent(`Please approve the ${k} for GeM bid ${B.bid} (${B.org || ""}).\nReadiness: ${rd.pct}%\nBid end: ${B.endRaw || ""}\n${k === "price" ? "Proposed price: ₹" + fmt(num($("#bdPrice").value), "INR", 0) + "\n" : ""}\nOpen Rivera Quote Studio → GeM Bid Desk.`)); });
+  const kit = () => buildDocx(annexureBlocks(t), brandLogo()), cover = () => buildDocx(coverBlocks(t, B, rows), brandLogo()), mx = () => buildXlsx(matrixSheet(t, B, rows, el));
+  $("#bdKit").onclick = async () => saveFile(`ANNEXURES_${safeName(B.bid)}.docx`, await kit());
+  $("#bdCover").onclick = async () => saveFile(`COVER_LETTER_${safeName(B.bid)}.docx`, await cover());
+  $("#bdMatrix").onclick = async () => saveFile(`COMPLIANCE_${safeName(B.bid)}.xlsx`, await mx());
+  $("#bdPack").onclick = async () => {
+    try {
+      const JSZip = await getZip(), z = new JSZip(), base = safeName(`${t.published || todayISO()}_GEM_${B.org || t.org}_${B.bid}`);
+      z.file("01_COVER_LETTER.docx", await cover()); z.file("02_ANNEXURES_II-X.docx", await kit()); z.file("03_COMPLIANCE_MATRIX.xlsx", await mx());
+      const links = Object.entries(uploadMap(rows)).map(([s, ds]) => `[${s}]\n` + [...new Map(ds.map(d => [d.id, d])).values()].map(d => `  ${d.title}\n  ${d.path}\n  ${docLink(d)}`).join("\n")).join("\n\n");
+      z.file("04_GEM_UPLOAD_MAP.txt", `GeM bid ${B.bid} — ${B.org || ""}\nBid end: ${B.endRaw || ""}\nApproved price: ${A.price?.price ? "₹" + fmt(A.price.price, "INR", 0) : "not yet approved"}\n\n${links}\n\nFinal step: authorised person signs in to GeM, uploads these files, enters the price and verifies with eSign / DSC / OTP.\n`);
+      const blob = await z.generateAsync({ type: "blob" });
+      if (STATE.dir) { try { await writeToDir(`RCM/3) TENDER/INPROGRESS/${base}/BID_PACK_${safeName(B.bid)}.zip`, blob); toast("Bid pack filed to the Synology tender folder"); } catch { } }
+      await saveFile(`BID_PACK_${safeName(B.bid)}.zip`, blob); audit(t, "Bid pack built"); await save();
+    } catch (e) { toast("Couldn't build the pack: " + e.message, "bad"); }
+  };
+  $("#bdDone").onclick = async () => { if (!A.pack?.ok && !confirmSoft()) return; t.status = "submitted"; t.submittedAt = new Date().toISOString(); audit(t, "Marked submitted on GeM"); await save(); toast(`${B.bid} marked submitted`); drawBid(); };
+  $("#bdRes").onclick = async () => { t.result = {}; $$("[data-rs]", o).forEach(i => t.result[i.dataset.rs] = i.type === "number" ? num(i.value) : i.value); if (t.result.rank === 1) t.status = "awarded"; else if (t.result.rank > 1) t.status = "not_awarded"; audit(t, "Result saved: L1 ₹" + fmt(t.result.l1, "INR", 0) + ", Rivera rank " + (t.result.rank || "—")); await save(); toast("Result saved"); drawBid(); };
+}
+function confirmSoft() { toast("The bid pack hasn't been approved yet — ask CRM to approve, then mark submitted.", "bad"); return false; }
+function pasteAlert() {
+  const o = $("#bdOut"); o.innerHTML = `<section class="panel" style="margin-top:16px"><header><h2>Paste a GeM alert email or bid list</h2></header><div class="body stack"><textarea id="bdTxt" rows="6" placeholder="Paste the GeM notification email, WhatsApp alert or the bid list copied from GeM…"></textarea><div class="row"><button class="btn primary" id="bdTxtGo">Find bids</button></div><div id="bdTxtOut"></div></div></section>`;
+  $("#bdTxtGo").onclick = async () => {
+    const tx = $("#bdTxt").value, ids = [...new Set(tx.match(/GEM\/\d{4}\/[BR]\/\d{5,}/g) || [])]; let n = 0;
+    for (const id of ids) { if (STATE.data.tenders.some(t => t.bid === id)) continue; const ctx = tx.slice(Math.max(0, tx.indexOf(id) - 200), tx.indexOf(id) + 300); const fit = FIT_WORDS.test(ctx); const end = toISO(ctx.match(/\d{2}-\d{2}-\d{4}/g)?.slice(-1)[0] || ""); await DB.put("tenders", { id: id.replace(/[^A-Za-z0-9]+/g, "-"), bid: id, portal: "GeM", status: "identified", items: (ctx.match(/(stator|rotor|roebel|armature|pole|coil|rewind)[^\n]{0,80}/i) || [""])[0], closing: end, check: {}, emd: "Exempted (MSE)", fit, log: [{ at: new Date().toISOString(), by: who(), what: "Added from GeM alert" }] }); n++; }
+    $("#bdTxtOut").innerHTML = `<p class="small">${ids.length} bid numbers found, ${n} new added to Tenders & GeM.${ids.length ? " Download each bid PDF from GeM and drop it on the Bid Desk to prepare it." : ""}</p>`;
+  };
+}
+
+/* ---------- Company documents view ---------- */
+VIEWS.library = v => {
+  const ds = [...(STATE.data.docs || [])].sort((a, b) => a.type.localeCompare(b.type) || a.title.localeCompare(b.title)); const q = (STATE.libq || "").toLowerCase();
+  const list = ds.filter(d => !q || (d.title + " " + d.type + " " + d.customer + " " + d.path).toLowerCase().includes(q));
+  const exp = ds.filter(docExpired), soon = ds.filter(d => d.expiry && !docExpired(d) && d.expiry <= addDays(todayISO(), 30));
+  const missing = ["gst", "pan", "udyam", "mii", "oem", "turnover", "balance", "iso", "experience", "bank", "lut"].filter(t => !docsOf(t).length);
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">GeM formats & certificates</div><h1>Company documents</h1><p>Rivera's GeM upload set — certificates, declarations and past GeM contracts from Dropbox. The Bid Desk picks from here automatically for every bid.</p></div><div class="row"><button class="btn primary" id="lbNew">${icon("plus")}Add document</button>${DATAPACK?.docs?.length ? `<button class="btn" id="lbSeed">Reload ${DATAPACK.docs.length} from data pack</button>` : ""}</div></div>
+  <div class="grid g4" style="margin-bottom:16px"><div class="panel kpi"><span class="eyebrow">Documents</span><span class="v">${ds.length}</span><span class="s">${Object.keys(DOC_TYPES).filter(t => docsOf(t).length).length} types</span></div><div class="panel kpi"><span class="eyebrow">Past GeM contracts</span><span class="v">${docsOf("experience").length}</span><span class="s">used as experience proof</span></div><div class="panel kpi"><span class="eyebrow">Expired / expiring</span><span class="v">${exp.length} / ${soon.length}</span><span class="s">within 30 days</span></div><div class="panel kpi"><span class="eyebrow">Missing types</span><span class="v">${missing.length}</span><span class="s">${esc(missing.map(t => DOC_TYPES[t]).slice(0, 3).join(", "))}${missing.length > 3 ? "…" : ""}</span></div></div>
+  ${missing.length ? `<div class="note warn" style="margin-bottom:16px"><b>Add these so bids never stop:</b> ${missing.map(t => esc(DOC_TYPES[t])).join(" · ")}</div>` : ""}
+  <section class="panel" id="lbForm" hidden></section>
+  <section class="panel"><header><h2>Library</h2><input type="text" id="lbq" placeholder="Search…" value="${esc(STATE.libq || "")}" style="max-width:240px"></header><div class="scroll">${list.length ? `<table class="t"><thead><tr><th>Type</th><th>Document</th><th>Customer / ref</th><th>Expiry</th><th></th></tr></thead><tbody>${list.map(d => `<tr><td><span class="chip">${esc(DOC_TYPES[d.type] || d.type)}</span></td><td style="min-width:260px"><a href="${esc(docLink(d))}" target="_blank" rel="noopener"><b class="small">${esc(d.title)}</b></a><div class="muted mono" style="font-size:.66rem;word-break:break-all">${esc(d.path || d.url || "")}</div></td><td class="small">${esc([d.customer, d.ref].filter(Boolean).join(" · "))}</td><td>${d.expiry ? `<span class="chip ${docExpired(d) ? "bad" : d.expiry <= addDays(todayISO(), 30) ? "warn" : "ok"}">${dmy(d.expiry)}</span>` : `<span class="muted small">—</span>`}</td><td><button class="btn sm" data-lbe="${esc(d.id)}">Edit</button></td></tr>`).join("")}</tbody></table>` : `<div class="empty"><b>No documents yet</b>${DATAPACK?.docs?.length ? "Tap “Reload from data pack”." : "Add your GST, Udyam, MII, past GeM contracts…"}</div>`}</div></section>`;
+  $("#lbq").oninput = e => { STATE.libq = e.target.value; const p = e.target.selectionStart; render(); const i = $("#lbq"); i.focus(); i.setSelectionRange(p, p); };
+  $("#lbNew").onclick = () => docForm({ type: "other" });
+  $("#lbSeed")?.addEventListener("click", async () => { const n = await seedDocs(true); toast(`${n} documents loaded`); render(); });
+  $$("[data-lbe]").forEach(b => b.onclick = () => docForm(clone(STATE.data.docs.find(x => x.id === b.dataset.lbe))));
+};
+function docForm(d) {
+  const f = $("#lbForm"); f.hidden = false;
+  f.innerHTML = `<header><h2>${d.id ? "Edit document" : "Add document"}</h2></header><div class="body"><div class="fields">
+  <label class="f">Type<select data-df="type">${Object.entries(DOC_TYPES).map(([k, l]) => `<option value="${k}" ${d.type === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
+  <label class="f">Title<input type="text" data-df="title" value="${esc(d.title || "")}"></label><label class="f">Customer (for experience)<input type="text" data-df="customer" value="${esc(d.customer || "")}"></label><label class="f">PO / contract no.<input type="text" data-df="ref" value="${esc(d.ref || "")}"></label><label class="f">Valid until<input type="date" data-df="expiry" value="${esc(d.expiry || "")}"></label></div>
+  <label class="f" style="margin-top:10px">Dropbox path (from the Dropbox address bar, e.g. /…/SALES/…/MII.pdf) or any link<input type="text" data-df="path" value="${esc(d.path || d.url || "")}"></label>
+  <div class="row" style="margin-top:12px"><button class="btn primary" id="dfSave">${icon("save")}Save</button><button class="btn" id="dfX">Close</button>${d.id ? `<span class="spacer"></span><button class="btn danger sm" id="dfDel">Remove</button>` : ""}</div></div>`;
+  f.scrollIntoView({ behavior: "smooth", block: "start" });
+  $("#dfX").onclick = () => f.hidden = true;
+  $("#dfSave").onclick = async () => { $$("[data-df]", f).forEach(i => d[i.dataset.df] = i.value.trim()); if (/^https?:/.test(d.path)) { d.url = d.path; d.path = ""; } else d.url = ""; if (!d.title) { toast("Give the document a title.", "bad"); return; } d.id ||= "d_" + uid(); if (await DB.put("docs", d)) { toast("Saved"); render(); } };
+  $("#dfDel")?.addEventListener("click", async () => { await DB.del("docs", d.id); render(); });
+}
+
+/* ---------- tenders list: open in Bid Desk ---------- */
+const _tenders8 = VIEWS.tenders;
+VIEWS.tenders = v => {
+  _tenders8(v);
+  $(".topbar .row", v)?.insertAdjacentHTML("afterbegin", `<a class="btn primary" href="#biddesk">${icon("gem")}GeM Bid Desk</a>`);
+  v.querySelectorAll("[data-ted]").forEach(b => { const t = STATE.data.tenders.find(x => x.id === b.dataset.ted); if (t && /gem/i.test(t.portal || "")) b.insertAdjacentHTML("beforebegin", `<button class="btn sm" data-tbd="${esc(t.id)}">${t.bidx ? (t.bidx.ready?.pct ?? 0) + "% · Desk" : "Prepare"}</button> `); });
+  $$("[data-tbd]", v).forEach(b => b.onclick = () => { const t = STATE.data.tenders.find(x => x.id === b.dataset.tbd); BID = t.bidx ? { t: clone(t), B: t.bidx.B } : null; if (!t.bidx) toast("Download the bid PDF from GeM and drop it on the Bid Desk."); location.hash = "biddesk"; });
+};
+
+/* ---------- health checks + deadline alarms ---------- */
+const _hc8 = healthChecks;
+healthChecks = async function () {
+  const H = await _hc8();
+  for (const d of (STATE.data.docs || []).filter(docExpired)) H.push({ sev: "bad", cat: "quote", title: "Document expired: " + d.title, d: "Expired " + dmy(d.expiry) + " — renew before the next bid.", fix: { l: "Company documents", go: "library" } });
+  for (const t of (STATE.data.tenders || []).filter(t => t.bidx && ["identified", "preparing"].includes(t.status) && t.closing && daysTo(t.closing) >= 0 && daysTo(t.closing) <= 5)) {
+    const b = t.bidx.ready?.block?.length || 0; if (b || !t.appr?.pack?.ok) H.push({ sev: daysTo(t.closing) <= 2 ? "bad" : "warn", cat: "quote", title: `GeM ${t.bid} closes ${dmy(t.closing)}`, d: b ? b + " blocking items" : "Waiting for approvals", fix: { l: "Open Bid Desk", go: "biddesk" } });
+  }
+  const fy = fyOf(todayISO()); if (STATE.quotes.some(q => q.market === "international" && (q.fy || fyOf(q.date)) === fy) && !(STATE.data.docs || []).some(d => d.type === "lut" && !docExpired(d))) H.push({ sev: "warn", cat: "quote", title: "LUT for F.Y " + fy + " not on file", d: "Exports without IGST need a current LUT (GST RFD-11). Add it on Company documents.", fix: { l: "Company documents", go: "library" } });
+  const order = { bad: 0, warn: 1, info: 2 }; return H.sort((a, b) => order[a.sev] - order[b.sev]);
+};
+const _notify8 = Auto.notify.bind(Auto);
+Auto.notify = function () {
+  _notify8();
+  if (!("Notification" in window) || Notification.permission !== "granted") return;
+  const sent = LS.get("bidAlarms", {}), now = Date.now();
+  for (const t of (STATE.data.tenders || []).filter(t => ["identified", "preparing"].includes(t.status) && t.closing)) {
+    const end = new Date(`${t.closing}T${t.closingTime || "15:00"}:00`).getTime(), h = (end - now) / 36e5;
+    for (const mark of [72, 24, 4]) { const k = t.id + "|" + mark; if (h > 0 && h <= mark && !sent[k]) { try { new Notification(`GeM bid closes in ${Math.ceil(h)} h`, { body: `${t.bid} · ${t.org || ""} — ${t.bidx?.ready?.pct ?? 0}% ready`, tag: k }); } catch { } sent[k] = 1; break; } }
+  }
+  LS.set("bidAlarms", sent);
+};
+
+/* ---------- server data pack: admin keeps it current automatically ---------- */
+const _cpack8 = Cloud.pack.bind(Cloud);
+Cloud.pack = async function (force) {
+  await _cpack8(force);
+  try {
+    if (!AUTH.isAdmin || !DATAPACK) return;
+    const d = await AUTH.call("pack"); const sv = d.pack;
+    if (!sv || String(DATAPACK.createdAt || "") > String(sv.createdAt || "")) { await AUTH.call("putPack", { pack: DATAPACK }, 60000); toast("Data pack uploaded to the sign-in server for the sales team"); }
+  } catch (e) { console.warn("pack upload", e); }
+};
+/* include the document library in exported data packs */
+const _bdp8 = buildDataPack;
+buildDataPack = function () { return { ...(_bdp8()), history: HISTORY, quotes: DATAPACK?.quotes || [], tenders: DATAPACK?.tenders || [], orders: DATAPACK?.orders || [], vendors: DATAPACK?.vendors || [], docs: STATE.data.docs?.length ? STATE.data.docs : DATAPACK?.docs || [] }; };
+
+const _boot8 = boot;
+boot = function () {
+  _boot8();
+  const w = setInterval(() => { if (STATE.loaded) { clearInterval(w); setTimeout(async () => { if (!(STATE.data.docs || []).length) { const n = await seedDocs(); if (n && ["library", "biddesk"].includes(STATE.route)) render(); } }, 1200); } }, 300);
 };
 boot();
 
