@@ -319,6 +319,13 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--sunk)}
 .cal-e.ra{background:var(--copper-soft);color:var(--copper-ink)}
 .cal-e.alert{background:var(--warn-soft);color:var(--warn)}
 @media (max-width:640px){.funnel{grid-template-columns:repeat(2,1fr)}.cal-d{min-height:58px;padding:2px}.cal-e{font-size:.58rem;padding:0 3px}}
+/* p13: ready document */
+.ready-doc{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:14px;border:1.5px solid var(--copper);border-radius:10px;background:linear-gradient(135deg,var(--copper-soft),var(--surface) 60%)}
+.ready-ring{--p:0;width:74px;height:74px;border-radius:50%;flex:none;display:grid;place-content:center;text-align:center;background:radial-gradient(closest-side,var(--surface) 78%,transparent 80%),conic-gradient(var(--ok) calc(var(--p)*1%),var(--line) 0)}
+.ready-ring b{font-family:var(--f-display);font-size:1.15rem;color:var(--navy);line-height:1}.ready-ring span{font-size:.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:.08em}
+.btn.lg{padding:12px 18px;font-size:1rem}
+.doc-name{display:inline-block}.doc-name.ok::after{content:" ✓";color:var(--ok);font-weight:700}
+@media (max-width:640px){.ready-doc .btn.lg{width:100%;justify-content:center}}
 </style>
 <div class="shell">
   <aside class="rail" aria-label="Main navigation">
@@ -4709,6 +4716,345 @@ VIEWS.intel = v => {
 /* labels: nothing in the app offers "Excel" any more */
 const _render12 = render;
 render = function () { _render12(); for (const b of document.querySelectorAll("#view button, #view a.btn")) for (const n of b.childNodes) if (n.nodeType === 3 && /excel|xlsx/i.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace(/excel( with formulas)?|xlsx/ig, "PDF"); };
+/* ===================== p13: private document store, RCM letterhead with MD signature & seal, one complete bid document, no links ===================== */
+
+/* ---------- private document store on the Rivera server (originals copied from Dropbox) ---------- */
+const DSTORE = {
+  list: LS.get("dstore", []), at: LS.get("dstoreAt", 0), busy: false,
+  has(id) { return this.list.some(f => f.id === id); },
+  template() { return this.list.find(f => f.kind === "template"); },
+  online() { return AUTH.required() && AUTH.valid(); },
+  async load(force) {
+    if (this.busy || !this.online()) return this.list;
+    if (!force && this.list.length && Date.now() - this.at < 15 * 60000) return this.list;
+    this.busy = true;
+    try { const d = await AUTH.call("fileList", {}, 60000); this.list = d.files || []; this.at = Date.now(); LS.set("dstore", this.list); LS.set("dstoreAt", this.at); }
+    catch (e) { ERRLOG.add("Document store: " + e.message, "server"); }
+    this.busy = false; return this.list;
+  },
+  async get(id) {
+    const c = await FILES.get("srv:" + id); if (c) return c;
+    if (!this.has(id) || !this.online()) return null;
+    const d = await AUTH.call("fileGet", { id }, 180000);
+    const bin = atob(d.b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    const file = new File([u], d.name || id, { type: d.type || "application/pdf" });
+    try { await FILES.put("srv:" + id, file); } catch { }
+    return { name: file.name, type: file.type, blob: file };
+  },
+  async put(id, file, meta) {
+    const b64 = await blobToB64(file);
+    await AUTH.call("filePut", { id, name: file.name, type: file.type || "application/pdf", kind: meta?.kind || "doc", meta: meta || {}, b64 }, 300000);
+    await FILES.put("srv:" + id, file); await this.load(true);
+  },
+  mb() { return this.list.reduce((s, f) => s + (f.size || 0), 0) / 1e6; }
+};
+const stored = d => !!d && (DSTORE.has(d.id) || !!d.orig);
+const _getOriginal13 = getOriginal;
+getOriginal = async function (d) {
+  if (DSTORE.has(d.id)) { try { const r = await DSTORE.get(d.id); if (r) return { name: r.name, blob: r.blob }; } catch (e) { ERRLOG.add("Fetching " + docTitle(d) + ": " + e.message, "server"); } }
+  return _getOriginal13(d);
+};
+
+/* ---------- RCM letterhead: header, footer, MD signature and company seal cut from the original GeM upload (atc documents.pdf) ---------- */
+const LH = {
+  bytes: null,
+  async load() {
+    if (this.bytes) return this.bytes;
+    const t = DSTORE.template(); if (!t) return null;
+    try { const f = await DSTORE.get(t.id); this.bytes = new Uint8Array(await f.blob.arrayBuffer()); } catch (e) { ERRLOG.add("Letterhead template: " + e.message, "server"); }
+    return this.bytes;
+  }
+};
+async function lhAssets(doc) {
+  const PDFLib = await getPdfLib(), tpl = await LH.load(); if (!tpl) return null;
+  try {
+    const src = await PDFLib.PDFDocument.load(tpl, { ignoreEncryption: true }), p2 = src.getPage(1), p3 = src.getPage(2), p8 = src.getPage(7), H = p2.getHeight();
+    const box = (l, top, r, bot) => ({ left: l, right: r, top: H - top, bottom: H - bot });   // pdfplumber-style top/bottom → PDF space
+    const [head, foot] = await doc.embedPages([p2, p2], [box(0, 13.5, 597, 86.5), box(0, 728.5, 597, 785)]);
+    const [sign] = await doc.embedPages([p3], [box(297, 298, 535, 409.6)]);
+    const [seal] = await doc.embedPages([p8], [box(224, 473, 383, 629)]);   // the clean seal on the warranty page
+    return { head, foot, seal, sign };
+  } catch (e) { ERRLOG.add("Letterhead: " + e.message, "pdf"); return null; }
+}
+const LEGAL = { name: "Rivera Coil Manufacturing India Pvt Ltd", upper: "RIVERA COIL MANUFACTURING INDIA PRIVATE LIMITED" };
+const dotDate = iso => dmy(iso).replace(/-/g, ".");
+function buyerShort(org) {
+  const o = String(org || "").split(/[,(]/)[0].trim(); if (!o) return "the Buyer";
+  const known = (o.match(/\b(NCL|MCL|CCL|SECL|WCL|ECL|BCCL|NTPC|BHEL|NHPC|NLC|HCL|SAIL)\b/) || [])[1]; if (known) return known;
+  const a = o.split(/\s+/).filter(w => !/^(of|and|the|&|limited|ltd\.?|pvt|private)$/i.test(w)).map(w => w[0]).join("").toUpperCase();
+  return a.length >= 2 && a.length <= 6 ? a + (/limited|ltd/i.test(o) ? "L" : "") : o;
+}
+
+/* the RCM letter set — same wording as Rivera's accepted GeM uploads, filled for this bid */
+function rcmLetters(t, B, el) {
+  const C = SETTINGS.company, org = B.org || t.org || "the Buyer", sh = buyerShort(org), cil = /coal/i.test(org), bid = B.bid || t.bid;
+  const bidLine = `Sub: BID No.:  ${bid}${B.published ? "      DATE:  " + dmy(B.published) : ""}`;
+  const [wm1, wm2] = warrantyText(B), sim = (el?.sim || []).filter(x => x.o?.po);
+  const L = [];
+  L.push({ key: "annexA", label: "Annexure-A · Authorisation & undertaking by Indian manufacturer", annex: "ANNEXURE-A", title: "Authorization & Undertaking Certificate by Indian Manufacturer", sign: "Signature of Manufacturer",
+    to: [`M/s. ${sh},`, ...(B.office ? [B.office + ","] : []), "Address"], salute: "Dear Sir", sub: bidLine,
+    paras: [`WHEREAS we, M/s. ${LEGAL.name} who are established and reputable manufacturers of tendered/offered items having factories at ${C.address} of factory(ies),`, { b: `We, M/s ${LEGAL.name} also undertake the following:` }],
+    list: [`That, as a matter of our corporate policy, we don't directly quote/ market our products directly to any organization in India, and if, subsequently, at any stage, it is found that we have quoted directly to any organization, we shall be liable for penal action as per the ${cil ? "CIL" : sh} Purchase Manual. Further, if at any stage, it is found that agency commission has been paid by us without declaring the agent, the commission will be recovered with interest.`,
+      "That we will accept the responsibility for the satisfactory execution of orders placed on our authorized agent including warranty/ guarantee obligations.",
+      "That, wherever necessary, we will provide requisite inspection and testing facilities at our works in respect of orders placed on our authorized agent.",
+      "Our authorized agent's price will not exceed that which we would have quoted.",
+      "Letter submitted by our Agent for inspection of goods would be accompanied by a certificate from us that the goods offered for inspection as indicated in the letter have been manufactured by us.",
+      "We hereby accept to extend our full support and commitment for all the terms and conditions including guarantee and warranty as per the General Conditions of Contract (GCC), Special Conditions of Contract (SCC), Technical Specifications for the Goods and Services offered for supply by the above bidder on our behalf against this Bid for the entire contract period.",
+      `In the event of failure on the part of our authorized agent in fulfilment of contractual obligations for any unforeseen reason, we shall take the responsibility to make alternate arrangements to support ${sh} as well as execute the remaining period of the contract ourselves or through another competent Indian Agent/entity fulfilling the eligibility criteria stipulated in the Bid document for Indian Agent.`,
+      "We also confirm that we are not banned or delisted or debarred or put on holiday by any Government or Quasi-Government Agency or any Public Sector Undertaking in India."] });
+  L.push({ key: "proven", label: "Self-certificate for proven-ness", title: "Self-Certificate for Proven-ness", sign: "Signature of Tenderer",
+    paras: ["“The items covered in the Purchase Order(s)/ Rate Contract(s) copies enclosed with our offer have been fully executed and have performed satisfactorily as per the provisions of respective Purchase Order(s)/ Rate Contract(s) and all the complaints/claim (s) lodged by the purchaser, if any, have been attended to and no complaints/ claims(s) are pending”."] });
+  L.push({ key: "lowest", label: "Lowest price certificate", title: "Lowest Price Certificate", sign: "Signature of the Tenderer",
+    paras: ["We do hereby certify that prices quoted by us against this tender are the lowest and is the same as applicable to other Government Departments/ Undertakings/ Other Organizations.", "We also certify that the quoted rates are not higher than rates quoted / prices charged by us for same items to other Customers."] });
+  L.push({ key: "banning", label: "Declaration regarding banning", title: "Declaration Regarding Banning", sign: "Signature of Tenderer",
+    paras: ["“We have not been banned or de-listed or debarred or “Put on Holiday” by any Government or quasi-Government agencies or PSUs.”"] });
+  L.push({ key: "mii", label: "Make in India local-content self-certificate", title: "Self-certificate for Local Content as per Make in India Policy", sign: "Signature of Manufacturer",
+    paras: ["We hereby confirm in respect of quoted item(s) that amount of value added in India [which is the total value of the item procured (excluding net domestic indirect taxes) minus the value of imported content in the item (including all customs duties)] as a proportion of the total value is equal to or more than 100%.", "And", "Item offered meets the Local content requirement for Class-I Local Supplier", `Details of location(s)[Factory] at which local value addition is made is as under: ${C.address}`] });
+  L.push({ key: "quality", label: "Quality certificate", title: "Quality Certificate", sign: "Signature of the Tenderer",
+    paras: ["We certify that there has not been any complaint against the quality of our products supplied to Government Departments or Public Sector Undertakings/Other organizations."] });
+  L.push({ key: "warranty", label: "Warranty certificate", title: "Warranty certificate", sign: "Signature of the Tenderer",
+    paras: [`Materials are to be guaranteed against any manufacturing defect for a period of ${wm1} Months from the date of commissioning/installation/use of the item or ${wm2} Months from the date of receipt & acceptance of materials at the Consignees Store/Depot/Commissioning of the materials; whichever is earlier. The supplier shall be responsible for any defect that may, under the condition provided for as per terms and condition of NIT and under use, arise due to faulty materials design or workmanship and shall remedy such defect at their own cost. If it becomes so necessary for the supplier to replace or to renew any defective part, such replacement or renewal shall be made by the supplier without any extra cost to ${org.split(",")[0]}.`] });
+  L.push({ key: "twimc", label: "Performance certificate (to whom it may concern)", title: "To Whom So Ever It May Concern", sign: "",
+    paras: ["“The items covered in the Purchase Order(s)/ Rate Contract(s) copies enclosed with our offer have been fully executed and have performed satisfactorily for a period of minimum one year from the date of commissioning and all the complaints/ claim (s) lodged by the purchaser, if any, have been attended to and no complaints/ claims(s) are pending”."],
+    refs: sim.slice(0, 3).map(x => `Work Order No: ${x.o.po}${x.o.date ? " Dt: " + dmy(x.o.date) : ""}${x.o.customer ? " — " + x.o.customer : ""}`) });
+  return L;
+}
+
+/* draw one letter (or a block-based document) on the RCM letterhead */
+async function lhWriter(doc, A) {
+  const PDFLib = await getPdfLib(), { rgb, StandardFonts } = PDFLib;
+  const F = await doc.embedFont(StandardFonts.TimesRoman), FB = await doc.embedFont(StandardFonts.TimesRomanBold), FI = await doc.embedFont(StandardFonts.TimesRomanItalic);
+  const W = 595.28, H = 841.89, ML = 72, MR = 72, TOP = A ? H - 118 : H - 60, BOT = A ? 82 : 50, INK = rgb(0.08, 0.08, 0.08), NAVY = rgb(0.008, 0.192, 0.357);
+  let page, y;
+  const newPage = () => {
+    page = doc.addPage([W, H]); y = TOP;
+    if (A) { page.drawPage(A.head, { x: 0, y: H - 14 - A.head.height, width: A.head.width, height: A.head.height }); page.drawPage(A.foot, { x: 0, y: 6, width: A.foot.width, height: A.foot.height }); }
+    else { page.drawText(winAnsi(SETTINGS.company.name), { x: ML, y: H - 40, size: 13, font: FB, color: NAVY }); page.drawLine({ start: { x: ML, y: H - 48 }, end: { x: W - MR, y: H - 48 }, thickness: 1.2, color: rgb(0.89, 0.37, 0) }); }
+  };
+  const wrap = (text, size, width, font) => { const out = []; for (const para of winAnsi(String(text)).split("\n")) { let line = ""; for (const w of para.split(/\s+/)) { const tt = line ? line + " " + w : w; if (font.widthOfTextAtSize(tt, size) > width && line) { out.push(line); line = w; } else line = tt; } out.push(line); } return out; };
+  const ensure = h => { if (y - h < BOT) newPage(); };
+  const W_ = {
+    newPage, get y() { return y; },
+    gap(h) { y -= h; },
+    text(t, o = {}) {
+      const size = o.size || 11.2, font = o.b ? FB : o.i ? FI : F, ind = o.ind || 0, width = W - ML - MR - ind, lh = size * (o.lhf || 1.32);
+      const lines = wrap(t, size, width, font);
+      lines.forEach((ln, k) => {
+        ensure(lh); let x = ML + ind; const tw = font.widthOfTextAtSize(ln, size);
+        if (o.align === "center") x = (W - tw) / 2; else if (o.align === "right") x = W - MR - tw;
+        else if (o.justify && k < lines.length - 1 && ln.includes(" ")) { const words = ln.split(" "), gapW = (width - words.reduce((s, w) => s + font.widthOfTextAtSize(w, size), 0)) / (words.length - 1); let xx = x; words.forEach(w => { page.drawText(w, { x: xx, y: y - size, size, font, color: INK }); xx += font.widthOfTextAtSize(w, size) + gapW; }); y -= lh; return; }
+        page.drawText(ln, { x, y: y - size, size, font, color: o.color || INK });
+        if (o.u) page.drawLine({ start: { x, y: y - size - 1.6 }, end: { x: x + tw, y: y - size - 1.6 }, thickness: 0.7, color: INK });
+        y -= lh;
+      });
+      y -= o.after ?? 4;
+    },
+    table(head, rows, widths) {
+      const size = 9.4, pad = 4, tot = widths.reduce((a, b) => a + b, 0), cw = widths.map(w => (W - ML - MR) * w / tot);
+      const row = (cells, hdr) => {
+        const lines = cells.map((c, i) => wrap(c ?? "", size, cw[i] - 2 * pad, hdr ? FB : F)), h = Math.max(...lines.map(l => l.length)) * (size + 2.4) + 2 * pad;
+        if (y - h < BOT) { newPage(); if (!hdr) row(head, true); }
+        let x = ML; cells.forEach((_, i) => { if (hdr) page.drawRectangle({ x, y: y - h, width: cw[i], height: h, color: rgb(0.9, 0.93, 0.96) }); page.drawRectangle({ x, y: y - h, width: cw[i], height: h, borderColor: rgb(0.45, 0.45, 0.45), borderWidth: 0.6 }); lines[i].forEach((ln, k) => page.drawText(ln, { x: x + pad, y: y - pad - size - k * (size + 2.4) + 1.5, size, font: hdr ? FB : F, color: INK })); x += cw[i]; });
+        y -= h;
+      };
+      row(head, true); rows.forEach(r => row(r)); y -= 8;
+    },
+    signBlock(label, dateISO) {
+      if (A && y - BOT < 250 && y - BOT >= 112) {        // compact: seal beside the signature
+        const room = y - BOT, k = room < 140 ? 0.72 : 0.9, top = y - 4, sw = A.sign.width * k, shh = A.sign.height * k, ss = k * 0.8;
+        page.drawText(winAnsi("Date: " + dotDate(dateISO || todayISO())), { x: ML, y: top - 60, size: 11.2, font: FB, color: INK });
+        page.drawPage(A.seal, { x: ML + 112, y: top - A.seal.height * ss - 4, width: A.seal.width * ss, height: A.seal.height * ss });
+        page.drawPage(A.sign, { x: W - MR - sw + 8, y: top - shh, width: sw, height: shh });
+        if (label) { const lw = FB.widthOfTextAtSize(label, 11.2); page.drawText(label, { x: W - MR - lw, y: top - shh - 13, size: 11.2, font: FB, color: INK }); }
+        page.drawText("(Seal of the Firm)", { x: ML + 112 + A.seal.width * ss + 4, y: top - shh - 13, size: 9.5, font: FB, color: INK });
+        y = top - Math.max(shh + 20, A.seal.height * ss + 8); return;
+      }
+      const need = A ? 250 : 90; ensure(need);
+      const top = y - 6; page.drawText(winAnsi("Date: " + dotDate(dateISO || todayISO())), { x: ML, y: top - 50, size: 11.2, font: FB, color: INK });
+      if (A) {
+        const sw = A.sign.width * 0.96, shh = A.sign.height * 0.96; page.drawPage(A.sign, { x: W - MR - sw + 8, y: top - shh, width: sw, height: shh });
+        if (label) { const lw = FB.widthOfTextAtSize(label, 11.2); page.drawText(label, { x: W - MR - lw, y: top - shh - 14, size: 11.2, font: FB, color: INK }); }
+        const ss = 0.82, sx = W - MR - 210, sy = top - shh - 22 - A.seal.height * ss; page.drawPage(A.seal, { x: sx, y: sy, width: A.seal.width * ss, height: A.seal.height * ss });
+        page.drawText("Seal of the Firm", { x: sx + A.seal.width * ss + 6, y: sy + A.seal.height * ss / 2, size: 11.2, font: FB, color: INK });
+        y = sy - 10;
+      } else {
+        const t1 = "For " + LEGAL.upper, w1 = FB.widthOfTextAtSize(t1, 10); page.drawText(t1, { x: W - MR - w1, y: top - 14, size: 10, font: FB, color: INK });
+        const t2 = (label || "Authorised Signatory") + " (Signature & Seal)", w2 = F.widthOfTextAtSize(t2, 10); page.drawText(t2, { x: W - MR - w2, y: top - 70, size: 10, font: F, color: INK }); y = top - 84;
+      }
+    }
+  };
+  return W_;
+}
+async function drawLetter(w, L, dateISO) {
+  w.newPage();
+  if (L.annex) w.text(L.annex, { b: true, u: true, align: "right", after: 6 });
+  if (L.title && !L.to) { w.gap(L.paras.join(" ").length < 260 ? 70 : 20); }
+  if (L.to) { w.text(L.title, { b: true, u: true, align: "center", after: 6, size: 11 }); L.to.forEach(t => w.text(t, { after: 0, size: 10.6, lhf: 1.2 })); w.gap(8); if (L.salute) w.text(L.salute, { after: 6, size: 10.6 }); if (L.sub) w.text(L.sub, { b: true, u: true, after: 8, size: 10.6 }); }
+  else w.text(L.title, { b: true, u: true, align: "center", size: L.key === "warranty" ? 15 : 12, after: 12 });
+  for (const p of L.paras || []) typeof p === "string" ? w.text(p, { justify: true, after: L.list ? 4 : 9, size: L.list ? 10.2 : 11.2, lhf: L.list ? 1.22 : 1.32 }) : w.text(p.b, { b: true, after: 4, size: 10.2 });
+  (L.list || []).forEach((it, i) => w.text(["i", "ii", "iii", "iv", "v", "vi", "vii", "viii", "ix", "x"][i] + ")  " + it, { ind: 0, justify: true, after: 1, size: 9.8, lhf: 1.2 }));
+  if (L.refs?.length) { w.gap(8); L.refs.forEach((r, i) => w.text((i ? "        " : "Ref :  ") + (i + 1) + ". " + r, { b: !i, after: 1 })); w.gap(10); }
+  if (L.table) w.table(L.table.head, L.table.rows, L.table.widths);
+  w.signBlock(L.sign, dateISO);
+}
+/* app documents written as blocks (cover letter, ATC & technical compliance) on the same letterhead */
+function blocksToLetters(blocks, title) {
+  const C = SETTINGS.company, out = []; let cur = null;
+  const flush = () => { if (cur) out.push(cur); cur = null; };
+  for (let i = 0; i < blocks.length; i++) {
+    const b = blocks[i];
+    if (b.pagebreak) { flush(); continue; }
+    if (b.logo || b.t === C.name || b.t === C.address) continue;
+    cur ||= { key: "blocks", title: "", paras: [], free: [], sign: null };
+    if (b.t && b.t.startsWith("For " + C.name)) { cur.sign = "Authorised Signatory"; i += blocks[i + 1]?.t === "" ? 2 : 1; continue; }
+    if (b.t === (C.signatory || "Authorised Signatory") || /^\(Signature/.test(b.t || "")) continue;
+    if (b.table) { cur.free.push({ table: b.table, widths: b.widths || b.table[0].map(() => 1) }); continue; }
+    if (b.t !== undefined && b.t !== "") cur.free.push({ t: b.t, b: !!b.b, align: b.align, before: b.before });
+  }
+  flush(); return out.map(L => ({ ...L, label: title }));
+}
+async function drawFree(w, L, dateISO) {
+  w.newPage();
+  for (const f of L.free) {
+    if (f.table) { const head = f.table[0].map(c => (c?.t ?? c) + ""), rows = f.table.slice(1).map(r => r.map(c => (c?.t ?? c ?? "") + "")); w.table(head, rows, f.widths); continue; }
+    if (/^Date: /.test(f.t)) continue;
+    if (f.before) w.gap(Math.min(14, f.before / 20));
+    w.text(f.t, { b: f.b, align: f.align, u: f.b && /^Sub:/.test(f.t), justify: !f.b && f.t.length > 120, after: 5 });
+  }
+  if (L.sign) w.signBlock(L.sign, dateISO);
+}
+
+/* ---------- which originals go in, in GeM order ---------- */
+function pickDocs(type, n, pref) {
+  const ds = (STATE.data.docs || []).filter(d => d.type === type && !d.missing && stored(d) && /\.pdf$/i.test(docFile(d) || d.orig || ".pdf"));
+  return ds.sort((a, b) => (pref ? pref(b) - pref(a) : 0) || (b.set === "gem-upload") - (a.set === "gem-upload") || String(b.date || "").localeCompare(String(a.date || ""))).slice(0, n);
+}
+function experienceSet(t, B, el) {
+  const org = (B.org || t.org || "").toLowerCase(), sim = (el?.sim || []).map(x => x.o);
+  const score = d => { let s = 0; const p = (d.path + " " + d.title + " " + d.customer + " " + d.ref).toLowerCase(); for (const o of sim) { if (o.po && p.includes(String(o.po).toLowerCase().slice(-8))) s += 6; if (o.customer && d.customer && o.customer.toLowerCase().split(" ")[0] === d.customer.toLowerCase().split(" ")[0]) s += 2; } if (org && d.customer && org.includes(d.customer.toLowerCase().split(" ")[0])) s += 2; if (/work order|gemc|contract|purchase order/i.test(p)) s += 1; return s; };
+  const pos = pickDocs("experience", 3, score), folders = pos.map(d => d.path.split("/").slice(0, 7).join("/"));
+  const near = ty => (STATE.data.docs || []).filter(d => d.type === ty && stored(d) && folders.some(f => d.path.startsWith(f))).slice(0, 2);
+  return { pos, crac: near("crac"), inv: near("invoice"), comp: pickDocs("completion", 1) };
+}
+function completePlan(t, B, rows, el) {
+  const exp = experienceSet(t, B, el), test = pickDocs("test", 1, d => /stator|coil/i.test(d.path) ? 1 : 0), qap = pickDocs("qap", 1);
+  const P = [
+    { k: "letter", src: "cover", label: "Cover letter" },
+    { k: "orig", docs: pickDocs("dpiit", 1), label: "DPIIT start-up recognition", need: "dpiit" },
+    ...["annexA", "proven", "lowest", "banning", "mii", "quality", "warranty", "twimc"].map(k => ({ k: "letter", src: k })),
+    { k: "orig", docs: pickDocs("udyam", 1, d => /registration certificate/i.test(d.path) ? 2 : /attested/i.test(d.path) ? 1 : 0), label: "Udyam / MSE certificate", need: "udyam" },
+    { k: "orig", docs: pickDocs("gst", 1, d => /certificate/i.test(d.path) ? 1 : 0), label: "GST registration", need: "gst" },
+    { k: "orig", docs: pickDocs("pan", 1), label: "Company PAN", need: "pan" },
+    { k: "letter", src: "atc", label: "ATC compliance statement" },
+    { k: "letter", src: "tech", label: "Technical (BoQ) compliance statement" },
+    { k: "orig", docs: exp.pos, label: "Past work orders / contracts", need: "experience" },
+    { k: "orig", docs: exp.crac, label: "CRAC (receipt & acceptance)" },
+    { k: "orig", docs: exp.inv, label: "Tax invoices (proof of supply)" },
+    { k: "orig", docs: exp.comp, label: "Completion / performance certificate" },
+    { k: "orig", docs: test, label: "Test report", need: "test" },
+    { k: "orig", docs: qap, label: "Quality assurance plan" },
+    { k: "orig", docs: pickDocs("iso", 1), label: "ISO certificate" }
+  ];
+  return P;
+}
+function planStats(plan) {
+  const wants = plan.filter(p => p.k === "orig" && p.need), have = wants.filter(p => p.docs.length);
+  return { pct: wants.length ? Math.round(have.length / wants.length * 100) : 100, have: have.length, of: wants.length, missing: wants.filter(p => !p.docs.length).map(p => p.label), originals: plan.filter(p => p.k === "orig").reduce((s, p) => s + p.docs.length, 0) };
+}
+
+/* ---------- the one complete document ---------- */
+async function buildCompleteDoc(t, B, rows, el, onStep) {
+  const PDFLib = await getPdfLib(), doc = await PDFLib.PDFDocument.create();
+  doc.setTitle(`GeM Bid ${B.bid || t.bid} — ${LEGAL.name}`); doc.setAuthor(LEGAL.name); doc.setCreator("Rivera Quote Studio");
+  const A = await lhAssets(doc), w = await lhWriter(doc, A), letters = Object.fromEntries(rcmLetters(t, B, el).map(L => [L.key, L]));
+  const set = Object.fromEntries(bidDocSet(t, B, rows, el).map(d => [d.file, d]));
+  const free = { cover: blocksToLetters(coverBlocks(t, B, rows), "Cover letter"), atc: (B.atc || []).length ? blocksToLetters(set.ATC_Compliance.blocks, "ATC compliance") : [], tech: blocksToLetters(set.Technical_Compliance.blocks, "Technical compliance") };
+  const plan = completePlan(t, B, rows, el), index = [], gaps = [];
+  for (const p of plan) {
+    const first = doc.getPageCount() + 1;
+    if (p.k === "letter") {
+      if (letters[p.src]) { await drawLetter(w, letters[p.src]); index.push([letters[p.src].label, first]); }
+      else for (const L of free[p.src] || []) { await drawFree(w, L); index.push([p.label, first]); }
+      continue;
+    }
+    if (!p.docs.length) { if (p.need) gaps.push(p.label); continue; }
+    for (const d of p.docs) {
+      onStep?.(`Adding ${p.label}…`);
+      try {
+        const o = await getOriginal(d); if (!o) { gaps.push(p.label); continue; }
+        const src = await PDFLib.PDFDocument.load(await o.blob.arrayBuffer(), { ignoreEncryption: true });
+        const pages = await doc.copyPages(src, src.getPageIndices().slice(0, 15)); pages.forEach(pg => doc.addPage(pg));
+        index.push([p.label + (p.docs.length > 1 ? ` (${p.docs.indexOf(d) + 1})` : ""), first]);
+      } catch (e) { gaps.push(p.label); ERRLOG.add(`Original ${docTitle(d)}: ${e.message}`, "pdf"); }
+    }
+  }
+  const bytes = await doc.save();
+  return { blob: new Blob([bytes], { type: "application/pdf" }), pages: doc.getPageCount(), index, gaps: [...new Set(gaps)], letterhead: !!A };
+}
+
+/* ---------- Bid Desk: one-click complete document, no links anywhere ---------- */
+const _drawBid13 = drawBid;
+drawBid = function () {
+  _drawBid13();
+  const o = $("#bdOut"); if (!o || !BID) return; const { t, B } = BID; const el = eligibility(B), rows = complianceMatrix(B, el);
+  // names only — nothing opens Dropbox or Synology
+  o.querySelectorAll("a[href]").forEach(a => { const h = a.getAttribute("href") || ""; if (/dropbox|synology|^file:|^rivera:\/\/dbx/i.test(h) || a.closest("table.t") || /Tap a file/.test(a.parentElement?.parentElement?.textContent || "")) { const d = (STATE.data.docs || []).find(x => x.title === a.textContent || docTitle(x) === a.textContent); const s = document.createElement("span"); s.className = "small doc-name" + (d && stored(d) ? " ok" : ""); s.textContent = a.textContent.replace(/ — .*$/, m => m.length > 60 ? m.slice(0, 60) + "…" : m); s.title = d && stored(d) ? "Original stored — goes into the ready document" : "Not stored yet"; a.replaceWith(s); } });
+  o.querySelectorAll("p.muted.small").forEach(p => { if (/Tap a file to open it in Dropbox/.test(p.textContent)) p.textContent = "Upload the ready document (or the slot-wise PDFs from the bid pack) in GeM. Every company document below is stored privately on the Rivera server and goes into the ready document automatically."; });
+  const plan = completePlan(t, B, rows, el), S = planStats(plan);
+  const sec = $("#bdPack")?.closest("section"); if (!sec || sec.querySelector(".ready-doc")) return;
+  sec.querySelector(".body").insertAdjacentHTML("afterbegin", `<div class="ready-doc"><div class="ready-ring" style="--p:${S.pct}"><b>${S.pct}%</b><span>ready</span></div><div style="flex:1;min-width:0"><h3 style="margin:0 0 4px">Complete bid document — one PDF</h3><p class="small" style="margin:0">Cover letter · Annexure-A · proven-ness · lowest price · banning · Make in India · quality · warranty · performance letter on the Rivera letterhead with the MD's signature and company seal, followed by the original DPIIT, Udyam, GST and PAN certificates, ATC & technical compliance, ${S.originals} original order / CRAC / invoice / test documents.</p>${S.missing.length ? `<p class="small" style="margin:6px 0 0;color:var(--bad)">Not stored yet: ${esc(S.missing.join(", "))}</p>` : ""}${!DSTORE.template() ? `<p class="small" style="margin:6px 0 0;color:var(--warn)">Letterhead template not on the server yet — letters use the plain Rivera header.</p>` : ""}</div><button class="btn primary lg" id="bdOne">${icon("dl")}Download ready document</button></div>`);
+  $("#bdOne").onclick = async () => {
+    const b = $("#bdOne"); b.disabled = true; b.innerHTML = `<span class="spin"></span>Preparing…`;
+    try {
+      await DSTORE.load();
+      const r = await buildCompleteDoc(t, B, rows, el, s => { b.innerHTML = `<span class="spin"></span>${esc(s)}`; });
+      const name = `GeM_${safeName(B.bid || t.bid)}_${safeName(buyerShort(B.org || t.org))}_Complete_Bid_Document.pdf`;
+      if (STATE.dir) { try { await writeToDir(`RCM/3) TENDER/INPROGRESS/${safeName(`${t.published || todayISO()}_GEM_${B.org || t.org}_${B.bid}`)}/${name}`, r.blob); } catch { } }
+      await saveFile(name, r.blob); audit(t, `Complete bid document built (${r.pages} pages${r.gaps.length ? ", missing " + r.gaps.join(", ") : ""})`); await DB.put("tenders", t);
+      toast(`Ready: ${r.pages} pages${r.gaps.length ? " · missing " + r.gaps.join(", ") : ""}`, r.gaps.length ? "warn" : "ok");
+    } catch (e) { toast("Couldn't build the document: " + e.message, "bad"); ERRLOG.add("Complete document: " + e.message, "pdf"); }
+    b.disabled = false; b.innerHTML = `${icon("dl")}Download ready document`;
+  };
+};
+/* the slot-wise pack uses the same letterhead letters */
+const _blocksPdf13 = blocksPdf;
+blocksPdf = async function (blocks) {
+  if (!DSTORE.template()) return _blocksPdf13(blocks);
+  try { const PDFLib = await getPdfLib(), doc = await PDFLib.PDFDocument.create(), A = await lhAssets(doc); if (!A) return _blocksPdf13(blocks); const w = await lhWriter(doc, A); for (const L of blocksToLetters(blocks, "")) await drawFree(w, L); return new Blob([await doc.save()], { type: "application/pdf" }); }
+  catch (e) { return _blocksPdf13(blocks); }
+};
+
+/* ---------- Company documents (admin): names + stored status, no links ---------- */
+const _render13 = render;
+render = function () {
+  _render13();
+  if (STATE.route !== "library") return;
+  const v = $("#view");
+  v.querySelectorAll("table.t a[href]").forEach(a => { const s = document.createElement("span"); s.innerHTML = a.innerHTML; a.replaceWith(s); });
+  v.querySelectorAll("table.t .mono").forEach(m => { if (/\//.test(m.textContent)) m.remove(); });
+  v.querySelectorAll("[data-lbe]").forEach(b => { const d = (STATE.data.docs || []).find(x => x.id === b.dataset.lbe); if (d && stored(d)) b.insertAdjacentHTML("beforebegin", `<span class="chip ok" title="Original stored privately on the Rivera server">Stored</span> `); });
+  const top = v.querySelector(".topbar"); if (top && !v.querySelector(".store-note")) top.insertAdjacentHTML("afterend", `<div class="note store-note" style="margin-bottom:16px"><b>Private document store:</b> ${DSTORE.list.length} original files (${DSTORE.mb().toFixed(1)} MB) kept on the Rivera server for bids — never shown to the team as links. ${location.protocol === "rivera:" ? "This Windows app adds new tender documents from Dropbox automatically." : "The Windows app on a Dropbox PC adds new tender documents automatically."} <button class="btn sm" id="dsRef">Refresh</button></div>`);
+  $("#dsRef")?.addEventListener("click", async () => { await DSTORE.load(true); render(); });
+};
+
+/* ---------- Windows app: new Dropbox tender documents go to the private store by themselves (admin session) ---------- */
+const KEEP_TYPES = ["experience", "crac", "invoice", "completion", "udyam", "mii", "dpiit", "gst", "pan", "iso", "test", "qap", "oem", "warranty", "bank", "cin", "tan"];
+const _scan13 = window.riveraDocScan;
+window.riveraDocScan = async (files, root) => {
+  await _scan13(files, root);
+  if (location.protocol !== "rivera:" || !AUTH.isAdmin || !DSTORE.online()) return;
+  try {
+    await DSTORE.load(true); let n = 0;
+    for (const d of (STATE.data.docs || []).filter(d => d.src === "dx" && KEEP_TYPES.includes(d.type) && !d.missing && /\.pdf$/i.test(d.path) && !DSTORE.has(d.id) && (d.size || 0) < 8e6 && (d.status === "awarded" || !/TENDER/.test(d.path) || !["experience", "crac", "invoice"].includes(d.type)))) {
+      if (n >= 10) break;
+      const r = await fetch("rivera://dbx" + d.path.split("/").map(encodeURIComponent).join("/")); if (!r.ok) continue;
+      const b = await r.blob(); await DSTORE.put(d.id, new File([b], docFile(d), { type: "application/pdf" }), { kind: "doc", type: d.type, path: d.path, title: d.title, customer: d.customer, ref: d.ref, date: d.date }); n++;
+    }
+    if (n) toast(`${n} new tender document${n > 1 ? "s" : ""} stored for bids`);
+  } catch (e) { ERRLOG.add("Auto-store from Dropbox: " + e.message, "desktop"); }
+};
+const _boot13 = boot;
+boot = function () { _boot13(); setTimeout(() => DSTORE.load(), 4000); setInterval(() => DSTORE.load(), 30 * 60000); };
 boot();
 
 </script>
