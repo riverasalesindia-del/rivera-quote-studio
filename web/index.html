@@ -4544,6 +4544,7 @@ async function buildBidPack(t, B, rows, el, appr) {
     for (const d of list) {
       if (n >= 3 || seen.has(d.id)) continue;
       if (/\.xlsx?$/i.test(docFile(d))) continue;                       // spreadsheets never go into a bid
+      if (typeof originalOk === "function" && !originalOk(d)) continue;   // old signed letters are rewritten fresh, never re-sent
       const o = await getOriginal(d);
       if (o) { const nm = `${safeName(slot).slice(0, 40)}/${o.name}`; z.file(`02 Company documents (originals)/${nm}`, o.blob); got.push({ slot, name: o.name }); seen.add(d.id); n++; }
     }
@@ -4767,15 +4768,29 @@ const LH = {
     return this.bytes;
   }
 };
+/* Letterhead parts are the clean JPEG images on the warranty page of the original GeM upload (page 9): letterhead band,
+   footer, the MD's signature and the company seal. Only the images are copied — never the old page text. */
 async function lhAssets(doc) {
   const PDFLib = await getPdfLib(), tpl = await LH.load(); if (!tpl) return null;
   try {
-    const src = await PDFLib.PDFDocument.load(tpl, { ignoreEncryption: true }), p2 = src.getPage(1), p3 = src.getPage(2), p8 = src.getPage(7), H = p2.getHeight();
-    const box = (l, top, r, bot) => ({ left: l, right: r, top: H - top, bottom: H - bot });   // pdfplumber-style top/bottom → PDF space
-    const [head, foot] = await doc.embedPages([p2, p2], [box(0, 13.5, 597, 86.5), box(0, 728.5, 597, 785)]);
-    const [sign] = await doc.embedPages([p3], [box(297, 298, 535, 409.6)]);
-    const [seal] = await doc.embedPages([p8], [box(224, 473, 383, 629)]);   // the clean seal on the warranty page
-    return { head, foot, seal, sign };
+    const { PDFName, PDFDict } = PDFLib, src = await PDFLib.PDFDocument.load(tpl, { ignoreEncryption: true }), imgs = [];
+    for (let pi = src.getPageCount() - 1; pi >= 0; pi--) {
+      const res = src.getPage(pi).node.Resources(), xo = res && res.lookup(PDFName.of("XObject"));
+      if (!(xo instanceof PDFDict)) continue;
+      for (const [, ref] of xo.entries()) {
+        const s = src.context.lookup(ref); if (!s || !s.dict || !s.contents) continue;
+        const d = s.dict, f = d.get(PDFName.of("Filter")), st = d.get(PDFName.of("Subtype"));
+        if (String(st) !== "/Image" || String(f) !== "/DCTDecode") continue;
+        const w = d.get(PDFName.of("Width")).asNumber(), h = d.get(PDFName.of("Height")).asNumber();
+        if (w >= 600) imgs.push({ w, h, r: w / h, bytes: s.contents, pi });
+      }
+      if (imgs.length >= 4) break;
+    }
+    const pick = test => imgs.filter(test).sort((a, b) => b.w * b.h - a.w * a.h)[0];
+    const head = pick(i => i.r > 6 && i.r < 10.5), foot = pick(i => i.r >= 10.5), sign = pick(i => i.r > 2.5 && i.r < 6), seal = pick(i => i.r > 0.85 && i.r < 1.18);
+    if (!head || !foot || !sign || !seal) { ERRLOG.add("Letterhead images not found in the template", "pdf"); return null; }
+    const [H, Fo, S, Se] = await Promise.all([head, foot, sign, seal].map(x => doc.embedJpg(x.bytes)));
+    return { head: H, foot: Fo, sign: S, seal: Se };
   } catch (e) { ERRLOG.add("Letterhead: " + e.message, "pdf"); return null; }
 }
 const LEGAL = { name: "Rivera Coil Manufacturing India Pvt Ltd", upper: "RIVERA COIL MANUFACTURING INDIA PRIVATE LIMITED" };
@@ -4826,11 +4841,15 @@ function rcmLetters(t, B, el) {
 async function lhWriter(doc, A) {
   const PDFLib = await getPdfLib(), { rgb, StandardFonts } = PDFLib;
   const F = await doc.embedFont(StandardFonts.TimesRoman), FB = await doc.embedFont(StandardFonts.TimesRomanBold), FI = await doc.embedFont(StandardFonts.TimesRomanItalic);
-  const W = 595.28, H = 841.89, ML = 72, MR = 72, TOP = A ? H - 118 : H - 60, BOT = A ? 82 : 50, INK = rgb(0.08, 0.08, 0.08), NAVY = rgb(0.008, 0.192, 0.357);
+  const W = 595.28, H = 841.89, ML = 72, MR = 72, TOP = A ? H - 108 : H - 60, BOT = A ? 72 : 50, INK = rgb(0.08, 0.08, 0.08), NAVY = rgb(0.008, 0.192, 0.357);
   let page, y;
   const newPage = () => {
     page = doc.addPage([W, H]); y = TOP;
-    if (A) { page.drawPage(A.head, { x: 0, y: H - 14 - A.head.height, width: A.head.width, height: A.head.height }); page.drawPage(A.foot, { x: 0, y: 6, width: A.foot.width, height: A.foot.height }); }
+    if (A) {
+      const hw = W - 24, hh = hw * A.head.height / A.head.width, fw = W - 40, fh = fw * A.foot.height / A.foot.width;
+      page.drawImage(A.head, { x: 12, y: H - 12 - hh, width: hw, height: hh });
+      page.drawImage(A.foot, { x: 20, y: 10, width: fw, height: fh });
+    }
     else { page.drawText(winAnsi(SETTINGS.company.name), { x: ML, y: H - 40, size: 13, font: FB, color: NAVY }); page.drawLine({ start: { x: ML, y: H - 48 }, end: { x: W - MR, y: H - 48 }, thickness: 1.2, color: rgb(0.89, 0.37, 0) }); }
   };
   const wrap = (text, size, width, font) => { const out = []; for (const para of winAnsi(String(text)).split("\n")) { let line = ""; for (const w of para.split(/\s+/)) { const tt = line ? line + " " + w : w; if (font.widthOfTextAtSize(tt, size) > width && line) { out.push(line); line = w; } else line = tt; } out.push(line); } return out; };
@@ -4851,8 +4870,8 @@ async function lhWriter(doc, A) {
       });
       y -= o.after ?? 4;
     },
-    table(head, rows, widths) {
-      const size = 9.4, pad = 4, tot = widths.reduce((a, b) => a + b, 0), cw = widths.map(w => (W - ML - MR) * w / tot);
+    table(head, rows, widths, o = {}) {
+      const size = o.size || 9.4, pad = o.pad ?? 4, tot = widths.reduce((a, b) => a + b, 0), cw = widths.map(w => (W - ML - MR) * w / tot);
       const row = (cells, hdr) => {
         const lines = cells.map((c, i) => wrap(c ?? "", size, cw[i] - 2 * pad, hdr ? FB : F)), h = Math.max(...lines.map(l => l.length)) * (size + 2.4) + 2 * pad;
         if (y - h < BOT) { newPage(); if (!hdr) row(head, true); }
@@ -4861,33 +4880,27 @@ async function lhWriter(doc, A) {
       };
       row(head, true); rows.forEach(r => row(r)); y -= 8;
     },
+    /* fixed signature box (same size and position on every letter): Date/Place left, seal in a fixed square, signatory block right */
     signBlock(label, dateISO) {
-      if (A && y - BOT < 250 && y - BOT >= 112) {        // compact: seal beside the signature
-        const room = y - BOT, k = room < 140 ? 0.72 : 0.9, top = y - 4, sw = A.sign.width * k, shh = A.sign.height * k, ss = k * 0.8;
-        page.drawText(winAnsi("Date: " + dotDate(dateISO || todayISO())), { x: ML, y: top - 60, size: 11.2, font: FB, color: INK });
-        page.drawPage(A.seal, { x: ML + 112, y: top - A.seal.height * ss - 4, width: A.seal.width * ss, height: A.seal.height * ss });
-        page.drawPage(A.sign, { x: W - MR - sw + 8, y: top - shh, width: sw, height: shh });
-        if (label) { const lw = FB.widthOfTextAtSize(label, 11.2); page.drawText(label, { x: W - MR - lw, y: top - shh - 13, size: 11.2, font: FB, color: INK }); }
-        page.drawText("(Seal of the Firm)", { x: ML + 112 + A.seal.width * ss + 4, y: top - shh - 13, size: 9.5, font: FB, color: INK });
-        y = top - Math.max(shh + 20, A.seal.height * ss + 8); return;
-      }
-      const need = A ? 250 : 90; ensure(need);
-      const top = y - 6; page.drawText(winAnsi("Date: " + dotDate(dateISO || todayISO())), { x: ML, y: top - 50, size: 11.2, font: FB, color: INK });
-      if (A) {
-        const sw = A.sign.width * 0.96, shh = A.sign.height * 0.96; page.drawPage(A.sign, { x: W - MR - sw + 8, y: top - shh, width: sw, height: shh });
-        if (label) { const lw = FB.widthOfTextAtSize(label, 11.2); page.drawText(label, { x: W - MR - lw, y: top - shh - 14, size: 11.2, font: FB, color: INK }); }
-        const ss = 0.82, sx = W - MR - 210, sy = top - shh - 22 - A.seal.height * ss; page.drawPage(A.seal, { x: sx, y: sy, width: A.seal.width * ss, height: A.seal.height * ss });
-        page.drawText("Seal of the Firm", { x: sx + A.seal.width * ss + 6, y: sy + A.seal.height * ss / 2, size: 11.2, font: FB, color: INK });
-        y = sy - 10;
-      } else {
-        const t1 = "For " + LEGAL.upper, w1 = FB.widthOfTextAtSize(t1, 10); page.drawText(t1, { x: W - MR - w1, y: top - 14, size: 10, font: FB, color: INK });
-        const t2 = (label || "Authorised Signatory") + " (Signature & Seal)", w2 = F.widthOfTextAtSize(t2, 10); page.drawText(t2, { x: W - MR - w2, y: top - 70, size: 10, font: F, color: INK }); y = top - 84;
-      }
+      const BOX = A ? 132 : 90; ensure(BOX);
+      const top = y - 8, rx = W - MR - 200, ink = INK, navy = rgb(0.08, 0.2, 0.55);
+      page.drawText(winAnsi("Date: " + dotDate(dateISO || todayISO())), { x: ML, y: top - 70, size: 11, font: FB, color: ink });
+      page.drawText("Place: Erode", { x: ML, y: top - 86, size: 11, font: FB, color: ink });
+      const line = (t, yy, f, sz, c) => { const tw = f.widthOfTextAtSize(t, sz); page.drawText(t, { x: rx + (200 - tw) / 2, y: yy, size: sz, font: f, color: c || ink }); };
+      line("For RIVERA COIL MANUFACTURING", top - 10, FB, 10, navy);
+      line("INDIA PRIVATE LIMITED", top - 22, FB, 10, navy);
+      if (A) { const sw = 150, sh = sw * A.sign.height / A.sign.width; page.drawImage(A.sign, { x: rx + 25, y: top - 30 - sh, width: sw, height: sh }); }
+      line("P.N. NIRMAL RAJ", top - 84, FB, 10.5, navy);
+      line("Managing Director", top - 97, FB, 10, navy);
+      if (label) line(label, top - 116, FI, 10);
+      if (A) { const ss = 96, sh2 = ss * A.seal.height / A.seal.width; page.drawImage(A.seal, { x: rx - ss - 14, y: top - 22 - sh2, width: ss, height: sh2 }); }
+      y = top - BOX + 8;
     }
   };
   return W_;
 }
 async function drawLetter(w, L, dateISO) {
+  dateISO ||= todayISO();
   w.newPage();
   if (L.annex) w.text(L.annex, { b: true, u: true, align: "right", after: 6 });
   if (L.title && !L.to) { w.gap(L.paras.join(" ").length < 260 ? 70 : 20); }
@@ -4927,15 +4940,25 @@ async function drawFree(w, L, dateISO) {
 }
 
 /* ---------- which originals go in, in GeM order ---------- */
+/* Only real certificates and proofs travel as originals. Signed letters from old bids (ATC, annexures, OEM/MII self-certificates,
+   declarations, warranty letters) carry old dates and old bid numbers — those are always written fresh for each bid instead. */
+const ORIGINAL_OK = new Set(["dpiit", "udyam", "gst", "pan", "cin", "tan", "iec", "iso", "bank", "experience", "crac", "invoice", "completion", "test", "qap", "machines", "stock", "process", "profile", "spec"]);
+const OLD_LETTER = /atc|annex|declaration|undertaking|self[ _-]?cert|lowest price|banning|quality certificate|warranty|oem|\bmii\b|msme_mii|mii_msme|authori[sz]ation|cover ?letter|checklist|proven/i;
+function originalOk(d) {
+  if (!d || !ORIGINAL_OK.has(d.type) || d.set === "gem-upload") return false;
+  if (DSTORE.list.some(f => f.id === d.id && f.kind === "template")) return false;
+  const name = docFile(d) || d.title || "";
+  return !(["udyam", "gst", "pan", "dpiit", "experience", "crac", "invoice", "test", "qap"].includes(d.type) && OLD_LETTER.test(name) && !/udyam|registration|gst|pan|dipp|recognition|work order|contract|purchase order|\bpo\b|crac|invoice|test report|qap/i.test(name));
+}
 function pickDocs(type, n, pref) {
-  const ds = (STATE.data.docs || []).filter(d => d.type === type && !d.missing && stored(d) && /\.pdf$/i.test(docFile(d) || d.orig || ".pdf"));
-  return ds.sort((a, b) => (pref ? pref(b) - pref(a) : 0) || (b.set === "gem-upload") - (a.set === "gem-upload") || String(b.date || "").localeCompare(String(a.date || ""))).slice(0, n);
+  const ds = (STATE.data.docs || []).filter(d => d.type === type && !d.missing && stored(d) && originalOk(d) && /\.pdf$/i.test(docFile(d) || d.orig || ".pdf"));
+  return ds.sort((a, b) => (pref ? pref(b) - pref(a) : 0) || String(b.date || "").localeCompare(String(a.date || ""))).slice(0, n);
 }
 function experienceSet(t, B, el) {
   const org = (B.org || t.org || "").toLowerCase(), sim = (el?.sim || []).map(x => x.o);
   const score = d => { let s = 0; const p = (d.path + " " + d.title + " " + d.customer + " " + d.ref).toLowerCase(); for (const o of sim) { if (o.po && p.includes(String(o.po).toLowerCase().slice(-8))) s += 6; if (o.customer && d.customer && o.customer.toLowerCase().split(" ")[0] === d.customer.toLowerCase().split(" ")[0]) s += 2; } if (org && d.customer && org.includes(d.customer.toLowerCase().split(" ")[0])) s += 2; if (/work order|gemc|contract|purchase order/i.test(p)) s += 1; return s; };
   const pos = pickDocs("experience", 3, score), folders = pos.map(d => d.path.split("/").slice(0, 7).join("/"));
-  const near = ty => (STATE.data.docs || []).filter(d => d.type === ty && stored(d) && folders.some(f => d.path.startsWith(f))).slice(0, 2);
+  const near = ty => (STATE.data.docs || []).filter(d => d.type === ty && stored(d) && originalOk(d) && folders.some(f => d.path.startsWith(f))).slice(0, 2);
   return { pos, crac: near("crac"), inv: near("invoice"), comp: pickDocs("completion", 1) };
 }
 function completePlan(t, B, rows, el) {
@@ -4965,18 +4988,32 @@ function planStats(plan) {
 }
 
 /* ---------- the one complete document ---------- */
+/* one-page cover letter with a page-numbered index of everything enclosed */
+async function drawCover(w, t, B, entries, offset, dateISO) {
+  const org = B.org || t.org || "", sub = `Sub: Submission of bid against GeM Bid No. ${B.bid || t.bid}${B.category || t.items ? " — " + String(B.category || t.items).slice(0, 90) : ""}`;
+  w.newPage();
+  w.text("To,", { after: 0, size: 10.8 });
+  [B.office, org.split(",")[0], B.dept].filter((x, i, a) => x && a.indexOf(x) === i).slice(0, 3).forEach(x => w.text(String(x), { after: 0, size: 10.8 }));
+  w.gap(8); w.text(sub, { b: true, u: true, size: 10.8, after: 8 });
+  w.text("Dear Sir / Madam,", { size: 10.8, after: 6 });
+  w.text(`We, M/s. ${LEGAL.name}, manufacturer of HV motor and generator stator coils, Roebel bars, armature and pole coils, registered as a Micro & Small Enterprise and DPIIT-recognised start-up, hereby submit our bid for the above requirement. We have read and accept all the terms and conditions of the bid including GTC, STC and ATC without any deviation. Our offer is valid for 90 days from the bid end date.`, { justify: true, size: 10.4, after: 6 });
+  w.text("Index of documents enclosed:", { b: true, size: 10.8, after: 4 });
+  w.table(["S.No", "Document", "Page No."], entries.map((x, i) => [String(i + 1), x[0] + (x[2] > 1 ? ` (${x[2]} nos)` : ""), String(x[1] + offset)]), [8, 74, 14], { size: 9, pad: 2.4 });
+  w.text("We request you to kindly consider our offer favourably. Thanking you, Yours faithfully,", { size: 10.4, after: 0 });
+  w.signBlock("Authorised Signatory", dateISO);
+}
 async function buildCompleteDoc(t, B, rows, el, onStep) {
-  const PDFLib = await getPdfLib(), doc = await PDFLib.PDFDocument.create();
-  doc.setTitle(`GeM Bid ${B.bid || t.bid} — ${LEGAL.name}`); doc.setAuthor(LEGAL.name); doc.setCreator("Rivera Quote Studio");
+  const PDFLib = await getPdfLib(), doc = await PDFLib.PDFDocument.create(), today = todayISO();
   const A = await lhAssets(doc), w = await lhWriter(doc, A), letters = Object.fromEntries(rcmLetters(t, B, el).map(L => [L.key, L]));
   const set = Object.fromEntries(bidDocSet(t, B, rows, el).map(d => [d.file, d]));
-  const free = { cover: blocksToLetters(coverBlocks(t, B, rows), "Cover letter"), atc: (B.atc || []).length ? blocksToLetters(set.ATC_Compliance.blocks, "ATC compliance") : [], tech: blocksToLetters(set.Technical_Compliance.blocks, "Technical compliance") };
-  const plan = completePlan(t, B, rows, el), index = [], gaps = [];
+  const free = { atc: (B.atc || []).length ? blocksToLetters(set.ATC_Compliance.blocks, "ATC compliance") : [], tech: blocksToLetters(set.Technical_Compliance.blocks, "Technical compliance") };
+  const plan = completePlan(t, B, rows, el).filter(p => p.src !== "cover"), entries = [], gaps = [];
+  const note = (label, page) => { const last = entries[entries.length - 1]; if (last && last[0] === label) last[2]++; else entries.push([label, page, 1]); };
   for (const p of plan) {
-    const first = doc.getPageCount() + 1;
     if (p.k === "letter") {
-      if (letters[p.src]) { await drawLetter(w, letters[p.src]); index.push([letters[p.src].label, first]); }
-      else for (const L of free[p.src] || []) { await drawFree(w, L); index.push([p.label, first]); }
+      const first = doc.getPageCount() + 1;
+      if (letters[p.src]) { await drawLetter(w, letters[p.src], today); note(letters[p.src].label, first); }
+      else if ((free[p.src] || []).length) { for (const L of free[p.src]) await drawFree(w, L, today); note(p.label, first); }
       continue;
     }
     if (!p.docs.length) { if (p.need) gaps.push(p.label); continue; }
@@ -4984,14 +5021,26 @@ async function buildCompleteDoc(t, B, rows, el, onStep) {
       onStep?.(`Adding ${p.label}…`);
       try {
         const o = await getOriginal(d); if (!o) { gaps.push(p.label); continue; }
+        const first = doc.getPageCount() + 1;
         const src = await PDFLib.PDFDocument.load(await o.blob.arrayBuffer(), { ignoreEncryption: true });
         const pages = await doc.copyPages(src, src.getPageIndices().slice(0, 15)); pages.forEach(pg => doc.addPage(pg));
-        index.push([p.label + (p.docs.length > 1 ? ` (${p.docs.indexOf(d) + 1})` : ""), first]);
+        note(p.label, first);
       } catch (e) { gaps.push(p.label); ERRLOG.add(`Original ${docTitle(d)}: ${e.message}`, "pdf"); }
     }
   }
-  const bytes = await doc.save();
-  return { blob: new Blob([bytes], { type: "application/pdf" }), pages: doc.getPageCount(), index, gaps: [...new Set(gaps)], letterhead: !!A };
+  // cover letter: render once to learn its length, then again with the right page numbers
+  let cover, offset = 1;
+  for (let k = 0; k < 2; k++) {
+    cover = await PDFLib.PDFDocument.create(); const A2 = await lhAssets(cover), w2 = await lhWriter(cover, A2);
+    await drawCover(w2, t, B, entries, offset, today);
+    if (cover.getPageCount() === offset) break; offset = cover.getPageCount();
+  }
+  const out = await PDFLib.PDFDocument.create();
+  out.setTitle(`GeM Bid ${B.bid || t.bid} — ${LEGAL.name}`); out.setAuthor(LEGAL.name); out.setCreator("Rivera Quote Studio"); out.setCreationDate(new Date());
+  (await out.copyPages(cover, cover.getPageIndices())).forEach(pg => out.addPage(pg));
+  (await out.copyPages(doc, doc.getPageIndices())).forEach(pg => out.addPage(pg));
+  const bytes = await out.save();
+  return { blob: new Blob([bytes], { type: "application/pdf" }), pages: out.getPageCount(), index: [["Cover letter & index", 1, 1], ...entries.map(x => [x[0], x[1] + offset, x[2]])], gaps: [...new Set(gaps)], letterhead: !!A };
 }
 
 /* ---------- Bid Desk: one-click complete document, no links anywhere ---------- */
