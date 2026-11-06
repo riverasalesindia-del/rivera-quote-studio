@@ -4794,6 +4794,7 @@ async function lhAssets(doc) {
   } catch (e) { ERRLOG.add("Letterhead: " + e.message, "pdf"); return null; }
 }
 const LEGAL = { name: "Rivera Coil Manufacturing India Pvt Ltd", upper: "RIVERA COIL MANUFACTURING INDIA PRIVATE LIMITED" };
+const fixCase = s => String(s || "").replace(/\b(wcl|ncl|mcl|ccl|secl|ecl|bccl|ntpc|bhel|nhpc|nlc|hcl|sail|cil|ongc|iocl|bpcl|hpcl|npcil|tneb|tangedco|kseb|psu)\b/gi, m => m.toUpperCase());
 const dotDate = iso => dmy(iso).replace(/-/g, ".");
 function buyerShort(org) {
   const o = String(org || "").split(/[,(]/)[0].trim(); if (!o) return "the Buyer";
@@ -4809,7 +4810,7 @@ function rcmLetters(t, B, el) {
   const [wm1, wm2] = warrantyText(B), sim = (el?.sim || []).filter(x => x.o?.po);
   const L = [];
   L.push({ key: "annexA", label: "Annexure-A · Authorisation & undertaking by Indian manufacturer", annex: "ANNEXURE-A", title: "Authorization & Undertaking Certificate by Indian Manufacturer", sign: "Signature of Manufacturer",
-    to: [`M/s. ${sh},`, ...(B.office ? [B.office + ","] : []), "Address"], salute: "Dear Sir", sub: bidLine,
+    to: [`M/s. ${sh},`, ...[B.office, org.split(",")[0]].filter((x, i, arr) => x && arr.indexOf(x) === i).map((x, i, arr) => fixCase(x) + (i < arr.length - 1 ? "," : "."))], salute: "Dear Sir", sub: bidLine,
     paras: [`WHEREAS we, M/s. ${LEGAL.name} who are established and reputable manufacturers of tendered/offered items having factories at ${C.address} of factory(ies),`, { b: `We, M/s ${LEGAL.name} also undertake the following:` }],
     list: [`That, as a matter of our corporate policy, we don't directly quote/ market our products directly to any organization in India, and if, subsequently, at any stage, it is found that we have quoted directly to any organization, we shall be liable for penal action as per the ${cil ? "CIL" : sh} Purchase Manual. Further, if at any stage, it is found that agency commission has been paid by us without declaring the agent, the commission will be recovered with interest.`,
       "That we will accept the responsibility for the satisfactory execution of orders placed on our authorized agent including warranty/ guarantee obligations.",
@@ -4989,17 +4990,18 @@ function planStats(plan) {
 
 /* ---------- the one complete document ---------- */
 /* one-page cover letter with a page-numbered index of everything enclosed */
-async function drawCover(w, t, B, entries, offset, dateISO) {
+async function drawCover(w, t, B, entries, offset, dateISO, tight = 0) {
   const org = B.org || t.org || "", sub = `Sub: Submission of bid against GeM Bid No. ${B.bid || t.bid}${B.category || t.items ? " — " + String(B.category || t.items).slice(0, 90) : ""}`;
+  const fs = [10.8, 10.2, 9.6][tight], ts = [9, 8.6, 8.2][tight], tp = [2.4, 1.8, 1.3][tight], g = [8, 5, 3][tight];
   w.newPage();
-  w.text("To,", { after: 0, size: 10.8 });
-  [B.office, org.split(",")[0], B.dept].filter((x, i, a) => x && a.indexOf(x) === i).slice(0, 3).forEach(x => w.text(String(x), { after: 0, size: 10.8 }));
-  w.gap(8); w.text(sub, { b: true, u: true, size: 10.8, after: 8 });
-  w.text("Dear Sir / Madam,", { size: 10.8, after: 6 });
-  w.text(`We, M/s. ${LEGAL.name}, manufacturer of HV motor and generator stator coils, Roebel bars, armature and pole coils, registered as a Micro & Small Enterprise and DPIIT-recognised start-up, hereby submit our bid for the above requirement. We have read and accept all the terms and conditions of the bid including GTC, STC and ATC without any deviation. Our offer is valid for 90 days from the bid end date.`, { justify: true, size: 10.4, after: 6 });
-  w.text("Index of documents enclosed:", { b: true, size: 10.8, after: 4 });
-  w.table(["S.No", "Document", "Page No."], entries.map((x, i) => [String(i + 1), x[0] + (x[2] > 1 ? ` (${x[2]} nos)` : ""), String(x[1] + offset)]), [8, 74, 14], { size: 9, pad: 2.4 });
-  w.text("We request you to kindly consider our offer favourably. Thanking you, Yours faithfully,", { size: 10.4, after: 0 });
+  w.text("To,", { after: 0, size: fs, lhf: 1.22 });
+  [B.office, org.split(",")[0], B.dept].filter((x, i, a) => x && a.indexOf(x) === i).slice(0, 3).forEach(x => w.text(fixCase(x), { after: 0, size: fs, lhf: 1.22 }));
+  w.gap(g); w.text(fixCase(sub), { b: true, u: true, size: fs, after: g });
+  w.text("Dear Sir / Madam,", { size: fs, after: g - 2 });
+  w.text(`We, M/s. ${LEGAL.name}, manufacturer of HV motor and generator stator coils, Roebel bars, armature and pole coils, registered as a Micro & Small Enterprise and DPIIT-recognised start-up, hereby submit our bid for the above requirement. We have read and accept all the terms and conditions of the bid including GTC, STC and ATC without any deviation. Our offer is valid for 90 days from the bid end date.`, { justify: true, size: fs - 0.4, after: g - 2, lhf: 1.25 });
+  w.text("Index of documents enclosed:", { b: true, size: fs, after: 3 });
+  w.table(["S.No", "Document", "Page No."], entries.map((x, i) => [String(i + 1), x[0] + (x[2] > 1 ? ` (${x[2]} nos)` : ""), String(x[1] + offset)]), [8, 74, 14], { size: ts, pad: tp });
+  w.text("We request you to kindly consider our offer favourably. Thanking you, Yours faithfully,", { size: fs - 0.4, after: 0 });
   w.signBlock("Authorised Signatory", dateISO);
 }
 async function buildCompleteDoc(t, B, rows, el, onStep) {
@@ -5029,12 +5031,14 @@ async function buildCompleteDoc(t, B, rows, el, onStep) {
     }
   }
   // cover letter: render once to learn its length, then again with the right page numbers
+  // cover letter on ONE page: tighten step by step until it fits; page numbers in the index follow the cover length
   let cover, offset = 1;
-  for (let k = 0; k < 2; k++) {
+  for (const tight of [0, 1, 2]) {
     cover = await PDFLib.PDFDocument.create(); const A2 = await lhAssets(cover), w2 = await lhWriter(cover, A2);
-    await drawCover(w2, t, B, entries, offset, today);
-    if (cover.getPageCount() === offset) break; offset = cover.getPageCount();
+    await drawCover(w2, t, B, entries, 1, today, tight);
+    if (cover.getPageCount() === 1) break;
   }
+  if (cover.getPageCount() > 1) { offset = cover.getPageCount(); cover = await PDFLib.PDFDocument.create(); const A3 = await lhAssets(cover), w3 = await lhWriter(cover, A3); await drawCover(w3, t, B, entries, offset, today, 2); }
   const out = await PDFLib.PDFDocument.create();
   out.setTitle(`GeM Bid ${B.bid || t.bid} — ${LEGAL.name}`); out.setAuthor(LEGAL.name); out.setCreator("Rivera Quote Studio"); out.setCreationDate(new Date());
   (await out.copyPages(cover, cover.getPageIndices())).forEach(pg => out.addPage(pg));
