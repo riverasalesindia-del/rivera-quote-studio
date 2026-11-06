@@ -295,6 +295,30 @@ kbd{font-family:var(--f-mono,monospace);font-size:.68rem;border:1px solid var(--
 .feed-row.hot{border-color:#e56a0a;background:rgba(229,106,10,.06)}
 .feed-fit{flex:none;width:52px;height:52px;border-radius:50%;display:grid;place-items:center;font-weight:700;font-size:.85rem;background:var(--panel2,#eef1f0);color:#02315B}
 .feed-row.hot .feed-fit{background:#e56a0a;color:#fff}
+/* p12: history, tender intelligence */
+.chips-row{display:flex;flex-wrap:wrap;gap:6px}
+.chips-row .chip{cursor:pointer}
+.kind-chip{display:inline-flex;align-items:center;gap:6px;cursor:pointer;border-color:var(--kc);color:var(--kc);font-weight:600}
+.kind-chip input{accent-color:var(--kc);margin:0}
+tr.click{cursor:pointer}tr.click:hover td{background:var(--sunk)}
+.tabs-row{display:flex;gap:4px;overflow-x:auto;border-bottom:1px solid var(--line);margin:0 0 16px;scrollbar-width:none}
+.tab{background:none;border:0;border-bottom:3px solid transparent;padding:10px 14px;font-weight:600;color:var(--muted);cursor:pointer;white-space:nowrap}
+.tab.on{color:var(--navy);border-bottom-color:var(--copper)}
+.funnel{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+.fun-step{display:flex;flex-direction:column;gap:2px;position:relative;padding-bottom:10px}
+.fun-step b{font-family:var(--f-display);font-size:1.6rem;color:var(--navy);line-height:1.1}
+.fun-step i{position:absolute;left:0;bottom:0;height:5px;border-radius:3px;background:linear-gradient(90deg,var(--navy),var(--copper))}
+.cal{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:4px}
+.cal-h{font-size:.7rem;font-weight:700;color:var(--muted);text-align:center;padding:4px 0;text-transform:uppercase;letter-spacing:.06em}
+.cal-d{min-height:86px;border:1px solid var(--line);border-radius:6px;padding:4px;display:flex;flex-direction:column;gap:3px;background:var(--surface);min-width:0}
+.cal-d.off{background:transparent;border-color:transparent}
+.cal-d.past{background:var(--sunk);opacity:.75}
+.cal-d.today{border:2px solid var(--copper)}
+.cal-n{font-size:.74rem;font-weight:700;color:var(--muted)}
+.cal-e{display:inline-block;font-size:.66rem;font-weight:600;border-radius:4px;padding:1px 5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;background:var(--navy-soft);color:var(--navy)}
+.cal-e.ra{background:var(--copper-soft);color:var(--copper-ink)}
+.cal-e.alert{background:var(--warn-soft);color:var(--warn)}
+@media (max-width:640px){.funnel{grid-template-columns:repeat(2,1fr)}.cal-d{min-height:58px;padding:2px}.cal-e{font-size:.58rem;padding:0 3px}}
 </style>
 <div class="shell">
   <aside class="rail" aria-label="Main navigation">
@@ -4351,15 +4375,6 @@ function bidDocSet(t, B, rows, el) {
   D.push({ slot: "08 Annexures II–X", file: "Annexures_II-X", blocks: annexureBlocks({ ...t, org, published: B.published || t.published, items: B.category || t.items }) });
   return D;
 }
-async function buildBidPack(t, B, rows, el, appr) {
-  const JSZip = await getZip(), z = new JSZip(), set = bidDocSet(t, B, rows, el);
-  for (const d of set) { z.file(`GeM upload (PDF)/${d.slot.slice(0, 2)}_${d.file}.pdf`, await blocksPdf(d.blocks)); z.file(`Editable (Word)/${d.slot.slice(0, 2)}_${d.file}.docx`, await buildDocx(d.blocks, brandLogo())); }
-  z.file("Compliance_Matrix.xlsx", await buildXlsx(matrixSheet(t, B, rows, el)));
-  const map = Object.entries(uploadMap(rows)).map(([s, ds]) => `[${s}]\n` + [...new Map(ds.map(d => [d.id, d])).values()].map(d => `  ${docTitle(d)}\n  ${docLink(d)}`).join("\n")).join("\n\n");
-  z.file("GeM_Upload_Guide.txt", `GeM bid ${B.bid} — ${B.org || ""}\nBid end: ${B.endRaw || ""}\nApproved price: ${appr?.price?.price ? "Rs. " + fmt(appr.price.price, "INR", 0) : "not yet approved"}${appr?.price?.floor ? "   RA floor: Rs. " + fmt(appr.price.floor, "INR", 0) : ""}\n\nPrepared for this bid (folder "GeM upload (PDF)"):\n${set.map(d => "  " + d.slot).join("\n")}\n\nCompany documents to attach from Dropbox:\n${map}\n\nFinal step (authorised person): sign in to GeM, open the bid, upload the PDFs in the matching slots, enter the approved price, verify with eSign / DSC / OTP, download the acknowledgement.\n`);
-  return { blob: await z.generateAsync({ type: "blob" }), set };
-}
-
 /* ---------- Bid Desk: replace the pack builder with the full tender-specific set ---------- */
 const _drawBid11 = drawBid;
 drawBid = function () {
@@ -4384,7 +4399,7 @@ drawBid = function () {
 
 /* ---------- GeM alert feed (from GeM emails in the server's Gmail) ---------- */
 const FEED = { list: LS.get("gemFeed", []), at: LS.get("gemFeedAt", 0), err: "", busy: false };
-const fitScore = a => { const s = (a.item ? a.item + " " + a.ctx.slice(0, 160) : a.ctx + " " + a.subject).toLowerCase(); let n = 0; for (const w of ["stator", "rotor", "coil", "roebel", "bar", "winding", "rewind", "armature", "pole", "generator", "motor", "insulat", "mica", "varnish"]) if (s.includes(w)) n++; if (/ncl|mcl|ccl|secl|wcl|coal|ntpc|bhel|nhpc|tneb|tangedco|hindustan copper/.test(s)) n++; return Math.min(100, n * 25); };
+const fitScore = a => tenderFit(a.item ? a.item + " " + String(a.ctx || "").slice(0, 160) : (a.ctx || "") + " " + (a.subject || ""));
 async function loadFeed(fresh) {
   if (FEED.busy || !AUTH.required() || !AUTH.valid()) return; FEED.busy = true;
   try {
@@ -4425,6 +4440,275 @@ VIEWS.home = v => {
 };
 const _boot11 = boot;
 boot = function () { _boot11(); setTimeout(() => loadFeed(), 6000); setInterval(() => loadFeed(), 30 * 60000); };
+/* ===================== p12: History & reports, Tender intelligence, PDF/Word-only outputs, original documents in the bid pack ===================== */
+Object.assign(IC, {
+  hist: '<path d="M3 12a9 9 0 1 0 3-6.7L3 8"/><path d="M3 3v5h5M12 7v5l3 2"/>',
+  radar: '<circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="5"/><path d="M12 12 18 6"/><circle cx="12" cy="12" r="1.2"/>',
+  cal: '<rect x="3" y="5" width="18" height="16" rx="2"/><path d="M3 10h18M8 3v4M16 3v4"/>'
+});
+ROUTES.splice(ROUTES.findIndex(r => r[0] === "register") + 1, 0, ["history", "History & reports", "hist"]);
+ROUTES.splice(ROUTES.findIndex(r => r[0] === "biddesk") + 1, 0, ["intel", "Tender intelligence", "radar"]);
+
+/* ---------- 1. Nothing comes out as Excel: every table becomes a proper PDF document ---------- */
+function cellText(c) { const v = c?.v ?? c ?? ""; return typeof v === "number" ? (Number.isInteger(v) ? v.toLocaleString("en-IN") : v.toLocaleString("en-IN", { maximumFractionDigits: 2 })) : String(v); }
+async function sheetsPdf(sheets) {
+  return buildPdf(async c => {
+    sheets.forEach((sh, si) => {
+      if (si) c.newPage();
+      let rows = (sh.cells || []).filter(r => r && r.length);
+      let title = sh.name;
+      if (rows[0] && rows[0].length === 1 && rows[0][0]?.s === 1) { title = cellText(rows[0][0]); rows = rows.slice(1); }
+      c.text(title, { size: 12.5, bold: true, color: c.NAVY, after: 6 });
+      if (!rows.length) return;
+      const head = rows[0].map(cellText), body = rows.slice(1), n = head.length;
+      const ws = (sh.cols || head.map(() => 12)).slice(0, n).map(x => Math.max(4, Math.min(60, x || 12))); while (ws.length < n) ws.push(12);
+      const tot = ws.reduce((a, b) => a + b, 0), avail = c.W - 2 * c.M;
+      const numeric = head.map((_, i) => body.length && body.filter(r => typeof (r[i]?.v ?? r[i]) === "number").length > body.length / 2);
+      c.table(head.map((h, i) => ({ h, w: avail * ws[i] / tot, align: numeric[i] ? "right" : "" })), body.map(r => head.map((_, i) => cellText(r[i]))), { size: n > 14 ? 5.4 : n > 10 ? 6.4 : n > 7 ? 7.6 : 8.6 });
+    });
+  });
+}
+const _buildXlsx12 = buildXlsx;
+buildXlsx = async sheets => sheetsPdf(sheets);
+const isPdfBlob = b => b instanceof Blob && b.type === "application/pdf";
+const _saveFile12 = saveFile;
+saveFile = (name, data, mime) => _saveFile12(isPdfBlob(data) ? String(name).replace(/\.xlsx$/i, ".pdf") : name, data, mime);
+const _writeToDir12 = writeToDir;
+writeToDir = (p, blob) => _writeToDir12(isPdfBlob(blob) ? p.replace(/\.xlsx$/i, ".pdf") : p, blob);
+const _getZip12 = getZip;
+getZip = async () => { const Z = await _getZip12(); if (!Z.prototype.__rv) { const f = Z.prototype.file; Z.prototype.file = function (name, data, o) { if (arguments.length < 2) return f.apply(this, arguments); if (typeof name === "string" && isPdfBlob(data)) name = name.replace(/\.xlsx$/i, ".pdf"); return f.call(this, name, data, o); }; Z.prototype.__rv = 1; } return Z; };
+const _openShare12 = openShare;
+openShare = function (opts) {
+  let fm = (opts.formats || []).filter(f => f.key !== "csv");
+  const hasPdf = fm.some(f => f.key === "pdf");
+  fm = fm.filter(f => !(f.key === "xlsx" && hasPdf)).map(f => f.key === "xlsx" ? { ...f, key: "pdf", ext: "pdf", label: String(f.label).replace(/excel( with formulas)?/i, "PDF") } : f);
+  return _openShare12({ ...opts, formats: fm.length ? fm : opts.formats });
+};
+
+/* ---------- 2. Original company documents go into the bid pack (Windows app: Dropbox; browser: Synology folder or attached file) ---------- */
+const FILES = {
+  db: null,
+  open() { return this.db ||= new Promise((ok, no) => { const r = indexedDB.open("rqs-files", 1); r.onupgradeneeded = () => r.result.createObjectStore("f"); r.onsuccess = () => ok(r.result); r.onerror = () => no(r.error); }); },
+  async put(k, file) { const d = await this.open(); return new Promise((ok, no) => { const t = d.transaction("f", "readwrite"); t.objectStore("f").put({ name: file.name, type: file.type, blob: file }, k); t.oncomplete = ok; t.onerror = () => no(t.error); }); },
+  async get(k) { try { const d = await this.open(); return await new Promise(ok => { const r = d.transaction("f").objectStore("f").get(k); r.onsuccess = () => ok(r.result || null); r.onerror = () => ok(null); }); } catch { return null; } }
+};
+async function getOriginal(d) {
+  const name = docFile(d) || (d.title || "document") + ".pdf";
+  const own = await FILES.get(d.id); if (own) return { name: own.name || name, blob: own.blob };
+  if (d.path && location.protocol === "rivera:") {
+    try { const r = await fetch("rivera://dbx" + d.path.split("/").map(encodeURIComponent).join("/")); if (r.ok) return { name, blob: await r.blob() }; } catch { }
+  }
+  if (d.path && STATE.dir) {
+    const segs = d.path.split("/").filter(Boolean);
+    for (let i = 0; i < Math.min(4, segs.length - 1); i++) {
+      try { let h = STATE.dir; for (const s of segs.slice(i, -1)) h = await h.getDirectoryHandle(s); const f = await (await h.getFileHandle(segs[segs.length - 1])).getFile(); return { name, blob: f }; } catch { }
+    }
+  }
+  return null;
+}
+const _docForm12 = docForm;
+docForm = function (d) {
+  _docForm12(d);
+  const f = $("#lbForm"); const row = $("#dfSave", f)?.parentElement; if (!row) return;
+  row.insertAdjacentHTML("beforebegin", `<label class="f" style="margin-top:10px">Original file (PDF / Word) — goes into every bid pack that needs it<input type="file" id="dfFile" accept=".pdf,.doc,.docx"></label><p class="muted small" id="dfFileNote" style="margin:4px 0 0">${d.orig ? "Attached on this device: " + esc(d.orig) : "On the Windows app the file is picked up from Dropbox automatically."}</p>`);
+  $("#dfFile", f).onchange = async e => { const file = e.target.files[0]; if (!file) return; if (/\.xlsx?$/i.test(file.name)) { toast("Attach the PDF or Word version — Excel files are not used in bids.", "bad"); return; } d.id ||= "d_" + uid(); await FILES.put(d.id, file); d.orig = file.name; $("#dfFileNote", f).textContent = "Attached: " + file.name + " — tap Save."; };
+};
+
+/* summary + upload guide as a real PDF: no folder paths, no links, no spreadsheets */
+function packSummaryBlocks(t, B, rows, set, got, missing, appr) {
+  const st = { ok: "Ready", partial: "Check", missing: "Missing", na: "N/A" };
+  return [{ t: `GeM Bid ${B.bid || t.bid} — bid summary & upload guide`, b: true, sz: 14, color: "02315B", after: 80 },
+  { widths: [2600, 5400], table: [["Item", "Detail"].map(x => ({ t: x })), ...[["Buyer", [B.org || t.org, B.dept, B.office].filter(Boolean).join(", ")], ["Item / category", B.category || t.items || ""], ["Quantity", String(B.qty || "")], ["Bid end", B.endRaw || dmy(t.closing || "")], ["EMD", B.emdRaw || t.emd || ""], ["Approved price", appr?.price?.price ? "Rs. " + fmt(appr.price.price, "INR", 0) + (appr.price.floor ? "  (RA floor Rs. " + fmt(appr.price.floor, "INR", 0) + ")" : "") : "Not yet approved"]].map(r => r.map(v => ({ t: v })))] },
+  { t: "Compliance matrix", b: true, sz: 12, color: "02315B", before: 200, after: 60 },
+  { widths: [400, 3400, 900, 3300], table: [["#", "Requirement", "Status", "Rivera evidence"].map(x => ({ t: x })), ...rows.map((r, i) => [String(i + 1), r.req + (r.mandatory ? " *" : ""), st[r.status] || r.status, r.docs.length ? [...new Set(r.docs.map(d => docLabel(d.type) + (d.customer ? " · " + d.customer.split(" ")[0] : "")))].slice(0, 4).join("; ") : (r.note || "—")].map(v => ({ t: v })))] },
+  { t: "Documents in this pack", b: true, sz: 12, color: "02315B", before: 200, after: 60 },
+  { widths: [3000, 5000], table: [["GeM upload slot", "File in the pack"].map(x => ({ t: x })), ...set.map(d => [d.slot.slice(3), "01 · " + d.slot.slice(0, 2) + "_" + d.file + ".pdf"]), ...got.map(g => [g.slot, "02 · " + g.name])].map(r => r.map(v => ({ t: v }))) },
+  ...(missing.length ? [{ t: "Originals to add before upload", b: true, sz: 12, color: "B02A1F", before: 200, after: 60 }, ...missing.map(m => ({ t: "• " + m }))] : []),
+  { t: "Final step (authorised person only)", b: true, sz: 12, color: "02315B", before: 200, after: 60 },
+  { t: "Sign in to GeM, open the bid, upload the PDFs from folders 01 and 02 into the matching slots, enter the approved price, verify with eSign / DSC / OTP and download the bid acknowledgement." }];
+}
+async function buildBidPack(t, B, rows, el, appr) {
+  const JSZip = await getZip(), z = new JSZip(), set = bidDocSet(t, B, rows, el);
+  for (const d of set) { z.file(`01 Prepared for this bid (PDF)/${d.slot.slice(0, 2)}_${d.file}.pdf`, await blocksPdf(d.blocks)); z.file(`03 Editable Word copies/${d.slot.slice(0, 2)}_${d.file}.docx`, await buildDocx(d.blocks, brandLogo())); }
+  const got = [], missing = [], seen = new Set();
+  for (const [slot, ds] of Object.entries(uploadMap(rows))) {
+    const list = [...new Map(ds.map(d => [d.id, d])).values()].filter(d => !d.missing).sort((a, b) => /\.pdf$/i.test(docFile(b)) - /\.pdf$/i.test(docFile(a)));
+    let n = 0;
+    for (const d of list) {
+      if (n >= 3 || seen.has(d.id)) continue;
+      if (/\.xlsx?$/i.test(docFile(d))) continue;                       // spreadsheets never go into a bid
+      const o = await getOriginal(d);
+      if (o) { const nm = `${safeName(slot).slice(0, 40)}/${o.name}`; z.file(`02 Company documents (originals)/${nm}`, o.blob); got.push({ slot, name: o.name }); seen.add(d.id); n++; }
+    }
+    if (!n && list.length) missing.push(`${slot}: ${docTitle(list[0])}`);
+  }
+  const summary = packSummaryBlocks(t, B, rows, set, got, missing, appr);
+  z.file("00_Bid_Summary_and_Upload_Guide.pdf", await blocksPdf(summary));
+  z.file("03 Editable Word copies/00_Bid_Summary_and_Upload_Guide.docx", await buildDocx(summary, brandLogo()));
+  return { blob: await z.generateAsync({ type: "blob" }), set, got, missing };
+}
+const _drawBid12 = drawBid;
+drawBid = function () {
+  _drawBid12();
+  const o = $("#bdOut"); if (!o || !BID) return; const { t, B } = BID; const el = eligibility(B), rows = complianceMatrix(B, el);
+  const mb = $("#bdMatrix"); if (mb) { const nb = mb.cloneNode(true); nb.innerHTML = nb.innerHTML.replace(/\(?excel\)?|xlsx/ig, "PDF"); mb.replaceWith(nb); nb.onclick = async () => saveFile(`COMPLIANCE_${safeName(B.bid)}.pdf`, await blocksPdf(packSummaryBlocks(t, B, rows, [], [], [], t.appr).slice(0, 4))); }
+  const pk = o.querySelector(".note.ok"); if (pk && !pk.dataset.p12) { pk.dataset.p12 = 1; pk.insertAdjacentHTML("beforeend", `<div class="small" style="margin-top:4px">The pack also carries the <b>original</b> company certificates and past orders${location.protocol === "rivera:" ? " straight from Dropbox" : STATE.dir ? " from the Synology folder" : " attached in Company documents (the Windows app adds them from Dropbox by itself)"} — all PDF / Word, no spreadsheets, no folder paths.</div>`); }
+};
+
+/* ---------- 3. History & reports: any date range, by day / month / year / F.Y. ---------- */
+const H12 = () => STATE.hist ||= { from: fyStartISO(todayISO()), to: todayISO(), group: "month", kinds: { q: 1, o: 1, t: 1 }, q: "", st: "" };
+function fyStartISO(iso) { const d = new Date(iso), y = d.getMonth() >= 3 ? d.getFullYear() : d.getFullYear() - 1; return `${y}-04-01`; }
+const isoOf = d => new Date(d.getTime() - d.getTimezoneOffset() * 6e4).toISOString().slice(0, 10);
+function histRecords() {
+  const R = [];
+  for (const q of STATE.quotes || []) if (q.date) R.push({ k: "q", date: String(q.date).slice(0, 10), party: q.customer || "", ref: (q.no || "") + (q.rev ? "R" + q.rev : ""), desc: q.subject || typeLabel(q.coilType), value: qINR(q), status: STATUS[q.status]?.[0] || q.status || "", won: q.status === "won", extra: [q.market, q.country].filter(Boolean).join(" · ") });
+  for (const o of STATE.data.orders || []) if (o.date) R.push({ k: "o", date: String(o.date).slice(0, 10), party: o.customer || "", ref: o.po || "", desc: o.desc || "", value: num(o.total), status: ORDER_ST[o.status]?.[0] || o.status || "", won: true });
+  for (const t of STATE.data.tenders || []) { const d = t.published || t.closing; if (d) R.push({ k: "t", date: String(d).slice(0, 10), party: t.org || "", ref: t.bid || "", desc: t.items || "", value: num(t.ourPrice || t.value), status: TENDER_ST[t.status]?.[0] || t.status || "", won: t.status === "awarded", extra: t.portal || "", id: t.id }); }
+  return R.sort((a, b) => b.date.localeCompare(a.date));
+}
+const KIND = { q: ["Quotations", "var(--navy)"], o: ["Work orders", "var(--ok)"], t: ["Tenders", "var(--copper)"] };
+function periodKey(iso, g) { if (g === "day") return iso; if (g === "month") return iso.slice(0, 7); if (g === "year") return iso.slice(0, 4); return "FY " + fyOf(iso); }
+function periodLabel(k, g) { if (g === "day") return dmy(k); if (g === "month") { const [y, m] = k.split("-"); return new Date(+y, +m - 1, 1).toLocaleString("en-IN", { month: "short", year: "numeric" }); } return k; }
+function periodRange(k, g) { if (g === "day") return [k, k]; if (g === "month") { const [y, m] = k.split("-").map(Number); return [k + "-01", isoOf(new Date(y, m, 0))]; } if (g === "year") return [k + "-01-01", k + "-12-31"]; const y = 2000 + +k.slice(3, 5); return [`${y}-04-01`, `${y + 1}-03-31`]; }
+function histPresets() {
+  const t = todayISO(), d = new Date(t), y = d.getFullYear(), m = d.getMonth(), fy = fyStartISO(t), fyY = +fy.slice(0, 4);
+  return [["Today", t, t, "day"], ["Last 7 days", isoOf(new Date(y, m, d.getDate() - 6)), t, "day"], ["This month", isoOf(new Date(y, m, 1)), t, "day"], ["Last month", isoOf(new Date(y, m - 1, 1)), isoOf(new Date(y, m, 0)), "day"], ["This F.Y.", fy, t, "month"], ["Last F.Y.", `${fyY - 1}-04-01`, `${fyY}-03-31`, "month"], ["This year", `${y}-01-01`, t, "month"], ["Last year", `${y - 1}-01-01`, `${y - 1}-12-31`, "month"], ["All time", "2000-01-01", t, "year"]];
+}
+function histFilter(R, h, from, to) {
+  const q = (h.q || "").toLowerCase();
+  return R.filter(r => h.kinds[r.k] && r.date >= from && r.date <= to && (!h.st || (h.st === "won" ? r.won : !r.won)) && (!q || `${r.party} ${r.ref} ${r.desc} ${r.status} ${r.extra || ""}`.toLowerCase().includes(q)));
+}
+function histChart(groups, g) {
+  const keys = groups.map(x => x[0]).reverse(), ks = ["q", "o", "t"], max = Math.max(1, ...groups.flatMap(([, v]) => ks.map(k => v[k].val)));
+  if (!keys.length) return "";
+  const W = Math.max(560, keys.length * 54), Hh = 210, bw = Math.min(14, (W - 60) / keys.length / 3.6), step = (W - 60) / keys.length;
+  const gm = Object.fromEntries(groups), nice = v => v >= 1e7 ? (v / 1e7).toFixed(1) + " Cr" : v >= 1e5 ? (v / 1e5).toFixed(1) + " L" : Math.round(v).toLocaleString("en-IN");
+  const ticks = [0, .25, .5, .75, 1].map(f => `<line x1="50" x2="${W - 6}" y1="${180 - f * 160}" y2="${180 - f * 160}" stroke="var(--line)" stroke-width="1"/><text x="44" y="${184 - f * 160}" text-anchor="end" font-size="10" fill="var(--muted)">${nice(max * f)}</text>`).join("");
+  const bars = keys.map((k, i) => ks.map((kk, j) => { const v = gm[k][kk].val, h = v / max * 160, x = 56 + i * step + j * (bw + 2); return h > 0 ? `<rect x="${x}" y="${180 - h}" width="${bw}" height="${h}" rx="2" fill="${KIND[kk][1]}"><title>${periodLabel(k, g)} · ${KIND[kk][0]}: ₹${fmt(v, "INR", 0)} (${gm[k][kk].n})</title></rect>` : ""; }).join("") + `<text x="${56 + i * step + bw * 1.5}" y="198" text-anchor="middle" font-size="10" fill="var(--muted)">${esc(periodLabel(k, g).replace(/ 20(\d\d)$/, " ’$1"))}</text>`).join("");
+  return `<div class="scroll"><svg viewBox="0 0 ${W} ${Hh}" width="${W}" height="${Hh}" role="img" aria-label="Value by period" style="display:block;max-width:none">${ticks}${bars}</svg></div><div class="row" style="gap:14px;padding:0 16px 12px">${ks.map(k => `<span class="small"><span style="display:inline-block;width:10px;height:10px;border-radius:2px;background:${KIND[k][1]};margin-right:5px"></span>${KIND[k][0]}</span>`).join("")}</div>`;
+}
+VIEWS.history = v => {
+  const h = H12(), R = histRecords(), L = histFilter(R, h, h.from, h.to);
+  const days = Math.max(1, Math.round((new Date(h.to) - new Date(h.from)) / 864e5) + 1), pTo = isoOf(new Date(new Date(h.from).getTime() - 864e5)), pFrom = isoOf(new Date(new Date(h.from).getTime() - days * 864e5)), P = histFilter(R, h, pFrom, pTo);
+  const sum = (A, k, f) => A.filter(r => r.k === k && (!f || f(r))).reduce((s, r) => s + r.value, 0), cnt = (A, k, f) => A.filter(r => r.k === k && (!f || f(r))).length;
+  const delta = (a, b) => b ? `<span class="chip ${a >= b ? "ok" : "bad"}">${a >= b ? "▲" : "▼"} ${Math.abs(Math.round((a - b) / b * 100))}%</span>` : "";
+  const groups = Object.entries(L.reduce((m, r) => { const k = periodKey(r.date, h.group); const g = m[k] ||= { q: { n: 0, val: 0, won: 0 }, o: { n: 0, val: 0 }, t: { n: 0, val: 0, won: 0 } }; g[r.k].n++; g[r.k].val += r.value; if (r.won && r.k !== "o") g[r.k].won++; return m; }, {})).sort((a, b) => b[0].localeCompare(a[0]));
+  const qWon = cnt(L, "q", r => r.won), qDec = L.filter(r => r.k === "q" && /won|lost|regret/i.test(r.status)).length;
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Every quotation, work order and tender — searchable by date</div><h1>History & reports</h1><p>Pick any start and end date, group by day, month, year or financial year, and drill into the records. Download the report as PDF or Word.</p></div><div class="row"><button class="btn primary" id="hsExp">${icon("dl")}Download report</button></div></div>
+  <section class="panel hist-filter"><div class="body">
+    <div class="chips-row">${histPresets().map(([l, f, t, g]) => `<button class="chip ${h.from === f && h.to === t ? "ok" : ""}" data-hp="${f}|${t}|${g}">${l}</button>`).join("")}</div>
+    <div class="fields" style="margin-top:12px"><label class="f">Start date<input type="date" id="hsFrom" value="${h.from}"></label><label class="f">End date<input type="date" id="hsTo" value="${h.to}"></label>
+    <label class="f">Group by<select id="hsGroup">${[["day", "Day"], ["month", "Month"], ["year", "Calendar year"], ["fy", "Financial year (Apr–Mar)"]].map(([k, l]) => `<option value="${k}" ${h.group === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    <label class="f">Result<select id="hsSt"><option value="">All</option><option value="won" ${h.st === "won" ? "selected" : ""}>Won / awarded / orders</option><option value="open" ${h.st === "open" ? "selected" : ""}>Not won</option></select></label>
+    <label class="f" style="grid-column:span 2">Search customer, number, item…<input type="text" id="hsQ" value="${esc(h.q)}" placeholder="e.g. NTPC, stator, GEM/2025"></label></div>
+    <div class="row" style="gap:8px;margin-top:10px">${Object.entries(KIND).map(([k, [l, c]]) => `<label class="chip kind-chip" style="--kc:${c}"><input type="checkbox" data-hk="${k}" ${h.kinds[k] ? "checked" : ""}> ${l}</label>`).join("")}</div>
+  </div></section>
+  <div class="grid g4" style="margin:16px 0"><div class="panel kpi"><span class="eyebrow">Quotations</span><span class="v">${cnt(L, "q")}</span><span class="s">₹${fmt(sum(L, "q"), "INR", 0)} ${delta(sum(L, "q"), sum(P, "q"))}</span></div>
+  <div class="panel kpi"><span class="eyebrow">Quotes won</span><span class="v">${qWon}</span><span class="s">${qDec ? Math.round(qWon / qDec * 100) + "% of decided" : "—"} · ₹${fmt(sum(L, "q", r => r.won), "INR", 0)}</span></div>
+  <div class="panel kpi"><span class="eyebrow">Work orders</span><span class="v">${cnt(L, "o")}</span><span class="s">₹${fmt(sum(L, "o"), "INR", 0)} ${delta(sum(L, "o"), sum(P, "o"))}</span></div>
+  <div class="panel kpi"><span class="eyebrow">Tenders</span><span class="v">${cnt(L, "t")}</span><span class="s">${cnt(L, "t", r => r.won)} awarded${days <= 1100 ? ` · previous ${days} days: ${cnt(P, "t")}` : ""}</span></div></div>
+  <section class="panel"><header><h2>Value by ${h.group === "fy" ? "financial year" : h.group}</h2><span class="muted small">${dmy(h.from)} → ${dmy(h.to)} · ${L.length} records</span></header>${groups.length ? histChart(groups.slice(0, 60), h.group) : `<div class="empty"><b>Nothing in this period</b>Widen the dates or clear the search.</div>`}</section>
+  ${groups.length ? `<section class="panel" style="margin-top:16px"><header><h2>By period</h2><span class="muted small">Tap a period to open it</span></header><div class="scroll"><table class="t"><thead><tr><th>Period</th><th class="n">Quotations</th><th class="n">Quoted ₹</th><th class="n">Won</th><th class="n">Work orders</th><th class="n">Order ₹</th><th class="n">Tenders</th><th class="n">Awarded</th></tr></thead><tbody>${groups.map(([k, g]) => `<tr class="click" data-hper="${k}"><td><b>${esc(periodLabel(k, h.group))}</b></td><td class="n">${g.q.n}</td><td class="n">${fmt(g.q.val, "INR", 0)}</td><td class="n">${g.q.won}</td><td class="n">${g.o.n}</td><td class="n">${fmt(g.o.val, "INR", 0)}</td><td class="n">${g.t.n}</td><td class="n">${g.t.won}</td></tr>`).join("")}</tbody></table></div></section>` : ""}
+  <section class="panel" style="margin-top:16px"><header><h2>Records</h2><span class="muted small">${L.length > 500 ? "first 500 of " + L.length : L.length}</span></header><div class="scroll">${L.length ? `<table class="t"><thead><tr><th>Date</th><th>Type</th><th>Customer / buyer</th><th>Number</th><th>Description</th><th class="n">Value ₹</th><th>Status</th></tr></thead><tbody>${L.slice(0, 500).map(r => `<tr><td class="mono">${dmy(r.date)}</td><td><span class="chip" style="border-color:${KIND[r.k][1]};color:${KIND[r.k][1]}">${KIND[r.k][0].replace(/s$/, "")}</span></td><td><b>${esc(r.party)}</b>${r.extra ? `<div class="muted" style="font-size:.7rem">${esc(r.extra)}</div>` : ""}</td><td class="mono" style="font-size:.74rem">${esc(r.ref)}</td><td class="small" style="min-width:220px">${esc(String(r.desc).slice(0, 140))}</td><td class="n">${r.value ? fmt(r.value, "INR", 0) : "—"}</td><td><span class="chip ${r.won ? "ok" : ""}">${esc(r.status)}</span></td></tr>`).join("")}</tbody></table>` : `<div class="empty"><b>No records</b>${R.length ? "Nothing matches these filters." : "History appears here as quotations, work orders and tenders are saved."}</div>`}</div></section>`;
+  const go = () => { render(); };
+  $$("[data-hp]").forEach(b => b.onclick = () => { const [f, t, g] = b.dataset.hp.split("|"); Object.assign(h, { from: f, to: t, group: g }); go(); });
+  $("#hsFrom").onchange = e => { h.from = e.target.value || h.from; if (h.from > h.to) h.to = h.from; go(); };
+  $("#hsTo").onchange = e => { h.to = e.target.value || h.to; if (h.to < h.from) h.from = h.to; go(); };
+  $("#hsGroup").onchange = e => { h.group = e.target.value; go(); };
+  $("#hsSt").onchange = e => { h.st = e.target.value; go(); };
+  $("#hsQ").oninput = e => { h.q = e.target.value; clearTimeout(h._t); h._t = setTimeout(() => { const p = $("#hsQ")?.selectionStart; render(); const i = $("#hsQ"); if (i) { i.focus(); i.setSelectionRange(p, p); } }, 250); };
+  $$("[data-hk]").forEach(c => c.onchange = () => { h.kinds[c.dataset.hk] = c.checked ? 1 : 0; go(); });
+  $$("[data-hper]").forEach(r => r.onclick = () => { const [f, t] = periodRange(r.dataset.hper, h.group); Object.assign(h, { from: f < h.from ? h.from : f, to: t > h.to ? h.to : t, group: h.group === "day" ? "day" : h.group === "month" ? "day" : "month" }); go(); });
+  $("#hsExp").onclick = () => {
+    const title = `RIVERA HISTORY REPORT — ${dmy(h.from)} to ${dmy(h.to)}${h.q ? " — “" + h.q + "”" : ""}`;
+    const blocks = () => [{ t: title, b: true, sz: 14, color: "02315B", after: 80 },
+    { widths: [2400, 900, 1500, 900, 900, 1500, 900, 900], table: [["Period", "Quotes", "Quoted ₹", "Won", "Orders", "Order ₹", "Tenders", "Awarded"].map(t => ({ t })), ...groups.map(([k, g]) => [periodLabel(k, h.group), g.q.n, fmt(g.q.val, "INR", 0), g.q.won, g.o.n, fmt(g.o.val, "INR", 0), g.t.n, g.t.won].map(x => ({ t: String(x) })))] },
+    { t: "Records", b: true, sz: 12, color: "02315B", before: 200, after: 60 },
+    { widths: [1000, 900, 1900, 1500, 2700, 1000], table: [["Date", "Type", "Customer", "Number", "Description", "Value ₹"].map(t => ({ t })), ...L.slice(0, 1500).map(r => [dmy(r.date), KIND[r.k][0].replace(/s$/, ""), r.party, r.ref, String(r.desc).slice(0, 120) + (r.status ? " [" + r.status + "]" : ""), r.value ? fmt(r.value, "INR", 0) : "—"].map(x => ({ t: String(x) })))] }];
+    openShare({ title: "History report", base: `RIVERA_HISTORY_${h.from}_to_${h.to}`, text: title, formats: [F.pdf("Report (PDF)", () => blocksPdf(blocks())), F.docx("Report (Word)", () => buildDocx(blocks(), brandLogo()))] });
+  };
+};
+
+/* ---------- 4. Tender intelligence (Tender247-style): keyword alerts, finder, calendar, buyers, competitors ---------- */
+const KW_DEFAULT = ["stator coil", "rotor coil", "roebel bar", "stator bar", "armature coil", "field coil", "pole coil", "rewinding", "rewind", "generator", "hv motor", "winding", "coil", "insulation", "mica tape"];
+const tenderKeywords = () => (SETTINGS.tenderKeywords && SETTINGS.tenderKeywords.length ? SETTINGS.tenderKeywords : KW_DEFAULT);
+function tenderFit(text) {
+  const s = String(text || "").toLowerCase(); let n = 0;
+  for (const w of tenderKeywords()) if (w && s.includes(w.toLowerCase())) n += w.includes(" ") ? 2 : 1;
+  if (/ncl|mcl|ccl|secl|wcl|coal|ntpc|bhel|nhpc|tneb|tangedco|hindustan copper|power|thermal|hydro/.test(s)) n++;
+  return Math.min(100, n * 25);
+}
+const I12 = () => STATE.intel ||= { q: "", org: "", st: "live", within: "", vmin: "", vmax: "", month: todayISO().slice(0, 7), tab: "find" };
+function intelRows() {
+  const ts = (STATE.data.tenders || []).map(t => ({ src: "t", id: t.id, bid: t.bid, org: t.org || "", items: t.items || "", closing: t.closing || "", ra: t.ra || "", status: t.status, value: num(t.value || t.ourPrice), portal: t.portal || "", fit: tenderFit(`${t.items} ${t.org}`), link: t.link || "" }));
+  const have = new Set(ts.map(t => t.bid));
+  const fd = (FEED.list || []).filter(a => !have.has(a.bid)).map(a => ({ src: "f", id: "", bid: a.bid, org: "", items: a.item || a.subject, closing: a.closing || "", status: "alert", value: 0, portal: "GeM alert", fit: tenderFit(`${a.item || ""} ${a.ctx || ""}`), link: a.link }));
+  return [...ts, ...fd];
+}
+VIEWS.intel = v => {
+  const S = I12(), all = intelRows(), now = todayISO(), q = S.q.toLowerCase();
+  const LIVE = ["identified", "preparing", "submitted", "technical", "ra", "alert"];
+  const list = all.filter(r => (!q || `${r.bid} ${r.org} ${r.items} ${r.portal}`.toLowerCase().includes(q)) && (!S.org || r.org === S.org) && (S.st === "" || (S.st === "live" ? LIVE.includes(r.status) && (!r.closing || r.closing >= now) : S.st === "match" ? r.fit >= 50 : r.status === S.st)) && (!S.within || (r.closing && r.closing >= now && daysTo(r.closing) <= +S.within)) && (!S.vmin || r.value >= +S.vmin) && (!S.vmax || !r.value || r.value <= +S.vmax)).sort((a, b) => (a.closing || "9").localeCompare(b.closing || "9"));
+  const ts = STATE.data.tenders || [], orgs = [...new Set(ts.map(t => t.org).filter(Boolean))].sort();
+  const brief = { newm: (FEED.list || []).filter(a => a.fit >= 50 && a.date && Date.now() - new Date(a.date) < 864e5).length, close3: ts.filter(t => LIVE.includes(t.status) && t.closing && daysTo(t.closing) >= 0 && daysTo(t.closing) <= 3).length, raToday: ts.filter(t => t.ra === now).length, noResult: ts.filter(t => ["submitted", "technical", "ra"].includes(t.status) && t.closing && daysTo(t.closing) < -14 && !t.result).length };
+  const funnel = [["Identified", ts.length], ["Prepared", ts.filter(t => !["identified", "not_attended"].includes(t.status)).length], ["Submitted", ts.filter(t => ["submitted", "technical", "ra", "awarded", "not_awarded"].includes(t.status)).length], ["Awarded", ts.filter(t => t.status === "awarded").length]];
+  const buyers = Object.entries(ts.reduce((m, t) => { const o = t.org || "—", b = m[o] ||= { n: 0, sub: 0, won: 0, val: 0, last: "" }; b.n++; if (["submitted", "technical", "ra", "awarded", "not_awarded"].includes(t.status)) b.sub++; if (t.status === "awarded") { b.won++; b.val += num(t.ourPrice || t.value); } b.last = [b.last, t.closing || t.published || ""].sort().pop(); return m; }, {})).sort((a, b) => b[1].n - a[1].n);
+  const comp = Object.entries(ts.filter(t => t.result?.winner || t.result?.l1).reduce((m, t) => { const w = (t.result.winner || (t.result.rank === 1 ? "Rivera" : "Unknown L1")).trim(), c = m[w] ||= { n: 0, gaps: [], last: "", items: new Set() }; c.n++; if (t.ourPrice && t.result.l1) c.gaps.push((t.ourPrice - t.result.l1) / t.result.l1 * 100); c.last = [c.last, t.closing || ""].sort().pop(); if (t.items) c.items.add(String(t.items).split(/[,;(]/)[0].slice(0, 40)); return m; }, {})).sort((a, b) => b[1].n - a[1].n);
+  const tabs = [["find", "Tender finder"], ["cal", "Closing calendar"], ["buyers", "Buyers"], ["comp", "Competitors & results"], ["alerts", "Keyword alerts"]];
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">GeM · CPPP · PSU tenders for Rivera</div><h1>Tender intelligence</h1><p>Every bid Rivera tracks or receives from GeM alerts — searched, scored against Rivera's keywords, laid out on a closing calendar, with buyer history and competitor results.</p></div>
+  <div class="row"><a class="btn" href="https://bidplus.gem.gov.in/all-bids" target="_blank" rel="noopener">GeM bids</a><a class="btn" href="https://eprocure.gov.in/eprocure/app" target="_blank" rel="noopener">CPPP</a><a class="btn" href="https://coalindiatenders.nic.in" target="_blank" rel="noopener">Coal India</a></div></div>
+  <div class="hero-strip"><div><span>New matches today</span><b>${brief.newm}</b></div><div class="${brief.close3 ? "warn" : ""}"><span>Closing in 3 days</span><b>${brief.close3}</b></div><div class="${brief.raToday ? "warn" : ""}"><span>Reverse auction today</span><b>${brief.raToday}</b></div><div><span>Results to record</span><b>${brief.noResult}</b></div><div><span>Win rate</span><b>${funnel[2][1] ? Math.round(funnel[3][1] / funnel[2][1] * 100) + "%" : "—"}</b></div></div>
+  <section class="panel" style="margin-bottom:16px"><div class="body funnel">${funnel.map(([l, n], i) => `<div class="fun-step"><span class="eyebrow">${l}</span><b>${n}</b>${i ? `<span class="muted small">${funnel[i - 1][1] ? Math.round(n / funnel[i - 1][1] * 100) : 0}%</span>` : ""}<i style="width:${funnel[0][1] ? Math.max(4, n / funnel[0][1] * 100) : 4}%"></i></div>`).join("")}</div></section>
+  <div class="tabs-row" role="tablist">${tabs.map(([k, l]) => `<button role="tab" class="tab ${S.tab === k ? "on" : ""}" aria-selected="${S.tab === k}" data-itab="${k}">${l}</button>`).join("")}</div>
+  <div id="intelBody"></div>`;
+  const B = $("#intelBody");
+  if (S.tab === "find") {
+    B.innerHTML = `<section class="panel"><div class="body"><div class="fields"><label class="f" style="grid-column:span 2">Keyword, bid number or buyer<input type="text" id="inQ" value="${esc(S.q)}" placeholder="stator coil, NTPC, GEM/2026/B/…"></label>
+    <label class="f">Show<select id="inSt">${[["live", "Live (not closed)"], ["match", "Rivera matches (50%+)"], ["", "Everything"], ["awarded", "Awarded"], ["not_awarded", "Not awarded"], ["alert", "GeM alerts not yet added"]].map(([k, l]) => `<option value="${k}" ${S.st === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    <label class="f">Closing within<select id="inW">${[["", "Any time"], ["3", "3 days"], ["7", "7 days"], ["15", "15 days"], ["30", "30 days"]].map(([k, l]) => `<option value="${k}" ${S.within === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    <label class="f">Buyer<select id="inOrg"><option value="">All buyers</option>${orgs.map(o => `<option ${S.org === o ? "selected" : ""}>${esc(o)}</option>`).join("")}</select></label>
+    <label class="f">Value from ₹<input type="number" id="inMin" value="${esc(S.vmin)}"></label><label class="f">Value to ₹<input type="number" id="inMax" value="${esc(S.vmax)}"></label></div></div></section>
+    <section class="panel" style="margin-top:16px"><header><h2>${list.length} tender${list.length === 1 ? "" : "s"}</h2></header><div class="body stack" style="gap:8px">${list.length ? list.slice(0, 200).map(r => `<div class="feed-row ${r.fit >= 50 ? "hot" : ""}"><div class="feed-fit" title="Match with Rivera's keywords">${r.fit}%</div><div style="min-width:0;flex:1"><b class="mono small">${esc(r.bid)}</b> ${r.closing ? dueChip(r.closing, !LIVE.includes(r.status)) : ""} <span class="chip ${TENDER_ST[r.status]?.[1] || ""}">${esc(TENDER_ST[r.status]?.[0] || "GeM alert")}</span><div class="small" style="overflow-wrap:anywhere"><b>${esc(r.org)}</b>${r.org ? " · " : ""}${esc(String(r.items).slice(0, 160))}</div>${r.value ? `<div class="muted small">₹${fmt(r.value, "INR", 0)} · ${esc(r.portal)}</div>` : ""}</div><div class="row" style="gap:6px">${r.link ? `<a class="btn sm" href="${esc(r.link)}" target="_blank" rel="noopener">Bid PDF</a>` : ""}${r.src === "t" ? `<a class="btn sm primary" href="#biddesk" data-iob="${esc(r.id)}">Bid Desk</a>` : `<button class="btn sm primary" data-iadd="${esc(r.bid)}">Track it</button>`}</div></div>`).join("") : `<div class="empty"><b>No tenders match</b>Change the filters or add keywords under Keyword alerts.</div>`}</div></section>`;
+    const set = (k, val) => { S[k] = val; render(); };
+    $("#inQ").oninput = e => { S.q = e.target.value; clearTimeout(S._t); S._t = setTimeout(() => { const p = $("#inQ")?.selectionStart; render(); const i = $("#inQ"); if (i) { i.focus(); i.setSelectionRange(p, p); } }, 250); };
+    $("#inSt").onchange = e => set("st", e.target.value); $("#inW").onchange = e => set("within", e.target.value); $("#inOrg").onchange = e => set("org", e.target.value);
+    $("#inMin").onchange = e => set("vmin", e.target.value); $("#inMax").onchange = e => set("vmax", e.target.value);
+    $$("[data-iob]", B).forEach(a => a.onclick = () => { const t = STATE.data.tenders.find(x => x.id === a.dataset.iob); if (t?.bidx) setTimeout(() => { BID = { t: clone(t), B: t.bidx.B }; drawBid(); }, 300); });
+    $$("[data-iadd]", B).forEach(b => b.onclick = async () => { const a = FEED.list.find(x => x.bid === b.dataset.iadd); await DB.put("tenders", { id: a.bid.replace(/[^A-Za-z0-9]+/g, "-"), bid: a.bid, portal: "GeM", status: "identified", items: a.item || a.subject, closing: a.closing, check: {}, emd: "Exempted (MSE)", link: a.link, log: [{ at: new Date().toISOString(), by: who(), what: "Tracked from Tender intelligence" }] }); toast(a.bid + " added to Tenders"); render(); });
+  } else if (S.tab === "cal") {
+    const [y, m] = S.month.split("-").map(Number), first = new Date(y, m - 1, 1), start = (first.getDay() + 6) % 7, nd = new Date(y, m, 0).getDate();
+    const ev = {}; for (const t of ts) { if (t.closing?.startsWith(S.month)) (ev[t.closing] ||= []).push({ t, k: "close" }); if (t.ra?.startsWith(S.month)) (ev[t.ra] ||= []).push({ t, k: "ra" }); }
+    for (const a of FEED.list || []) if (a.closing?.startsWith(S.month) && !ts.some(t => t.bid === a.bid) && a.fit >= 50) (ev[a.closing] ||= []).push({ t: { bid: a.bid, org: "GeM alert", items: a.item }, k: "alert" });
+    const cells = []; for (let i = 0; i < start; i++) cells.push(`<div class="cal-d off"></div>`);
+    for (let d = 1; d <= nd; d++) { const iso = `${S.month}-${String(d).padStart(2, "0")}`, e = ev[iso] || []; cells.push(`<div class="cal-d ${iso === now ? "today" : ""} ${iso < now ? "past" : ""}"><span class="cal-n">${d}</span>${e.slice(0, 4).map(x => `<span class="cal-e ${x.k}" title="${esc(x.t.bid + " · " + (x.t.org || "") + " · " + (x.t.items || ""))}">${x.k === "ra" ? "RA " : ""}${esc((x.t.org || "").split(" ")[0] || x.t.bid.slice(-7))}</span>`).join("")}${e.length > 4 ? `<span class="muted" style="font-size:.66rem">+${e.length - 4} more</span>` : ""}</div>`); }
+    const mv = k => { const d = new Date(y, m - 1 + k, 1); S.month = isoOf(d).slice(0, 7); render(); };
+    B.innerHTML = `<section class="panel"><header><h2>${first.toLocaleString("en-IN", { month: "long", year: "numeric" })}</h2><div class="row" style="gap:6px"><button class="btn sm" id="cPrev" aria-label="Previous month">‹</button><button class="btn sm" id="cNow">Today</button><button class="btn sm" id="cNext" aria-label="Next month">›</button></div></header><div class="body"><div class="cal">${["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map(d => `<div class="cal-h">${d}</div>`).join("")}${cells.join("")}</div><div class="row" style="gap:12px;margin-top:10px"><span class="small"><span class="cal-e close">Buyer</span> bid closes</span><span class="small"><span class="cal-e ra">RA</span> reverse auction</span><span class="small"><span class="cal-e alert">Alert</span> GeM match not tracked yet</span></div></div></section>`;
+    $("#cPrev").onclick = () => mv(-1); $("#cNext").onclick = () => mv(1); $("#cNow").onclick = () => { S.month = now.slice(0, 7); render(); };
+  } else if (S.tab === "buyers") {
+    B.innerHTML = `<section class="panel"><header><h2>Buyers Rivera bids for</h2></header><div class="scroll">${buyers.length ? `<table class="t"><thead><tr><th>Buyer</th><th class="n">Bids</th><th class="n">Submitted</th><th class="n">Won</th><th class="n">Win rate</th><th class="n">Won value ₹</th><th>Last bid</th></tr></thead><tbody>${buyers.map(([o, b]) => `<tr class="click" data-ibuy="${esc(o)}"><td><b>${esc(o)}</b></td><td class="n">${b.n}</td><td class="n">${b.sub}</td><td class="n">${b.won}</td><td class="n">${b.sub ? Math.round(b.won / b.sub * 100) + "%" : "—"}</td><td class="n">${fmt(b.val, "INR", 0)}</td><td class="mono">${dmy(b.last)}</td></tr>`).join("")}</tbody></table>` : `<div class="empty"><b>No tenders yet</b>Buyer history builds up as tenders are tracked.</div>`}</div></section>`;
+    $$("[data-ibuy]", B).forEach(r => r.onclick = () => { Object.assign(S, { tab: "find", org: r.dataset.ibuy, st: "" }); render(); });
+  } else if (S.tab === "comp") {
+    const res = ts.filter(t => t.result).sort((a, b) => String(b.closing).localeCompare(String(a.closing)));
+    B.innerHTML = `<section class="panel"><header><h2>Who wins against Rivera</h2></header><div class="scroll">${comp.length ? `<table class="t"><thead><tr><th>L1 / winner</th><th class="n">Times L1</th><th class="n">Rivera vs L1 (avg)</th><th>Items</th><th>Last seen</th></tr></thead><tbody>${comp.map(([w, c]) => { const g = c.gaps.length ? c.gaps.reduce((a, b) => a + b, 0) / c.gaps.length : null; return `<tr><td><b>${esc(w)}</b></td><td class="n">${c.n}</td><td class="n">${g == null ? "—" : `<span class="chip ${g > 0 ? "bad" : "ok"}">${g > 0 ? "+" : ""}${g.toFixed(1)}%</span>`}</td><td class="small">${esc([...c.items].slice(0, 3).join("; "))}</td><td class="mono">${dmy(c.last)}</td></tr>`; }).join("")}</tbody></table>` : `<div class="empty"><b>No results recorded yet</b>Enter L1 price, winner and Rivera's rank in the Bid Desk after each GeM result — this table then shows who beats Rivera and by how much.</div>`}</div></section>
+    ${res.length ? `<section class="panel" style="margin-top:16px"><header><h2>Recorded results</h2></header><div class="scroll"><table class="t"><thead><tr><th>Bid</th><th>Buyer</th><th class="n">Bidders</th><th class="n">L1 ₹</th><th class="n">Rivera ₹</th><th class="n">Rank</th><th>Winner</th></tr></thead><tbody>${res.map(t => `<tr><td class="mono" style="font-size:.74rem">${esc(t.bid)}</td><td>${esc(t.org)}</td><td class="n">${t.result.bidders || "—"}</td><td class="n">${t.result.l1 ? fmt(t.result.l1, "INR", 0) : "—"}</td><td class="n">${t.ourPrice ? fmt(t.ourPrice, "INR", 0) : "—"}</td><td class="n">${t.result.rank || "—"}</td><td>${esc(t.result.winner || "")}</td></tr>`).join("")}</tbody></table></div></section>` : ""}`;
+  } else {
+    const kw = tenderKeywords();
+    B.innerHTML = `<section class="panel"><header><h2>Rivera's tender keywords</h2></header><div class="body"><p class="muted small" style="margin-top:0">Every GeM alert and tracked tender is scored against these words. Two-word phrases count double. Bids scoring 50% or more are added to Tenders automatically.</p>
+    <div class="chips-row">${kw.map((w, i) => `<span class="chip ok">${esc(w)} <button class="btn ghost sm" style="padding:0 4px;min-height:0" data-kwx="${i}" aria-label="Remove ${esc(w)}">×</button></span>`).join("")}</div>
+    <div class="row" style="margin-top:12px;gap:8px"><input type="text" id="kwNew" placeholder="Add a keyword, e.g. exciter coil" style="max-width:280px"><button class="btn primary" id="kwAdd">${icon("plus")}Add</button><button class="btn" id="kwReset">Reset to Rivera defaults</button></div>
+    <div class="note" style="margin-top:14px">Test a title: <input type="text" id="kwTest" placeholder="Paste a GeM item title" style="max-width:420px"> <b id="kwScore"></b></div></div></section>`;
+    const saveKw = async list => { SETTINGS.tenderKeywords = list; await Store.saveSettings(); FEED.list.forEach(a => a.fit = tenderFit(`${a.item || ""} ${a.ctx || ""}`)); render(); };
+    $$("[data-kwx]", B).forEach(b => b.onclick = () => saveKw(kw.filter((_, i) => i !== +b.dataset.kwx)));
+    $("#kwAdd").onclick = () => { const w = $("#kwNew").value.trim().toLowerCase(); if (w && !kw.includes(w)) saveKw([...kw, w]); };
+    $("#kwNew").onkeydown = e => { if (e.key === "Enter") $("#kwAdd").click(); };
+    $("#kwReset").onclick = () => saveKw([]);
+    $("#kwTest").oninput = e => { $("#kwScore").textContent = e.target.value ? tenderFit(e.target.value) + "% match" : ""; };
+  }
+  $$("[data-itab]").forEach(b => b.onclick = () => { S.tab = b.dataset.itab; render(); });
+};
+/* labels: nothing in the app offers "Excel" any more */
+const _render12 = render;
+render = function () { _render12(); for (const b of document.querySelectorAll("#view button, #view a.btn")) for (const n of b.childNodes) if (n.nodeType === 3 && /excel|xlsx/i.test(n.nodeValue)) n.nodeValue = n.nodeValue.replace(/excel( with formulas)?|xlsx/ig, "PDF"); };
 boot();
 
 </script>

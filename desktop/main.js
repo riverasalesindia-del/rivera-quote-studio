@@ -79,6 +79,19 @@ function scanDocs() {
     if (files.length) { win.webContents.executeJavaScript(`window.riveraDocScan && window.riveraDocScan(${JSON.stringify(files)}, ${JSON.stringify(path.basename(root))})`).catch(() => {}); return; }
   }
 }
+// Original tender documents for the bid pack: only PDF / Word files inside the scanned tender folders.
+async function dropboxFile(rel) {
+  const head = { "access-control-allow-origin": "*" };
+  if (!/\.(pdf|docx?)$/i.test(rel)) return new Response("Not allowed", { status: 403, headers: head });
+  for (const root of dropboxRoots()) {
+    const full = path.normalize(path.join(root, rel)), r = path.relative(root, full).split(path.sep).join("/");
+    if (r.startsWith("..") || !SCAN_DIRS.some(d => r.toLowerCase().startsWith(d.toLowerCase() + "/"))) continue;
+    if (!fs.existsSync(full)) continue;
+    const res = await net.fetch(pathToFileURL(full).toString());
+    return new Response(res.body, { headers: { ...head, "content-type": /\.pdf$/i.test(full) ? "application/pdf" : "application/octet-stream" } });
+  }
+  return new Response("Not found", { status: 404, headers: head });
+}
 function sendPack() {
   if (!win) return; const b = findPack(); if (!b) return;
   win.webContents.executeJavaScript(`window.riveraReceivePack && window.riveraReceivePack(${JSON.stringify(b.j)}, ${JSON.stringify(b.label)})`).catch(() => {});
@@ -109,6 +122,7 @@ if (!app.requestSingleInstanceLock()) {
     protocol.handle("rivera", req => {
       const u = new URL(req.url);
       let p = decodeURIComponent(u.pathname || "/");
+      if (u.host === "dbx") return dropboxFile(p);
       if (p === "/" || p === "") p = "/index.html";
       const file = path.normalize(path.join(WEB, p));
       if (!file.startsWith(WEB)) return new Response("Not allowed", { status: 403 });
