@@ -4952,7 +4952,7 @@ function completePlan(t, B, rows, el) {
     { k: "orig", docs: exp.pos, label: "Past work orders / contracts", need: "experience" },
     { k: "orig", docs: exp.crac, label: "CRAC (receipt & acceptance)" },
     { k: "orig", docs: exp.inv, label: "Tax invoices (proof of supply)" },
-    { k: "orig", docs: exp.comp, label: "Completion / performance certificate" },
+    { k: "orig", docs: exp.comp.filter(d => !/estimation|schedule|balance/i.test(d.path + " " + d.title)), label: "Completion / performance certificate" },
     { k: "orig", docs: test, label: "Test report", need: "test" },
     { k: "orig", docs: qap, label: "Quality assurance plan" },
     { k: "orig", docs: pickDocs("iso", 1), label: "ISO certificate" }
