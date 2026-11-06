@@ -68,31 +68,48 @@ function sessLink(action, sid) { var exp = Date.now() + 3 * 864e5, body = action
 /* ---------- document store: one tab per file in a separate private spreadsheet ---------- */
 var FCHUNK = 45000;
 function seedOk(k) { var s = props().getProperty("SEEDKEY"), x = Number(props().getProperty("SEEDEXP") || 0); return !!(s && k && eq(String(k), s) && Date.now() < x); }
-function filesBook() { var id = props().getProperty("FILES_SS"); if (id) return SpreadsheetApp.openById(id); var n = SpreadsheetApp.create("Rivera Quote Studio — private document store"); props().setProperty("FILES_SS", n.getId()); return n; }
+var BOOK_MAX = 35e6;   // bytes of base64 per spreadsheet before a new one is started
+function filesBook(id) {
+  if (id) return SpreadsheetApp.openById(id);
+  var cur = props().getProperty("FILES_SS"), u0 = props().getProperty("FILES_USED"), used = u0 === null ? (cur ? BOOK_MAX : 0) : Number(u0);
+  if (cur && used < BOOK_MAX) return SpreadsheetApp.openById(cur);
+  var n = SpreadsheetApp.create("Rivera Quote Studio — private document store " + (cur ? Number(props().getProperty("FILES_N") || 1) + 1 : 1));
+  props().setProperty("FILES_SS", n.getId()); props().setProperty("FILES_USED", "0"); props().setProperty("FILES_N", String(Number(props().getProperty("FILES_N") || (cur ? 1 : 0)) + 1));
+  if (!props().getProperty("FILES_FIRST")) props().setProperty("FILES_FIRST", cur || n.getId());
+  return n;
+}
+function bookOf(tab) { var s = String(tab || ""), i = s.indexOf("|"); return i > 0 ? { book: filesBook(s.slice(0, i)), tab: s.slice(i + 1) } : { book: filesBook(props().getProperty("FILES_FIRST") || props().getProperty("FILES_SS")), tab: s }; }
 var FH = ["id", "name", "type", "size", "kind", "meta", "tab", "updated", "by"];
 function fileIndex() { return sheet("FileIndex", FH); }
 function fileRows() { var v = fileIndex().getDataRange().getValues(), out = []; for (var i = 1; i < v.length; i++) { var r = { row: i + 1 }; FH.forEach(function (k, j) { r[k] = v[i][j]; }); if (r.id) out.push(r); } return out; }
 function fileList() { return fileRows().map(function (r) { var m = {}; try { m = JSON.parse(r.meta || "{}"); } catch (e) { } return { id: r.id, name: r.name, type: r.type, size: Number(r.size || 0), kind: r.kind, meta: m, updated: r.updated ? new Date(r.updated).toISOString() : "" }; }); }
-function filePut(d, by) {
+function filePut(d, by, canOverwrite) {
   var id = String(d.id || "").slice(0, 120), b64 = String(d.b64 || ""); if (!id || !b64) throw "File id and content are required";
   if (b64.length > 40e6) throw "File too large";
-  var book = filesBook(), rows = fileRows(), old = null; rows.forEach(function (r) { if (r.id === id) old = r; });
-  var tab = old ? old.tab : "f" + Utilities.getUuid().replace(/-/g, "").slice(0, 16), sh = book.getSheetByName(tab) || book.insertSheet(tab);
-  sh.clear(); var parts = []; for (var i = 0; i < b64.length; i += FCHUNK) parts.push([b64.slice(i, i + FCHUNK)]);
-  if (sh.getMaxRows() < parts.length) sh.insertRowsAfter(sh.getMaxRows(), parts.length - sh.getMaxRows());
-  sh.getRange(1, 1, parts.length, 1).setNumberFormat("@").setValues(parts);
-  var row = [id, String(d.name || id).slice(0, 200), String(d.type || "application/pdf").slice(0, 80), Math.round(b64.length * 3 / 4), String(d.kind || "doc").slice(0, 40), JSON.stringify(d.meta || {}).slice(0, 4000), tab, new Date(), by];
-  if (old) fileIndex().getRange(old.row, 1, 1, FH.length).setValues([row]); else fileIndex().appendRow(row);
-  var dflt = book.getSheetByName("Sheet1"); if (dflt && book.getSheets().length > 1) book.deleteSheet(dflt);
-  return { ok: true, id: id, size: row[3] };
+  var lock = LockService.getScriptLock(); lock.waitLock(30000);
+  try {
+    var rows = fileRows(), old = null; rows.forEach(function (r) { if (r.id === id) old = r; });
+    if (old && !canOverwrite) return { ok: true, id: id, exists: true };
+    var loc, sh;
+    if (old) { loc = bookOf(old.tab); sh = loc.book.getSheetByName(loc.tab) || loc.book.insertSheet(loc.tab); }
+    else { var book = filesBook(), tab = "f" + Utilities.getUuid().replace(/-/g, "").slice(0, 16); loc = { book: book, tab: tab }; sh = book.insertSheet(tab); }
+    sh.clear(); var parts = []; for (var i = 0; i < b64.length; i += FCHUNK) parts.push([b64.slice(i, i + FCHUNK)]);
+    if (sh.getMaxRows() < parts.length) sh.insertRowsAfter(sh.getMaxRows(), parts.length - sh.getMaxRows());
+    sh.getRange(1, 1, parts.length, 1).setNumberFormat("@").setValues(parts);
+    var tabRef = old ? old.tab : loc.book.getId() + "|" + loc.tab;
+    var row = [id, String(d.name || id).slice(0, 200), String(d.type || "application/pdf").slice(0, 80), Math.round(b64.length * 3 / 4), String(d.kind || "doc").slice(0, 40), JSON.stringify(d.meta || {}).slice(0, 4000), tabRef, new Date(), by];
+    if (old) fileIndex().getRange(old.row, 1, 1, FH.length).setValues([row]); else { fileIndex().appendRow(row); props().setProperty("FILES_USED", String(Number(props().getProperty("FILES_USED") || 0) + b64.length)); }
+    var dflt = loc.book.getSheetByName("Sheet1"); if (dflt && loc.book.getSheets().length > 1) loc.book.deleteSheet(dflt);
+    return { ok: true, id: id, size: row[3] };
+  } finally { lock.releaseLock(); }
 }
 function fileGet(id) {
   var r = null; fileRows().forEach(function (x) { if (x.id === id) r = x; }); if (!r) throw "File not found";
-  var sh = filesBook().getSheetByName(r.tab); if (!sh) throw "File not found";
+  var loc = bookOf(r.tab), sh = loc.book.getSheetByName(loc.tab); if (!sh) throw "File not found";
   var n = sh.getLastRow(), v = n ? sh.getRange(1, 1, n, 1).getValues() : [];
   return { ok: true, id: id, name: r.name, type: r.type, b64: v.map(function (x) { return String(x[0]); }).join("") };
 }
-function fileDel(id) { fileRows().forEach(function (r) { if (r.id === id) { var sh = filesBook().getSheetByName(r.tab); if (sh) filesBook().deleteSheet(sh); fileIndex().deleteRow(r.row); } }); }
+function fileDel(id) { fileRows().forEach(function (r) { if (r.id === id) { var loc = bookOf(r.tab), sh = loc.book.getSheetByName(loc.tab); if (sh) loc.book.deleteSheet(sh); fileIndex().deleteRow(r.row); } }); }
 
 function api(d) {
   var a = d.action;
@@ -152,7 +169,7 @@ function api(d) {
     return { ok: true };
   }
   /* ---- private document store (seeded once from Dropbox with a short-lived key) ---- */
-  if (a === "filePut" && d.seed) { if (!seedOk(d.seed)) throw "Seed key expired"; return filePut(d, "dropbox-seed"); }
+  if (a === "filePut" && d.seed) { if (!seedOk(d.seed)) throw "Seed key expired"; return filePut(d, "dropbox-seed", true); }
   if (a === "fileList" && d.seed) { if (!seedOk(d.seed)) throw "Seed key expired"; return { ok: true, files: fileList() }; }
   /* ---- signed-in actions ---- */
   var me = auth(d.token, false);
@@ -160,6 +177,7 @@ function api(d) {
   if (a === "logout") { var so = findSession(me.sid); if (so) { so.status = "ended"; so.decidedAt = new Date(); so.decidedBy = "signed out"; saveSession(so); } log(me.email, "logout", ""); return { ok: true }; }
   if (a === "pack") { var p = getBlob("datapack"); return { ok: true, pack: p }; }
   if (a === "fileList") return { ok: true, files: fileList() };
+  if (a === "fileAdd") { if (String(d.kind || "doc") !== "doc") throw "Only documents can be added"; var ra = filePut(d, me.email, false); if (!ra.exists) log(me.email, "file-add", String(d.name || d.id).slice(0, 120)); return ra; }
   if (a === "fileGet") return fileGet(String(d.id || ""));
   if (a === "gemAlerts") {
     var gc = CacheService.getScriptCache(), hit = gc.get("gemAlerts");
@@ -220,7 +238,7 @@ function api(d) {
   if (a === "sessions") { var sv = sessions().getDataRange().getValues().slice(1), so2 = []; sv.forEach(function (r) { var s = {}; SH.forEach(function (k, j) { s[k] = r[j]; }); if (s.sid) so2.push(pubS(s)); }); so2.reverse(); return { ok: true, sessions: so2.filter(function (s) { return s.status === "pending" || s.status === "approved"; }).concat(so2.filter(function (s) { return s.status !== "pending" && s.status !== "approved"; }).slice(0, 60)) }; }
   if (a === "setSession") { var ss2 = findSession(String(d.sid || "")); if (!ss2) throw "Not found"; if (["approved", "rejected", "revoked"].indexOf(d.status) < 0) throw "Bad status"; ss2.status = d.status; ss2.decidedAt = new Date(); ss2.decidedBy = me.email; saveSession(ss2); log(me.email, "session-" + d.status, ss2.user + " " + ss2.device); return { ok: true }; }
   if (a === "log") { var lv = sheet("Log", ["time", "email", "action", "detail"]).getDataRange().getValues().slice(1).slice(-300).reverse(); return { ok: true, log: lv.map(function (r) { return { time: new Date(r[0]).toISOString(), email: r[1], action: r[2], detail: r[3] }; }) }; }
-  if (a === "filePut") return filePut(d, me.email);
+  if (a === "filePut") return filePut(d, me.email, true);
   if (a === "fileDel") { fileDel(String(d.id || "")); log(me.email, "file-delete", d.id); return { ok: true }; }
   if (a === "putPack") { if (!d.pack || d.pack.kind !== "rivera-datapack") throw "Not a Rivera data pack"; putBlob("datapack", d.pack); log(me.email, "datapack-upload", ""); return { ok: true }; }
   if (a === "config") { if (d.loginMail !== undefined) props().setProperty("CFG_loginMail", d.loginMail ? "1" : "0"); return { ok: true }; }

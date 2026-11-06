@@ -4222,7 +4222,7 @@ const DOCIX = (() => {
   const hash = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
   function classify(path, meta = {}) {
     const name0 = path.split("/").pop(), low = path.toLowerCase(), name = name0.replace(/\.(pdf|docx?|xlsx?)$/i, "").replace(/[_\-.()]+/g, " ") + "." + (name0.split(".").pop());
-    if (!EXT.test(name) || SKIP.test(name) || SKIP.test(path.split("/").slice(-2, -1)[0] || "")) return null;
+    if (!EXT.test(name) || SKIP.test(name) || SKIP.test(path.split("/").slice(-2, -1)[0] || "") || /\/RCR([ _-][^/]*)?\//i.test(path)) return null;   // RCR is a different company — never mix its papers into RCM bids
     const rule = RULES.find(([, re]) => re.test(name)) || (/work awarded/i.test(low) && /\/(awarded|work order|po)\//i.test(low) ? RULES.find(r => r[0] === "experience") : null);
     if (!rule) return null;
     const [type, , label] = rule;
@@ -4742,9 +4742,11 @@ const DSTORE = {
     return { name: file.name, type: file.type, blob: file };
   },
   async put(id, file, meta) {
-    const b64 = await blobToB64(file);
-    await AUTH.call("filePut", { id, name: file.name, type: file.type || "application/pdf", kind: meta?.kind || "doc", meta: meta || {}, b64 }, 300000);
-    await FILES.put("srv:" + id, file); await this.load(true);
+    const b64 = await blobToB64(file), body = { id, name: file.name, type: file.type || "application/pdf", kind: meta?.kind || "doc", meta: meta || {}, b64 };
+    const r = await AUTH.call(AUTH.isAdmin ? "filePut" : "fileAdd", body, 300000);
+    try { await FILES.put("srv:" + id, file); } catch { }
+    this.list = this.list.filter(f => f.id !== id).concat([{ id, name: file.name, type: body.type, size: file.size, kind: body.kind, meta: body.meta, updated: new Date().toISOString() }]);
+    LS.set("dstore", this.list); return r;
   },
   mb() { return this.list.reduce((s, f) => s + (f.size || 0), 0) / 1e6; }
 };
@@ -5037,24 +5039,47 @@ render = function () {
   $("#dsRef")?.addEventListener("click", async () => { await DSTORE.load(true); render(); });
 };
 
-/* ---------- Windows app: new Dropbox tender documents go to the private store by themselves (admin session) ---------- */
-const KEEP_TYPES = ["experience", "crac", "invoice", "completion", "udyam", "mii", "dpiit", "gst", "pan", "iso", "test", "qap", "oem", "warranty", "bank", "cin", "tan"];
-const _scan13 = window.riveraDocScan;
-window.riveraDocScan = async (files, root) => {
-  await _scan13(files, root);
-  if (location.protocol !== "rivera:" || !AUTH.isAdmin || !DSTORE.online()) return;
+/* ---------- documents added from any PC appear on every device (names only, never links) ---------- */
+function mergeStoreDocs() {
+  const have = new Set((STATE.data.docs || []).map(d => d.id)); let n = 0;
+  for (const f of DSTORE.list) if (f.kind === "doc" && f.meta?.type && !have.has(f.id)) { (STATE.data.docs ||= []).push({ id: f.id, type: f.meta.type, title: f.meta.title || "", path: f.meta.path || "", customer: f.meta.customer || "", ref: f.meta.ref || "", date: f.meta.date || String(f.updated || "").slice(0, 10), status: f.meta.status || "", src: "store", fromPack: 1 }); n++; }
+  return n;
+}
+const _load13 = DSTORE.load.bind(DSTORE);
+DSTORE.load = async function (force) { const r = await _load13(force); if (mergeStoreDocs() && ["library", "biddesk"].includes(STATE.route)) render(); return r; };
+
+/* ---------- Windows app on the Dropbox PC: every relevant RCM document goes into the permanent store by itself ---------- */
+const KEEP_TYPES = ["experience", "crac", "invoice", "completion", "udyam", "mii", "dpiit", "gst", "pan", "cin", "tan", "iec", "iso", "test", "qap", "oem", "warranty", "bank", "declaration", "machines", "stock", "process", "profile", "epbg", "auth", "spec", "annex"];
+const SYNC = { busy: false, done: 0, left: 0, at: 0 };
+async function syncStoreFromDropbox(maxFiles = 30) {
+  if (SYNC.busy || location.protocol !== "rivera:" || !DSTORE.online()) return;
+  SYNC.busy = true;
   try {
-    await DSTORE.load(true); let n = 0;
-    for (const d of (STATE.data.docs || []).filter(d => d.src === "dx" && KEEP_TYPES.includes(d.type) && !d.missing && /\.pdf$/i.test(d.path) && !DSTORE.has(d.id) && (d.size || 0) < 8e6 && (d.status === "awarded" || !/TENDER/.test(d.path) || !["experience", "crac", "invoice"].includes(d.type)))) {
-      if (n >= 10) break;
-      const r = await fetch("rivera://dbx" + d.path.split("/").map(encodeURIComponent).join("/")); if (!r.ok) continue;
-      const b = await r.blob(); await DSTORE.put(d.id, new File([b], docFile(d), { type: "application/pdf" }), { kind: "doc", type: d.type, path: d.path, title: d.title, customer: d.customer, ref: d.ref, date: d.date }); n++;
+    await DSTORE.load(true);
+    const queue = (STATE.data.docs || []).filter(d => d.path && KEEP_TYPES.includes(d.type) && !d.missing && /\.(pdf|docx?)$/i.test(d.path) && !/\/RCR[ _-]|\bRCR\b/i.test(d.path) && !DSTORE.has(d.id) && (d.size || 0) < 9e6)
+      .sort((a, b) => (b.status === "awarded") - (a.status === "awarded") || String(b.date || "").localeCompare(String(a.date || "")));
+    SYNC.left = queue.length; let n = 0;
+    for (const d of queue) {
+      if (n >= maxFiles) break;
+      try {
+        const r = await fetch("rivera://dbx" + d.path.split("/").map(encodeURIComponent).join("/")); if (!r.ok) continue;
+        const b = await r.blob(), type = /\.pdf$/i.test(d.path) ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document";
+        await DSTORE.put(d.id, new File([b], docFile(d), { type }), { kind: "doc", type: d.type, path: d.path, title: d.title || docTitle(d), customer: d.customer, ref: d.ref, date: d.date, status: d.status });
+        n++; SYNC.done++; SYNC.left--;
+      } catch (e) { ERRLOG.add("Store " + docFile(d) + ": " + e.message, "desktop"); }
     }
-    if (n) toast(`${n} new tender document${n > 1 ? "s" : ""} stored for bids`);
+    SYNC.at = Date.now(); LS.set("storeSync", { at: SYNC.at, done: SYNC.done, left: SYNC.left });
+    if (n) toast(`${n} Dropbox document${n > 1 ? "s" : ""} stored permanently${SYNC.left ? ` · ${SYNC.left} more in the next round` : ""}`);
   } catch (e) { ERRLOG.add("Auto-store from Dropbox: " + e.message, "desktop"); }
-};
+  SYNC.busy = false;
+}
+const _scan13 = window.riveraDocScan;
+window.riveraDocScan = async (files, root) => { await _scan13(files, root); syncStoreFromDropbox(); };
 const _boot13 = boot;
-boot = function () { _boot13(); setTimeout(() => DSTORE.load(), 4000); setInterval(() => DSTORE.load(), 30 * 60000); };
+boot = function () {
+  _boot13(); setTimeout(() => DSTORE.load(), 4000); setInterval(() => DSTORE.load(), 30 * 60000);
+  if (location.protocol === "rivera:") setInterval(() => syncStoreFromDropbox(), 10 * 60000);     // keeps going until everything is stored, then picks up new files
+};
 boot();
 
 </script>
