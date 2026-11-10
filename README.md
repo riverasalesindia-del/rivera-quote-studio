@@ -20,6 +20,7 @@ Company costing data (rate card, past jobs, bank details) is **not** in this rep
 - **Auto quote** – one tap: workings → quotation → register → Synology folder → share
 - **Quote workings** – stator (diamond), Roebel bar, armature, equalizer, main pole, interpole, rotor pole, re-insulation
 - **Quotation** – Rivera letterhead, domestic / export / service / GeM terms, PDF · Word · Excel · HTML
+- **Tender database** (Tender247-style) – every tender ever seen (email alerts from GeM / CPPP / Coal India / NIC / Tender247 …, GeM direct search, Excel import, Rivera register) kept for good as live + archive; results with every bidder's price and L1; buyer and competitor analysis; one-time backfill of 3 years of old mails. Data lives in the TenderDB and TenderResults tabs of the sign-in server's Google Sheet.
 - **Work orders**, **Tenders & GeM** (checklist + annexure kit II–X), **Vendors, price book & RFQ**
 - **Export & share** – any format, WhatsApp, email, or any app on the phone
 - **Synology** – connect the SALES folder once; jobs, registers and tender kits are filed automatically

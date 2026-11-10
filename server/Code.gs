@@ -138,13 +138,17 @@ function isoDate(s) {
 }
 function money(s, unit) { var v = Number(String(s || "").replace(/,/g, "")) || 0; unit = String(unit || "").toLowerCase(); if (/^cr/.test(unit)) v *= 1e7; else if (/^la|^lac/.test(unit)) v *= 1e5; return Math.round(v); }
 function portalOf(id, from, txt) {
-  if (/^GEM\//.test(id)) return "GeM"; var f = String(from || "").toLowerCase() + " " + String(txt || "").slice(0, 400).toLowerCase();
+  if (/^GEM\//.test(id)) return "GeM"; var fr = String(from || "").toLowerCase();
+  if (/tender247/.test(fr)) return "Tender247"; if (/tendertiger/.test(fr)) return "TenderTiger"; if (/bidassist/.test(fr)) return "BidAssist"; if (/tendersinfo/.test(fr)) return "TendersInfo"; if (/tenderdetail/.test(fr)) return "TenderDetail"; if (/gem\.gov\.in/.test(fr)) return "GeM";
+  if (/^\d{6,9}$/.test(id) && /t247/i.test(String(txt || ""))) return "Tender247";
+  var f = fr + " " + String(txt || "").slice(0, 400).toLowerCase();
   if (/coalindia/.test(f)) return "Coal India e-proc"; if (/eprocure\.gov\.in|cppp/.test(f)) return "CPPP"; if (/ntpc/.test(f)) return "NTPC"; if (/bhel/.test(f)) return "BHEL";
   if (/tender247/.test(f)) return "Tender247"; if (/tendertiger/.test(f)) return "TenderTiger"; if (/bidassist/.test(f)) return "BidAssist"; if (/nic\.in/.test(f)) return "State / NIC e-proc";
   return "Email alert";
 }
-function scanTenderMail() {
-  var kw = kwList(), out = [], seen = {}, th = GmailApp.search(TENDER_Q, 0, 120);
+function scanTenderMail() { return alertsFromThreads(GmailApp.search(TENDER_Q, 0, 120), kwList()); }
+function alertsFromThreads(th, kw) {
+  var out = [], seen = {};
   var ID = /GEM\/\d{4}\/[BR]\/\d{5,}|\b20\d{2}_[A-Z][A-Z0-9]{1,14}_\d{3,8}_\d{1,2}\b|(?:Tender\s*(?:ID|No\.?|Number|Ref(?:erence)?)|T247\s*ID|NIT\s*No\.?|Enquiry\s*No\.?)\s*[:#.\-]?\s*([A-Z0-9][A-Z0-9\/_.\-]{4,40})/gi;
   th.forEach(function (t) {
     t.getMessages().forEach(function (m) {
@@ -160,8 +164,8 @@ function scanTenderMail() {
         var ctx = (back + " " + h.id + " " + fwd).replace(/\s+/g, " ");
         var close = (blk.match(/(?:bid end|end date|closing|due date|last date|submission (?:end|date)|bid submission)[^0-9A-Za-z]{0,40}(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{4}|\d{1,2}[- ][A-Za-z]{3,9}[-, ]+\d{4})/i) || [])[1] || (fwd.match(/\d{2}[-\/]\d{2}[-\/]\d{4}/) || [""])[0];
         var preBid = (blk.match(/pre[- ]?bid[^0-9]{0,40}(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{4}|\d{1,2}[- ][A-Za-z]{3,9}[-, ]+\d{4})/i) || [])[1] || "";
-        var emd = blk.match(/EMD[^0-9₹\n]{0,25}(?:₹|Rs\.?|INR)?\s*([\d,]{3,}(?:\.\d+)?)\s*(lakh|lac|crore|cr)?/i);
-        var val = blk.match(/(?:estimated (?:bid )?value|tender value|ECV|bid value|value of (?:the )?(?:tender|work))[^0-9₹\n]{0,25}(?:₹|Rs\.?|INR)?\s*([\d,]{3,}(?:\.\d+)?)\s*(lakh|lac|crore|cr)?/i);
+        var emd = blk.match(/EMD[^0-9₹\n]{0,25}(?:₹|Rs\.?|INR)?\s*([\d,]+(?:\.\d+)?)\s*(lakhs?|lacs?|crores?|cr)?/i);
+        var val = blk.match(/(?:estimated (?:bid )?value|tender value|ECV|bid value|value of (?:the )?(?:tender|work))[^0-9₹\n]{0,25}(?:₹|Rs\.?|INR)?\s*([\d,]+(?:\.\d+)?)\s*(lakhs?|lacs?|crores?|cr)?/i);
         var org = ((blk.match(/(?:organi[sz]ation|department|buyer|ministry|company)\s*(?:name)?\s*[:\-]\s*([^\n|]{3,90})/i) || [])[1] || "").trim();
         var item = ((blk.match(/(?:item(?: category)?|title|work|description|tender brief|product)\s*(?:name)?\s*[:\-]\s*([^\n|]{4,200})/i) || [])[1] || fwd.replace(/\s+/g, " ").replace(/^[\s:.,-]*/, "").split(/bid end|end date|https?:|\bview\b/i)[0]).slice(0, 180).trim();
         var link = (fwd.match(/https?:\/\/[^\s"'<>]+/i) || [""])[0];
@@ -214,7 +218,8 @@ function tableHtml(title, head, rows) {
 }
 function dmyS(iso) { iso = String(iso || ""); return iso.length >= 10 ? iso.slice(8, 10) + "-" + iso.slice(5, 7) + "-" + iso.slice(0, 4) : ""; }
 function hourlyWatch() {
-  var alerts = scanTenderMail(), res = applyAlerts(alerts), P = props();
+  var alerts = scanTenderMail(), tw = tdbWatch(alerts), res = applyAlerts(alerts.concat(tw.gemAlerts || [])), P = props();
+  alerts = alerts.concat(tw.gemAlerts || []);
   var sent = {}; try { sent = JSON.parse(P.getProperty("ALERTED") || "{}"); } catch (e) { }
   var hot = alerts.filter(function (a) { return a.fit >= 75 && !sent[a.bid] && (!a.closing || a.closing >= Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyy-MM-dd")); });
   if (hot.length || res.changed.length) {
@@ -228,8 +233,8 @@ function hourlyWatch() {
     P.setProperty("ALERTED", JSON.stringify(keep));
   }
   CacheService.getScriptCache().remove("tenderAlerts");
-  log("automation", "hourly-watch", alerts.length + " alerts, " + res.added.length + " added, " + res.changed.length + " date changes, " + hot.length + " mailed");
-  return { alerts: alerts.length, added: res.added.length, changed: res.changed.length, mailed: hot.length };
+  log("automation", "hourly-watch", alerts.length + " alerts, " + res.added.length + " added, " + res.changed.length + " date changes, " + hot.length + " mailed; database +" + tw.email + " email, +" + tw.gem + " GeM, +" + tw.results + " results");
+  return { alerts: alerts.length, added: res.added.length, changed: res.changed.length, mailed: hot.length, db: { email: tw.email, gem: tw.gem, results: tw.results } };
 }
 function dailyDigest() {
   var w = hourlyWatch(), reg = getBlob("register") || { data: {} }, ts = (reg.data && reg.data.tenders) || [];
@@ -267,6 +272,278 @@ function installAutomation() {
 function automationState() {
   var on = false; try { on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === "hourlyWatch"; }); } catch (e) { }
   return { on: on, digestTo: digestTo(), last: props().getProperty("DIGEST_LAST") || "", since: props().getProperty("AUTO_ON") || "" };
+}
+
+/* ================= Tender database (Tender247-style) =================
+ * TenderDB       — every tender ever seen: email alerts (GeM, CPPP, Coal India, NIC, Tender247 …), GeM direct search,
+ *                  Excel imports and Rivera's own register. Rows are never deleted, so closed tenders become the archive.
+ * TenderResults  — award / L1 / every bidder's price: result mails, Excel imports, manual entry and Rivera's recorded results.
+ * hourlyWatch() feeds both; tdbBackfill() reads up to 3 years of old alert mails once (runs itself every 10 min until done).
+ */
+var TDH = ["key", "bid", "portal", "org", "item", "state", "city", "value", "emd", "published", "closing", "preBid", "fit", "link", "source", "firstSeen", "lastSeen", "corr", "status", "subject"];
+var TRH = ["key", "bid", "org", "item", "bidder", "rank", "price", "awarded", "resultDate", "source", "by", "added", "note"];
+var TDB_Q_ALL = TENDER_Q.replace(/newer_than:\d+d/, "newer_than:1100d");
+var RESULT_Q = '(subject:result OR subject:award OR subject:awarded OR subject:"L1" OR subject:"price bid" OR subject:"financial bid" OR subject:"bid status" OR subject:"evaluation" OR subject:contract) ("GEM/20" OR from:gem.gov.in OR from:eprocure.gov.in OR from:nic.in OR from:coalindia.in OR from:tender247.com OR from:tendertiger.com OR from:bidassist.com OR from:tendersinfo.com) ';
+var STATES = ["Andhra Pradesh", "Arunachal Pradesh", "Assam", "Bihar", "Chhattisgarh", "Goa", "Gujarat", "Haryana", "Himachal Pradesh", "Jharkhand", "Karnataka", "Kerala", "Madhya Pradesh", "Maharashtra", "Manipur", "Meghalaya", "Mizoram", "Nagaland", "Odisha", "Punjab", "Rajasthan", "Sikkim", "Tamil Nadu", "Telangana", "Tripura", "Uttar Pradesh", "Uttarakhand", "West Bengal", "Delhi", "Jammu and Kashmir", "Ladakh", "Puducherry", "Chandigarh", "Andaman and Nicobar"];
+var STATE_HINT = [[/\bncl\b|singrauli/i, "Madhya Pradesh"], [/\bmcl\b|talcher|sambalpur|orissa/i, "Odisha"], [/\bsecl\b|bilaspur|korba/i, "Chhattisgarh"], [/\bwcl\b|nagpur|chandrapur/i, "Maharashtra"], [/\bccl\b|\bbccl\b|ranchi|dhanbad|bokaro/i, "Jharkhand"], [/\becl\b|asansol|durgapur|kolkata/i, "West Bengal"], [/tangedco|tneb|tnpdcl|neyveli|nlc|chennai|mettur|tuticorin|erode|coimbatore/i, "Tamil Nadu"], [/kseb|cochin|kochi/i, "Kerala"], [/kpcl|bangalore|bengaluru|raichur/i, "Karnataka"], [/apgenco|vizag|visakhapatnam|vijayawada/i, "Andhra Pradesh"], [/tsgenco|hyderabad|singareni|sccl/i, "Telangana"], [/mahagenco|mumbai|pune/i, "Maharashtra"], [/gsecl|ahmedabad|vadodara/i, "Gujarat"], [/rvunl|jaipur|kota/i, "Rajasthan"], [/uprvunl|lucknow|anpara|obra/i, "Uttar Pradesh"]];
+function stateOf(t) {
+  t = String(t || ""); for (var i = 0; i < STATES.length; i++) if (new RegExp("\\b" + STATES[i].replace(/ and /, " (and|&) ") + "\\b", "i").test(t)) return STATES[i];
+  for (var j = 0; j < STATE_HINT.length; j++) if (STATE_HINT[j][0].test(t)) return STATE_HINT[j][1];
+  if (/\btamilnadu\b/i.test(t)) return "Tamil Nadu"; return "";
+}
+function tdbFmt(sh, n) { var p = "FMT_" + sh.getName(); if (props().getProperty(p)) return; sh.getRange(1, 1, sh.getMaxRows(), n).setNumberFormat("@"); sh.setFrozenRows(1); props().setProperty(p, "1"); }
+function tdbSheet() { var sh = sheet("TenderDB", TDH); tdbFmt(sh, TDH.length); return sh; }
+function trSheet() { var sh = sheet("TenderResults", TRH); tdbFmt(sh, TRH.length); return sh; }
+function tkey(bid) { return String(bid || "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, ""); }
+function nkey(s) { return String(s || "").toLowerCase().replace(/\b(m\/s|messrs|pvt|private|ltd|limited|llp|inc|co|company|the)\b\.?/g, "").replace(/[^a-z0-9]+/g, ""); }
+function todayIST() { return Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyy-MM-dd"); }
+function cellStr(x) { return x instanceof Date ? Utilities.formatDate(x, "Asia/Kolkata", "yyyy-MM-dd") : x === null || x === undefined ? "" : x; }
+function readTable(sh, H) {
+  var v = sh.getDataRange().getValues(), out = [];
+  for (var i = 1; i < v.length; i++) { if (!v[i][0]) continue; var o = {}; for (var j = 0; j < H.length; j++) o[H[j]] = cellStr(v[i][j]); out.push(o); }
+  return out;
+}
+function writeTable(sh, H, rows) {
+  var last = sh.getLastRow(); if (last > 1) sh.getRange(2, 1, last - 1, H.length).clearContent();
+  if (!rows.length) return;
+  if (sh.getMaxRows() < rows.length + 1) sh.insertRowsAfter(sh.getMaxRows(), rows.length + 1 - sh.getMaxRows());
+  sh.getRange(2, 1, rows.length, H.length).setNumberFormat("@").setValues(rows.map(function (r) { return H.map(function (k) { var x = r[k]; return x === undefined || x === null ? "" : String(x).slice(0, 1000); }); }));
+}
+function tstatus(r, today) { if (/cancel/i.test(r.status || "")) return "cancelled"; return r.closing && String(r.closing) < today ? "closed" : "live"; }
+function clean(s, n) { return String(s || "").replace(/\s+/g, " ").trim().slice(0, n || 300); }
+
+function tdbUpsert(rows, source) {
+  rows = (rows || []).filter(function (a) { return a && tkey(a.bid).length >= 5; });
+  if (!rows.length) return { added: 0, updated: 0 };
+  var lock = LockService.getScriptLock(); lock.waitLock(25000);
+  try {
+    var sh = tdbSheet(), all = readTable(sh, TDH), by = {}, now = new Date().toISOString(), today = todayIST(), added = 0, updated = 0;
+    all.forEach(function (r) { by[r.key] = r; });
+    rows.forEach(function (a) {
+      var k = tkey(a.bid), r = by[k];
+      var inc = { bid: clean(a.bid, 80), portal: clean(a.portal, 40), org: clean(a.org, 160), item: clean(a.item, 400), state: clean(a.state || stateOf((a.org || "") + " " + (a.item || "") + " " + (a.city || "")), 40), city: clean(a.city, 60),
+        value: Number(a.value) || "", emd: Number(a.emd) || "", published: clean(a.published, 10), closing: clean(a.closing, 10), preBid: clean(a.preBid, 10), fit: Number(a.fit) || 0, link: clean(a.link, 400), subject: clean(a.subject, 200), status: a.status || "" };
+      if (!r) {
+        r = { key: k, source: source, firstSeen: now, lastSeen: now, corr: 0 }; TDH.forEach(function (f) { if (r[f] === undefined) r[f] = inc[f] === undefined ? "" : inc[f]; });
+        r.status = tstatus(r, today); by[k] = r; all.push(r); added++; return;
+      }
+      ["portal", "org", "item", "state", "city", "value", "emd", "published", "preBid", "link", "subject"].forEach(function (f) { if (inc[f] && (!r[f] || (f === "item" && String(inc[f]).length > String(r[f]).length + 20))) r[f] = inc[f]; });
+      if (inc.closing && inc.closing !== r.closing && (!r.closing || inc.closing > r.closing)) { if (r.closing) r.corr = Number(r.corr || 0) + 1; r.closing = inc.closing; }
+      if (inc.fit > Number(r.fit || 0)) r.fit = inc.fit;
+      if (/cancel/i.test(inc.status)) r.status = "cancelled";
+      if (String(r.source || "").indexOf(source) < 0) r.source = (r.source ? r.source + ", " : "") + source;
+      r.lastSeen = now; r.status = tstatus(r, today); updated++;
+    });
+    all.forEach(function (r) { r.status = tstatus(r, today); });
+    writeTable(sh, TDH, all);
+    return { added: added, updated: updated, total: all.length };
+  } finally { lock.releaseLock(); }
+}
+function trUpsert(rows, by) {
+  rows = (rows || []).filter(function (a) { return a && tkey(a.bid).length >= 5 && (a.bidder || a.price); });
+  if (!rows.length) return { added: 0, updated: 0 };
+  var lock = LockService.getScriptLock(); lock.waitLock(25000);
+  try {
+    var sh = trSheet(), all = readTable(sh, TRH), m = {}, added = 0, updated = 0, now = new Date().toISOString();
+    all.forEach(function (r) { m[r.key] = r; });
+    rows.forEach(function (a) {
+      var k = tkey(a.bid) + "|" + (nkey(a.bidder) || ("rank" + (a.rank || "x"))), r = m[k];
+      var inc = { bid: clean(a.bid, 80), org: clean(a.org, 160), item: clean(a.item, 300), bidder: clean(a.bidder, 120), rank: Number(a.rank) || "", price: Number(a.price) || "", awarded: a.awarded === true || /^(y|yes|true|1|awarded|won|l1 \(awarded\))$/i.test(String(a.awarded || "")) ? "yes" : (a.awarded === false || /^(n|no|false|0)$/i.test(String(a.awarded || "")) ? "no" : ""), resultDate: clean(a.resultDate, 10), note: clean(a.note, 200) };
+      if (!r) { r = { key: k, source: a.source || "Manual", by: by || a.by || "", added: now }; TRH.forEach(function (f) { if (r[f] === undefined) r[f] = inc[f] === undefined ? "" : inc[f]; }); m[k] = r; all.push(r); added++; return; }
+      ["org", "item", "bidder", "rank", "price", "awarded", "resultDate", "note"].forEach(function (f) { if (inc[f] !== "" && inc[f] !== undefined) r[f] = inc[f]; });
+      updated++;
+    });
+    writeTable(sh, TRH, all);
+    return { added: added, updated: updated, total: all.length };
+  } finally { lock.releaseLock(); }
+}
+function cleanItem(s) { return String(s || "").split(/\b(?:department name|organi[sz]ation(?: name)?|ministry(?: name)?|buyer|bid end date|end date|due date|closing date|emd|tender value|estimated value)\s*[:\-]/i)[0].replace(/^\s*(?:items?|title|tender brief|description)\s*[:\-]\s*/i, "").trim(); }
+function alertToRow(a) { return { bid: a.bid, portal: a.portal, org: a.org, item: cleanItem(a.item) || a.subject, value: a.value, emd: a.emd, published: String(a.date || "").slice(0, 10), closing: a.closing, preBid: a.preBid, fit: a.fit, link: a.link, subject: a.subject }; }
+
+/* ---- result mails: "L1 …", "awarded to …", bidder + price lines ---- */
+function resultsFromThreads(th) {
+  var out = [], ID = /GEM\/\d{4}\/[BR]\/\d{5,}|\b20\d{2}_[A-Z][A-Z0-9]{1,14}_\d{3,8}_\d{1,2}\b|(?:Tender\s*(?:ID|No\.?|Number|Ref(?:erence)?)|T247\s*ID|NIT\s*No\.?|Bid\s*No\.?)\s*[:#.\-]?\s*([A-Z0-9][A-Z0-9\/_.\-]{4,40})/gi;
+  var LINE = /\b(L\s?-?(\d{1,2}))\b[\s:.\-–)]*([A-Za-z][A-Za-z0-9&.,()'\/ -]{2,90}?)\s*[-–:|,]?\s*(?:₹|Rs\.?|INR)\s*([\d,]+(?:\.\d+)?)\s*(lakhs?|lacs?|crores?|cr)?/gi;
+  (th || []).forEach(function (t) {
+    t.getMessages().forEach(function (m) {
+      var subj = m.getSubject() || "", txt = subj + "\n" + (m.getPlainBody() || ""), mm, ids = [];
+      if (!/result|award|\bL1\b|lowest|rank|evaluation|contract|AOC|successful bidder/i.test(txt)) return;
+      ID.lastIndex = 0; while ((mm = ID.exec(txt))) { var id = (mm[1] || mm[0]).replace(/[.\-]+$/, ""); if (id.length >= 6 && /\d{3}/.test(id)) ids.push({ id: id, at: mm.index }); }
+      ids.forEach(function (h, i) {
+        var blk = txt.slice(h.at, i + 1 < ids.length ? ids[i + 1].at : Math.min(txt.length, h.at + 4000)), x, got = 0, date = m.getDate().toISOString().slice(0, 10);
+        var org = clean((blk.match(/(?:organi[sz]ation|department|buyer|ministry|company)\s*(?:name)?\s*[:\-]\s*([^\n|]{3,90})/i) || [])[1], 160);
+        var item = clean((blk.match(/(?:item(?: category)?|title|work|description|tender brief|product)\s*(?:name)?\s*[:\-]\s*([^\n|]{4,200})/i) || [])[1], 300);
+        LINE.lastIndex = 0;
+        while ((x = LINE.exec(blk))) { out.push({ bid: h.id, org: org, item: item, rank: Number(x[2]), bidder: clean(x[3], 120), price: money(x[4], x[5]), awarded: Number(x[2]) === 1 && /award/i.test(blk) ? "yes" : "", resultDate: date, source: "Email result" }); got++; }
+        var w = blk.match(/(?:awarded to|successful bidder|selected bidder|contract (?:awarded|placed) (?:to|on)|seller name|L1 bidder|L1 seller)\s*[:\-]?\s*(?:M\/s\.?\s*)?([A-Za-z][^\n,;|]{2,90})/i);
+        var p = blk.match(/(?:L1 (?:price|value|amount|rate)|lowest (?:price|bid|offer)|contract value|awarded (?:value|price|amount)|order value)[^0-9₹\n]{0,20}(?:₹|Rs\.?|INR)?\s*([\d,]{3,}(?:\.\d+)?)\s*(lakhs?|lacs?|crores?|cr)?/i);
+        if (w && !got) out.push({ bid: h.id, org: org, item: item, rank: 1, bidder: clean(w[1], 120), price: p ? money(p[1], p[2]) : "", awarded: "yes", resultDate: date, source: "Email result" });
+        else if (!got && p) out.push({ bid: h.id, org: org, item: item, rank: 1, bidder: "", price: money(p[1], p[2]), awarded: "", resultDate: date, source: "Email result" });
+      });
+    });
+  });
+  return out;
+}
+
+/* ---- GeM direct: public "All bids" search, one page per keyword ---- */
+function gemFetch(kws) {
+  var st = { at: new Date().toISOString(), ok: false, n: 0, err: "" }, out = [], seen = {};
+  try {
+    var UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+    var home = UrlFetchApp.fetch("https://bidplus.gem.gov.in/all-bids", { muteHttpExceptions: true, followRedirects: true, headers: { "User-Agent": UA } });
+    if (home.getResponseCode() >= 400) throw "GeM page answered " + home.getResponseCode();
+    var h = home.getAllHeaders(), sc = h["Set-Cookie"] || h["set-cookie"] || []; if (!Array.isArray(sc)) sc = [sc];
+    var cookies = sc.map(function (c) { return String(c).split(";")[0]; }).join("; "), html = home.getContentText();
+    var csrf = (cookies.match(/csrf_gem_cookie=([^;]+)/) || [])[1] || (html.match(/name=["']csrf_bd_gem_nk["'][^>]*value=["']([^"']+)/i) || [])[1] || (html.match(/csrf_bd_gem_nk["']?\s*[:=,]\s*["']([A-Za-z0-9]{16,})/) || [])[1];
+    if (!csrf) throw "GeM security token not found (site changed?)";
+    (kws || []).slice(0, 15).forEach(function (kw) {
+      var payload = { page: 1, param: { searchBid: kw, searchType: "fullText" }, filter: { bidStatusType: "ongoing_bids", byType: "all", highBidValue: "", byEndDate: { from: "", to: "" }, sort: "Bid-End-Date-Latest" } };
+      var r = UrlFetchApp.fetch("https://bidplus.gem.gov.in/all-bids-data", { method: "post", muteHttpExceptions: true, payload: { payload: JSON.stringify(payload), csrf_bd_gem_nk: csrf },
+        headers: { "User-Agent": UA, "Cookie": cookies, "X-Requested-With": "XMLHttpRequest", "Referer": "https://bidplus.gem.gov.in/all-bids" } });
+      if (r.getResponseCode() >= 400) throw "GeM search answered " + r.getResponseCode();
+      var j = JSON.parse(r.getContentText() || "{}"), docs = (((j.response || {}).response || {}).docs) || [];
+      var f = function (d, k) { var v = d[k]; return Array.isArray(v) ? v[0] : v; };
+      docs.forEach(function (d) {
+        var bid = f(d, "b_bid_number") || f(d, "bid_number"); if (!bid || seen[bid]) return; seen[bid] = 1;
+        var item = f(d, "b_category_name") || f(d, "bd_category_name") || f(d, "b_items") || kw, org = [f(d, "ba_official_details_minName"), f(d, "ba_official_details_deptName")].filter(Boolean).join(" / ");
+        var id = f(d, "b_id") || f(d, "id"), qty = f(d, "b_total_quantity");
+        out.push({ bid: bid, portal: "GeM", org: org, item: item + (qty ? " · Qty " + qty : ""), published: String(f(d, "final_start_date_sort") || "").slice(0, 10), closing: String(f(d, "final_end_date_sort") || "").slice(0, 10),
+          link: id ? "https://bidplus.gem.gov.in/showbidDocument/" + id : "https://bidplus.gem.gov.in/all-bids", fit: fitOf(item + " " + org + " " + kw, kws), subject: "GeM search: " + kw });
+      });
+      Utilities.sleep(400);
+    });
+    st.ok = true; st.n = out.length;
+  } catch (e) { st.err = String(e && e.message || e).slice(0, 200); }
+  props().setProperty("GEM_STATUS", JSON.stringify(st));
+  return out;
+}
+function tdbSyncRegister() {
+  var reg = getBlob("register") || { data: {} }, ts = (reg.data && reg.data.tenders) || [], res = [];
+  tdbUpsert(ts.map(function (t) { return { bid: t.bid, portal: t.portal, org: t.org, item: t.items, value: t.value, emd: t.emdAmount, published: t.published, closing: t.closing, preBid: t.preBid, fit: 100, link: t.link }; }), "Rivera register");
+  ts.forEach(function (t) {
+    var r = t.result || {}, d = r.date || t.closing || "";
+    if (t.ourPrice) res.push({ bid: t.bid, org: t.org, item: t.items, bidder: "Rivera Coil Manufacturing", rank: r.rank || "", price: t.ourPrice, awarded: t.status === "awarded" ? "yes" : (t.status === "not_awarded" ? "no" : ""), resultDate: d, source: "Rivera register" });
+    if (r.l1 && Number(r.rank) !== 1) res.push({ bid: t.bid, org: t.org, item: t.items, bidder: r.winner || "", rank: 1, price: r.l1, awarded: "", resultDate: d, source: "Rivera register" });
+  });
+  trUpsert(res, "automation");
+}
+function tdbWatch(alerts) {
+  var P = props(), out = { email: 0, gem: 0, results: 0 }, gem = [];
+  try { out.email = tdbUpsert((alerts || []).map(alertToRow), "Email alert").added; } catch (e) { log("automation", "tdb-email-error", String(e)); }
+  try { var rr = resultsFromThreads(GmailApp.search(RESULT_Q + "newer_than:20d", 0, 60)); out.results = trUpsert(rr, "automation").added; } catch (e) { log("automation", "tdb-result-error", String(e)); }
+  if (cfg("gemDirect", "1") === "1" && Date.now() - Number(P.getProperty("GEM_LAST") || 0) > 5.5 * 36e5) {
+    P.setProperty("GEM_LAST", String(Date.now()));
+    try { gem = gemFetch(kwList()); out.gem = tdbUpsert(gem, "GeM direct").added; } catch (e) { log("automation", "tdb-gem-error", String(e)); }
+  }
+  try { tdbSyncRegister(); } catch (e) { log("automation", "tdb-register-error", String(e)); }
+  P.setProperty("TDB_LAST", JSON.stringify({ at: new Date().toISOString(), email: out.email, gem: out.gem, results: out.results }));
+  out.gemAlerts = gem.map(function (g) { return { bid: g.bid, portal: "GeM", org: g.org, item: g.item, subject: g.subject, closing: g.closing, fit: g.fit, link: g.link, emd: 0, value: 0, date: new Date().toISOString() }; });
+  return out;
+}
+
+/* ---- one-time backfill of old mails (3 years), resumes every 10 minutes until finished ---- */
+function tdbBackfill() {
+  var P = props(), pos = Number(P.getProperty("TDB_BF_POS") || 0), rpos = Number(P.getProperty("TDB_BF_RPOS") || 0), n = Number(P.getProperty("TDB_BF_N") || 0), t0 = Date.now(), kw = kwList(), done = false;
+  while (Date.now() - t0 < 270000) {
+    var th = GmailApp.search(TDB_Q_ALL, pos, 40);
+    if (th.length) { var al = alertsFromThreads(th, kw); tdbUpsert(al.map(alertToRow), "Email (old)"); n += al.length; pos += th.length; P.setProperty("TDB_BF_POS", String(pos)); P.setProperty("TDB_BF_N", String(n)); continue; }
+    var th2 = GmailApp.search(RESULT_Q + "newer_than:1100d", rpos, 40);
+    if (th2.length) { trUpsert(resultsFromThreads(th2), "backfill"); rpos += th2.length; P.setProperty("TDB_BF_RPOS", String(rpos)); continue; }
+    done = true; break;
+  }
+  if (done) { P.setProperty("TDB_BF_DONE", new Date().toISOString()); tdbBackfillStop(); }
+  log("automation", "tdb-backfill", pos + " alert threads, " + rpos + " result threads, " + n + " tenders" + (done ? " — finished" : ""));
+  return tdbBackfillState();
+}
+function tdbBackfillStart() {
+  var P = props(); ["TDB_BF_POS", "TDB_BF_RPOS", "TDB_BF_N", "TDB_BF_DONE"].forEach(function (k) { P.deleteProperty(k); });
+  tdbBackfillStop(); ScriptApp.newTrigger("tdbBackfill").timeBased().everyMinutes(10).create(); P.setProperty("TDB_BF_START", new Date().toISOString());
+}
+function tdbBackfillStop() { ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "tdbBackfill") ScriptApp.deleteTrigger(t); }); }
+function tdbBackfillState() {
+  var P = props(), on = false; try { on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === "tdbBackfill"; }); } catch (e) { }
+  return { on: on, started: P.getProperty("TDB_BF_START") || "", done: P.getProperty("TDB_BF_DONE") || "", threads: Number(P.getProperty("TDB_BF_POS") || 0), resultThreads: Number(P.getProperty("TDB_BF_RPOS") || 0), tenders: Number(P.getProperty("TDB_BF_N") || 0) };
+}
+
+/* ---- queries for the app ---- */
+function tdbAll() { return readTable(tdbSheet(), TDH); }
+function trAll() { return readTable(trSheet(), TRH); }
+function regIndex() { var reg = getBlob("register") || { data: {} }, m = {}; ((reg.data && reg.data.tenders) || []).forEach(function (t) { m[tkey(t.bid)] = { status: t.status, id: t.id }; }); return m; }
+function resIndex(R) { var m = {}; R.forEach(function (r) { var k = tkey(r.bid), b = m[k] = m[k] || { n: 0, l1: null, winner: "", rivera: null }; b.n++; var p = Number(r.price) || 0; if (Number(r.rank) === 1 || (p && (!b.l1 || p < b.l1.price))) { if (!b.l1 || Number(r.rank) === 1 || p < b.l1.price) b.l1 = { bidder: r.bidder, price: p }; } if (r.awarded === "yes") b.winner = r.bidder; if (/rivera/i.test(r.bidder)) b.rivera = { price: p, rank: r.rank }; }); return m; }
+function tdbQuery(d) {
+  var today = todayIST(), all = tdbAll(), q = String(d.q || "").toLowerCase().trim(), words = q ? q.split(/\s+/) : [], R = trAll(), ri = resIndex(R), reg = regIndex();
+  var counts = { all: all.length, live: 0, closed: 0, results: R.length, resultTenders: Object.keys(ri).length };
+  all.forEach(function (r) { r.status = tstatus(r, today); if (r.status === "live") counts.live++; else counts.closed++; });
+  var L = all.filter(function (r) {
+    if (d.status && d.status !== "all" && r.status !== d.status) return false;
+    if (d.portal && r.portal !== d.portal) return false;
+    if (d.state && r.state !== d.state) return false;
+    if (d.org && String(r.org).toLowerCase().indexOf(String(d.org).toLowerCase()) < 0) return false;
+    if (d.from && (!r.closing || r.closing < d.from)) return false;
+    if (d.to && (!r.closing || r.closing > d.to)) return false;
+    if (d.vmin && Number(r.value || 0) < Number(d.vmin)) return false;
+    if (d.vmax && r.value && Number(r.value) > Number(d.vmax)) return false;
+    if (d.fit && Number(r.fit || 0) < Number(d.fit)) return false;
+    if (d.hasResult && !ri[r.key]) return false;
+    if (words.length) { var s = (r.bid + " " + r.org + " " + r.item + " " + r.state + " " + r.city + " " + r.portal + " " + r.subject).toLowerCase(); for (var i = 0; i < words.length; i++) if (s.indexOf(words[i]) < 0) return false; }
+    return true;
+  });
+  var sort = d.sort || (d.status === "live" ? "closing" : "recent");
+  L.sort(function (a, b) {
+    if (sort === "closing") return String(a.closing || "9999").localeCompare(String(b.closing || "9999"));
+    if (sort === "value") return Number(b.value || 0) - Number(a.value || 0);
+    if (sort === "fit") return Number(b.fit || 0) - Number(a.fit || 0) || String(b.closing).localeCompare(String(a.closing));
+    return String(b.closing || b.published || "").localeCompare(String(a.closing || a.published || ""));
+  });
+  var facet = function (k) { var m = {}; L.forEach(function (r) { if (r[k]) m[r[k]] = (m[r[k]] || 0) + 1; }); return Object.keys(m).map(function (x) { return [x, m[x]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 60); };
+  var size = Math.min(Number(d.size) || 50, 5000), page = Math.max(1, Number(d.page) || 1), rows = L.slice((page - 1) * size, page * size).map(function (r) { r.result = ri[r.key] || null; r.tracked = reg[r.key] || null; return r; });
+  var byYear = {}; L.forEach(function (r) { var y = String(r.closing || r.published || "").slice(0, 4); if (y) byYear[y] = (byYear[y] || 0) + 1; });
+  return { ok: true, rows: rows, total: L.length, page: page, size: size, counts: counts, facets: { portal: facet("portal"), state: facet("state") }, byYear: byYear, allPortals: Object.keys(all.reduce(function (m, r) { if (r.portal) m[r.portal] = 1; return m; }, {})).sort() };
+}
+function trQuery(d) {
+  var R = trAll(), q = String(d.q || "").toLowerCase().trim(), words = q ? q.split(/\s+/) : [], T = {};
+  tdbAll().forEach(function (t) { T[t.key] = t; });
+  var L = R.filter(function (r) {
+    if (d.bid && tkey(r.bid) !== tkey(d.bid)) return false;
+    if (d.bidder && nkey(r.bidder) !== nkey(d.bidder)) return false;
+    if (words.length) { var t = T[tkey(r.bid)] || {}, s = (r.bid + " " + r.org + " " + r.item + " " + r.bidder + " " + (t.org || "") + " " + (t.item || "")).toLowerCase(); for (var i = 0; i < words.length; i++) if (s.indexOf(words[i]) < 0) return false; }
+    return true;
+  }).map(function (r) { var t = T[tkey(r.bid)] || {}; if (!r.org) r.org = t.org || ""; if (!r.item) r.item = t.item || ""; r.closing = t.closing || ""; r.link = t.link || ""; return r; });
+  L.sort(function (a, b) { return String(b.resultDate || b.closing).localeCompare(String(a.resultDate || a.closing)) || tkey(a.bid).localeCompare(tkey(b.bid)) || (Number(a.rank) || 99) - (Number(b.rank) || 99); });
+  var size = Math.min(Number(d.size) || 100, 5000), page = Math.max(1, Number(d.page) || 1);
+  return { ok: true, rows: L.slice((page - 1) * size, page * size), total: L.length, page: page, size: size };
+}
+function tdbStats() {
+  var today = todayIST(), all = tdbAll(), R = trAll(), reg = getBlob("register") || { data: {} }, ts = (reg.data && reg.data.tenders) || [], rt = {};
+  ts.forEach(function (t) { rt[tkey(t.bid)] = t; });
+  var B = {};
+  all.forEach(function (r) {
+    var o = String(r.org || "").trim() || "(buyer not given)", b = B[o] = B[o] || { org: o, n: 0, live: 0, value: 0, last: "", first: "", portals: {}, states: {}, tracked: 0, won: 0, items: {} };
+    b.n++; if (tstatus(r, today) === "live") b.live++; b.value += Number(r.value) || 0; var dt = r.closing || r.published || ""; if (dt > b.last) b.last = dt; if (dt && (!b.first || dt < b.first)) b.first = dt;
+    if (r.portal) b.portals[r.portal] = 1; if (r.state) b.states[r.state] = 1; var t = rt[r.key]; if (t) { b.tracked++; if (t.status === "awarded") b.won++; }
+    var it = String(r.item || "").split(/[,;(·]/)[0].trim().slice(0, 50); if (it) b.items[it] = (b.items[it] || 0) + 1;
+  });
+  var buyers = Object.keys(B).map(function (k) { var b = B[k]; b.portals = Object.keys(b.portals); b.states = Object.keys(b.states); b.items = Object.keys(b.items).sort(function (x, y) { return b.items[y] - b.items[x]; }).slice(0, 4); return b; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 400);
+  var byBid = {}; R.forEach(function (r) { (byBid[tkey(r.bid)] = byBid[tkey(r.bid)] || []).push(r); });
+  var C = {};
+  Object.keys(byBid).forEach(function (k) {
+    var rs = byBid[k], riv = rs.filter(function (r) { return /rivera/i.test(r.bidder); })[0], rp = riv ? Number(riv.price) || 0 : 0;
+    rs.forEach(function (r) {
+      if (!r.bidder || /rivera/i.test(r.bidder)) return;
+      var key = nkey(r.bidder), c = C[key] = C[key] || { name: r.bidder, bids: 0, l1: 0, won: 0, prices: 0, pn: 0, vsRivera: 0, beatRivera: 0, gaps: [], last: "", items: {}, buyers: {} };
+      c.bids++; if (Number(r.rank) === 1) c.l1++; if (r.awarded === "yes") c.won++; var p = Number(r.price) || 0; if (p) { c.prices += p; c.pn++; }
+      if (rp && p) { c.vsRivera++; if (p < rp) c.beatRivera++; c.gaps.push((rp - p) / p * 100); }
+      var dt = r.resultDate || ""; if (dt > c.last) c.last = dt; if (r.item) c.items[String(r.item).split(/[,;(]/)[0].slice(0, 40)] = 1; if (r.org) c.buyers[r.org] = 1;
+    });
+  });
+  var comps = Object.keys(C).map(function (k) { var c = C[k]; c.avgGap = c.gaps.length ? c.gaps.reduce(function (a, b) { return a + b; }, 0) / c.gaps.length : null; c.avgPrice = c.pn ? c.prices / c.pn : 0; c.items = Object.keys(c.items).slice(0, 4); c.buyers = Object.keys(c.buyers).slice(0, 4); delete c.gaps; delete c.prices; return c; }).sort(function (a, b) { return b.bids - a.bids; }).slice(0, 400);
+  var riv = R.filter(function (r) { return /rivera/i.test(r.bidder); });
+  return { ok: true, buyers: buyers, competitors: comps, rivera: { bids: riv.length, l1: riv.filter(function (r) { return Number(r.rank) === 1; }).length, won: riv.filter(function (r) { return r.awarded === "yes"; }).length } };
+}
+function tdbState() {
+  var P = props(), g = {}, l = {}; try { g = JSON.parse(P.getProperty("GEM_STATUS") || "{}"); } catch (e) { } try { l = JSON.parse(P.getProperty("TDB_LAST") || "{}"); } catch (e) { }
+  var n = 0, r = 0; try { n = Math.max(0, tdbSheet().getLastRow() - 1); r = Math.max(0, trSheet().getLastRow() - 1); } catch (e) { }
+  return { ok: true, tenders: n, results: r, gem: g, gemOn: cfg("gemDirect", "1") === "1", last: l, backfill: tdbBackfillState(), auto: automationState(), sheet: ss().getUrl() };
 }
 
 function api(d) {
@@ -378,8 +655,31 @@ function api(d) {
     } finally { lock.releaseLock(); }
   }
   if (a === "password") { if (!eq(hashPw(String(d.old || ""), me.salt), me.hash)) throw "Current password is wrong"; if (String(d.pw || "").length < 40) throw "Password not accepted"; me.salt = Utilities.getUuid(); me.hash = hashPw(d.pw, me.salt); saveUser(me); log(me.email, "password-change", ""); return { ok: true }; }
+  /* ---- tender database (all signed-in users) ---- */
+  if (a === "tdbQuery") return tdbQuery(d);
+  if (a === "trQuery") return trQuery(d);
+  if (a === "tdbStats") return tdbStats();
+  if (a === "tdbState") { var st3 = tdbState(); if (me.role !== "admin") delete st3.sheet; return st3; }
+  if (a === "tdbImport") {
+    var rows3 = Array.isArray(d.rows) ? d.rows.slice(0, 3000) : [];
+    var r3 = d.kind === "results" ? trUpsert(rows3.map(function (x) { x.source = "Excel import"; return x; }), me.email) : tdbUpsert(rows3, "Excel import" + (d.label ? " (" + String(d.label).slice(0, 30) + ")" : ""));
+    log(me.email, "tdb-import", (d.kind || "tenders") + ": " + rows3.length + " rows, " + r3.added + " new"); return { ok: true, result: r3 };
+  }
+  if (a === "tdbResultSave") { var rr3 = (Array.isArray(d.rows) ? d.rows : [d.row]).filter(Boolean).slice(0, 60).map(function (x) { x.source = x.source || "Manual"; return x; }); var o3 = trUpsert(rr3, me.email); log(me.email, "tdb-result", rr3.length + " rows for " + (rr3[0] && rr3[0].bid)); return { ok: true, result: o3 }; }
+  if (a === "tdbResultDel") {
+    var lk = LockService.getScriptLock(); lk.waitLock(20000);
+    try { var sh3 = trSheet(), all3 = readTable(sh3, TRH), x3 = all3.filter(function (r) { return r.key === d.key; })[0]; if (!x3) return { ok: true }; if (me.role !== "admin" && x3.by !== me.email) throw "Only the person who added it (or an admin) can delete it"; writeTable(sh3, TRH, all3.filter(function (r) { return r.key !== d.key; })); log(me.email, "tdb-result-delete", d.key); return { ok: true }; }
+    finally { lk.releaseLock(); }
+  }
+  if (a === "tdbRun") {
+    if (d.op === "gem") { var g3 = gemFetch(kwList()), u3 = tdbUpsert(g3, "GeM direct"); applyAlerts(g3.map(function (g) { return { bid: g.bid, portal: "GeM", org: g.org, item: g.item, subject: g.subject, closing: g.closing, fit: g.fit, link: g.link, emd: 0, value: 0 }; })); props().setProperty("GEM_LAST", String(Date.now())); log(me.email, "tdb-gem", g3.length + " bids"); return { ok: true, found: g3.length, added: u3.added, state: tdbState() }; }
+    props().setProperty("GEM_LAST", "0"); var w3 = hourlyWatch(); return { ok: true, result: w3, state: tdbState() };
+  }
   /* ---- admin ---- */
   auth(d.token, true);
+  if (a === "tdbBackfill") { if (d.op === "start") { tdbBackfillStart(); log(me.email, "tdb-backfill-start", ""); } if (d.op === "stop") tdbBackfillStop(); if (d.op === "now") tdbBackfill(); return { ok: true, state: tdbState() }; }
+  if (a === "tdbConfig") { if (d.gemDirect !== undefined) props().setProperty("CFG_gemDirect", d.gemDirect ? "1" : "0"); return { ok: true, state: tdbState() }; }
+
   if (a === "users") { var v = users().getDataRange().getValues(), out = []; for (var i = 1; i < v.length; i++) { var x = {}; UH.forEach(function (k, j) { x[k] = v[i][j]; }); if (x.email) out.push(pub(x)); } return { ok: true, users: out }; }
   if (a === "createUser") {
     var nid = cleanId(d.email), nn = String(d.name || "").trim().slice(0, 80); if (!nn) throw "Enter the person's name"; if (String(d.pw || "").length < 40) throw "Password not accepted";

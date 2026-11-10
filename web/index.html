@@ -5343,6 +5343,228 @@ function misReport() {
     tbl(["Portal", "Bids", "Submitted", "Won", "Win rate", "Won value ₹"], stat(by(t => t.portal)), [3000, 900, 1100, 900, 1000, 1700])];
   openShare({ title: "Tender MIS report", base: `RIVERA_TENDER_MIS_${T}`, text: `Tender MIS report as on ${dmy(T)}`, formats: [F.pdf("Report (PDF)", () => blocksPdf(blocks())), F.docx("Report (Word)", () => buildDocx(blocks(), brandLogo()))] });
 }
+
+/* ---------- Tender database (Tender247-style): every tender ever seen, archive, results & L1, buyers, competitors, Excel import ---------- */
+IC.db = '<ellipse cx="12" cy="5.5" rx="8" ry="2.8"/><path d="M4 5.5v6.5c0 1.6 3.6 2.8 8 2.8s8-1.2 8-2.8V5.5"/><path d="M4 12v6.5c0 1.6 3.6 2.8 8 2.8s8-1.2 8-2.8V12"/>';
+ROUTES.splice(Math.max(0, ROUTES.findIndex(r => r[0] === "intel") + 1) || ROUTES.length, 0, ["tdb", "Tender database", "db"]);
+const TDB = () => STATE.tdb ||= { tab: "search", f: { q: "", status: "live", portal: "", state: "", org: "", from: "", to: "", vmin: "", vmax: "", fit: "", sort: "", hasResult: false }, page: 1, rq: { q: "", bidder: "", bid: "", page: 1 }, cache: {}, imp: null };
+const tdbMoney = v => { v = num(v); return !v ? "—" : v >= 1e7 ? (v / 1e7).toFixed(2) + " Cr" : v >= 1e5 ? (v / 1e5).toFixed(2) + " L" : fmt(v, "INR", 0); };
+async function tdbLoad(key, action, body, timeout) {
+  const S = TDB(), c = S.cache[key];
+  if (c && (c.loading || Date.now() - c.at < 90000)) return c;
+  S.cache[key] = { loading: true, at: Date.now() };
+  try { const d = await AUTH.call(action, body, timeout || 60000); S.cache[key] = { at: Date.now(), d }; }
+  catch (e) { S.cache[key] = { at: Date.now() - 80000, err: e.message }; }
+  if (STATE.route === "tdb") render();
+  return S.cache[key];
+}
+const tdbBust = () => { TDB().cache = {}; };
+function tdbSpinner(msg) { return `<div class="empty"><b>${esc(msg || "Loading the tender database…")}</b>Reading the team server.</div>`; }
+async function tdbTrack(r) {
+  if ((STATE.data.tenders || []).some(t => t.bid === r.bid)) return toast(r.bid + " is already in Tenders");
+  await DB.put("tenders", { id: r.bid.replace(/[^A-Za-z0-9]+/g, "-"), bid: r.bid, portal: r.portal || "", org: r.org || "", status: "identified", items: r.item || "", closing: r.closing || "", preBid: r.preBid || "", value: num(r.value) || "", emdMode: num(r.emd) ? "required" : "exempt_mse", emdAmount: num(r.emd) || "", emd: num(r.emd) ? "Rs " + num(r.emd) : "Exempted (MSE)", check: {}, link: r.link || "", log: [{ at: new Date().toISOString(), by: who(), what: "Tracked from Tender database" }] });
+  toast(r.bid + " added to Tenders & GeM"); tdbBust(); render();
+}
+VIEWS.tdb = v => {
+  const S = TDB();
+  const tabs = [["search", "Tender search"], ["results", "Results & L1 prices"], ["buyers", "Buyers"], ["comp", "Competitors"], ["import", "Import <span>Excel</span> / CSV"], ["sources", "Sources & automation"]];
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Live tenders · archive · results — GeM, CPPP, Coal India, NIC, Tender247 alerts and Excel</div><h1>Tender database</h1><p>Every tender that reaches Rivera is kept here for good — live ones to bid, closed ones as history. Search by product, buyer, state, value or date, see who won and at what price, and study buyers and competitors.</p></div>
+  <div class="row"><button class="btn" id="tdbRef">${icon("spark")}Refresh</button></div></div>
+  <div class="tabs-row" role="tablist">${tabs.map(([k, l]) => `<button role="tab" class="tab ${S.tab === k ? "on" : ""}" aria-selected="${S.tab === k}" data-ttab="${k}">${l}</button>`).join("")}</div>
+  <div id="tdbBody"></div>`;
+  $$("[data-ttab]").forEach(b => b.onclick = () => { S.tab = b.dataset.ttab; render(); });
+  $("#tdbRef").onclick = () => { tdbBust(); render(); };
+  const B = $("#tdbBody");
+  if (!AUTH.api || !AUTH.user) { B.innerHTML = `<section class="panel"><div class="empty"><b>Sign in to the team server first</b>The tender database lives on Rivera's sign-in server (Google Sheet), so the whole sales team sees the same data. Sign in from Users & access, then come back.</div></section>`; return; }
+  ({ search: tdbSearch, results: tdbResults, buyers: tdbBuyers, comp: tdbComp, import: tdbImport, sources: tdbSources })[S.tab](B, S);
+};
+function tdbSearch(B, S) {
+  const f = S.f, body = { ...f, page: S.page, size: 50 }, key = "q:" + JSON.stringify(body), c = S.cache[key] || (tdbLoad(key, "tdbQuery", body), S.cache[key]);
+  const d = c?.d, cn = d?.counts || {}, mine = new Set((STATE.data.tenders || []).map(t => t.bid));
+  const opts = (list, cur, all) => `<option value="">${all}</option>` + (list || []).map(x => { const [k, n] = Array.isArray(x) ? x : [x, ""]; return `<option value="${esc(k)}" ${cur === k ? "selected" : ""}>${esc(k)}${n ? " (" + n + ")" : ""}</option>`; }).join("");
+  B.innerHTML = `<div class="hero-strip"><div><span>In database</span><b>${d ? cn.all.toLocaleString("en-IN") : "…"}</b></div><div><span>Live now</span><b>${d ? cn.live.toLocaleString("en-IN") : "…"}</b></div><div><span>Closed (archive)</span><b>${d ? cn.closed.toLocaleString("en-IN") : "…"}</b></div><div><span>Tenders with results</span><b>${d ? cn.resultTenders.toLocaleString("en-IN") : "…"}</b></div><div><span>Bidder prices</span><b>${d ? cn.results.toLocaleString("en-IN") : "…"}</b></div></div>
+  <section class="panel"><div class="body"><div class="fields">
+    <label class="f" style="grid-column:span 2">Product, keyword, bid no., buyer, city<input type="text" id="tq" value="${esc(f.q)}" placeholder="stator coil, armature, NTPC, GEM/2026/B/…"></label>
+    <label class="f">Show<select id="tst">${[["live", "Live tenders"], ["closed", "Closed / archive"], ["all", "Everything"]].map(([k, l]) => `<option value="${k}" ${f.status === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    <label class="f">Portal<select id="tpo">${opts(d?.allPortals, f.portal, "All portals")}</select></label>
+    <label class="f">State<select id="tsa">${opts(d?.facets?.state?.length ? d.facets.state : (f.state ? [f.state] : []), f.state, "All states")}</select></label>
+    <label class="f">Buyer contains<input type="text" id="tor" value="${esc(f.org)}" placeholder="NCL, BHEL, TANGEDCO"></label>
+    <label class="f">Closing from<input type="date" id="tfr" value="${esc(f.from)}"></label><label class="f">Closing to<input type="date" id="tto" value="${esc(f.to)}"></label>
+    <label class="f">Value from ₹<input type="number" id="tvn" value="${esc(f.vmin)}" min="0"></label><label class="f">Value to ₹<input type="number" id="tvx" value="${esc(f.vmax)}" min="0"></label>
+    <label class="f">Rivera match<select id="tfi">${[["", "Any"], ["25", "25%+"], ["50", "50%+ (good)"], ["75", "75%+ (strong)"]].map(([k, l]) => `<option value="${k}" ${String(f.fit) === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+    <label class="f">Sort<select id="tso">${[["", "Default"], ["closing", "Closing date (soonest)"], ["recent", "Newest first"], ["value", "Value (highest)"], ["fit", "Rivera match"]].map(([k, l]) => `<option value="${k}" ${f.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+  </div><div class="row" style="margin-top:10px;gap:8px"><label class="chip"><input type="checkbox" id="thr" ${f.hasResult ? "checked" : ""}> Only tenders with results</label><button class="btn sm" id="tclr">Clear filters</button><button class="btn sm" id="txl">${icon("dl")}Download list</button></div></div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>${d ? d.total.toLocaleString("en-IN") + " tender" + (d.total === 1 ? "" : "s") : "Searching…"}</h2>${d && d.total > d.size ? `<span class="muted small">page ${d.page} of ${Math.ceil(d.total / d.size)}</span>` : ""}</header>
+  ${c?.err ? `<div class="empty"><b>Couldn't load</b>${esc(c.err)}. If the server was just updated, redeploy it (Sources & automation tab).</div>` : !d ? tdbSpinner() : !d.rows.length ? `<div class="empty"><b>No tenders match</b>${cn.all ? "Widen the filters or switch Show to Everything." : "The database is empty — turn on automation, start the old-mail backfill or import an Excel (see the other tabs)."}</div>` :
+  `<div class="scroll"><table class="t"><thead><tr><th>Closing</th><th>Bid / tender no.</th><th>Buyer</th><th>Item / work</th><th>State</th><th>Portal</th><th class="n">Value</th><th class="n">EMD</th><th class="n">Match</th><th>Result</th><th></th></tr></thead><tbody>${d.rows.map((r, i) => `<tr>
+    <td>${r.closing ? dueChip(r.closing, r.status !== "live") : "—"}${Number(r.corr) ? `<div class="small muted">${r.corr} date change${r.corr > 1 ? "s" : ""}</div>` : ""}</td>
+    <td class="mono" style="font-size:.74rem">${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.bid)}</a>` : esc(r.bid)}</td><td style="min-width:150px">${esc(r.org || "—")}</td><td class="small" style="min-width:220px">${esc(String(r.item || r.subject || "").slice(0, 160))}</td>
+    <td class="small">${esc(r.state || "")}${r.city ? `<div class="muted">${esc(r.city)}</div>` : ""}</td><td class="small">${esc(r.portal || "")}</td><td class="n">${tdbMoney(r.value)}</td><td class="n">${tdbMoney(r.emd)}</td>
+    <td class="n"><span class="chip ${r.fit >= 75 ? "ok" : r.fit >= 50 ? "warn" : ""}">${num(r.fit)}%</span></td>
+    <td class="small">${r.result ? `${r.result.l1 ? `L1 <b>${esc(r.result.l1.bidder || "?")}</b> ${tdbMoney(r.result.l1.price)}` : ""}${r.result.rivera ? `<div>Rivera ${tdbMoney(r.result.rivera.price)}${r.result.rivera.rank ? " (L" + r.result.rivera.rank + ")" : ""}</div>` : ""}<div><a href="#tdb" data-tres="${esc(r.bid)}">${r.result.n} bidder${r.result.n > 1 ? "s" : ""}</a></div>` : `<a href="#tdb" data-tadd="${i}">+ Add result</a>`}</td>
+    <td>${r.tracked || mine.has(r.bid) ? `<span class="chip ok">${esc(TENDER_ST[r.tracked?.status]?.[0] || "Tracked")}</span>` : r.status === "live" ? `<button class="btn sm primary" data-ttr="${i}">Track</button>` : ""}</td></tr>`).join("")}</tbody></table></div>
+  ${d.total > d.size ? `<div class="row" style="padding:12px 16px;gap:8px"><button class="btn sm" id="tpv" ${d.page <= 1 ? "disabled" : ""}>‹ Previous</button><span class="small muted">Showing ${(d.page - 1) * d.size + 1}–${Math.min(d.total, d.page * d.size)} of ${d.total.toLocaleString("en-IN")}</span><button class="btn sm" id="tnx" ${d.page * d.size >= d.total ? "disabled" : ""}>Next ›</button></div>` : ""}`}</section>
+  ${d && Object.keys(d.byYear || {}).length > 1 ? `<section class="panel" style="margin-top:16px"><header><h2>Matching tenders by year</h2></header><div class="body row" style="gap:16px;align-items:flex-end">${Object.entries(d.byYear).sort().map(([y, n]) => { const mx = Math.max(...Object.values(d.byYear)); return `<div style="text-align:center"><div style="width:34px;height:${Math.max(4, n / mx * 110)}px;background:var(--navy,#02315B);border-radius:3px 3px 0 0;margin:0 auto" title="${n}"></div><div class="small mono">${y}</div><div class="small muted">${n}</div></div>`; }).join("")}</div></section>` : ""}`;
+  const set = (k, val) => { f[k] = val; S.page = 1; render(); };
+  $("#tq").oninput = e => { f.q = e.target.value; clearTimeout(S._t); S._t = setTimeout(() => { S.page = 1; const p = $("#tq")?.selectionStart; render(); const i = $("#tq"); if (i) { i.focus(); i.setSelectionRange(p, p); } }, 400); };
+  [["tst", "status"], ["tpo", "portal"], ["tsa", "state"], ["tfr", "from"], ["tto", "to"], ["tvn", "vmin"], ["tvx", "vmax"], ["tfi", "fit"], ["tso", "sort"]].forEach(([id, k]) => $("#" + id).onchange = e => set(k, e.target.value));
+  $("#tor").onchange = e => set("org", e.target.value.trim());
+  $("#thr").onchange = e => set("hasResult", e.target.checked);
+  $("#tclr").onclick = () => { S.f = { q: "", status: "all", portal: "", state: "", org: "", from: "", to: "", vmin: "", vmax: "", fit: "", sort: "", hasResult: false }; S.page = 1; render(); };
+  $("#tpv")?.addEventListener("click", () => { S.page--; render(); }); $("#tnx")?.addEventListener("click", () => { S.page++; render(); });
+  $$("[data-ttr]", B).forEach(b => b.onclick = () => tdbTrack(d.rows[+b.dataset.ttr]));
+  $$("[data-tres]", B).forEach(a => a.onclick = e => { e.preventDefault(); S.rq = { q: "", bidder: "", bid: a.dataset.tres, page: 1 }; S.tab = "results"; render(); });
+  $$("[data-tadd]", B).forEach(a => a.onclick = e => { e.preventDefault(); const r = d.rows[+a.dataset.tadd]; S.rq = { q: "", bidder: "", bid: r.bid, page: 1, add: { bid: r.bid, org: r.org, item: r.item } }; S.tab = "results"; render(); });
+  $("#txl").onclick = async () => {
+    toast("Preparing the list…");
+    try {
+      const x = await AUTH.call("tdbQuery", { ...f, page: 1, size: 5000 }, 90000);
+      const title = `RIVERA TENDER DATABASE — ${x.total} tenders — ${dmy(todayISO())}${f.q ? " — “" + f.q + "”" : ""}`;
+      const blocks = () => [{ t: title, b: true, sz: 13, color: "02315B", after: 60 }, { t: `Filters: ${f.status || "all"}${f.portal ? " · " + f.portal : ""}${f.state ? " · " + f.state : ""}${f.org ? " · buyer " + f.org : ""}${f.from || f.to ? " · closing " + (f.from ? dmy(f.from) : "…") + " to " + (f.to ? dmy(f.to) : "…") : ""}${x.total > x.rows.length ? ` · first ${x.rows.length} shown` : ""}`, sz: 9, after: 120 },
+        { widths: [1500, 1500, 2600, 900, 900, 900, 1300], table: [["Bid / tender no", "Buyer", "Item / work", "State", "Value ₹", "Closing", "L1 / result"].map(t => ({ t })), ...x.rows.slice(0, 2000).map(r => [r.bid, r.org || "—", String(r.item || "").slice(0, 110), r.state || "", num(r.value) ? fmt(num(r.value), "INR", 0) : "—", r.closing ? dmy(r.closing) : "—", r.result?.l1 ? `${r.result.l1.bidder || "?"} ${num(r.result.l1.price) ? "₹" + fmt(num(r.result.l1.price), "INR", 0) : ""}` : ""].map(t => ({ t: String(t) })))] }];
+      openShare({ title: "Tender database list", base: `RIVERA_TENDER_DATABASE_${todayISO()}`, text: title, formats: [F.pdf("Tender list (PDF)", () => blocksPdf(blocks())), F.docx("Tender list (Word)", () => buildDocx(blocks(), brandLogo()))] });
+    } catch (e) { toast(e.message, "bad"); }
+  };
+}
+function tdbResults(B, S) {
+  const R = S.rq, body = { q: R.q, bidder: R.bidder, bid: R.bid, page: R.page, size: 100 }, key = "r:" + JSON.stringify(body), c = S.cache[key] || (tdbLoad(key, "trQuery", body), S.cache[key]), d = c?.d;
+  const A = R.add || { bid: R.bid || "", org: "", item: "" };
+  const groups = []; if (d) { let g = null; for (const r of d.rows) { if (!g || g.bid !== r.bid) groups.push(g = { bid: r.bid, org: r.org, item: r.item, date: r.resultDate || r.closing, link: r.link, rows: [] }); g.rows.push(r); } }
+  B.innerHTML = `<section class="panel"><header><h2>Add tender result</h2><span class="muted small">Every bidder and price — from the GeM / portal result page or the opening statement</span></header><div class="body">
+    <div class="fields"><label class="f">Bid / tender no.<input type="text" id="raB" value="${esc(A.bid)}" placeholder="GEM/2026/B/1234567"></label><label class="f">Buyer<input type="text" id="raO" value="${esc(A.org || "")}"></label><label class="f" style="grid-column:span 2">Item<input type="text" id="raI" value="${esc(A.item || "")}"></label><label class="f">Result date<input type="date" id="raD" value="${todayISO()}"></label></div>
+    <label class="f" style="margin-top:10px">Bidders — one per line as “name, price” (lowest price becomes L1). Add “awarded” to the winner's line.<textarea id="raL" rows="5" placeholder="ABC Electricals, 4,85,000, awarded&#10;Rivera Coil Manufacturing, 5,12,000&#10;XYZ Rewinding Works, 5,40,000"></textarea></label>
+    <div class="row" style="margin-top:10px"><button class="btn primary" id="raGo">${icon("save")}Save result</button></div></div></section>
+  <section class="panel" style="margin-top:16px"><div class="body"><div class="fields"><label class="f" style="grid-column:span 2">Search results — bidder, buyer, item, bid no.<input type="text" id="rq" value="${esc(R.q)}" placeholder="competitor name, NCL, armature…"></label>
+    ${R.bid || R.bidder ? `<div class="f"><span>Filter</span><div class="row" style="gap:6px">${R.bid ? `<span class="chip navy">Bid ${esc(R.bid)}</span>` : ""}${R.bidder ? `<span class="chip navy">Bidder ${esc(R.bidder)}</span>` : ""}<button class="btn sm" id="rclr">Show all</button></div></div>` : ""}</div></div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>${d ? d.total.toLocaleString("en-IN") + " bidder price" + (d.total === 1 ? "" : "s") + " · " + groups.length + " tender" + (groups.length === 1 ? "" : "s") : "Loading…"}</h2></header>
+  ${c?.err ? `<div class="empty"><b>Couldn't load</b>${esc(c.err)}</div>` : !d ? tdbSpinner() : !groups.length ? `<div class="empty"><b>No results yet</b>Results come from result / award mails automatically, from Rivera's own recorded results, from Excel import, or add them above.</div>` :
+  `<div class="body stack" style="gap:12px">${groups.map(g => { const lo = Math.min(...g.rows.map(r => num(r.price) || Infinity)); return `<div class="panel" style="box-shadow:none"><header style="flex-wrap:wrap"><div><b class="mono small">${g.link ? `<a href="${esc(g.link)}" target="_blank" rel="noopener">${esc(g.bid)}</a>` : esc(g.bid)}</b> <span class="muted small">${esc(g.org || "")}${g.date ? " · " + dmy(g.date) : ""}</span><div class="small">${esc(String(g.item || "").slice(0, 140))}</div></div></header>
+    <div class="scroll"><table class="t"><thead><tr><th class="n">Rank</th><th>Bidder</th><th class="n">Price ₹</th><th class="n">vs L1</th><th>Awarded</th><th>Source</th><th></th></tr></thead><tbody>${g.rows.map(r => `<tr${/rivera/i.test(r.bidder) ? ' style="background:var(--ok-soft)"' : ""}><td class="n">${r.rank ? "L" + r.rank : "—"}</td><td><a href="#tdb" data-rbd="${esc(r.bidder)}"><b>${esc(r.bidder || "(not named)")}</b></a></td><td class="n mono">${num(r.price) ? fmt(num(r.price), "INR", 0) : "—"}</td><td class="n">${num(r.price) && isFinite(lo) && num(r.price) > lo ? "+" + ((num(r.price) - lo) / lo * 100).toFixed(1) + "%" : num(r.price) === lo ? "L1" : "—"}</td><td>${r.awarded === "yes" ? '<span class="chip ok">Awarded</span>' : r.awarded === "no" ? '<span class="chip">No</span>' : ""}</td><td class="small muted">${esc(r.source || "")}</td><td>${AUTH.isAdmin || r.by === AUTH.user?.email ? `<button class="btn sm" data-rdel="${esc(r.key)}" aria-label="Delete">${icon("x")}</button>` : ""}</td></tr>`).join("")}</tbody></table></div></div>`; }).join("")}</div>
+  ${d.total > d.size ? `<div class="row" style="padding:12px 16px;gap:8px"><button class="btn sm" id="rpv" ${d.page <= 1 ? "disabled" : ""}>‹ Previous</button><span class="small muted">page ${d.page} of ${Math.ceil(d.total / d.size)}</span><button class="btn sm" id="rnx" ${d.page * d.size >= d.total ? "disabled" : ""}>Next ›</button></div>` : ""}`}</section>`;
+  $("#rq").oninput = e => { R.q = e.target.value; R.page = 1; clearTimeout(S._t); S._t = setTimeout(() => { const p = $("#rq")?.selectionStart; render(); const i = $("#rq"); if (i) { i.focus(); i.setSelectionRange(p, p); } }, 400); };
+  $("#rclr")?.addEventListener("click", () => { S.rq = { q: "", bidder: "", bid: "", page: 1 }; render(); });
+  $("#rpv")?.addEventListener("click", () => { R.page--; render(); }); $("#rnx")?.addEventListener("click", () => { R.page++; render(); });
+  $$("[data-rbd]", B).forEach(a => a.onclick = e => { e.preventDefault(); S.rq = { q: "", bidder: a.dataset.rbd, bid: "", page: 1 }; render(); });
+  $$("[data-rdel]", B).forEach(b => b.onclick = async () => { if (!confirm("Delete this bidder price?")) return; try { await AUTH.call("tdbResultDel", { key: b.dataset.rdel }); tdbBust(); render(); } catch (e) { toast(e.message, "bad"); } });
+  $("#raGo").onclick = async () => {
+    const bid = $("#raB").value.trim(); if (!bid) return toast("Enter the bid / tender number", "bad");
+    const lines = $("#raL").value.split(/\n/).map(l => l.trim()).filter(Boolean).map(l => { const aw = /\bawarded\b|\bwinner\b|\bwon\b/i.test(l); const m = l.replace(/\b(awarded|winner|won)\b/ig, "").match(/^(.*?)[,\t|;]+\s*(?:₹|rs\.?|inr)?\s*([\d,]+(?:\.\d+)?)\s*(lakhs?|lacs?|l|crores?|cr)?\s*[,;]*\s*$/i); if (!m) return { bidder: l.replace(/[,;]+$/, "").replace(/\b(awarded|winner|won)\b/ig, "").trim(), price: 0, aw }; let p = num(m[2].replace(/,/g, "")); if (/^l|^la/i.test(m[3] || "")) p *= 1e5; if (/^c/i.test(m[3] || "")) p *= 1e7; return { bidder: m[1].trim(), price: p, aw }; });
+    if (!lines.length) return toast("Add at least one bidder line", "bad");
+    const sorted = lines.filter(x => x.price).sort((a, b) => a.price - b.price);
+    const rows = lines.map(x => ({ bid, org: $("#raO").value.trim(), item: $("#raI").value.trim(), bidder: x.bidder, price: x.price || "", rank: x.price ? sorted.indexOf(x) + 1 : "", awarded: x.aw ? "yes" : "", resultDate: $("#raD").value }));
+    try { await AUTH.call("tdbResultSave", { rows }); toast(`Saved ${rows.length} bidder${rows.length > 1 ? "s" : ""} for ${bid}`); S.rq = { q: "", bidder: "", bid, page: 1 }; tdbBust(); render(); } catch (e) { toast(e.message, "bad"); }
+  };
+}
+function tdbStatsLoad(S) { const c = S.cache.stats || (tdbLoad("stats", "tdbStats", {}, 90000), S.cache.stats); return c; }
+function tdbBuyers(B, S) {
+  const c = tdbStatsLoad(S), d = c?.d, q = (S.bq || "").toLowerCase(), L = (d?.buyers || []).filter(b => !q || (b.org + " " + b.states.join(" ") + " " + b.items.join(" ")).toLowerCase().includes(q));
+  B.innerHTML = `<section class="panel"><div class="body"><label class="f">Find a buyer<input type="text" id="bq" value="${esc(S.bq || "")}" placeholder="NCL, Coal, NTPC, Tamil Nadu…"></label></div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>Buyers ${d ? "(" + L.length + ")" : ""}</h2><span class="muted small">Who floats tenders, how often, how big — tap a buyer to see all its tenders</span></header>
+  ${c?.err ? `<div class="empty"><b>Couldn't load</b>${esc(c.err)}</div>` : !d ? tdbSpinner() : !L.length ? `<div class="empty"><b>No buyers yet</b>They appear as tenders come into the database.</div>` :
+  `<div class="scroll"><table class="t"><thead><tr><th>Buyer</th><th class="n">Tenders</th><th class="n">Live</th><th class="n">Total value</th><th>Usual items</th><th>State / portal</th><th>First – last</th><th class="n">Rivera tracked / won</th></tr></thead><tbody>${L.slice(0, 300).map(b => `<tr class="click" data-bo="${esc(b.org)}"><td><b>${esc(b.org)}</b></td><td class="n">${b.n}</td><td class="n">${b.live || "—"}</td><td class="n">${tdbMoney(b.value)}</td><td class="small">${esc(b.items.join("; "))}</td><td class="small">${esc([...b.states, ...b.portals].join(", "))}</td><td class="small mono">${dmy(b.first)} – ${dmy(b.last)}</td><td class="n">${b.tracked ? b.tracked + " / " + b.won : "—"}</td></tr>`).join("")}</tbody></table></div>`}</section>`;
+  $("#bq").oninput = e => { S.bq = e.target.value; clearTimeout(S._t); S._t = setTimeout(() => { const p = $("#bq")?.selectionStart; render(); const i = $("#bq"); if (i) { i.focus(); i.setSelectionRange(p, p); } }, 250); };
+  $$("[data-bo]", B).forEach(r => r.onclick = () => { Object.assign(S.f, { org: r.dataset.bo === "(buyer not given)" ? "" : r.dataset.bo, status: "all", q: "" }); S.page = 1; S.tab = "search"; render(); });
+}
+function tdbComp(B, S) {
+  const c = tdbStatsLoad(S), d = c?.d, q = (S.cq || "").toLowerCase(), L = (d?.competitors || []).filter(x => !q || (x.name + " " + x.items.join(" ") + " " + x.buyers.join(" ")).toLowerCase().includes(q)), rv = d?.rivera;
+  B.innerHTML = `${rv ? `<div class="hero-strip"><div><span>Rivera bids with results</span><b>${rv.bids}</b></div><div><span>Rivera L1</span><b>${rv.l1}</b></div><div><span>Rivera awarded</span><b>${rv.won}</b></div><div><span>Competitors known</span><b>${(d.competitors || []).length}</b></div></div>` : ""}
+  <section class="panel"><div class="body"><label class="f">Find a competitor<input type="text" id="cq" value="${esc(S.cq || "")}" placeholder="company name, item, buyer"></label></div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>Competitors ${d ? "(" + L.length + ")" : ""}</h2><span class="muted small">“vs Rivera” = how much Rivera's price was above (+) or below (−) theirs on the same tender</span></header>
+  ${c?.err ? `<div class="empty"><b>Couldn't load</b>${esc(c.err)}</div>` : !d ? tdbSpinner() : !L.length ? `<div class="empty"><b>No competitor data yet</b>Add results (Results & L1 prices) or import a results Excel.</div>` :
+  `<div class="scroll"><table class="t"><thead><tr><th>Competitor</th><th class="n">Bids seen</th><th class="n">Times L1</th><th class="n">Awarded</th><th class="n">Avg price</th><th class="n">Met Rivera</th><th class="n">Beat Rivera</th><th class="n">Rivera vs them</th><th>Items</th><th>Buyers</th><th>Last</th></tr></thead><tbody>${L.slice(0, 300).map(x => `<tr class="click" data-cb="${esc(x.name)}"><td><b>${esc(x.name)}</b></td><td class="n">${x.bids}</td><td class="n">${x.l1 || "—"}</td><td class="n">${x.won || "—"}</td><td class="n">${tdbMoney(x.avgPrice)}</td><td class="n">${x.vsRivera || "—"}</td><td class="n">${x.vsRivera ? x.beatRivera : "—"}</td><td class="n">${x.avgGap == null ? "—" : `<span class="chip ${x.avgGap > 0 ? "bad" : "ok"}">${x.avgGap > 0 ? "+" : ""}${x.avgGap.toFixed(1)}%</span>`}</td><td class="small">${esc(x.items.join("; "))}</td><td class="small">${esc(x.buyers.join("; "))}</td><td class="mono small">${dmy(x.last)}</td></tr>`).join("")}</tbody></table></div>`}</section>`;
+  $("#cq").oninput = e => { S.cq = e.target.value; clearTimeout(S._t); S._t = setTimeout(() => { const p = $("#cq")?.selectionStart; render(); const i = $("#cq"); if (i) { i.focus(); i.setSelectionRange(p, p); } }, 250); };
+  $$("[data-cb]", B).forEach(r => r.onclick = () => { S.rq = { q: "", bidder: r.dataset.cb, bid: "", page: 1 }; S.tab = "results"; render(); });
+}
+/* Excel / CSV import with automatic column matching (Tender247, GeM, CPPP exports or Rivera's own sheets) */
+const TDB_MAP = {
+  tenders: [["bid", /t247|bid\s*(no|number|id)|tender\s*(id|no|number|ref)|nit\s*no|reference\s*no|ref\.?\s*no|enquiry\s*no/i], ["org", /organi[sz]ation|authority|buyer|department|ministry|company|purchaser|client|customer/i], ["item", /brief|title|description|item|work|product|category|subject|scope/i], ["state", /^state|state\s*name/i], ["city", /city|location|district|place/i], ["emd", /emd|earnest/i], ["value", /tender\s*value|estimated|ecv|est\.?\s*cost|value|amount|cost/i], ["published", /publish|start\s*date|issue\s*date|opening\s*date|posted/i], ["closing", /due|clos|end\s*date|last\s*date|submission|bid\s*end/i], ["link", /link|url|web/i], ["portal", /portal|source|website|site/i]],
+  results: [["bid", /t247|bid\s*(no|number|id)|tender\s*(id|no|number|ref)|nit\s*no|reference/i], ["org", /organi[sz]ation|authority|buyer|department|ministry|purchaser|client/i], ["item", /brief|title|description|item|work|product|category/i], ["bidder", /bidder|vendor|seller|firm|participant|winner|awarded\s*to|company\s*name|supplier|competitor|party/i], ["rank", /rank|position|^l\s*no|^status\s*\(l/i], ["price", /price|quoted|bid\s*value|bid\s*amount|amount|rate|value|offer/i], ["awarded", /award|result|status|won/i], ["resultDate", /date/i]]
+};
+function tdbDate(v) {
+  if (v == null || v === "") return "";
+  if (typeof v === "number" && v > 20000 && v < 80000) return new Date(Math.round((v - 25569) * 864e5)).toISOString().slice(0, 10);
+  const s = String(v).trim(); let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0];
+  m = s.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{2,4})/); if (m) { const y = m[3].length === 2 ? "20" + m[3] : m[3]; return `${y}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`; }
+  m = s.match(/(\d{1,2})[- ]([A-Za-z]{3})[A-Za-z]*[-, ]+(\d{4})/); if (m) { const mo = "janfebmaraprmayjunjulaugsepoctnovdec".indexOf(m[2].toLowerCase()) / 3 + 1; if (mo > 0) return `${m[3]}-${String(mo).padStart(2, "0")}-${m[1].padStart(2, "0")}`; }
+  return "";
+}
+function tdbAmt(v) { if (typeof v === "number") return v; const s = String(v || ""); let n = num(s.replace(/[^\d.]/g, "")); if (/cr/i.test(s)) n *= 1e7; else if (/lakh|lac|\bl\b/i.test(s)) n *= 1e5; return n || ""; }
+function tdbGuess(head, kind) {
+  const used = new Set(), map = {};
+  for (const [k, re] of TDB_MAP[kind]) { const i = head.findIndex((h, j) => !used.has(j) && re.test(String(h || "")) && !(k === "value" && /emd|earnest/i.test(h)) && !(k === "price" && /date/i.test(h))); if (i >= 0) { map[k] = i; used.add(i); } }
+  return map;
+}
+function tdbImport(B, S) {
+  const I = S.imp;
+  B.innerHTML = `<section class="panel"><header><h2>Import tenders or results from Excel / CSV</h2></header><div class="body stack">
+    <p class="muted small" style="margin:0">Use a Tender247 / TenderTiger / GeM / CPPP export, an old Rivera tender register, or a results sheet (bidder + price). Columns are matched automatically — check the preview, change any column if needed, then import. Same bid number is merged, never duplicated.</p>
+    <div class="fields"><label class="f">What is in the file?<select id="imK"><option value="tenders" ${I?.kind !== "results" ? "selected" : ""}>Tenders (list of bids)</option><option value="results" ${I?.kind === "results" ? "selected" : ""}>Results (bidders and prices)</option></select></label>
+    <label class="f" style="grid-column:span 2">File (.xlsx, .csv)<input type="file" id="imF" accept=".xlsx,.xlsm,.csv,.txt"></label></div>
+    ${I ? `<div><b>${esc(I.name)}</b> <span class="muted small">· sheet “${esc(I.sheet)}” · ${I.rows.length} data rows · header row ${I.hr + 1}</span></div>
+    <div class="fields">${TDB_MAP[I.kind].map(([k]) => `<label class="f">${({ bid: "Bid / tender no.", org: "Buyer", item: "Item / work", state: "State", city: "City", emd: "EMD", value: "Value", published: "Published", closing: "Closing", link: "Link", portal: "Portal", bidder: "Bidder", rank: "Rank", price: "Price", awarded: "Awarded / status", resultDate: "Result date" })[k]}<select data-imc="${k}"><option value="">— none —</option>${I.head.map((h, j) => `<option value="${j}" ${I.map[k] === j ? "selected" : ""}>${esc(String(h || "Column " + (j + 1)).slice(0, 40))}</option>`).join("")}</select></label>`).join("")}</div>
+    <div class="scroll"><table class="t"><thead><tr>${TDB_MAP[I.kind].filter(([k]) => I.map[k] != null).map(([k]) => `<th>${k}</th>`).join("")}</tr></thead><tbody>${tdbRows(I).slice(0, 8).map(r => `<tr>${TDB_MAP[I.kind].filter(([k]) => I.map[k] != null).map(([k]) => `<td class="small">${esc(String(r[k] ?? "").slice(0, 70))}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <div class="row"><button class="btn primary" id="imGo" ${I.map.bid == null ? "disabled" : ""}>${icon("up")}Import ${tdbRows(I).length} rows</button>${I.map.bid == null ? '<span class="small" style="color:var(--bad)">Pick the bid / tender number column</span>' : ""}<span id="imP" class="small muted"></span></div>` : ""}
+  </div></section>`;
+  const parse = async file => {
+    const kind = $("#imK").value; let grid = [], sheet = "CSV";
+    if (/\.(xlsx|xlsm)$/i.test(file.name)) { const sh = await readXlsx(await file.arrayBuffer()); const best = sh.map(s => ({ s, n: s.grid.filter(r => r.filter(x => x != null && x !== "").length >= 3).length })).sort((a, b) => b.n - a.n)[0]; if (!best) throw new Error("No sheet with data"); grid = best.s.grid; sheet = best.s.name; }
+    else grid = parseCSV(await file.text());
+    let hr = 0, bestN = -1; for (let i = 0; i < Math.min(25, grid.length); i++) { const n = Object.keys(tdbGuess((grid[i] || []).map(x => String(x ?? "")), kind)).length; if (n > bestN) { bestN = n; hr = i; } }
+    const head = (grid[hr] || []).map(x => String(x ?? "").trim()), rows = grid.slice(hr + 1).filter(r => r && r.some(x => x != null && String(x).trim() !== ""));
+    S.imp = { name: file.name, sheet, kind, hr, head, rows, map: tdbGuess(head, kind) }; render();
+  };
+  $("#imF").onchange = async e => { const f = e.target.files[0]; if (!f) return; try { await parse(f); } catch (er) { toast("Couldn't read the file: " + er.message, "bad"); } };
+  $("#imK").onchange = e => { if (S.imp) { S.imp.kind = e.target.value; S.imp.map = tdbGuess(S.imp.head, S.imp.kind); render(); } };
+  $$("[data-imc]", B).forEach(s => s.onchange = () => { I.map[s.dataset.imc] = s.value === "" ? undefined : +s.value; render(); });
+  $("#imGo")?.addEventListener("click", async () => {
+    const all = tdbRows(I).filter(r => String(r.bid || "").trim().length >= 4), btn = $("#imGo"); btn.disabled = true; let added = 0;
+    try {
+      for (let i = 0; i < all.length; i += 1000) { $("#imP").textContent = `Importing ${Math.min(all.length, i + 1000)} of ${all.length}…`; const d = await AUTH.call("tdbImport", { kind: I.kind, rows: all.slice(i, i + 1000), label: I.name }, 120000); added += d.result.added; }
+      toast(`Imported ${all.length} rows — ${added} new`); S.imp = null; tdbBust(); S.tab = I.kind === "results" ? "results" : "search"; if (I.kind !== "results") S.f.status = "all"; render();
+    } catch (er) { toast(er.message, "bad"); btn.disabled = false; $("#imP").textContent = ""; }
+  });
+}
+function tdbRows(I) {
+  const g = k => r => I.map[k] == null ? "" : r[I.map[k]];
+  return I.rows.map(r => {
+    const o = {}; for (const [k] of TDB_MAP[I.kind]) o[k] = g(k)(r) ?? "";
+    for (const k of ["published", "closing", "resultDate"]) if (k in o) o[k] = tdbDate(o[k]);
+    for (const k of ["value", "emd", "price"]) if (k in o) o[k] = tdbAmt(o[k]);
+    if ("rank" in o) o.rank = num(String(o.rank).replace(/[^\d]/g, "")) || "";
+    if ("awarded" in o && o.awarded !== "") o.awarded = /award|won|yes|success|l1|selected/i.test(String(o.awarded)) && !/not|no\b|reject|disqual/i.test(String(o.awarded)) ? "yes" : "no";
+    for (const k in o) if (typeof o[k] === "string") o[k] = o[k].trim();
+    if (o.bid != null) o.bid = String(o.bid).trim();
+    if (I.kind === "tenders" && !o.portal) o.portal = /^GEM\//i.test(o.bid) ? "GeM" : /t247/i.test(I.head[I.map.bid] || "") ? "Tender247" : "Excel import";
+    if (I.kind === "tenders") o.fit = tenderFit(`${o.item} ${o.org}`);
+    return o;
+  });
+}
+function tdbSources(B, S) {
+  const c = S.cache.state || (tdbLoad("state", "tdbState", {}), S.cache.state), d = c?.d;
+  const ago = iso => { if (!iso) return "never"; const m = Math.round((Date.now() - new Date(iso)) / 6e4); return m < 60 ? m + " min ago" : m < 2880 ? Math.round(m / 60) + " h ago" : dmy(iso.slice(0, 10)); };
+  const bf = d?.backfill || {}, g = d?.gem || {};
+  B.innerHTML = c?.err ? `<section class="panel"><div class="empty"><b>The server doesn't have the tender database yet</b>${esc(c.err)}. Paste the new <span class="mono">server/Code.gs</span> into the Apps Script project and deploy a new version (Deploy ▸ Manage deployments ▸ Edit ▸ Version: New).</div></section>` : !d ? tdbSpinner() : `
+  <div class="grid g4" style="margin-bottom:16px"><div class="panel kpi"><span class="eyebrow">Tenders stored</span><span class="v">${d.tenders.toLocaleString("en-IN")}</span><span class="s">TenderDB sheet</span></div><div class="panel kpi"><span class="eyebrow">Bidder prices</span><span class="v">${d.results.toLocaleString("en-IN")}</span><span class="s">TenderResults sheet</span></div><div class="panel kpi"><span class="eyebrow">Last update</span><span class="v" style="font-size:1.1rem">${ago(d.last?.at)}</span><span class="s">+${d.last?.email || 0} email · +${d.last?.gem || 0} GeM · +${d.last?.results || 0} results</span></div><div class="panel kpi"><span class="eyebrow">Hourly automation</span><span class="v" style="font-size:1.1rem">${d.auto?.on ? "On" : "Off"}</span><span class="s">${d.auto?.on ? "every hour + 8:30 digest" : "turn on in Health & automation"}</span></div></div>
+  <section class="panel"><header><h2>Where the data comes from</h2></header><div class="scroll"><table class="t"><thead><tr><th>Source</th><th>How</th><th>Status</th><th></th></tr></thead><tbody>
+    <tr><td><b>Email alerts</b><div class="small muted">GeM, CPPP (eprocure), Coal India, NIC state portals, NTPC/BHEL, Tender247, TenderTiger, BidAssist, TendersInfo</div></td><td class="small">Every alert mail in the Rivera Gmail is read each hour — every tender is stored, not only Rivera matches</td><td>${d.auto?.on ? '<span class="chip ok">Every hour</span>' : '<span class="chip warn">Automation off</span>'}</td><td><button class="btn sm" data-trun="all">Run now</button></td></tr>
+    <tr><td><b>GeM direct</b><div class="small muted">bidplus.gem.gov.in public “All bids” search for each Rivera keyword</div></td><td class="small">Every 6 hours, live GeM bids only. GeM can change its site at any time — if it stops, email alerts still work.</td><td>${!d.gemOn ? '<span class="chip">Off</span>' : g.at ? (g.ok ? `<span class="chip ok">Working · ${g.n} bids · ${ago(g.at)}</span>` : `<span class="chip bad">Blocked · ${esc(g.err)}</span>`) : '<span class="chip">Not run yet</span>'}</td><td class="row" style="gap:6px"><button class="btn sm" data-trun="gem">Fetch now</button>${AUTH.isAdmin ? `<button class="btn sm" id="tgemT">${d.gemOn ? "Turn off" : "Turn on"}</button>` : ""}</td></tr>
+    <tr><td><b>Result / award mails</b><div class="small muted">L1, awarded-to, bidder price lines</div></td><td class="small">Read each hour with the alerts; parsed into Results</td><td>${d.auto?.on ? '<span class="chip ok">Every hour</span>' : '<span class="chip warn">Automation off</span>'}</td><td></td></tr>
+    <tr><td><b>Rivera's own register</b><div class="small muted">Tenders & GeM, Bid Desk results, Rivera prices</div></td><td class="small">Copied in each hour</td><td><span class="chip ok">Automatic</span></td><td></td></tr>
+    <tr><td><b>Excel / CSV</b><div class="small muted">Tender247 export, old registers, result sheets</div></td><td class="small">Excel import tab</td><td><span class="chip ok">Ready</span></td><td><button class="btn sm" id="tgoImp">Import</button></td></tr>
+  </tbody></table></div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>History from old mails (one time)</h2></header><div class="body stack">
+    <p class="small muted" style="margin:0">Reads up to 3 years of old tender alert and result mails in the Rivera Gmail and fills the archive. It runs by itself every 10 minutes in the background until finished (large mailboxes can take a few hours).</p>
+    <div class="row" style="gap:10px"><span class="chip ${bf.done ? "ok" : bf.on ? "warn" : ""}">${bf.done ? "Finished " + dmy(bf.done.slice(0, 10)) : bf.on ? "Running" : bf.started ? "Stopped" : "Not started"}</span><span class="small">${bf.threads} alert mail threads · ${bf.resultThreads} result threads · ${bf.tenders} tenders found</span></div>
+    ${AUTH.isAdmin ? `<div class="row" style="gap:8px"><button class="btn primary" id="tbfS">${bf.started ? "Start again" : "Start backfill"}</button>${bf.on ? '<button class="btn" id="tbfX">Stop</button>' : ""}</div>` : '<p class="small muted" style="margin:0">Ask the admin to start it.</p>'}
+  </div></section>
+  ${AUTH.isAdmin && d.sheet ? `<p class="small muted" style="margin-top:12px">Raw data: <a href="${esc(d.sheet)}" target="_blank" rel="noopener">open the Google Sheet</a> (TenderDB and TenderResults tabs). Rivera keywords used for matching are set in Tender intelligence ▸ Keyword alerts.</p>` : ""}`;
+  $$("[data-trun]", B).forEach(b => b.onclick = async () => { b.disabled = true; b.textContent = "Running…"; try { const x = await AUTH.call("tdbRun", { op: b.dataset.trun }, 300000); toast(b.dataset.trun === "gem" ? `GeM: ${x.found} bids found, ${x.added} new` : `Done — +${x.result?.db?.email || 0} from email, +${x.result?.db?.gem || 0} GeM, +${x.result?.db?.results || 0} results`); tdbBust(); render(); } catch (e) { toast(e.message, "bad"); b.disabled = false; b.textContent = "Run now"; } });
+  $("#tgoImp")?.addEventListener("click", () => { S.tab = "import"; render(); });
+  $("#tgemT")?.addEventListener("click", async () => { try { await AUTH.call("tdbConfig", { gemDirect: !d.gemOn }); tdbBust(); render(); } catch (e) { toast(e.message, "bad"); } });
+  $("#tbfS")?.addEventListener("click", async () => { try { await AUTH.call("tdbBackfill", { op: "start" }); toast("Backfill started — it runs in the background every 10 minutes"); tdbBust(); render(); } catch (e) { toast(e.message, "bad"); } });
+  $("#tbfX")?.addEventListener("click", async () => { try { await AUTH.call("tdbBackfill", { op: "stop" }); tdbBust(); render(); } catch (e) { toast(e.message, "bad"); } });
+}
+
 boot();
 
 </script>
