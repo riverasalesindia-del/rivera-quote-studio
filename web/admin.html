@@ -326,6 +326,16 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--sunk)}
 .btn.lg{padding:12px 18px;font-size:1rem}
 .doc-name{display:inline-block}.doc-name.ok::after{content:" ✓";color:var(--ok);font-weight:700}
 @media (max-width:640px){.ready-doc .btn.lg{width:100%;justify-content:center}}
+
+/* p14 tender automation */
+.score-ring{display:inline-grid;place-items:center;width:46px;height:46px;border-radius:50%;font-weight:700;font-size:1rem;border:4px solid var(--line,#d5dde4);flex:none}
+.score-ring.sm{width:34px;height:34px;font-size:.8rem;border-width:3px}
+.score-ring.ok{border-color:#1f9d55;color:#1f7a45}.score-ring.warn{border-color:#E25E00;color:#b34a00}.score-ring.bad{border-color:#c0392b;color:#a2281c}
+.rem-strip header h2{display:flex;align-items:center;gap:8px}
+.rem{padding:8px 12px;border-radius:10px;border-left:4px solid #8aa0b4;background:rgba(2,49,91,.04);font-size:.86rem}
+.rem a{color:inherit;text-decoration:none;display:block}.rem a:hover{text-decoration:underline}
+.rem.bad{border-left-color:#c0392b;background:rgba(192,57,43,.07)}.rem.warn{border-left-color:#E25E00;background:rgba(226,94,0,.07)}.rem.ok{border-left-color:#1f9d55;background:rgba(31,157,85,.07)}
+.tabs-row{flex-wrap:wrap;row-gap:2px}
 </style>
 <div class="shell">
   <aside class="rail" aria-label="Main navigation">
@@ -5133,6 +5143,206 @@ boot = function () {
   _boot13(); setTimeout(() => DSTORE.load(), 4000); setInterval(() => DSTORE.load(), 30 * 60000);
   if (location.protocol === "rivera:") setInterval(() => syncStoreFromDropbox(), 10 * 60000);     // keeps going until everything is stored, then picks up new files
 };
+/* ========= p14 — Tender automation (Tender247-style): all-portal alerts, corrigenda, bid / no-bid score,
+   EMD & PBG register, price history, reminders, MIS report, server automation switch ========= */
+
+/* ---------- 1. All-portal alert feed (GeM + CPPP + NIC + Coal India + aggregators) ---------- */
+const PORTAL_OF = b => /^GEM\//.test(b) ? "GeM" : /^20\d{2}_/.test(b) ? "CPPP / NIC" : "Email alert";
+loadFeed = async function (fresh) {
+  if (FEED.busy || !AUTH.required() || !AUTH.valid()) return; FEED.busy = true;
+  try {
+    let d;
+    try { d = await AUTH.call("tenderAlerts", { fresh: !!fresh }, 90000); FEED.src = "all"; }
+    catch (e) { if (!/Unknown action/i.test(e.message)) throw e; d = await AUTH.call("gemAlerts", { fresh: !!fresh }, 60000); FEED.src = "gem"; }
+    FEED.err = ""; if (d.auto) FEED.auto = d.auto;
+    FEED.list = (d.alerts || []).map(a => ({ ...a, portal: a.portal || PORTAL_OF(a.bid), fit: fitScore(a), closing: a.closing || toISO(String(a.end || "").replace(/\//g, "-")) }))
+      .sort((a, b) => b.fit - a.fit || String(a.closing).localeCompare(String(b.closing)));
+    FEED.at = Date.now(); LS.set("gemFeed", FEED.list.slice(0, 250)); LS.set("gemFeedAt", FEED.at);
+    let added = 0, moved = 0;
+    for (const a of FEED.list) {
+      const t = STATE.data.tenders.find(x => x.bid === a.bid);
+      if (t) {   // corrigendum: closing date moved
+        if (a.closing && t.closing && a.closing !== t.closing && (a.corr || a.closing > t.closing) && !(t.history || []).some(h => h.to === a.closing)) {
+          const n = clone(t); (n.history ||= []).push({ at: new Date().toISOString(), what: "Closing date changed (corrigendum)", from: t.closing, to: a.closing, by: "alert" }); n.closing = a.closing; n._noHist = 1; await DB.put("tenders", n); moved++;
+        }
+        continue;
+      }
+      if (a.fit >= 50 && (!a.closing || a.closing >= todayISO())) {
+        await DB.put("tenders", { id: a.bid.replace(/[^A-Za-z0-9]+/g, "-"), bid: a.bid, portal: a.portal, org: a.org || "", status: "identified", items: a.item || a.subject, closing: a.closing || "", preBid: a.preBid || "", ...(a.emd ? { emdMode: "required", emdAmount: a.emd, emdStatus: "to_pay", emd: "₹" + num(a.emd).toLocaleString("en-IN") } : { emdMode: "exempt_mse", emd: "Exempted (MSE)" }), value: a.value || "", check: {}, fit: true, link: a.link,
+          history: [{ at: new Date().toISOString(), what: `Added automatically from ${a.portal} alert (${a.fit}% match)`, by: "alert" }] });
+        added++;
+      }
+    }
+    if (added) toast(`${added} new tender${added > 1 ? "s" : ""} for Rivera added automatically`);
+    if (moved) toast(`${moved} tender closing date${moved > 1 ? "s" : ""} changed by corrigendum`, "warn");
+    if ((added || moved) && ["biddesk", "tenders", "home", "intel"].includes(STATE.route)) render();
+  } catch (e) { FEED.err = /Unknown action|gmail|Gmail|permission|authori/i.test(e.message) ? "setup" : e.message; }
+  FEED.busy = false; if (STATE.route === "biddesk") drawFeed();
+};
+
+/* ---------- 2. Tender history: every closing-date change is recorded ---------- */
+const _put14 = DB.put.bind(DB);
+DB.put = async function (c, o) {
+  if (c === "tenders" && o && o.id) {
+    const old = STATE.data.tenders.find(x => x.id === o.id);
+    if (o._noHist) delete o._noHist;
+    else if (old) {
+      const H = [];
+      for (const [k, l] of [["closing", "Closing date"], ["ra", "RA date"], ["preBid", "Pre-bid date"], ["status", "Status"], ["emdStatus", "EMD"], ["pbgStatus", "ePBG"]])
+        if ((old[k] || "") !== (o[k] || "") && (old[k] || o[k])) H.push({ at: new Date().toISOString(), what: `${l} changed`, from: old[k] || "—", to: o[k] || "—", by: AUTH.user?.name || "" });
+      if (H.length) o.history = [...(o.history || old.history || []), ...H].slice(-60);
+    }
+  }
+  return _put14(c, o);
+};
+
+/* ---------- 3. Extra tender fields: pre-bid, EMD, PBG, source link, history ---------- */
+const _tf14 = tenderForm;
+tenderForm = function (t) {
+  _tf14(t);
+  const f = $("#tForm"), fields = $(".fields", f); if (!fields) return;
+  const inp = (l, k, ty) => `<label class="f">${l}<input type="${ty}" data-tf="${k}" value="${esc(t[k] ?? "")}"></label>`;
+  fields.insertAdjacentHTML("beforeend", inp("Pre-bid meeting", "preBid", "date") + inp("Tender link", "link", "url"));
+  if (t.id) {
+    const sc = bidScore(t);
+    fields.insertAdjacentHTML("afterend", `<div class="note" style="margin-top:12px;display:flex;gap:14px;align-items:center;flex-wrap:wrap"><span class="score-ring ${sc.cls}">${sc.score}</span><div><b>Bid / no-bid: ${sc.verdict}</b><div class="muted small">${sc.parts.map(p => `${p[0]} ${p[1]}/${p[2]}`).join(" · ")}</div></div></div>`);
+    if ((t.history || []).length) $("[data-tf=notes]", f)?.closest("label").insertAdjacentHTML("afterend", `<details style="margin-top:10px"><summary class="small"><b>History</b> (${t.history.length})</summary><div class="stack small" style="gap:4px;margin-top:6px">${t.history.slice().reverse().map(h => `<div><span class="muted">${new Date(h.at).toLocaleString("en-IN", { day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" })}</span> — ${esc(h.what)}${h.from ? ` <span class="muted">${esc(/^\d{4}-/.test(h.from) ? dmy(h.from) : h.from)} → </span><b>${esc(/^\d{4}-/.test(h.to) ? dmy(h.to) : h.to)}</b>` : ""}${h.by ? ` <span class="muted">· ${esc(h.by)}</span>` : ""}</div>`).join("")}</div></details>`);
+  }
+};
+
+/* ---------- 4. Bid / no-bid score ---------- */
+const LIVE14 = ["identified", "preparing", "submitted", "technical", "ra"];
+function bidScore(t) {
+  const ts = STATE.data.tenders || [], fit = tenderFit(`${t.items || ""} ${t.org || ""} ${t.notes || ""}`);
+  const same = ts.filter(x => x.org && x.org === t.org && x.id !== t.id), sub = same.filter(x => ["submitted", "technical", "ra", "awarded", "not_awarded"].includes(x.status)), won = same.filter(x => x.status === "awarded");
+  const buyer = !same.length ? 10 : sub.length ? Math.round(5 + 15 * won.length / sub.length) : 8;
+  const d = t.closing ? daysTo(t.closing) : 10, time = d < 0 ? 0 : d <= 1 ? 4 : d <= 3 ? 9 : 15;
+  const vals = ts.filter(x => x.status === "awarded" && num(x.value) > 0).map(x => num(x.value)).sort((a, b) => a - b), v = num(t.value);
+  const value = !v || !vals.length ? 10 : v <= vals[vals.length - 1] * 2 && v >= vals[0] / 3 ? 15 : v > vals[vals.length - 1] * 2 ? 6 : 10;
+  const ready = Math.round(checklistPct(t) / 10);
+  const parts = [["Product match", Math.round(fit * 0.4), 40], ["Buyer history", buyer, 20], ["Time left", time, 15], ["Value range", value, 15], ["Documents ready", ready, 10]];
+  const score = parts.reduce((s, p) => s + p[1], 0);
+  return { score, parts, verdict: score >= 65 ? "Bid" : score >= 45 ? "Review" : "Skip", cls: score >= 65 ? "ok" : score >= 45 ? "warn" : "bad" };
+}
+
+const emdDue = t => t.emdMode === "required" && num(t.emdAmount) > 0 && t.emdStatus === "paid" && ["not_awarded", "not_attended"].includes(t.status);
+/* ---------- 5. Reminders: dashboard strip + desktop notifications ---------- */
+function reminders() {
+  const ts = STATE.data.tenders || [], out = [], T = todayISO(), d = x => x ? daysTo(String(x).slice(0, 10)) : 99;
+  for (const t of ts) {
+    const live = LIVE14.includes(t.status), nm = `${t.org ? t.org + " · " : ""}${t.bid}`;
+    if (["identified", "preparing"].includes(t.status) && t.closing && d(t.closing) >= 0 && d(t.closing) <= 2) out.push({ k: "close", lvl: d(t.closing) === 0 ? "bad" : "warn", t, msg: `Bid closes ${d(t.closing) === 0 ? "TODAY" : d(t.closing) === 1 ? "tomorrow" : "in 2 days"} — ${nm}` });
+    if (live && t.ra && d(t.ra) === 0) out.push({ k: "ra", lvl: "bad", t, msg: `Reverse auction today — ${nm}` });
+    if (live && t.preBid && d(t.preBid) >= 0 && d(t.preBid) <= 1) out.push({ k: "pre", lvl: "warn", t, msg: `Pre-bid meeting ${d(t.preBid) ? "tomorrow" : "today"} — ${nm}` });
+    if (t.pbgValidity && t.pbgStatus === "submitted" && d(t.pbgValidity) >= 0 && d(t.pbgValidity) <= 15) out.push({ k: "pbg", lvl: "warn", t, msg: `ePBG valid only up to ${dmy(t.pbgValidity)} — ${nm}` });
+    if (emdDue(t) && t.closing && d(t.closing) < -30) out.push({ k: "emd", lvl: "warn", t, msg: `EMD ₹${num(t.emdAmount).toLocaleString("en-IN")} not refunded yet — ${nm}` });
+  }
+  const fresh = (FEED.list || []).filter(a => a.fit >= 75 && a.date && Date.now() - new Date(a.date) < 864e5 && (!a.closing || a.closing >= T));
+  if (fresh.length) out.unshift({ k: "new", lvl: "ok", msg: `${fresh.length} new strong tender match${fresh.length > 1 ? "es" : ""} in the last 24 hours` });
+  return out;
+}
+function notifyReminders() {
+  try {
+    if (!("Notification" in window) || Notification.permission !== "granted") return;
+    const seen = LS.get("remSeen", {}), day = todayISO();
+    for (const r of reminders()) { const key = `${day}|${r.k}|${r.t?.id || ""}`; if (seen[key]) continue; seen[key] = 1; new Notification("Rivera tenders", { body: r.msg, icon: "icons/favicon-32.png", tag: key }); }
+    for (const k of Object.keys(seen)) if (!k.startsWith(day)) delete seen[k];
+    LS.set("remSeen", seen);
+  } catch (e) { }
+}
+setInterval(notifyReminders, 30 * 60000); setTimeout(notifyReminders, 20000);
+const _home14 = VIEWS.home;
+VIEWS.home = v => {
+  _home14(v);
+  const R = reminders(); if (!R.length) return;
+  const top = $(".topbar", v);
+  const html = `<section class="panel rem-strip" style="margin-bottom:16px"><header><h2>${icon("radar")}Tender reminders</h2><div class="row" style="gap:6px">${"Notification" in window && Notification.permission === "default" ? `<button class="btn sm" id="remOn">Desktop alerts</button>` : ""}<a class="btn sm" href="#intel">Open intelligence</a></div></header><div class="body stack" style="gap:6px">${R.slice(0, 8).map(r => `<div class="rem ${r.lvl}">${r.t ? `<a href="#tenders" data-rem="${esc(r.t.id)}">${esc(r.msg)}</a>` : `<a href="#intel">${esc(r.msg)}</a>`}</div>`).join("")}${R.length > 8 ? `<div class="muted small">+${R.length - 8} more in Tender intelligence</div>` : ""}</div></section>`;
+  top ? top.insertAdjacentHTML("afterend", html) : v.insertAdjacentHTML("afterbegin", html);
+  $("#remOn")?.addEventListener("click", async () => { try { await Notification.requestPermission(); } catch (e) { } notifyReminders(); render(); });
+};
+
+/* ---------- 6. Tender intelligence: new tabs ---------- */
+const _intel14 = VIEWS.intel;
+const TABS14 = [["score", "Bid / no-bid"], ["money", "EMD & PBG"], ["price", "Price history"], ["auto", "Automation"]];
+VIEWS.intel = v => {
+  const S = I12(), mine = TABS14.some(x => x[0] === S.tab), keep = S.tab;
+  if (mine) S.tab = "alerts";
+  _intel14(v); S.tab = keep;
+  const row = $(".tabs-row", v);
+  row.insertAdjacentHTML("beforeend", TABS14.map(([k, l]) => `<button role="tab" class="tab ${S.tab === k ? "on" : ""}" aria-selected="${S.tab === k}" data-itab="${k}">${l}</button>`).join(""));
+  if (mine) $$(".tab", row).forEach(b => { const on = b.dataset.itab === keep; b.classList.toggle("on", on); b.setAttribute("aria-selected", on); });
+  $$("[data-itab]", row).forEach(b => b.onclick = () => { S.tab = b.dataset.itab; render(); });
+  const bar = $(".topbar .row", v); bar?.insertAdjacentHTML("afterbegin", `<button class="btn" id="misBtn">${icon("doc")}MIS report</button>`);
+  $("#misBtn")?.addEventListener("click", misReport);
+  const sub = $(".topbar p", v); if (sub) sub.textContent = "Tenders from GeM, CPPP, state / NIC portals, Coal India and Tender247-style alert mails — scored for Rivera, laid out on a calendar, with bid / no-bid advice, EMD and guarantee tracking, price history and buyer and competitor results.";
+  if (FEED.src === "all") $(".topbar .eyebrow", v)?.insertAdjacentHTML("beforeend", ` · <span class="chip ok" style="font-size:.66rem">All portals</span>`);
+  if (!mine) return;
+  const B = $("#intelBody"), ts = STATE.data.tenders || [];
+  if (keep === "score") {
+    const live = ts.filter(t => LIVE14.includes(t.status) && (!t.closing || t.closing >= todayISO())).map(t => ({ t, s: bidScore(t) })).sort((a, b) => b.s.score - a.s.score);
+    B.innerHTML = `<section class="panel"><header><h2>Which bids to go for</h2><span class="muted small">Product match 40 · buyer history 20 · time left 15 · value range 15 · documents ready 10</span></header><div class="scroll">${live.length ? `<table class="t"><thead><tr><th class="n">Score</th><th>Advice</th><th>Bid</th><th>Buyer</th><th>Items</th><th>Closing</th><th>Breakdown</th></tr></thead><tbody>${live.map(({ t, s }) => `<tr data-iob2="${esc(t.id)}" style="cursor:pointer"><td class="n"><span class="score-ring sm ${s.cls}">${s.score}</span></td><td><span class="chip ${s.cls}">${s.verdict}</span></td><td class="mono small">${esc(t.bid)}</td><td>${esc(t.org || "—")}</td><td class="small" style="max-width:320px">${esc(String(t.items || "").slice(0, 120))}</td><td>${t.closing ? dueChip(t.closing) : "—"}</td><td class="small muted">${s.parts.map(p => `${p[0].split(" ")[0]} ${p[1]}`).join(" · ")}</td></tr>`).join("")}</tbody></table>` : `<div class="empty"><b>No live bids</b>New matches from the alerts land here automatically.</div>`}</div></section>`;
+    $$("[data-iob2]", B).forEach(r => r.onclick = () => { location.hash = "#tenders"; setTimeout(() => tenderForm(clone(STATE.data.tenders.find(x => x.id === r.dataset.iob2))), 300); });
+  } else if (keep === "money") {
+    const emd = ts.filter(t => t.emdMode === "required"), pbg = ts.filter(t => num(t.pbgAmount) > 0 || t.pbgStatus && t.pbgStatus !== "na");
+    const locked = emd.filter(t => t.emdStatus === "paid"), due = emd.filter(emdDue), pay = emd.filter(t => (t.emdStatus || "to_pay") === "to_pay" && LIVE14.includes(t.status));
+    const sum = L => L.reduce((s, t) => s + num(t.emdAmount), 0), pb = pbg.filter(t => t.pbgStatus === "submitted");
+    const row = (t, extra) => `<tr data-iob2="${esc(t.id)}" style="cursor:pointer"><td class="mono small">${esc(t.bid)}</td><td>${esc(t.org || "—")}</td>${extra}</tr>`;
+    B.innerHTML = `<div class="grid g4" style="margin-bottom:16px"><div class="panel kpi"><span class="eyebrow">EMD to pay</span><span class="v">₹${sum(pay).toLocaleString("en-IN")}</span><span class="s">${pay.length} live bids</span></div><div class="panel kpi"><span class="eyebrow">EMD with buyers</span><span class="v">₹${sum(locked).toLocaleString("en-IN")}</span><span class="s">${locked.length} bids</span></div><div class="panel kpi"><span class="eyebrow">EMD to get back</span><span class="v">₹${sum(due).toLocaleString("en-IN")}</span><span class="s">${due.length} lost / not attended</span></div><div class="panel kpi"><span class="eyebrow">ePBG running</span><span class="v">₹${pb.reduce((s, t) => s + num(t.pbgAmount), 0).toLocaleString("en-IN")}</span><span class="s">${pb.filter(t => t.pbgValidity && daysTo(t.pbgValidity) <= 30 && daysTo(t.pbgValidity) >= 0).length} expiring in 30 days</span></div></div>
+    <section class="panel"><header><h2>EMD register</h2><span class="muted small">MSE-exempt bids: ${ts.filter(t => (t.emdMode || "exempt_mse") === "exempt_mse").length}</span></header><div class="scroll">${emd.length ? `<table class="t"><thead><tr><th>Bid</th><th>Buyer</th><th class="n">EMD ₹</th><th>Instrument</th><th>Status</th><th>Paid</th><th>Refunded</th><th>Bid result</th></tr></thead><tbody>${emd.map(t => row(t, `<td class="n">${num(t.emdAmount).toLocaleString("en-IN")}</td><td class="small">${esc((EMD_PAY[t.emdPay] || "—").split(" (")[0])}</td><td><span class="chip ${t.emdStatus === "refunded" || t.emdStatus === "adjusted" ? "ok" : due.includes(t) ? "warn" : ""}">${esc(EMD_ST[t.emdStatus || "to_pay"] || "—")}</span></td><td>${t.emdPaidOn ? dmy(t.emdPaidOn) : "—"}</td><td>${t.emdRefundOn ? dmy(t.emdRefundOn) : "—"}</td><td>${esc(TENDER_ST[t.status]?.[0] || t.status)}</td>`)).join("")}</tbody></table>` : `<div class="empty"><b>No bids with EMD</b>Rivera bids as MSE (EMD exempted) by default. When a bid asks for EMD, set it in the tender.</div>`}</div></section>
+    <section class="panel" style="margin-top:16px"><header><h2>Performance guarantees (ePBG)</h2></header><div class="scroll">${pbg.length ? `<table class="t"><thead><tr><th>Bid</th><th>Buyer</th><th class="n">ePBG ₹</th><th>BG no.</th><th>Valid up to</th><th>Status</th></tr></thead><tbody>${pbg.map(t => row(t, `<td class="n">${num(t.pbgAmount).toLocaleString("en-IN")}</td><td class="mono small">${esc(t.pbgRef || "—")}</td><td>${t.pbgValidity ? dueChip(t.pbgValidity, t.pbgStatus === "released") : "—"}</td><td>${esc(PBG_ST[t.pbgStatus || "na"] || "—")}</td>`)).join("")}</tbody></table>` : `<div class="empty"><b>No guarantees recorded</b>Add the ePBG amount and validity in the tender when a contract is awarded.</div>`}</div></section>`;
+    $$("[data-iob2]", B).forEach(r => r.onclick = () => { location.hash = "#tenders"; setTimeout(() => tenderForm(clone(STATE.data.tenders.find(x => x.id === r.dataset.iob2))), 300); });
+  } else if (keep === "price") {
+    S.pq ??= "";
+    const q = S.pq.toLowerCase();
+    const recs = [];
+    for (const t of ts) {
+      const r = t.result || {}; if (!(num(r.l1) || num(r.our) || num(t.ourPrice) || t.status === "awarded")) continue;
+      recs.push({ date: t.closing || t.contractDate || "", org: t.org, bid: t.bid, item: t.items || "", l1: num(r.l1), our: num(r.our || t.ourPrice), win: r.winner || (t.status === "awarded" ? "Rivera" : ""), qty: r.qty || "", src: "tender" });
+    }
+    for (const o of STATE.data.orders || []) if (num(o.value)) recs.push({ date: o.date || o.poDate || "", org: o.customer || o.org || "", bid: o.po || "", item: o.items || o.desc || o.subject || "", l1: 0, our: num(o.value), win: "Rivera (order)", src: "order" });
+    const L = recs.filter(r => !q || `${r.item} ${r.org} ${r.bid}`.toLowerCase().includes(q)).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const l1s = L.map(r => r.l1).filter(Boolean).sort((a, b) => a - b), med = l1s.length ? l1s[Math.floor(l1s.length / 2)] : 0;
+    const gaps = L.filter(r => r.l1 && r.our).map(r => (r.our - r.l1) / r.l1 * 100);
+    B.innerHTML = `<section class="panel"><div class="body"><label class="f">Item, buyer or bid<input type="text" id="pqQ" value="${esc(S.pq)}" placeholder="stator coil, roebel bar, NCL…"></label>
+      <div class="grid g3" style="margin-top:12px"><div class="panel kpi"><span class="eyebrow">Results found</span><span class="v">${L.length}</span></div><div class="panel kpi"><span class="eyebrow">Median L1</span><span class="v">${med ? "₹" + Math.round(med).toLocaleString("en-IN") : "—"}</span></div><div class="panel kpi"><span class="eyebrow">Rivera vs L1 (avg)</span><span class="v">${gaps.length ? (gaps.reduce((a, b) => a + b, 0) / gaps.length).toFixed(1) + "%" : "—"}</span></div></div></div></section>
+      <section class="panel" style="margin-top:16px"><div class="scroll">${L.length ? `<table class="t"><thead><tr><th>Date</th><th>Buyer</th><th>Bid / PO</th><th>Item</th><th class="n">L1 ₹</th><th class="n">Rivera ₹</th><th>Winner</th></tr></thead><tbody>${L.slice(0, 300).map(r => `<tr><td>${r.date ? dmy(r.date) : "—"}</td><td>${esc(r.org || "—")}</td><td class="mono small">${esc(r.bid)}</td><td class="small" style="max-width:320px">${esc(String(r.item).slice(0, 110))}</td><td class="n">${r.l1 ? r.l1.toLocaleString("en-IN") : "—"}</td><td class="n">${r.our ? r.our.toLocaleString("en-IN") : "—"}</td><td>${esc(r.win || "—")}</td></tr>`).join("")}</tbody></table>` : `<div class="empty"><b>No prices yet</b>Record results (L1 and Rivera's price) on decided tenders and they build up here.</div>`}</div></section>`;
+    $("#pqQ").oninput = e => { S.pq = e.target.value; clearTimeout(S._pt); S._pt = setTimeout(() => { const p = $("#pqQ")?.selectionStart; render(); const i = $("#pqQ"); if (i) { i.focus(); i.setSelectionRange(p, p); } }, 250); };
+  } else if (keep === "auto") {
+    const A = FEED.auto || {}, admin = AUTH.isAdmin;
+    const src = [["GeM", "Bid alerts from gem.gov.in"], ["CPPP", "eprocure.gov.in tender mails"], ["State / NIC portals", "*.nic.in e-procurement"], ["Coal India", "coalindiatenders.nic.in"], ["Aggregators", "Tender247 · TenderTiger · BidAssist"], ["Any 'tender' mail", "subject has tender / corrigendum"]];
+    B.innerHTML = `<section class="panel"><header><h2>Automatic tender watch</h2><span class="chip ${A.on ? "ok" : "warn"}">${A.on ? "On" : "Off"}</span></header><div class="body stack">
+      <p class="muted" style="margin:0">Every hour the server reads tender alert mails from every portal below, adds Rivera matches (50%+) to the tender list, updates closing dates from corrigenda and emails an instant alert for strong matches (75%+). Every morning at 8:30 it sends one summary: new matches, bids closing in 3 days, reverse auctions, pre-bid meetings, EMD to get back and guarantees expiring.</p>
+      <div class="grid g3">${src.map(([a, b]) => `<div class="panel" style="padding:10px 12px"><b>${a}</b><div class="muted small">${b}</div></div>`).join("")}</div>
+      ${A.digestTo ? `<div class="small">Emails go to: <b>${esc(A.digestTo)}</b>${A.last ? ` · last summary ${new Date(A.last).toLocaleString("en-IN")}` : ""}</div>` : ""}
+      ${admin ? `<div class="row" style="gap:8px;flex-wrap:wrap"><input type="text" id="auTo" placeholder="Emails for alerts, comma separated" value="${esc(A.digestTo || "")}" style="max-width:420px"><button class="btn primary" id="auOn">${A.on ? "Save" : "Turn on"}</button>${A.on ? `<button class="btn" id="auOff">Turn off</button>` : ""}<button class="btn" id="auRun">Check mail now</button><button class="btn" id="auDig">Send summary now</button><span id="auMsg" class="small muted">${esc(FEED.autoMsg || "")}</span></div>
+      <div class="note">First time only: the server needs permission to run on a timer. If “Turn on” reports a permission error, open the script editor, choose <b>installAutomation</b> and press Run, then Allow.</div>` : `<div class="note">Only the admin can switch this on or off.</div>`}
+      <div class="note">Alerts only arrive if the portals send them to the server mailbox. On GeM, CPPP and Tender247 set the alert email to the mailbox this server reads (or forward those mails to it).</div>
+    </div></section>`;
+    const go = async (op, label) => { const m = $("#auMsg"); m.textContent = label + "…"; try { const r = await AUTH.call("automation", { op, digestTo: $("#auTo").value }, 300000); FEED.auto = r.state; FEED.autoMsg = m.textContent = op === "run" ? `${r.result.alerts} alerts read · ${r.result.added} added · ${r.result.changed} date changes` : op === "digest" ? "Summary sent" : "Saved"; setTimeout(render, 1500); } catch (e) { FEED.autoMsg = m.textContent = /permission|authori|ScriptApp/i.test(e.message) ? "The server needs permission for timers — run installAutomation once in the script editor (see below)." : e.message; } };
+    $("#auOn")?.addEventListener("click", () => go("on", "Switching on")); $("#auOff")?.addEventListener("click", () => go("off", "Switching off"));
+    $("#auRun")?.addEventListener("click", () => go("run", "Reading tender mail")); $("#auDig")?.addEventListener("click", () => go("digest", "Sending"));
+    if (admin && !FEED.auto) AUTH.call("automation", {}, 60000).then(r => { FEED.auto = r.state; if (STATE.route === "intel" && I12().tab === "auto") render(); }).catch(() => { });
+  }
+};
+
+/* ---------- 7. Tender MIS report (PDF / Word) ---------- */
+function misReport() {
+  const ts = STATE.data.tenders || [], T = todayISO();
+  const by = f => Object.entries(ts.reduce((m, t) => { const k = f(t) || "—", b = m[k] ||= { n: 0, sub: 0, won: 0, val: 0 }; b.n++; if (["submitted", "technical", "ra", "awarded", "not_awarded"].includes(t.status)) b.sub++; if (t.status === "awarded") { b.won++; b.val += num(t.value); } return m; }, {})).sort((a, b) => b[1].n - a[1].n);
+  const live = ts.filter(t => LIVE14.includes(t.status) && (!t.closing || t.closing >= T)).sort((a, b) => String(a.closing).localeCompare(String(b.closing)));
+  const tbl = (head, rows, widths) => ({ widths, table: [head.map(t => ({ t, b: true })), ...rows.map(r => r.map(t => ({ t: String(t) })))] });
+  const stat = rows => rows.map(([k, b]) => [k, b.n, b.sub, b.won, b.sub ? Math.round(b.won / b.sub * 100) + "%" : "—", b.val ? b.val.toLocaleString("en-IN") : "—"]);
+  const blocks = () => [{ logo: true },
+    { t: "TENDER MIS REPORT", b: true, sz: 15, color: "02315B", align: "center", after: 40 }, { t: `Rivera Coil Manufacturing (I) Pvt Ltd · as on ${dmy(T)}`, align: "center", sz: 10, after: 200 },
+    { t: `Tracked ${ts.length} · live ${live.length} · awarded ${ts.filter(t => t.status === "awarded").length} · not awarded ${ts.filter(t => t.status === "not_awarded").length}`, sz: 11, after: 120 },
+    { t: "Live bids", b: true, sz: 12, color: "02315B", before: 160, after: 60 },
+    tbl(["Bid", "Buyer", "Items", "Closing", "Score"], live.map(t => [t.bid, t.org || "—", String(t.items || "").slice(0, 70), t.closing ? dmy(t.closing) : "—", bidScore(t).score + " " + bidScore(t).verdict]), [1900, 1500, 3300, 1000, 900]),
+    { t: "By buyer", b: true, sz: 12, color: "02315B", before: 200, after: 60 },
+    tbl(["Buyer", "Bids", "Submitted", "Won", "Win rate", "Won value ₹"], stat(by(t => t.org)), [3000, 900, 1100, 900, 1000, 1700]),
+    { t: "By portal", b: true, sz: 12, color: "02315B", before: 200, after: 60 },
+    tbl(["Portal", "Bids", "Submitted", "Won", "Win rate", "Won value ₹"], stat(by(t => t.portal)), [3000, 900, 1100, 900, 1000, 1700])];
+  openShare({ title: "Tender MIS report", base: `RIVERA_TENDER_MIS_${T}`, text: `Tender MIS report as on ${dmy(T)}`, formats: [F.pdf("Report (PDF)", () => blocksPdf(blocks())), F.docx("Report (Word)", () => buildDocx(blocks(), brandLogo()))] });
+}
 boot();
 
 </script>

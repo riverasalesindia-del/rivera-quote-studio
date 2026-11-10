@@ -111,6 +111,164 @@ function fileGet(id) {
 }
 function fileDel(id) { fileRows().forEach(function (r) { if (r.id === id) { var loc = bookOf(r.tab), sh = loc.book.getSheetByName(loc.tab); if (sh) loc.book.deleteSheet(sh); fileIndex().deleteRow(r.row); } }); }
 
+/* ================= Tender automation (Tender247-style) =================
+ * scanTenderMail(): reads tender alert emails from GeM, CPPP / NIC portals, Coal India, PSU portals and
+ *   tender aggregators (Tender247, TenderTiger, BidAssist …) in this script's Gmail, and pulls out
+ *   bid number, portal, item, buyer, closing date, EMD, value and corrigenda.
+ * hourlyWatch(): runs every hour — adds strong matches to the shared tender list (no one has to open the app),
+ *   records corrigendum date changes, and emails an instant alert for each new strong match.
+ * dailyDigest(): runs every morning 8:30 IST — one email with new matches, closings, RA, pre-bid, EMD/PBG.
+ * installAutomation(): run once from the editor (or "Turn on" in the app) to create both timers.
+ */
+var KW_BASE = ["stator coil", "rotor coil", "roebel bar", "stator bar", "armature coil", "field coil", "pole coil", "rewinding", "rewind", "generator", "hv motor", "winding", "coil", "insulation", "mica tape"];
+var TENDER_Q = '("GEM/20" OR from:gem.gov.in OR from:eprocure.gov.in OR from:nic.in OR from:coalindia.in OR from:coalindiatenders.nic.in OR from:tender247.com OR from:tendertiger.com OR from:bidassist.com OR from:tendersinfo.com OR from:tenderdetail.com OR subject:tender OR subject:corrigendum OR subject:"bid alert") newer_than:45d';
+function kwList() { try { var r = getBlob("register"); var k = r && r.settings && r.settings.tenderKeywords; if (k && k.length) return k; } catch (e) { } return KW_BASE; }
+function fitOf(text, kw) {
+  var s = String(text || "").toLowerCase(), n = 0;
+  kw.forEach(function (w) { if (w && s.indexOf(String(w).toLowerCase()) >= 0) n += String(w).indexOf(" ") >= 0 ? 2 : 1; });
+  if (/ncl|mcl|ccl|secl|wcl|coal|ntpc|bhel|nhpc|tneb|tangedco|hindustan copper|power|thermal|hydro/.test(s)) n++;
+  return Math.min(100, n * 25);
+}
+function isoDate(s) {
+  s = String(s || "").trim(); if (!s) return "";
+  var m = s.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/); if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+  m = s.match(/(\d{1,2})[- ]([A-Za-z]{3})[A-Za-z]*[-, ]+(\d{4})/);
+  if (m) { var mo = "janfebmaraprmayjunjulaugsepoctnovdec".indexOf(m[2].toLowerCase()) / 3 + 1; if (mo > 0) return m[3] + "-" + ("0" + mo).slice(-2) + "-" + ("0" + m[1]).slice(-2); }
+  return "";
+}
+function money(s, unit) { var v = Number(String(s || "").replace(/,/g, "")) || 0; unit = String(unit || "").toLowerCase(); if (/^cr/.test(unit)) v *= 1e7; else if (/^la|^lac/.test(unit)) v *= 1e5; return Math.round(v); }
+function portalOf(id, from, txt) {
+  if (/^GEM\//.test(id)) return "GeM"; var f = String(from || "").toLowerCase() + " " + String(txt || "").slice(0, 400).toLowerCase();
+  if (/coalindia/.test(f)) return "Coal India e-proc"; if (/eprocure\.gov\.in|cppp/.test(f)) return "CPPP"; if (/ntpc/.test(f)) return "NTPC"; if (/bhel/.test(f)) return "BHEL";
+  if (/tender247/.test(f)) return "Tender247"; if (/tendertiger/.test(f)) return "TenderTiger"; if (/bidassist/.test(f)) return "BidAssist"; if (/nic\.in/.test(f)) return "State / NIC e-proc";
+  return "Email alert";
+}
+function scanTenderMail() {
+  var kw = kwList(), out = [], seen = {}, th = GmailApp.search(TENDER_Q, 0, 120);
+  var ID = /GEM\/\d{4}\/[BR]\/\d{5,}|\b20\d{2}_[A-Z][A-Z0-9]{1,14}_\d{3,8}_\d{1,2}\b|(?:Tender\s*(?:ID|No\.?|Number|Ref(?:erence)?)|T247\s*ID|NIT\s*No\.?|Enquiry\s*No\.?)\s*[:#.\-]?\s*([A-Z0-9][A-Z0-9\/_.\-]{4,40})/gi;
+  th.forEach(function (t) {
+    t.getMessages().forEach(function (m) {
+      var subj = m.getSubject() || "", body = m.getPlainBody() || "", txt = subj + "\n" + body, from = String(m.getFrom() || ""), mm, hits = [];
+      var corr = /corrigend|addend|extension|extended|date (?:change|revis)|revised (?:date|schedule)/i.test(subj);
+      ID.lastIndex = 0;
+      while ((mm = ID.exec(txt))) { var id = (mm[1] || mm[0]).replace(/[.\-]+$/, ""); if (/^\d{4}$/.test(id) || id.length < 6 || !/\d{3}/.test(id)) continue; hits.push({ id: id, at: mm.index, end: mm.index + mm[0].length }); }
+      hits.forEach(function (h, i) {
+        var key = h.id + (corr ? "#c" : ""); if (seen[key]) return; seen[key] = 1;
+        var prevEnd = i ? hits[i - 1].end : 0, next = i + 1 < hits.length ? hits[i + 1].at : txt.length;
+        var back = txt.slice(Math.max(prevEnd, h.at - 160), h.at), pb = back.lastIndexOf("\n\n"); if (pb >= 0) back = back.slice(pb); else if (i) back = back.slice(-60);
+        var fwd = txt.slice(h.end, Math.min(next, h.end + 900)); var blk = back + " " + fwd;
+        var ctx = (back + " " + h.id + " " + fwd).replace(/\s+/g, " ");
+        var close = (blk.match(/(?:bid end|end date|closing|due date|last date|submission (?:end|date)|bid submission)[^0-9A-Za-z]{0,40}(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{4}|\d{1,2}[- ][A-Za-z]{3,9}[-, ]+\d{4})/i) || [])[1] || (fwd.match(/\d{2}[-\/]\d{2}[-\/]\d{4}/) || [""])[0];
+        var preBid = (blk.match(/pre[- ]?bid[^0-9]{0,40}(\d{1,2}[-\/.]\d{1,2}[-\/.]\d{4}|\d{1,2}[- ][A-Za-z]{3,9}[-, ]+\d{4})/i) || [])[1] || "";
+        var emd = blk.match(/EMD[^0-9₹\n]{0,25}(?:₹|Rs\.?|INR)?\s*([\d,]{3,}(?:\.\d+)?)\s*(lakh|lac|crore|cr)?/i);
+        var val = blk.match(/(?:estimated (?:bid )?value|tender value|ECV|bid value|value of (?:the )?(?:tender|work))[^0-9₹\n]{0,25}(?:₹|Rs\.?|INR)?\s*([\d,]{3,}(?:\.\d+)?)\s*(lakh|lac|crore|cr)?/i);
+        var org = ((blk.match(/(?:organi[sz]ation|department|buyer|ministry|company)\s*(?:name)?\s*[:\-]\s*([^\n|]{3,90})/i) || [])[1] || "").trim();
+        var item = ((blk.match(/(?:item(?: category)?|title|work|description|tender brief|product)\s*(?:name)?\s*[:\-]\s*([^\n|]{4,200})/i) || [])[1] || fwd.replace(/\s+/g, " ").replace(/^[\s:.,-]*/, "").split(/bid end|end date|https?:|\bview\b/i)[0]).slice(0, 180).trim();
+        var link = (fwd.match(/https?:\/\/[^\s"'<>]+/i) || [""])[0];
+        out.push({ bid: h.id, portal: portalOf(h.id, from, txt), subject: subj.slice(0, 200), ctx: ctx.slice(0, 700), item: item, org: org.slice(0, 90), end: close, closing: isoDate(close), preBid: isoDate(preBid),
+          emd: emd ? money(emd[1], emd[2]) : 0, value: val ? money(val[1], val[2]) : 0, corr: corr, link: link, date: m.getDate().toISOString(), from: from.slice(0, 80), fit: fitOf(item + " " + ctx.slice(0, 200) + " " + org, kw) });
+      });
+    });
+  });
+  return out;
+}
+function regUpdate(fn) {
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try { var cur = getBlob("register") || { quotes: [], data: {}, deleted: [] }; cur.data = cur.data || {}; cur.data.tenders = cur.data.tenders || []; var ch = fn(cur); if (ch) { cur.savedAt = new Date().toISOString(); cur.by = "automation"; putBlob("register", cur); } return ch; }
+  finally { lock.releaseLock(); }
+}
+function tid(bid) { return String(bid).replace(/[^A-Za-z0-9]+/g, "-"); }
+function applyAlerts(alerts) {
+  var today = Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyy-MM-dd"), added = [], changed = [];
+  regUpdate(function (cur) {
+    var del = {}; (cur.deleted || []).forEach(function (k) { del[k] = 1; });
+    var byBid = {}; cur.data.tenders.forEach(function (t) { byBid[t.bid] = t; });
+    alerts.forEach(function (a) {
+      var t = byBid[a.bid];
+      if (t) {
+        if (a.closing && t.closing && a.closing !== t.closing && (a.corr || a.closing > t.closing) && !(t.history || []).some(function (h) { return h.to === a.closing; })) {
+          (t.history = t.history || []).push({ at: new Date().toISOString(), what: "Closing date changed (corrigendum)", from: t.closing, to: a.closing, by: "automation" });
+          t.closing = a.closing; t.updatedAt = Date.now(); changed.push({ bid: a.bid, from: t.history[t.history.length - 1].from, to: a.closing, org: t.org || a.org });
+        }
+        return;
+      }
+      if (a.fit >= 50 && (!a.closing || a.closing >= today) && !del["tenders:" + tid(a.bid)]) {
+        var n = { id: tid(a.bid), bid: a.bid, portal: a.portal, org: a.org || "", status: "identified", items: a.item || a.subject, closing: a.closing || "", preBid: a.preBid || "", emdMode: a.emd ? "required" : "exempt_mse", emdAmount: a.emd || "", emdStatus: a.emd ? "to_pay" : "", emd: a.emd ? "Rs " + a.emd : "Exempted (MSE)", value: a.value || "", check: {}, fit: true, link: a.link, updatedAt: Date.now(),
+          history: [{ at: new Date().toISOString(), what: "Added automatically from " + a.portal + " alert (" + a.fit + "% match)", by: "automation" }] };
+        cur.data.tenders.push(n); byBid[a.bid] = n; added.push(a);
+      }
+    });
+    return added.length || changed.length;
+  });
+  return { added: added, changed: changed };
+}
+function digestTo() {
+  var to = cfg("digestTo", ""); if (to) return to;
+  var a = findUser(ADMIN); return (a && /@/.test(a.contact) ? a.contact : ADMIN);
+}
+function rowHtml(cells) { return "<tr>" + cells.map(function (c) { return '<td style="padding:6px 8px;border-bottom:1px solid #e5e9ee;vertical-align:top">' + c + "</td>"; }).join("") + "</tr>"; }
+function tableHtml(title, head, rows) {
+  if (!rows.length) return "";
+  return '<h3 style="color:#02315B;margin:18px 0 6px">' + esc(title) + ' <span style="color:#E25E00">(' + rows.length + ')</span></h3><table style="border-collapse:collapse;width:100%;font-size:13px"><tr>' +
+    head.map(function (h) { return '<th style="text-align:left;padding:6px 8px;background:#02315B;color:#fff">' + esc(h) + "</th>"; }).join("") + "</tr>" + rows.join("") + "</table>";
+}
+function dmyS(iso) { iso = String(iso || ""); return iso.length >= 10 ? iso.slice(8, 10) + "-" + iso.slice(5, 7) + "-" + iso.slice(0, 4) : ""; }
+function hourlyWatch() {
+  var alerts = scanTenderMail(), res = applyAlerts(alerts), P = props();
+  var sent = {}; try { sent = JSON.parse(P.getProperty("ALERTED") || "{}"); } catch (e) { }
+  var hot = alerts.filter(function (a) { return a.fit >= 75 && !sent[a.bid] && (!a.closing || a.closing >= Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyy-MM-dd")); });
+  if (hot.length || res.changed.length) {
+    var html = '<p>New tenders matching Rivera\'s products' + (res.changed.length ? " and date changes" : "") + ":</p>" +
+      tableHtml("Strong matches", ["Match", "Bid / tender", "Portal", "Item", "Closing"], hot.map(function (a) { return rowHtml(["<b>" + a.fit + "%</b>", esc(a.bid), esc(a.portal), esc(a.item || a.subject), dmyS(a.closing)]); })) +
+      tableHtml("Corrigendum — closing date changed", ["Bid / tender", "Buyer", "Was", "Now"], res.changed.map(function (c) { return rowHtml([esc(c.bid), esc(c.org), dmyS(c.from), "<b>" + dmyS(c.to) + "</b>"]); })) +
+      '<p style="margin-top:16px">' + btn(appUrl().replace(/\/exec.*/, "/exec"), "Open " + APP, "#02315B") + "</p>";
+    mail(digestTo(), APP + " — " + (hot.length ? hot.length + " new tender" + (hot.length > 1 ? "s" : "") + " for Rivera" : "tender date changed"), html);
+    hot.forEach(function (a) { sent[a.bid] = Date.now(); });
+    var keys = Object.keys(sent).sort(function (x, y) { return sent[y] - sent[x]; }).slice(0, 800), keep = {}; keys.forEach(function (k) { keep[k] = sent[k]; });
+    P.setProperty("ALERTED", JSON.stringify(keep));
+  }
+  CacheService.getScriptCache().remove("tenderAlerts");
+  log("automation", "hourly-watch", alerts.length + " alerts, " + res.added.length + " added, " + res.changed.length + " date changes, " + hot.length + " mailed");
+  return { alerts: alerts.length, added: res.added.length, changed: res.changed.length, mailed: hot.length };
+}
+function dailyDigest() {
+  var w = hourlyWatch(), reg = getBlob("register") || { data: {} }, ts = (reg.data && reg.data.tenders) || [];
+  var tz = "Asia/Kolkata", today = Utilities.formatDate(new Date(), tz, "yyyy-MM-dd"), d3 = Utilities.formatDate(new Date(Date.now() + 3 * 864e5), tz, "yyyy-MM-dd"), d30 = Utilities.formatDate(new Date(Date.now() + 30 * 864e5), tz, "yyyy-MM-dd");
+  var LIVE = ["identified", "preparing", "submitted", "technical", "ra"];
+  var since = Date.now() - 26 * 36e5;
+  var fresh = ts.filter(function (t) { return (t.history || []).some(function (h) { return h.by === "automation" && /Added/.test(h.what) && new Date(h.at).getTime() > since; }); });
+  var closing = ts.filter(function (t) { return ["identified", "preparing"].indexOf(t.status) >= 0 && t.closing && t.closing >= today && t.closing <= d3; }).sort(function (a, b) { return a.closing < b.closing ? -1 : 1; });
+  var ra = ts.filter(function (t) { return t.ra && t.ra.slice(0, 10) === today; });
+  var pre = ts.filter(function (t) { return t.preBid && t.preBid.slice(0, 10) >= today && t.preBid.slice(0, 10) <= d3; });
+  var refund = ts.filter(function (t) { return t.emdMode === "required" && Number(t.emdAmount) > 0 && t.emdStatus === "paid" && ["not_awarded", "not_attended"].indexOf(t.status) >= 0; });
+  var pbg = ts.filter(function (t) { return t.pbgValidity && t.pbgValidity >= today && t.pbgValidity <= d30 && t.pbgStatus === "submitted"; });
+  var live = ts.filter(function (t) { return LIVE.indexOf(t.status) >= 0 && (!t.closing || t.closing >= today); });
+  var html = "<p>Good morning. Here is today's tender summary for Rivera.</p>" +
+    '<p style="font-size:15px"><b>' + live.length + "</b> live bids · <b>" + closing.length + "</b> closing in 3 days · <b>" + ra.length + "</b> reverse auctions today · <b>" + fresh.length + "</b> new matches added</p>" +
+    tableHtml("New tenders added since yesterday", ["Bid / tender", "Portal", "Buyer", "Item", "Closing"], fresh.map(function (t) { return rowHtml([esc(t.bid), esc(t.portal), esc(t.org), esc(t.items), dmyS(t.closing)]); })) +
+    tableHtml("Closing within 3 days", ["Bid / tender", "Buyer", "Item", "Closing", "Status"], closing.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), esc(t.items), "<b>" + dmyS(t.closing) + "</b>", esc(t.status)]); })) +
+    tableHtml("Reverse auction today", ["Bid / tender", "Buyer", "Item"], ra.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), esc(t.items)]); })) +
+    tableHtml("Pre-bid meetings (next 3 days)", ["Bid / tender", "Buyer", "Pre-bid"], pre.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), dmyS(t.preBid)]); })) +
+    tableHtml("EMD to get back", ["Bid / tender", "Buyer", "EMD ₹", "Result"], refund.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), Number(t.emdAmount).toLocaleString("en-IN"), esc(t.status)]); })) +
+    tableHtml("Performance guarantees expiring in 30 days", ["Bid / tender", "Buyer", "PBG ₹", "Expiry"], pbg.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), Number(t.pbgAmount || 0).toLocaleString("en-IN"), dmyS(t.pbgValidity)]); })) +
+    '<p style="margin-top:16px">' + btn(appUrl().replace(/\/exec.*/, "/exec"), "Open " + APP, "#02315B") + "</p>";
+  mail(digestTo(), APP + " — tender summary " + dmyS(today), html);
+  props().setProperty("DIGEST_LAST", new Date().toISOString());
+  log("automation", "daily-digest", "sent to " + digestTo());
+  return { ok: true, live: live.length, closing: closing.length, fresh: fresh.length, watch: w };
+}
+function installAutomation() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (["hourlyWatch", "dailyDigest"].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger("hourlyWatch").timeBased().everyHours(1).create();
+  ScriptApp.newTrigger("dailyDigest").timeBased().atHour(8).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
+  props().setProperty("AUTO_ON", new Date().toISOString());
+  return { ok: true };
+}
+function automationState() {
+  var on = false; try { on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === "hourlyWatch"; }); } catch (e) { }
+  return { on: on, digestTo: digestTo(), last: props().getProperty("DIGEST_LAST") || "", since: props().getProperty("AUTO_ON") || "" };
+}
+
 function api(d) {
   var a = d.action;
   if (a === "ping") return { ok: true, app: APP, setup: !adminReady() };
@@ -200,6 +358,12 @@ function api(d) {
     log(me.email, "gem-alerts", out.length + " bids");
     return { ok: true, alerts: out };
   }
+  if (a === "tenderAlerts") {
+    var tc = CacheService.getScriptCache(), th2 = tc.get("tenderAlerts");
+    if (th2 && !d.fresh) return { ok: true, alerts: JSON.parse(th2), cached: true };
+    var al = scanTenderMail(), js2 = JSON.stringify(al); if (js2.length < 95000) tc.put("tenderAlerts", js2, 600);
+    log(me.email, "tender-alerts", al.length + " alerts"); return { ok: true, alerts: al, auto: (function () { try { return automationState(); } catch (e) { return { on: false }; } })() };
+  }
   if (a === "sync") {
     var lock = LockService.getScriptLock(); lock.waitLock(20000);
     try {
@@ -242,6 +406,13 @@ function api(d) {
   if (a === "fileDel") { fileDel(String(d.id || "")); log(me.email, "file-delete", d.id); return { ok: true }; }
   if (a === "putPack") { if (!d.pack || d.pack.kind !== "rivera-datapack") throw "Not a Rivera data pack"; putBlob("datapack", d.pack); log(me.email, "datapack-upload", ""); return { ok: true }; }
   if (a === "config") { if (d.loginMail !== undefined) props().setProperty("CFG_loginMail", d.loginMail ? "1" : "0"); return { ok: true }; }
+  if (a === "automation") {
+    if (d.digestTo !== undefined) { var lst = String(d.digestTo || "").split(/[\s,;]+/).filter(function (x) { return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(x); }).slice(0, 10).join(","); props().setProperty("CFG_digestTo", lst); }
+    if (d.op === "on") { installAutomation(); log(me.email, "automation-on", digestTo()); }
+    if (d.op === "off") { ScriptApp.getProjectTriggers().forEach(function (t) { if (["hourlyWatch", "dailyDigest"].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); }); log(me.email, "automation-off", ""); }
+    var r2 = {}; if (d.op === "run") r2 = hourlyWatch(); if (d.op === "digest") r2 = dailyDigest();
+    return { ok: true, state: automationState(), result: r2 };
+  }
   throw "Unknown action";
 }
 function json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }
