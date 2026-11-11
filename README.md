@@ -29,6 +29,10 @@ Company costing data (rate card, past jobs, bank details) is **not** in this rep
 - **Finance requests** – sales asks for an EMD, bank guarantee or document; finance accepts, attaches the proof and marks it completed; sales is told by mail.
 - **Go to portal + upload status** beside every Bid Desk button (Pending / In progress / Completed).
 - **GeM from the office PC** – GeM only answers Indian connections, so the Windows app pulls every live and closed GeM bid for Rivera's keywords and every bidder's price and rank from GeM bid results every 3 hours. **Company lookup** shows every tender any company bid. NIC portals (etenders, Coal India, BHEL, TANGEDCO, RRVUN) need a CAPTCHA, so their tenders come in through their alert mails.
+- **App top bar** – page name, search, a bell with the new Rivera-matching tenders since you last looked, your name and role, and a clear **Log out** button at the top of every page (phone: search, bell and log-out icons in the header).
+- **Tender detail panel** – click any tender in the database: closing, value, EMD, match, corrigendum count, open on portal, track, shortlist, team note, add to calendar, WhatsApp, who won this buyer's earlier tenders, the buyer's other tenders and similar tenders.
+- **Fast** – the server keeps the tender sheets in its cache, the app shows the last tender list from the device at once while it refreshes, and the page opens from the saved copy when mobile data is slow.
+- **Company only** – every page needs a Rivera login approved by the admin; search engines are told not to list the site.
 - **Work orders**, **Tenders & GeM** (checklist + annexure kit II–X), **Vendors, price book & RFQ**
 - **Export & share** – any format, WhatsApp, email, or any app on the phone
 - **Synology** – connect the SALES folder once; jobs, registers and tender kits are filed automatically

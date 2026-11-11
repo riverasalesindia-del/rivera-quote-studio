@@ -19,8 +19,8 @@
 </head>
 <body>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Roboto+Slab:wght@700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="preconnect" href="https://script.google.com"><link rel="preconnect" href="https://script.googleusercontent.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Archivo:wdth,wght@75..100,500..800&family=Roboto+Slab:wght@700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" media="print" onload="this.media='all'">
 <style>
 /* Layout: workshop console — fixed left rail of stations (desktop) / bottom tab bar (phone); each station is a work surface of panels on a cool steel ground with copper as the single accent. */
 :root{
@@ -5352,9 +5352,9 @@ const tdbMoney = v => { v = num(v); return !v ? "—" : v >= 1e7 ? (v / 1e7).toF
 async function tdbLoad(key, action, body, timeout) {
   const S = TDB(), c = S.cache[key];
   if (c && (c.loading || Date.now() - c.at < 90000)) return c;
-  S.cache[key] = { loading: true, at: Date.now() };
+  S.cache[key] = c?.d ? { ...c, loading: true } : { loading: true, at: Date.now() };
   try { const d = await AUTH.call(action, body, timeout || 60000); S.cache[key] = { at: Date.now(), d }; }
-  catch (e) { S.cache[key] = { at: Date.now() - 80000, err: e.message }; }
+  catch (e) { S.cache[key] = c?.d ? { ...c, loading: false, at: Date.now() - 80000 } : { at: Date.now() - 80000, err: e.message }; }
   if (STATE.route === "tdb") render();
   return S.cache[key];
 }
@@ -5582,7 +5582,7 @@ function strongPw16(tag) {
 function linksPanel16() {
   const L = LINKS16, row = (k, label, url, note) => url ? `<tr><td><b>${label}</b><div class="small muted">${note}</div></td><td class="mono small" style="word-break:break-all"><a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a></td><td><button class="btn sm" data-lcp="${esc(url)}">Copy</button></td></tr>` : "";
   return `<section class="panel" id="links16"><header><h2>Sign-in & app links</h2><button class="btn sm" id="lnkShare">${icon("share")}Share all</button></header><div class="scroll"><table class="t"><tbody>
-    ${row("site", "Team sign-in (website)", L.site, "Sales, Finance, Operations — any browser, phone or PC")}
+    ${row("site", "Team sign-in (website)", L.site, "Sales and Finance — any browser, phone or PC")}
     ${row("admin", "Admin sign-in", L.admin, "crm@rivera.co.in")}
     ${row("apk", "Android app", L.apk, "Install the APK (allow ‘install unknown apps’ once)")}
     ${row("win", "Windows app (installer)", L.win, "Windows 10 / 11")}
@@ -5596,7 +5596,7 @@ function bindLinks16() {
 }
 function teamPanel16() {
   return `<section class="panel" id="team16"><header><h2>Rivera team logins</h2><span class="muted small">Admin is <b>crm@rivera.co.in</b></span></header><div class="body stack">
-    <p class="small muted" style="margin:0">One click creates the Sales, Finance and Operations logins with strong passwords (or gives existing ones a new password). Everyone must set their own password at first sign-in, and you approve each new device once.</p>
+    <p class="small muted" style="margin:0">One click creates the Sales and Finance logins with strong passwords (or gives existing ones a new password). Everyone must set their own password at first sign-in, and you approve each new device once.</p>
     <div class="scroll" id="team16T"><span class="muted small">Loading…</span></div>
     <div class="row" style="gap:8px"><button class="btn primary" id="team16Go">${icon("key")}Create team logins & passwords</button></div>
     <div id="team16Out"></div></div></section>`;
@@ -5607,8 +5607,9 @@ async function bindTeam16() {
   const draw = () => { T.innerHTML = `<table class="t"><thead><tr><th>Login</th><th>Role</th><th>Status</th><th>Last sign-in</th></tr></thead><tbody>${TEAM16.map(m => { const u = U.find(x => x.email === m.email); return `<tr><td><b>${esc(m.name)}</b><div class="mono small muted">${esc(m.email)}</div></td><td class="small">${esc(ROLE16[m.role])}</td><td>${!u ? '<span class="chip warn">Not created</span>' : u.status !== "approved" ? '<span class="chip bad">Disabled</span>' : u.mustChange ? '<span class="chip warn">Waiting for first sign-in</span>' : '<span class="chip ok">Active</span>'}</td><td class="small">${u?.lastLogin ? new Date(u.lastLogin).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}</td></tr>`; }).join("")}</tbody></table>`; };
   try { U = (await AUTH.call("users")).users; draw(); } catch (e) { T.innerHTML = `<div class="note bad">${esc(e.message)}</div>`; return; }
   $("#team16Go").onclick = async () => {
-    const todo = TEAM16.filter(m => m.role !== "admin"), have = todo.filter(m => U.some(x => x.email === m.email));
-    if (have.length && !confirm(`${have.map(m => m.email).join(", ")} already exist${have.length > 1 ? "" : "s"}.\n\nGive ${have.length > 1 ? "them" : "it"} a new password too? Their current password stops working.`)) return;
+    let todo = TEAM16.filter(m => m.role !== "admin"); const have = todo.filter(m => U.some(x => x.email === m.email));
+    if (have.length && !confirm(`${have.map(m => m.email).join(", ")} already exist${have.length > 1 ? "" : "s"}.\n\nOK = give ${have.length > 1 ? "them" : "it"} a new password too (current password stops working).\nCancel = keep ${have.length > 1 ? "their" : "its"} password and only create the missing logins.`)) todo = todo.filter(m => !have.includes(m));
+    if (!todo.length) { toast("All team logins already exist"); return; }
     const btn = $("#team16Go"); btn.disabled = true; const out = [];
     try {
       for (const m of todo) {
@@ -6338,6 +6339,219 @@ function portals25(v) {
 document.head.insertAdjacentHTML("beforeend", `<style>.portals25{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 14px}.portals25 .chip{text-decoration:none;cursor:pointer;min-height:32px;display:inline-flex;align-items:center}.portals25 .chip:hover{border-color:var(--cu,#F26A10);color:var(--cu,#F26A10)}</style>`);
 const _render25 = render;
 render = function () { _render25(); try { portals25($("#view")); } catch (e) { } };
+
+/* ===================== p26: real-app top bar (page title · search · new-tender bell · user · Log out), tender detail panel (Tender247-style), instant tender lists from this device's cache ===================== */
+IC.bell26 = '<path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/>';
+IC.out26 = '<path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5M21 12H9"/>';
+IC.ext26 = '<path d="M14 3h7v7M10 14 21 3M19 14v5a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h5"/>';
+IC.cal26 = '<rect x="3" y="4" width="18" height="17" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/>';
+IC.star26 = '<path d="m12 3 2.8 5.7 6.2.9-4.5 4.4 1 6.2L12 17.3 6.5 20.2l1-6.2L3 9.6l6.2-.9z"/>';
+IC.copy26 = '<rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a1 1 0 0 1-1-1V4a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1"/>';
+IC.x26 = '<path d="M18 6 6 18M6 6l12 12"/>';
+const ROLE_LABEL26 = { admin: "Admin · everything", sales: "Sales", finance: "Finance", operation: "Operations", viewer: "Viewer" };
+const signed26 = () => !!AUTH.user && (!AUTH.required() || AUTH.valid?.());
+const canTdb26 = () => signed26() && (AUTH.isAdmin || typeof ROLE_PAGES === "undefined" || (ROLE_PAGES[AUTH.user.role] || []).includes("tdb"));
+
+/* ---- instant lists: the last answer for each tender search is kept on this device and shown at once while the server refreshes it ---- */
+const TC26 = "rqs.tc26:";
+{
+  const _tl = tdbLoad;
+  tdbLoad = async function (key, ...a) {
+    const S = TDB(), me = AUTH.user?.email || "";
+    if (!S.cache[key]) { try { const j = JSON.parse(localStorage.getItem(TC26 + key) || "null"); if (j && j.u === me && Date.now() - j.at < 3 * 864e5) S.cache[key] = { at: 0, d: j.d }; } catch { } }
+    const r = await _tl(key, ...a), c = S.cache[key];
+    if (c?.d && c.at && !c.err && /^(q:|state$)/.test(key)) {
+      try {
+        const js = JSON.stringify({ u: me, at: c.at, d: c.d });
+        if (js.length < 1.5e6) {
+          localStorage.setItem(TC26 + key, js);
+          const idx = JSON.parse(localStorage.getItem(TC26 + "idx") || "[]").filter(k => k !== key); idx.unshift(key);
+          idx.slice(12).forEach(k => localStorage.removeItem(TC26 + k)); localStorage.setItem(TC26 + "idx", JSON.stringify(idx.slice(0, 12)));
+        }
+      } catch { }
+    }
+    return r;
+  };
+}
+
+/* ---- new tenders since this login last looked (Rivera match 50%+) ---- */
+const NEW26 = { list: [], total: 0, at: 0, busy: false };
+const seenKey26 = () => "rqs.seen26." + (AUTH.user?.email || "");
+function seen26() { try { return localStorage.getItem(seenKey26()) || ""; } catch { return ""; } }
+async function newTenders26(force) {
+  if (!canTdb26() || NEW26.busy || (!force && Date.now() - NEW26.at < 10 * 6e4)) return;
+  NEW26.busy = true;
+  try {
+    let since = seen26();
+    if (!since) { since = new Date(Date.now() - 3 * 864e5).toISOString(); try { localStorage.setItem(seenKey26(), since); } catch { } }
+    const d = await AUTH.call("tdbQuery", { status: "live", sort: "new", since, fit: "50", size: 40 }, 45000);
+    NEW26.list = d.rows || []; NEW26.total = d.total || 0; NEW26.at = Date.now();
+  } catch (e) { NEW26.at = Date.now() - 8 * 6e4; }
+  NEW26.busy = false; appbar26();
+}
+function markSeen26() { try { localStorage.setItem(seenKey26(), new Date().toISOString()); } catch { } NEW26.list = []; NEW26.total = 0; appbar26(); }
+
+/* ---- top bar ---- */
+function appbar26() {
+  const main = $("#main"); if (!main) return;
+  let bar = $("#appbar26");
+  if (AUTH.required() && !signed26()) { bar?.remove(); return; }
+  if (!bar) { main.insertAdjacentHTML("afterbegin", `<header id="appbar26" class="ab26"></header>`); bar = $("#appbar26"); }
+  const r = ROUTES.find(x => x[0] === STATE.route) || ["home", "Dashboard"], u = AUTH.user || {}, n = NEW26.total;
+  if (canTdb26() && !NEW26.at && !NEW26.busy) setTimeout(() => newTenders26(true), 800);
+  bar.innerHTML = `<div class="ab26-t"><span>Rivera Quote Studio</span><b>${esc(r[1])}</b></div>
+    <button class="ab26-s" id="ab26s" type="button" aria-label="Search everything">${icon("search")}<span>Search tenders, quotations, documents…</span><kbd>Ctrl K</kbd></button>
+    <div class="ab26-r">
+      ${canTdb26() ? `<button class="ab26-ib" id="ab26n" type="button" aria-label="${n} new tenders" title="New tenders for Rivera since you last looked">${icon("bell26")}${n ? `<i>${n > 99 ? "99+" : n}</i>` : ""}</button>` : ""}
+      ${u.email ? `<div class="ab26-u" title="${esc(u.email)}"><span class="av">${esc((u.name || u.email)[0].toUpperCase())}</span><span class="ab26-who"><b>${esc(u.name || u.email)}</b><small>${esc(ROLE_LABEL26[u.role] || u.role || "")}</small></span></div>
+      <button class="ab26-out" id="ab26o" type="button">${icon("out26")}<span>Log out</span></button>` : ""}
+    </div>`;
+  $("#ab26s").onclick = () => gsOpen17();
+  $("#ab26n") && ($("#ab26n").onclick = e => { e.stopPropagation(); bellPop26(); });
+  $("#ab26o") && ($("#ab26o").onclick = () => signOut());
+  // phone header: bell + clear log-out icon
+  const mh = $(".mobilehead");
+  if (mh) {
+    let mb = $("#ab26nm");
+    if (canTdb26()) { if (!mb) { (($("#gs17m")) || mh.lastElementChild).insertAdjacentHTML("afterend", `<button type="button" id="ab26nm" class="gs17-mbtn ab26-mb" aria-label="New tenders">${icon("bell26")}</button>`); mb = $("#ab26nm"); mb.onclick = e => { e.stopPropagation(); bellPop26(); }; } mb.dataset.n = n ? (n > 99 ? "99+" : n) : ""; }
+    const lm = $("#lo23m"); if (lm && !lm.dataset.t26) { lm.dataset.t26 = "1"; lm.innerHTML = icon("out26"); lm.title = "Log out"; }
+  }
+}
+function bellPop26() {
+  if ($("#bp26")) { $("#bp26").remove(); return; }
+  const L = NEW26.list;
+  document.body.insertAdjacentHTML("beforeend", `<div id="bp26" class="bp26" role="dialog" aria-label="New tenders"><header><b>New tenders for Rivera</b><span class="small muted">${NEW26.total ? NEW26.total + " since " + dmy(seen26().slice(0, 10)) : "nothing new"}</span></header>
+    <div class="bp26-l">${L.length ? L.map((r, i) => `<button type="button" class="bp26-i" data-bp="${i}"><span class="bp26-m ${r.fit >= 75 ? "ok" : "warn"}">${num(r.fit)}%</span><span class="bp26-x"><b>${esc(String(r.item || r.subject || r.bid).slice(0, 90))}</b><small>${esc(r.org || "")} · ${esc(r.portal || "")}${r.closing ? " · closes " + dmy(r.closing) : ""}</small></span></button>`).join("") : `<div class="empty" style="padding:22px"><b>You're up to date</b>New Rivera-matching tenders show here as soon as they come in.</div>`}</div>
+    <footer><button class="btn sm" id="bp26a">Open tender database</button>${L.length ? '<button class="btn sm primary" id="bp26s">Mark all as seen</button>' : ""}</footer></div>`);
+  const P = $("#bp26"), close = () => { P.remove(); document.removeEventListener("click", out, true); };
+  const out = e => { if (!P.contains(e.target) && !e.target.closest("#ab26n,#ab26nm")) close(); };
+  setTimeout(() => document.addEventListener("click", out, true));
+  $$("[data-bp]", P).forEach(b => b.onclick = () => { close(); drawer26(L[+b.dataset.bp]); });
+  $("#bp26a").onclick = () => { close(); const S = TDB(); S.tab = "search"; S.f = { ...S.f, q: "", status: "live", sort: "new", fit: "50" }; S.page = 1; location.hash = "tdb"; if (STATE.route === "tdb") render(); };
+  $("#bp26s") && ($("#bp26s").onclick = () => { close(); markSeen26(); toast("Marked as seen"); });
+}
+
+/* ---- tender detail panel ---- */
+const DR26 = {};
+async function dr26q(key, action, body) { if (DR26[key]) return DR26[key]; DR26[key] = AUTH.call(action, body, 45000).catch(e => { delete DR26[key]; throw e; }); return DR26[key]; }
+const short26 = s => String(s || "").split(/[,|(]| - /)[0].trim().slice(0, 40);
+const kw26 = s => String(s || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(w => w.length > 3 && !/^(supply|with|for|the|and|item|items|type|make|nos|qty|work|works|from|bid|tender|repair|services?)$/.test(w)).slice(0, 2).join(" ");
+function ics26(r) {
+  const d = String(r.closing).replace(/-/g, ""), stamp = new Date().toISOString().replace(/[-:]/g, "").slice(0, 15) + "Z", t = s => String(s || "").replace(/[,;\\]/g, m => "\\" + m).replace(/\n/g, "\\n");
+  const body = ["BEGIN:VCALENDAR", "VERSION:2.0", "PRODID:-//Rivera//Quote Studio//EN", "BEGIN:VEVENT", `UID:${tkey26(r.bid)}@rivera`, `DTSTAMP:${stamp}`, `DTSTART;VALUE=DATE:${d}`, `SUMMARY:${t("Tender closes: " + r.bid)}`, `DESCRIPTION:${t(`${r.org || ""}\n${r.item || ""}\n${r.link || ""}`)}`, "BEGIN:VALARM", "TRIGGER:-P2D", "ACTION:DISPLAY", "DESCRIPTION:Tender closing in 2 days", "END:VALARM", "END:VEVENT", "END:VCALENDAR"].join("\r\n");
+  const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([body], { type: "text/calendar" })); a.download = tkey26(r.bid) + ".ics"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 4000);
+}
+const tkey26 = b => String(b || "").toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+function closeDrawer26() { $("#dr26")?.remove(); document.body.classList.remove("dr26-open"); }
+function drawer26(r) {
+  if (!r) return; closeDrawer26();
+  const live = r.status === "live" || (r.closing && r.closing >= todayISO()), mine = (STATE.data.tenders || []).some(t => t.bid === r.bid) || r.tracked, star = r.notes?.star === "1";
+  const link = r.link || (typeof portalUrl21 === "function" ? portalUrl21(r) : "");
+  const row = (k, v) => v ? `<div><dt>${k}</dt><dd>${v}</dd></div>` : "";
+  document.body.insertAdjacentHTML("beforeend", `<div id="dr26" class="dr26-ov"><aside class="dr26" role="dialog" aria-modal="true" aria-label="Tender ${esc(r.bid)}">
+    <header class="dr26-h"><div class="row" style="gap:6px;flex-wrap:wrap"><span class="chip">${esc(r.portal || "Tender")}</span><span class="chip ${/cancel/i.test(r.status) ? "bad" : live ? "ok" : ""}">${/cancel/i.test(r.status) ? "Cancelled" : live ? "Live" : "Closed"}</span>${Number(r.corr) ? `<span class="chip warn">Corrigendum · ${r.corr} date change${r.corr > 1 ? "s" : ""}</span>` : ""}${mine ? '<span class="chip ok">In Tenders & GeM</span>' : ""}</div>
+      <button class="dr26-x" id="dr26x" type="button" aria-label="Close">${icon("x26")}</button></header>
+    <div class="dr26-b">
+      <h2>${esc(String(r.item || r.subject || r.bid).slice(0, 220))}</h2>
+      <div class="dr26-bid"><span class="mono">${esc(r.bid)}</span><button class="btn sm ghost" id="dr26c" type="button">${icon("copy26")}Copy</button></div>
+      <div class="dr26-k"><div><span>Closing</span><b>${r.closing ? dueChip(r.closing, !live) : "—"}</b></div><div><span>Value</span><b>${tdbMoney(r.value)}</b></div><div><span>EMD</span><b>${tdbMoney(r.emd)}</b></div><div><span>Rivera match</span><b><span class="chip ${r.fit >= 75 ? "ok" : r.fit >= 50 ? "warn" : ""}">${num(r.fit)}%</span></b></div></div>
+      <div class="dr26-a">
+        <button class="btn primary" id="dr26o" type="button">${icon("ext26")}Open on portal</button>
+        ${live && !mine ? `<button class="btn" id="dr26t" type="button">${icon("plus")}Track in Tenders</button>` : ""}
+        <button class="btn ${star ? "on26" : ""}" id="dr26s" type="button" aria-pressed="${star}">${icon("star26")}${star ? "Shortlisted" : "Shortlist"}</button>
+        ${r.closing ? `<button class="btn" id="dr26cal" type="button">${icon("cal26")}Add to calendar</button>` : ""}
+        <button class="btn" id="dr26w" type="button">${icon("wa")}WhatsApp</button>
+      </div>
+      <dl class="dr26-d">${row("Buyer", esc(r.org))}${row("Location", esc([r.city, r.state].filter(Boolean).join(", ")))}${row("Published", r.published ? dmy(r.published) : "")}${row("Pre-bid meeting", r.preBid ? dmy(r.preBid) : "")}${row("Found through", esc(r.source || ""))}${row("First seen", r.firstSeen ? dmy(String(r.firstSeen).slice(0, 10)) : "")}</dl>
+      <label class="f">Team note<textarea id="dr26n" rows="2" placeholder="Who is handling it, drawings asked, site visit…">${esc(r.notes?.note || "")}</textarea></label>
+      <div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn sm" id="dr26ns" type="button">Save note</button></div>
+      ${r.result ? `<section class="dr26-sec"><h3>Result</h3><p class="small">${r.result.l1 ? `L1 <b>${esc(r.result.l1.bidder || "?")}</b> ${tdbMoney(r.result.l1.price)}` : ""}${r.result.rivera ? ` · Rivera ${tdbMoney(r.result.rivera.price)}${r.result.rivera.rank ? " (L" + r.result.rivera.rank + ")" : ""}` : ""} · ${r.result.n} bidder${r.result.n > 1 ? "s" : ""}</p></section>` : ""}
+      <section class="dr26-sec"><h3>Who won this buyer's earlier tenders</h3><div id="dr26w1" class="small muted">Loading…</div></section>
+      <section class="dr26-sec"><h3>Same buyer — other tenders</h3><div id="dr26b1" class="small muted">Loading…</div></section>
+      <section class="dr26-sec"><h3>Similar tenders</h3><div id="dr26s1" class="small muted">Loading…</div></section>
+    </div></aside></div>`);
+  document.body.classList.add("dr26-open");
+  const D = $("#dr26");
+  D.onclick = e => { if (e.target === D) closeDrawer26(); };
+  const esc26 = e => { if (e.key === "Escape") { closeDrawer26(); removeEventListener("keydown", esc26); } }; addEventListener("keydown", esc26);
+  $("#dr26x").onclick = closeDrawer26;
+  $("#dr26c").onclick = async () => { try { await navigator.clipboard.writeText(r.bid); toast("Bid number copied"); } catch { toast(r.bid); } };
+  $("#dr26o").onclick = () => /^GEM\//i.test(r.bid) && typeof openGemBid24 === "function" ? openGemBid24(r.bid, r.link) : link ? window.open(link, "_blank", "noopener") : toast("No portal link for this tender", "bad");
+  $("#dr26t") && ($("#dr26t").onclick = async () => { await tdbTrack(r); closeDrawer26(); });
+  $("#dr26s").onclick = async () => { try { await AUTH.call("tdbNote", { bid: r.bid, star: !star }); r.notes = { ...(r.notes || {}), star: star ? "" : "1" }; tdbBust(); drawer26(r); toast(star ? "Removed from shortlist" : "Shortlisted"); } catch (e) { toast(e.message, "bad"); } };
+  $("#dr26ns").onclick = async () => { const note = $("#dr26n").value; try { await AUTH.call("tdbNote", { bid: r.bid, note }); r.notes = { ...(r.notes || {}), note }; tdbBust(); toast("Note saved for the team"); } catch (e) { toast(e.message, "bad"); } };
+  $("#dr26cal") && ($("#dr26cal").onclick = () => ics26(r));
+  $("#dr26w").onclick = () => openLink("https://wa.me/?text=" + encodeURIComponent(`Tender ${r.bid}\n${String(r.item || "").slice(0, 200)}\nBuyer: ${r.org || "—"}\nClosing: ${r.closing ? dmy(r.closing) : "—"}${num(r.value) ? "\nValue: ₹" + tdbMoney(r.value) : ""}${num(r.emd) ? "\nEMD: ₹" + tdbMoney(r.emd) : ""}${link ? "\n" + link : ""}`));
+  const list = (el, rows, empty) => { const E = $(el); if (!E) return; E.classList.remove("muted"); E.innerHTML = rows.length ? `<div class="dr26-list">${rows.map((x, i) => `<button type="button" class="dr26-li" data-i="${i}"><b>${esc(String(x.item || x.subject || x.bid).slice(0, 90))}</b><small>${esc(x.org || "")} · ${x.closing ? dmy(x.closing) : "—"} · ${tdbMoney(x.value)}${x.result?.l1 ? " · L1 " + esc(x.result.l1.bidder || "") : ""}</small></button>`).join("")}</div>` : `<span class="muted">${empty}</span>`; $$("[data-i]", E).forEach(b => b.onclick = () => drawer26(rows[+b.dataset.i])); };
+  const org = short26(r.org), kw = kw26(r.item);
+  if (org) dr26q("w:" + org, "trQuery", { q: org, size: 12 }).then(d => { const E = $("#dr26w1"); if (!E) return; E.classList.remove("muted"); const R = (d.rows || []).filter(x => Number(x.rank) === 1 || x.awarded === "yes"); E.innerHTML = R.length ? `<table class="t"><thead><tr><th>Bid</th><th>Winner / L1</th><th class="n">Price</th></tr></thead><tbody>${R.slice(0, 8).map(x => `<tr><td class="mono" style="font-size:.72rem">${esc(x.bid)}<div class="muted">${esc(String(x.item || "").slice(0, 60))}</div></td><td><b>${esc(x.bidder || "?")}</b></td><td class="n">${tdbMoney(x.price)}</td></tr>`).join("")}</tbody></table>` : '<span class="muted">No results recorded for this buyer yet.</span>'; }).catch(e => { const E = $("#dr26w1"); if (E) E.textContent = e.message; });
+  else list("#dr26w1", [], "Buyer not given.");
+  if (org) dr26q("b:" + org, "tdbQuery", { org, status: "all", sort: "recent", size: 9 }).then(d => list("#dr26b1", (d.rows || []).filter(x => x.bid !== r.bid).slice(0, 8), "No other tenders from this buyer yet.")).catch(e => { const E = $("#dr26b1"); if (E) E.textContent = e.message; });
+  else list("#dr26b1", [], "Buyer not given.");
+  if (kw) dr26q("s:" + kw, "tdbQuery", { q: kw, status: "all", sort: "recent", size: 9 }).then(d => list("#dr26s1", (d.rows || []).filter(x => x.bid !== r.bid).slice(0, 8), "Nothing similar yet.")).catch(e => { const E = $("#dr26s1"); if (E) E.textContent = e.message; });
+  else list("#dr26s1", [], "Nothing similar yet.");
+}
+/* every row of the tender database search opens the detail panel */
+function rows26() {
+  if (STATE.route !== "tdb" || TDB().tab !== "search") return;
+  const byBid = {}; Object.entries(TDB().cache).forEach(([k, c]) => { if (k.startsWith("q:") && c?.d?.rows) c.d.rows.forEach(x => { byBid[x.bid] = x; }); });
+  $$("#view table.t tbody tr").forEach(tr => {
+    if (tr.dataset.r26) return; const td = tr.children[1]; if (!td) return;
+    const bid = (td.querySelector("a")?.textContent || td.firstChild?.textContent || td.textContent || "").trim(), r = byBid[bid]; if (!r) return;
+    tr.dataset.r26 = "1"; tr.classList.add("r26"); tr.tabIndex = 0; tr.title = "Open tender details";
+    const open = e => { if (e.target.closest("a,button,input,select,textarea,label")) return; drawer26(byBid[bid]); };
+    tr.addEventListener("click", open); tr.addEventListener("keydown", e => { if (e.key === "Enter") open(e); });
+  });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.ab26{position:sticky;top:0;z-index:40;display:flex;align-items:center;gap:16px;margin:-22px calc(-1 * max(24px,env(safe-area-inset-right,0px))) 20px calc(-1 * max(24px,env(safe-area-inset-left,0px)));padding:10px max(24px,env(safe-area-inset-right,0px)) 10px max(24px,env(safe-area-inset-left,0px));min-height:62px;background:color-mix(in srgb,var(--surface) 90%,transparent);backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);border-bottom:1px solid var(--line)}
+.ab26-t{display:flex;flex-direction:column;min-width:0;line-height:1.15}.ab26-t span{font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}.ab26-t b{font-family:var(--f-display);font-size:1.08rem;color:var(--ink);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ab26-s{flex:1;max-width:460px;margin-left:auto;display:flex;align-items:center;gap:10px;height:40px;padding:0 12px;border:1px solid var(--line);border-radius:10px;background:var(--sunk);color:var(--muted);font:inherit;font-size:.88rem;cursor:pointer;text-align:left}
+.ab26-s:hover,.ab26-s:focus-visible{border-color:var(--copper);outline:none}.ab26-s svg{width:17px;height:17px;flex:none}.ab26-s span{flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ab26-s kbd{font:500 .7rem var(--f-mono);padding:2px 6px;border:1px solid var(--line-2);border-radius:5px;background:var(--surface)}
+.ab26-r{display:flex;align-items:center;gap:10px;flex:none}
+.ab26-ib{position:relative;width:40px;height:40px;display:grid;place-items:center;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);cursor:pointer}.ab26-ib:hover{border-color:var(--copper)}.ab26-ib svg{width:19px;height:19px}
+.ab26-ib i,.ab26-mb[data-n]:not([data-n=""])::after{position:absolute;top:-5px;right:-5px;min-width:19px;height:19px;padding:0 5px;border-radius:10px;background:var(--copper);color:#fff;font:700 .68rem/19px var(--f-body);font-style:normal;text-align:center}
+.ab26-mb{position:relative}.ab26-mb[data-n]:not([data-n=""])::after{content:attr(data-n)}
+.ab26-u{display:flex;align-items:center;gap:9px;padding-left:4px}.ab26-u .av{width:36px;height:36px;border-radius:50%;display:grid;place-items:center;background:var(--copper);color:#fff;font-weight:700}
+.ab26-who{display:flex;flex-direction:column;line-height:1.2;max-width:170px}.ab26-who b{font-size:.88rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ab26-who small{font-size:.74rem;color:var(--muted)}
+.ab26-out{display:inline-flex;align-items:center;gap:7px;height:40px;padding:0 14px;border-radius:10px;border:1px solid var(--copper);background:transparent;color:var(--copper-ink);font:600 .88rem var(--f-body);cursor:pointer}.ab26-out:hover,.ab26-out:focus-visible{background:var(--copper);color:#fff;outline:none}.ab26-out svg{width:17px;height:17px}
+.rail #userChip,.rail #lo23,.rail #gs17b{display:none!important}
+.main aside.stack[style*="sticky"]{top:80px!important}
+@media (max-width:1100px){.ab26-who{display:none}.ab26-s kbd{display:none}}
+@media (max-width:860px){.ab26{display:none}}
+.bp26{position:fixed;z-index:120;top:66px;right:max(16px,env(safe-area-inset-right,0px));width:min(420px,calc(100vw - 32px));max-height:min(70vh,560px);display:flex;flex-direction:column;background:var(--surface);border:1px solid var(--line);border-radius:12px;box-shadow:0 18px 50px rgba(0,0,0,.22);overflow:hidden}
+@media (max-width:860px){.bp26{top:calc(64px + env(safe-area-inset-top,0px))}}
+.bp26 header,.bp26 footer{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:12px 14px;border-bottom:1px solid var(--line)}.bp26 footer{border-bottom:0;border-top:1px solid var(--line)}
+.bp26-l{overflow:auto}.bp26-i{display:flex;gap:10px;width:100%;padding:10px 14px;border:0;border-bottom:1px solid var(--line);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}.bp26-i:hover,.bp26-i:focus-visible{background:var(--sunk);outline:none}
+.bp26-m{flex:none;width:44px;height:26px;border-radius:7px;display:grid;place-items:center;font-size:.76rem;font-weight:700;background:var(--warn-soft);color:var(--warn)}.bp26-m.ok{background:var(--ok-soft);color:var(--ok)}
+.bp26-x{display:flex;flex-direction:column;min-width:0}.bp26-x b{font-size:.86rem;font-weight:600}.bp26-x small{color:var(--muted);font-size:.76rem}
+.dr26-ov{position:fixed;inset:0;z-index:110;background:rgba(5,14,24,.42);display:flex;justify-content:flex-end;animation:dr26f .15s ease}
+.dr26{width:min(560px,100vw);height:100%;background:var(--surface);color:var(--ink);display:flex;flex-direction:column;box-shadow:-12px 0 40px rgba(0,0,0,.25);animation:dr26s .2s ease;padding-top:env(safe-area-inset-top,0px)}
+@keyframes dr26f{from{opacity:0}}@keyframes dr26s{from{transform:translateX(40px);opacity:.4}}
+@media (prefers-reduced-motion:reduce){.dr26-ov,.dr26{animation:none}}
+body.dr26-open{overflow:hidden}
+.dr26-h{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:14px 18px;border-bottom:1px solid var(--line)}
+.dr26-x{width:38px;height:38px;flex:none;display:grid;place-items:center;border:1px solid var(--line);border-radius:9px;background:none;color:inherit;cursor:pointer}.dr26-x svg{width:18px;height:18px}
+.dr26-b{overflow:auto;padding:16px 18px calc(28px + env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;gap:12px}
+.dr26-b h2{margin:0;font-family:var(--f-display);font-size:1.18rem;line-height:1.3}
+.dr26-bid{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.dr26-bid .mono{font-size:.82rem;padding:3px 8px;border-radius:6px;background:var(--sunk);border:1px solid var(--line)}
+.dr26-k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:8px}.dr26-k div{border:1px solid var(--line);border-radius:9px;padding:8px 10px;background:var(--sunk);display:flex;flex-direction:column;gap:4px;min-width:0}.dr26-k span{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}.dr26-k b{font-size:.92rem}
+@media (max-width:520px){.dr26-k{grid-template-columns:repeat(2,minmax(0,1fr))}}
+.dr26-a{display:flex;flex-wrap:wrap;gap:8px}.dr26-a .btn{min-height:40px}.dr26-a .on26{border-color:var(--copper);color:var(--copper-ink)}
+.dr26-d{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px 16px;margin:0}.dr26-d div{min-width:0}.dr26-d dt{font-size:.72rem;color:var(--muted)}.dr26-d dd{margin:2px 0 0;font-size:.88rem;overflow-wrap:anywhere}
+.dr26-sec h3{margin:6px 0 8px;font-size:.8rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted)}
+.dr26-list{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:9px;overflow:hidden}.dr26-li{display:flex;flex-direction:column;gap:2px;padding:9px 12px;border:0;border-bottom:1px solid var(--line);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}.dr26-li:last-child{border-bottom:0}.dr26-li:hover,.dr26-li:focus-visible{background:var(--sunk);outline:none}.dr26-li b{font-size:.86rem;font-weight:600}.dr26-li small{color:var(--muted);font-size:.76rem}
+@media (max-width:860px){.mobilehead{flex-wrap:wrap;row-gap:10px}.mobilehead>.brand{order:0;margin-right:auto}.mobilehead #gs17m{order:1}.mobilehead #ab26nm{order:2}.mobilehead #lo23m{order:3}.mobilehead select{order:10;flex:1 0 100%;width:100%!important;max-width:none!important;height:38px}}
+tr.r26{cursor:pointer}tr.r26:hover td{background:var(--sunk)}tr.r26:focus-visible{outline:2px solid var(--copper);outline-offset:-2px}
+</style>`);
+addEventListener("hashchange", () => { $("#bp26")?.remove(); closeDrawer26(); });
+const _render26 = render;
+render = function () { _render26(); try { appbar26(); rows26(); } catch (e) { console.warn("p26", e); } };
+{
+  const _boot26 = boot;
+  boot = async function (...a) { const r = await _boot26(...a); try { appbar26(); setTimeout(() => newTenders26(true), 1500); setInterval(() => newTenders26(), 10 * 6e4); } catch (e) { } return r; };
+}
 
 boot();
 
