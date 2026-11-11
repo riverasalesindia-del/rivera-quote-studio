@@ -6194,6 +6194,10 @@ VIEWS.tdb = v => {
 const _comp21 = tdbComp;
 tdbComp = function (B, S) { _comp21(B, S); $$("[data-cb]", B).forEach(r => r.onclick = () => { CL.q = r.dataset.cb; CL.pick = r.dataset.cb; S.tab = "company"; clSearch(CL.q, CL.pick); }); };
 
+
+/* ===================== p22: three logins only — admin (crm@), sales, finance ===================== */
+{ const i = TEAM16.findIndex(m => m.role === "operation"); if (i >= 0) TEAM16.splice(i, 1); }
+
 boot();
 
 </script>
