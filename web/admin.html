@@ -6083,7 +6083,7 @@ VIEWS.finreq = v => {
 };
 
 /* ---------- 3. Go to portal + upload status beside every Bid Desk button ---------- */
-const PORTAL_URL = [[/gem/i, "https://bidplus.gem.gov.in/all-bids"], [/cppp|eprocure|etender|central/i, "https://etenders.gov.in/eprocure/app"], [/coal ?india|\bcil\b|ncl|mcl|secl|wcl|ccl|bccl|ecl|nclcil/i, "https://coalindiatenders.nic.in/nicgep/app"], [/bhel/i, "https://eprocurebhel.co.in/nicgep/app"], [/ntpc/i, "https://eprocurentpc.nic.in/nicgep/app"], [/ireps|railway/i, "https://www.ireps.gov.in"], [/tangedco|tneb|tamil|tntender/i, "https://tntenders.gov.in/nicgep/app"], [/kpcl|karnataka/i, "https://kppp.karnataka.gov.in"], [/rrvun|rajasthan/i, "https://eproc.rajasthan.gov.in/nicgep/app"], [/nhpc/i, "https://nhpc.eproc.in"], [/tender ?247/i, "https://www.tender247.com"]];
+const PORTAL_URL = [[/gem/i, "https://bidplus.gem.gov.in/all-bids"], [/cppp|eprocure|etender|central/i, "https://etenders.gov.in/eprocure/app"], [/coal ?india|\bcil\b|ncl|mcl|secl|wcl|ccl|bccl|ecl|nclcil/i, "https://coalindiatenders.nic.in/nicgep/app"], [/bhel/i, "https://eprocurebhel.co.in/nicgep/app"], [/ntpc/i, "https://eprocurentpc.nic.in/nicgep/app"], [/ireps|railway/i, "https://www.ireps.gov.in"], [/tangedco|tneb|tamil|tntender/i, "https://tntenders.gov.in/nicgep/app"], [/kpcl|karnataka/i, "https://kppp.karnataka.gov.in"], [/rrvun|rajasthan/i, "https://eproc.rajasthan.gov.in/nicgep/app"], [/power ?grid|pgcil/i, "https://etender.powergrid.in"], [/nhpc/i, "https://nhpc.eproc.in"], [/tender ?247/i, "https://www.tender247.com"]];
 function portalUrl21(t) { if (t.link && /^https?:/i.test(t.link)) return t.link; const s = `${t.portal || ""} ${t.org || ""} ${t.bid || ""}`; if (/^GEM\//i.test(t.bid || "")) return "https://bidplus.gem.gov.in/all-bids"; return (PORTAL_URL.find(([re]) => re.test(s)) || [, "https://etenders.gov.in/eprocure/app"])[1]; }
 const UP_ST = { pending: ["Pending", "warn"], progress: ["In progress", "navy"], completed: ["Completed", "ok"] };
 function portalCtl21(t) {
@@ -6323,6 +6323,21 @@ VIEWS.intel = v => {
 };
 const _render24b = render;
 render = function () { _render24b(); try { lhNote24($("#view")); } catch (e) { } };
+
+
+/* p25: tender portals Rivera uses — one click from Tender intelligence and the Tender database */
+const PORTALS25 = [
+  ["GeM", "https://bidplus.gem.gov.in/all-bids"], ["CPPP / etenders.gov.in", "https://etenders.gov.in/eprocure/app"], ["BHEL eProcurement", "https://eprocurebhel.co.in/nicgep/app"],
+  ["Indian Railways (IREPS)", "https://www.ireps.gov.in"], ["TANGEDCO (TN tenders)", "https://tntenders.gov.in/nicgep/app"], ["KPCL (Karnataka)", "https://kppp.karnataka.gov.in"],
+  ["RRVUN (Rajasthan)", "https://eproc.rajasthan.gov.in/nicgep/app"], ["Coal India", "https://coalindiatenders.nic.in/nicgep/app"], ["NTPC", "https://eprocurentpc.nic.in/nicgep/app"],
+  ["NHPC", "https://nhpc.eproc.in"], ["POWERGRID", "https://etender.powergrid.in"], ["ISRO e-Procurement", "https://eproc.isro.gov.in"]];
+function portals25(v) {
+  if (!["intel", "tdb"].includes(STATE.route) || $("#portals25", v)) return;
+  ($(".topbar", v))?.insertAdjacentHTML("afterend", `<nav id="portals25" class="portals25" aria-label="Tender portals"><span class="small muted">Portals</span>${PORTALS25.map(([n, u]) => `<a href="${u}" target="_blank" rel="noopener" class="chip">${esc(n)} ↗</a>`).join("")}</nav>`);
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.portals25{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 14px}.portals25 .chip{text-decoration:none;cursor:pointer;min-height:32px;display:inline-flex;align-items:center}.portals25 .chip:hover{border-color:var(--cu,#F26A10);color:var(--cu,#F26A10)}</style>`);
+const _render25 = render;
+render = function () { _render25(); try { portals25($("#view")); } catch (e) { } };
 
 boot();
 
