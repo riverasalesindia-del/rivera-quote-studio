@@ -5582,7 +5582,7 @@ function strongPw16(tag) {
 function linksPanel16() {
   const L = LINKS16, row = (k, label, url, note) => url ? `<tr><td><b>${label}</b><div class="small muted">${note}</div></td><td class="mono small" style="word-break:break-all"><a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a></td><td><button class="btn sm" data-lcp="${esc(url)}">Copy</button></td></tr>` : "";
   return `<section class="panel" id="links16"><header><h2>Sign-in & app links</h2><button class="btn sm" id="lnkShare">${icon("share")}Share all</button></header><div class="scroll"><table class="t"><tbody>
-    ${row("site", "Team sign-in (website)", L.site, "Sales, Finance, Operations — any browser, phone or PC")}
+    ${row("site", "Team sign-in (website)", L.site, "Sales and Finance — any browser, phone or PC")}
     ${row("admin", "Admin sign-in", L.admin, "crm@rivera.co.in")}
     ${row("apk", "Android app", L.apk, "Install the APK (allow ‘install unknown apps’ once)")}
     ${row("win", "Windows app (installer)", L.win, "Windows 10 / 11")}
@@ -5596,7 +5596,7 @@ function bindLinks16() {
 }
 function teamPanel16() {
   return `<section class="panel" id="team16"><header><h2>Rivera team logins</h2><span class="muted small">Admin is <b>crm@rivera.co.in</b></span></header><div class="body stack">
-    <p class="small muted" style="margin:0">One click creates the Sales, Finance and Operations logins with strong passwords (or gives existing ones a new password). Everyone must set their own password at first sign-in, and you approve each new device once.</p>
+    <p class="small muted" style="margin:0">One click creates the Sales and Finance logins with strong passwords (or gives existing ones a new password). Everyone must set their own password at first sign-in, and you approve each new device once.</p>
     <div class="scroll" id="team16T"><span class="muted small">Loading…</span></div>
     <div class="row" style="gap:8px"><button class="btn primary" id="team16Go">${icon("key")}Create team logins & passwords</button></div>
     <div id="team16Out"></div></div></section>`;
@@ -5607,8 +5607,9 @@ async function bindTeam16() {
   const draw = () => { T.innerHTML = `<table class="t"><thead><tr><th>Login</th><th>Role</th><th>Status</th><th>Last sign-in</th></tr></thead><tbody>${TEAM16.map(m => { const u = U.find(x => x.email === m.email); return `<tr><td><b>${esc(m.name)}</b><div class="mono small muted">${esc(m.email)}</div></td><td class="small">${esc(ROLE16[m.role])}</td><td>${!u ? '<span class="chip warn">Not created</span>' : u.status !== "approved" ? '<span class="chip bad">Disabled</span>' : u.mustChange ? '<span class="chip warn">Waiting for first sign-in</span>' : '<span class="chip ok">Active</span>'}</td><td class="small">${u?.lastLogin ? new Date(u.lastLogin).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}</td></tr>`; }).join("")}</tbody></table>`; };
   try { U = (await AUTH.call("users")).users; draw(); } catch (e) { T.innerHTML = `<div class="note bad">${esc(e.message)}</div>`; return; }
   $("#team16Go").onclick = async () => {
-    const todo = TEAM16.filter(m => m.role !== "admin"), have = todo.filter(m => U.some(x => x.email === m.email));
-    if (have.length && !confirm(`${have.map(m => m.email).join(", ")} already exist${have.length > 1 ? "" : "s"}.\n\nGive ${have.length > 1 ? "them" : "it"} a new password too? Their current password stops working.`)) return;
+    let todo = TEAM16.filter(m => m.role !== "admin"); const have = todo.filter(m => U.some(x => x.email === m.email));
+    if (have.length && !confirm(`${have.map(m => m.email).join(", ")} already exist${have.length > 1 ? "" : "s"}.\n\nOK = give ${have.length > 1 ? "them" : "it"} a new password too (current password stops working).\nCancel = keep ${have.length > 1 ? "their" : "its"} password and only create the missing logins.`)) todo = todo.filter(m => !have.includes(m));
+    if (!todo.length) { toast("All team logins already exist"); return; }
     const btn = $("#team16Go"); btn.disabled = true; const out = [];
     try {
       for (const m of todo) {
