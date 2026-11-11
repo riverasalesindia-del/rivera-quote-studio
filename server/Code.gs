@@ -316,12 +316,35 @@ function tkey(bid) { return String(bid || "").toUpperCase().replace(/[^A-Z0-9]+/
 function nkey(s) { return String(s || "").toLowerCase().replace(/\b(m\/s|messrs|pvt|private|ltd|limited|llp|inc|co|company|the)\b\.?/g, "").replace(/[^a-z0-9]+/g, ""); }
 function todayIST() { return Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyy-MM-dd"); }
 function cellStr(x) { return x instanceof Date ? Utilities.formatDate(x, "Asia/Kolkata", "yyyy-MM-dd") : x === null || x === undefined ? "" : x; }
-function readTable(sh, H) {
+/* p26: fast reads — TenderDB / TenderResults / TenderNotes are kept in the script cache and dropped on every write */
+var TBL_MEMO = {}, FAST_TABLES = { TenderDB: 1, TenderResults: 1, TenderNotes: 1 };
+function tblVer(n) { return props().getProperty("TBLV_" + n) || "0"; }
+function tblBump(n) { delete TBL_MEMO[n]; try { props().setProperty("TBLV_" + n, String(Date.now())); } catch (e) { } }
+function tblRows(H, A) { return A.map(function (a) { var o = {}; for (var j = 0; j < H.length; j++) o[H[j]] = a[j] === undefined ? "" : a[j]; return o; }); }
+function fastRead(name, H, getSh) {
+  if (TBL_MEMO[name]) return tblRows(H, TBL_MEMO[name]);
+  var c = CacheService.getScriptCache(), k = "tb26:" + name + ":" + tblVer(name) + ":" + H.length;
+  try {
+    var meta = c.get(k);
+    if (meta) {
+      var n = Number(meta), keys = [], s = ""; for (var i = 0; i < n; i++) keys.push(k + ":" + i);
+      var got = c.getAll(keys); for (var j = 0; j < n; j++) { if (got[keys[j]] == null) { s = null; break; } s += got[keys[j]]; }
+      if (s !== null) { TBL_MEMO[name] = JSON.parse(s); return tblRows(H, TBL_MEMO[name]); }
+    }
+  } catch (e) { }
+  var rows = readTableRaw(getSh(), H), A = rows.map(function (r) { return H.map(function (h) { return r[h]; }); });
+  TBL_MEMO[name] = A;
+  try { var js = JSON.stringify(A), CH = 30000, m = Math.ceil(js.length / CH), parts = {}; if (m <= 400) { for (var p = 0; p < m; p++) parts[k + ":" + p] = js.substr(p * CH, CH); c.putAll(parts, 1800); c.put(k, String(m), 1800); } } catch (e) { }
+  return tblRows(H, A);
+}
+function readTable(sh, H) { var n = sh.getName(); return FAST_TABLES[n] ? fastRead(n, H, function () { return sh; }) : readTableRaw(sh, H); }
+function readTableRaw(sh, H) {
   var v = sh.getDataRange().getValues(), out = [];
   for (var i = 1; i < v.length; i++) { if (!v[i][0]) continue; var o = {}; for (var j = 0; j < H.length; j++) o[H[j]] = cellStr(v[i][j]); out.push(o); }
   return out;
 }
-function writeTable(sh, H, rows) {
+function writeTable(sh, H, rows) { writeTableRaw(sh, H, rows); if (FAST_TABLES[sh.getName()]) { SpreadsheetApp.flush(); tblBump(sh.getName()); } }
+function writeTableRaw(sh, H, rows) {
   var last = sh.getLastRow(); if (last > 1) sh.getRange(2, 1, last - 1, H.length).clearContent();
   if (!rows.length) return;
   if (sh.getMaxRows() < rows.length + 1) sh.insertRowsAfter(sh.getMaxRows(), rows.length + 1 - sh.getMaxRows());
@@ -481,8 +504,8 @@ function tdbBackfillState() {
 }
 
 /* ---- queries for the app ---- */
-function tdbAll() { return readTable(tdbSheet(), TDH); }
-function trAll() { return readTable(trSheet(), TRH); }
+function tdbAll() { return fastRead("TenderDB", TDH, tdbSheet); }
+function trAll() { return fastRead("TenderResults", TRH, trSheet); }
 function regIndex() { var reg = getBlob("register") || { data: {} }, m = {}; ((reg.data && reg.data.tenders) || []).forEach(function (t) { m[tkey(t.bid)] = { status: t.status, id: t.id }; }); return m; }
 function resIndex(R) { var m = {}; R.forEach(function (r) { var k = tkey(r.bid), b = m[k] = m[k] || { n: 0, l1: null, winner: "", rivera: null }; b.n++; var p = Number(r.price) || 0; if (Number(r.rank) === 1 || (p && (!b.l1 || p < b.l1.price))) { if (!b.l1 || Number(r.rank) === 1 || p < b.l1.price) b.l1 = { bidder: r.bidder, price: p }; } if (r.awarded === "yes") b.winner = r.bidder; if (/rivera/i.test(r.bidder)) b.rivera = { price: p, rank: r.rank }; }); return m; }
 function tdbQuery(d) {
@@ -500,6 +523,7 @@ function tdbQuery(d) {
     if (d.vmin && Number(r.value || 0) < Number(d.vmin)) return false;
     if (d.vmax && r.value && Number(r.value) > Number(d.vmax)) return false;
     if (d.fit && Number(r.fit || 0) < Number(d.fit)) return false;
+    if (d.since && !(String(r.firstSeen || "") > String(d.since))) return false;
     if (d.hasResult && !ri[r.key]) return false;
     if (d.star && !(NM[r.key] && NM[r.key].star === "1")) return false;
     if (d.owner && !(NM[r.key] && NM[r.key].owner === d.owner)) return false;
@@ -509,6 +533,7 @@ function tdbQuery(d) {
   });
   var sort = d.sort || (d.status === "live" ? "closing" : "recent");
   L.sort(function (a, b) {
+    if (sort === "new") return String(b.firstSeen || "").localeCompare(String(a.firstSeen || ""));
     if (sort === "closing") return String(a.closing || "9999").localeCompare(String(b.closing || "9999"));
     if (sort === "value") return Number(b.value || 0) - Number(a.value || 0);
     if (sort === "fit") return Number(b.fit || 0) - Number(a.fit || 0) || String(b.closing).localeCompare(String(a.closing));
@@ -726,7 +751,7 @@ var NH = ["key", "bid", "star", "note", "owner", "by", "at"];
 var SSH = ["id", "user", "name", "filters", "email", "lastRun", "created"];
 function notesSheet() { var sh = sheet("TenderNotes", NH); tdbFmt(sh, NH.length); return sh; }
 function savedSheet() { var sh = sheet("SavedSearches", SSH); tdbFmt(sh, SSH.length); return sh; }
-function notesMap() { var m = {}; try { readTable(notesSheet(), NH).forEach(function (r) { m[r.key] = r; }); } catch (e) { } return m; }
+function notesMap() { var m = {}; try { fastRead("TenderNotes", NH, notesSheet).forEach(function (r) { m[r.key] = r; }); } catch (e) { } return m; }
 function tdbNote(d, me) {
   var k = tkey(d.bid); if (k.length < 5) throw "No bid number";
   var lock = LockService.getScriptLock(); lock.waitLock(20000);
