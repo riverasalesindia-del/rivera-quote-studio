@@ -2624,7 +2624,7 @@ function dueChip(d, done) { if (!d) return ""; const days = Math.round((new Date
 
 /* ---------- Tenders & GeM ---------- */
 const TENDER_ST = { identified: ["Identified", ""], preparing: ["Preparing", "warn"], submitted: ["Submitted", "navy"], technical: ["Tech. qualified", "navy"], ra: ["Reverse auction", "cu"], awarded: ["Awarded", "ok"], not_awarded: ["Not awarded", "bad"], not_attended: ["Not attended", ""] };
-const GEM_DOCS = [["oem", "Manufacturer proof (CIN) / OEM authorisation"], ["msme", "Udyam / MSE certificate (EMD exemption)"], ["proven", "Annexure II – Self-certificate for proven-ness + past POs"], ["lowest", "Annexure IV – Lowest price certificate"], ["banning", "Annexure V – Declaration regarding banning"], ["mii", "Annexure VII – Make in India, Class-I local content"], ["equip", "Annexure VIII – Equipment & quality control proforma"], ["quality", "Annexure IX – Quality certificate"], ["commercial", "Annexure X – Commercial checklist"], ["atc", "ATC accepted / compliance statement"], ["qap", "QAP and process flow chart"], ["stock", "Raw-material stock list & test certificates (Isovolta, Fine Finish, Chhaperia)"], ["machines", "Machines, equipment & tools list"], ["gst", "GST, PAN and bank mandate"], ["boq", "BOQ / price sheet filled"], ["profile", "Company profile & catalogue"]];
+const GEM_DOCS = [["oem", "Manufacturer proof (CIN) / OEM authorisation"], ["msme", "Udyam / MSE certificate (EMD exemption)"], ["proven", "Annexure II – Self-certificate for proven-ness + past POs"], ["lowest", "Annexure IV – Lowest price certificate"], ["banning", "Annexure V – Declaration regarding banning"], ["mii", "Annexure VII – Make in India, Class-I local content"], ["equip", "Annexure VIII – Equipment & quality control proforma"], ["quality", "Annexure IX – Quality certificate"], ["commercial", "Annexure X – Commercial checklist"], ["atc", "ATC accepted / compliance statement"], ["qap", "QAP and process flow chart"], ["stock", "Raw-material stock list & test certificates (Swarnagiri copper, Isovolta, Fine Finish, Chhaperia)"], ["machines", "Machines, equipment & tools list"], ["gst", "GST, PAN and bank mandate"], ["boq", "BOQ / price sheet filled"], ["profile", "Company profile & catalogue"]];
 const checklistPct = t => Math.round(GEM_DOCS.filter(([k]) => t.check?.[k]).length / GEM_DOCS.length * 100);
 VIEWS.tenders = v => {
   const ts = [...STATE.data.tenders].sort((a, b) => (b.closing || b.published || "").localeCompare(a.closing || a.published || ""));
@@ -5700,6 +5700,157 @@ tdbSources = function (B, S) {
     <div class="row" style="gap:8px"><button class="btn primary" id="sw16">${icon("spark")}Full GeM pull now</button><span class="small muted">Reads every GeM page for every keyword. Long pulls continue by themselves every 15 minutes.</span></div></div></section>`);
   $("#sw16").onclick = async () => { const b = $("#sw16"); b.disabled = true; b.textContent = "Pulling from GeM… (up to 4 min)"; try { const x = await AUTH.call("tdbRun", { op: "gem", fresh: true }, 300000); toast(`GeM: ${x.found} matching bids read in this run${x.sweep?.done ? "" : " — continuing in the background"}`); tdbBust(); render(); } catch (e) { toast(e.message, "bad"); b.disabled = false; } };
 };
+
+
+/* ===================== p17: copper supplier = Swarnagiri Wire Insulations; Quality Insulated Conductors (QIC) papers never go into a bid; Synology documents stored too ===================== */
+const QIC17 = /quality[ _.-]*i[ns]*[ _.-]*ulated|quality[ _.-]*isulated|(^|[^a-z])qic([^a-z]|$)/i;
+const SWAR17 = /swa?ra?n?a?giri|\bswipl\b/i;
+const SWAR_KEEP17 = /copper certificate|supplier registration/i, SWAR_NAME17 = /certif|\biso\b|9001|licen[cs]e|machiner|measuring|test|\btc\b|\bgst\b/i;
+DOC_TYPES.supplier = "Copper supplier – Swarnagiri Wire Insulations (certificates)";
+KEEP_TYPES.push("supplier");
+for (const r of REQ_MAP) if (Array.isArray(r[1]) && r[1].includes("stock") && !r[1].includes("supplier")) r[1].unshift("supplier");
+REQ_MAP.push([/copper|conductor|raw[- ]material (supplier|source|vendor)|sub-?vendor|source of (raw )?material/i, ["supplier", "stock"], "Copper supplier (Swarnagiri) certificates"]);
+const hash17 = s => { let h = 2166136261; for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619); } return (h >>> 0).toString(36); };
+function swarDoc17(f) {
+  const name = f.path.split("/").pop();
+  if (!/\.(pdf|docx?|xlsx?)$/i.test(name) || !SWAR17.test(f.path)) return null;
+  if (!SWAR_KEEP17.test(f.path) && !SWAR_NAME17.test(name)) return null;   // purchase orders, payments and enquiries stay out
+  const nice = name.replace(/\.(pdf|docx?|xlsx?)$/i, "").replace(/[_]+/g, " ").replace(/\s+/g, " ").trim();
+  const what = /copper certificate/i.test(f.path) ? "Copper test certificate" : /gst/i.test(name) ? "GST certificate" : /licen/i.test(name) ? "Factory licence" : /machiner/i.test(name) ? "List of machinery" : /measuring/i.test(name) ? "List of measuring equipment" : /\biso\b|9001/i.test(name) ? "ISO 9001 certificate" : /reg/i.test(name) ? "Supplier registration" : "Certificate";
+  return { id: "f_" + hash17(f.path.toLowerCase()), type: "supplier", title: `Swarnagiri Wire Insulations · ${what} — ${nice}`.slice(0, 160), path: f.path, customer: "", ref: "", fy: "", status: "", date: f.date || "", size: f.size || 0, src: "dropbox-index" };
+}
+const _index17 = DOCIX.index;
+DOCIX.index = function (files) {
+  const ok = (files || []).filter(f => f && f.path && !QIC17.test(f.path));
+  const out = _index17(ok).filter(d => !SWAR17.test(d.path));       // Swarnagiri invoices are not Rivera's proof of supply
+  const seen = new Set(out.map(d => d.id));
+  for (const f of ok) { const d = swarDoc17(f); if (d && !seen.has(d.id)) { seen.add(d.id); out.push(d); } }
+  return out;
+};
+/* QIC documents already in the library: hidden everywhere and never picked for a bid */
+const qicDoc17 = d => QIC17.test(`${d.path || ""} ${d.title || ""} ${d.name || ""}`);
+const _docsOf17 = docsOf;
+docsOf = function (type) {
+  const L = _docsOf17(type).filter(d => !qicDoc17(d));
+  return ["supplier", "stock", "iso"].includes(type) ? L.sort((a, b) => SWAR17.test(b.path || b.title || "") - SWAR17.test(a.path || a.title || "")) : L;
+};
+async function purgeQic17() {
+  try {
+    const bad = (STATE.data.docs || []).filter(d => qicDoc17(d) && !d.missing);
+    for (const d of bad) await DB.put("docs", { ...d, missing: true, blocked: "Quality Insulated Conductors — replaced by Swarnagiri Wire Insulations" });
+    if (bad.length) LS.set("qicPurged", { at: Date.now(), n: bad.length });
+  } catch (e) { ERRLOG.add("QIC clean-up: " + e.message, "app"); }
+}
+
+/* ---------- Synology: every tender / company document in the connected folder is indexed and stored ---------- */
+const NASDOC = { busy: false, at: LS.get("nasDocAt", 0), last: LS.get("nasDoc", null) };
+async function scanSynologyDocs(opts = {}) {
+  if (NASDOC.busy || !STATE.dir) return null;
+  NASDOC.busy = true; const files = [], handles = new Map(), root = STATE.dir.name || "Synology";
+  const walk = async (dir, rel, depth) => {
+    if (depth > 9 || files.length > 40000) return;
+    for await (const [name, h] of dir.entries()) {
+      if (name.startsWith(".") || name.startsWith("#") || /^@|^RCR\b|^RCR[ _-]|^TRANSFER$/i.test(name)) continue;
+      const p = rel + "/" + name;
+      if (h.kind === "directory") await walk(h, p, depth + 1);
+      else if (/\.(pdf|docx?|xlsx?)$/i.test(name)) { try { const f = await h.getFile(); files.push({ path: "/SYNOLOGY/" + root + p, size: f.size, date: new Date(f.lastModified).toISOString().slice(0, 10) }); handles.set("/SYNOLOGY/" + root + p, h); } catch { } }
+    }
+  };
+  let added = 0, stored = 0;
+  try {
+    await walk(STATE.dir, "", 0);
+    const found = DOCIX.index(files), have = new Set((STATE.data.docs || []).map(d => String(d.path || "").toLowerCase()));
+    for (const d of found) if (!have.has(d.path.toLowerCase())) { await DB.put("docs", { ...d, title: undefined, src: "nas" }); added++; }
+    if (DSTORE.online() && opts.store !== false) {
+      await DSTORE.load(true);
+      const queue = found.filter(d => KEEP_TYPES.includes(d.type) && /\.(pdf|docx?)$/i.test(d.path) && !DSTORE.has(d.id) && (d.size || 0) < 9e6).slice(0, opts.max || 40);
+      for (const d of queue) {
+        try { const f = await handles.get(d.path).getFile(); await DSTORE.put(d.id, new File([f], docFile(d), { type: f.type || (/\.pdf$/i.test(d.path) ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document") }), { kind: "doc", type: d.type, path: d.path, title: d.title || docTitle(d), customer: d.customer, ref: d.ref, date: d.date, status: d.status, from: "synology" }); stored++; }
+        catch (e) { ERRLOG.add("Store " + docFile(d) + ": " + e.message, "synology"); }
+      }
+    }
+    NASDOC.last = { at: Date.now(), files: files.length, docs: found.length, added, stored }; NASDOC.at = Date.now(); LS.set("nasDoc", NASDOC.last); LS.set("nasDocAt", NASDOC.at);
+    if (added || stored) toast(`Synology: ${added} new document${added === 1 ? "" : "s"} indexed, ${stored} stored permanently`);
+  } catch (e) { ERRLOG.add("Synology document scan: " + e.message, "synology"); }
+  NASDOC.busy = false; if (["library", "biddesk"].includes(STATE.route)) render();
+  return NASDOC.last;
+}
+const _library17 = VIEWS.library;
+VIEWS.library = v => {
+  _library17(v);
+  const top = $(".topbar", v); if (!top) return;
+  const L = NASDOC.last, sw = (STATE.data.docs || []).filter(d => d.type === "supplier" && !d.missing).length;
+  top.insertAdjacentHTML("afterend", `<section class="panel" style="margin-bottom:16px"><header><h2>Document sources</h2></header><div class="body stack" style="gap:8px">
+    <div class="note ok small"><b>Copper supplier: Swarnagiri Wire Insulations Pvt Ltd.</b> ${sw} Swarnagiri certificate${sw === 1 ? "" : "s"} in the library. Quality Insulated Conductors papers are blocked and never go into a bid.</div>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><span class="small">Dropbox: Windows app scans SALES, COMPANY DOCUMENTS, OPERATIONS and PURCHASE certificate folders and stores originals automatically.</span></div>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><span class="small">Synology: ${STATE.dir ? `connected (${esc(STATE.dir.name || "")})` : "not connected — connect it in Synology & Files"} · ${L ? `last scan ${new Date(L.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}: ${L.files} files, ${L.docs} documents, ${L.added} new, ${L.stored} stored` : "not scanned yet"}</span>
+    ${STATE.dir ? `<button class="btn sm primary" id="nas17">${NASDOC.busy ? "Scanning…" : "Scan Synology & store documents"}</button>` : ""}</div></div></section>`);
+  $("#nas17")?.addEventListener("click", async () => { const b = $("#nas17"); b.disabled = true; b.textContent = "Scanning Synology…"; const r = await scanSynologyDocs({ max: 80 }); toast(r ? `Synology: ${r.docs} documents found · ${r.added} new · ${r.stored} stored` : "Synology scan could not run", r ? "" : "bad"); });
+};
+const _boot17 = boot;
+boot = function () {
+  _boot17();
+  const w = setInterval(() => { if (!STATE.loaded) return; clearInterval(w); purgeQic17(); setTimeout(() => { if (STATE.dir && AUTH.isAdmin && Date.now() - NASDOC.at > 24 * 36e5) scanSynologyDocs({ max: 30 }); }, 20000); }, 500);
+};
+
+
+/* ===================== p18: search everywhere ===================== */
+/* ---------- search everywhere: one box on every page ---------- */
+const GS17 = { q: "", open: false, sel: 0 };
+function gsResults17(q) {
+  q = q.trim().toLowerCase(); if (q.length < 2) return [];
+  const W = q.split(/\s+/), hit = s => { s = String(s || "").toLowerCase(); return W.every(w => s.includes(w)); }, out = [];
+  for (const [k, l] of ROUTES) if (hit(l)) out.push({ g: "Page", t: l, s: "", go: () => { location.hash = "#" + k; } });
+  for (const x of STATE.quotes || []) if (hit(`${x.no} ${x.customer} ${x.subject} ${x.title || ""}`)) out.push({ g: "Quotation", t: `${x.no || ""} · ${x.customer || ""}`, s: x.subject || x.date || "", go: () => { location.hash = "#register"; setTimeout(() => { const i = $("#view input[type=search], #view input[type=text]"); if (i) { i.value = x.no || x.customer || ""; i.dispatchEvent(new Event("input")); } }, 300); } });
+  for (const t of STATE.data.tenders || []) if (hit(`${t.bid} ${t.org} ${t.items} ${t.portal}`)) out.push({ g: "Tender", t: `${t.bid} · ${t.org || ""}`, s: `${String(t.items || "").slice(0, 80)}${t.closing ? " · closes " + dmy(t.closing) : ""}`, go: () => { location.hash = "#tenders"; setTimeout(() => typeof tenderForm === "function" && tenderForm(clone(t)), 300); } });
+  for (const d of STATE.data.docs || []) if (!d.missing && hit(`${d.title || ""} ${d.path || ""} ${docLabel(d.type)} ${d.customer || ""} ${d.ref || ""}`)) out.push({ g: "Document", t: d.title || docTitle(d), s: docLabel(d.type), go: () => { location.hash = "#library"; setTimeout(() => { const i = $("#view input[type=search], #view input[type=text]"); if (i) { i.value = q; i.dispatchEvent(new Event("input")); } }, 300); } });
+  for (const [store, route, lab, f] of [["orders", "orders", "Work order", o => `${o.no || o.po || ""} ${o.customer || o.party || ""} ${o.item || o.items || ""}`], ["vendors", "vendors", "Vendor", o => `${o.name || ""} ${o.city || ""} ${o.items || o.category || ""}`]])
+    for (const o of STATE.data[store] || []) if (hit(f(o))) out.push({ g: lab, t: f(o).trim().slice(0, 90), s: "", go: () => { location.hash = "#" + route; } });
+  if (AUTH.api && AUTH.user) out.push({ g: "Tender database", t: `Search all tenders for “${q}”`, s: "GeM, CPPP, Coal India, Tender247 alerts, archive and results", go: () => { const S = TDB(); S.f.q = q; S.f.status = "all"; S.page = 1; S.tab = "search"; location.hash = "#tdb"; render(); } });
+  return out.slice(0, 40);
+}
+function gsBox17() {
+  const v = $("#view"); if (!v || $("#gs17", v)) return;
+  v.insertAdjacentHTML("afterbegin", `<div id="gs17" class="gs17" role="search"><span class="gs17-i" aria-hidden="true">${icon("search") || "⌕"}</span><input id="gs17q" type="text" autocomplete="off" spellcheck="false" placeholder="Search everything — quotations, tenders, GeM bids, documents, work orders, vendors… (Ctrl + K)" aria-label="Search everything" value="${esc(GS17.q)}"><div id="gs17r" class="gs17-r" role="listbox" hidden></div></div>`);
+  const i = $("#gs17q"), R = $("#gs17r");
+  const draw = () => {
+    const L = gsResults17(GS17.q); GS17.list = L; GS17.sel = Math.min(GS17.sel, Math.max(0, L.length - 1));
+    if (!GS17.q.trim() || GS17.q.trim().length < 2) { R.hidden = true; return; }
+    R.hidden = false;
+    R.innerHTML = L.length ? L.map((r, k) => `<button type="button" role="option" class="gs17-o ${k === GS17.sel ? "on" : ""}" data-gs="${k}"><span class="chip">${esc(r.g)}</span><span class="gs17-t"><b>${esc(r.t)}</b>${r.s ? `<span class="small muted">${esc(r.s)}</span>` : ""}</span></button>`).join("") : `<div class="small muted" style="padding:12px">Nothing found for “${esc(GS17.q)}”</div>`;
+    $$("[data-gs]", R).forEach(b => b.onmousedown = e => { e.preventDefault(); const r = L[+b.dataset.gs]; GS17.q = ""; R.hidden = true; r.go(); });
+  };
+  i.oninput = () => { GS17.q = i.value; GS17.sel = 0; draw(); };
+  i.onkeydown = e => {
+    const L = GS17.list || [];
+    if (e.key === "ArrowDown") { GS17.sel = Math.min(L.length - 1, GS17.sel + 1); draw(); e.preventDefault(); }
+    else if (e.key === "ArrowUp") { GS17.sel = Math.max(0, GS17.sel - 1); draw(); e.preventDefault(); }
+    else if (e.key === "Enter" && L[GS17.sel]) { const r = L[GS17.sel]; GS17.q = ""; R.hidden = true; r.go(); }
+    else if (e.key === "Escape") { GS17.q = ""; i.value = ""; R.hidden = true; i.blur(); }
+  };
+  i.onblur = () => setTimeout(() => { R.hidden = true; }, 150);
+  i.onfocus = () => { if (GS17.q) draw(); };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.gs17{position:relative;margin:0 0 14px}
+#gs17 input#gs17q{width:100%;box-sizing:border-box;padding:11px 14px 11px 42px !important;border-radius:10px;border:1px solid var(--line,#d5dbe3);background:var(--card,#fff);font-size:.95rem;color:inherit}
+.gs17 input:focus{outline:2px solid var(--cu,#F26A10);outline-offset:1px}
+.gs17-i{position:absolute;left:13px;top:50%;transform:translateY(-50%);opacity:.6;display:flex;width:18px;height:18px}
+.gs17-i svg{width:18px;height:18px}
+.gs17-r{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:60;max-height:min(60vh,520px);overflow:auto;background:var(--card,#fff);border:1px solid var(--line,#d5dbe3);border-radius:10px;box-shadow:0 12px 32px rgba(2,30,60,.18)}
+.gs17-o{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:10px 12px;border:0;border-bottom:1px solid var(--line,#eef1f4);background:transparent;color:inherit;cursor:pointer;min-height:44px}
+.gs17-o.on,.gs17-o:hover{background:rgba(242,106,16,.08)}
+.gs17-t{display:flex;flex-direction:column;gap:2px;min-width:0}
+.gs17-t b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
+</style>`);
+if (!IC.search) IC.search = '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>';
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { const i = $("#gs17q"); if (i) { e.preventDefault(); i.focus(); i.select(); } } });
+const _render17 = render;
+render = function () { _render17(); try { gsBox17(); } catch (e) { } };
+
+/* bid kit label */
+for (const r of GEM_DOCS) if (r[0] === "stock" && /Chhaperia/.test(r[1])) r[1] = r[1].replace("Chhaperia", "Chhaperia, Swarnagiri copper");
+
 
 boot();
 
