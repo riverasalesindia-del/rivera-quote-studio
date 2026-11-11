@@ -12,7 +12,7 @@ function props() { return PropertiesService.getScriptProperties(); }
 function secret() { var p = props(), s = p.getProperty("SECRET"); if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); p.setProperty("SECRET", s); } return s; }
 function ss() { var id = props().getProperty("SHEET"); if (id) return SpreadsheetApp.openById(id); var a = SpreadsheetApp.getActiveSpreadsheet(); if (a) return a; var n = SpreadsheetApp.create("Rivera Quote Studio — users & data"); props().setProperty("SHEET", n.getId()); return n; }
 function sheet(name, head) { var s = ss(), sh = s.getSheetByName(name); if (!sh) { sh = s.insertSheet(name); if (head) sh.appendRow(head); } return sh; }
-var UH = ["email", "name", "salt", "hash", "status", "role", "created", "lastLogin", "code", "codeExp", "fails", "lockUntil", "approvedBy", "contact"];
+var UH = ["email", "name", "salt", "hash", "status", "role", "created", "lastLogin", "code", "codeExp", "fails", "lockUntil", "approvedBy", "contact", "mustChange"];
 var SH = ["sid", "user", "device", "status", "created", "decidedAt", "decidedBy", "nonce", "lastSeen"];
 function sessions() { return sheet("Sessions", SH); }
 function findSession(sid) { var sh = sessions(), v = sh.getDataRange().getValues(); for (var i = 1; i < v.length; i++) if (String(v[i][0]) === String(sid)) { var s = { row: i + 1 }; SH.forEach(function (k, j) { s[k] = v[i][j]; }); return s; } return null; }
@@ -46,7 +46,7 @@ function auth(t, needAdmin) {
   if (needAdmin && u.role !== "admin") throw "Admin only";
   return u;
 }
-function pub(u) { return { email: u.email, contact: u.contact || "", name: u.name, status: u.status, role: u.role, created: u.created ? new Date(u.created).toISOString() : "", lastLogin: u.lastLogin ? new Date(u.lastLogin).toISOString() : "", approvedBy: u.approvedBy || "" }; }
+function pub(u) { return { email: u.email, contact: u.contact || "", name: u.name, status: u.status, role: u.role, created: u.created ? new Date(u.created).toISOString() : "", lastLogin: u.lastLogin ? new Date(u.lastLogin).toISOString() : "", approvedBy: u.approvedBy || "", mustChange: String(u.mustChange || "") === "1" }; }
 function appUrl() { return ScriptApp.getService().getUrl(); }
 function mail(to, subject, html) { MailApp.sendEmail({ to: to, subject: subject, htmlBody: '<div style="font-family:Arial,sans-serif;font-size:14px;color:#02315B">' + html + '<p style="color:#888;font-size:12px;margin-top:24px">' + APP + ' · Rivera Coil Manufacturing (I) Pvt Ltd</p></div>', name: APP }); }
 function esc(s) { return String(s || "").replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -257,14 +257,30 @@ function dailyDigest() {
     tableHtml("EMD to get back", ["Bid / tender", "Buyer", "EMD ₹", "Result"], refund.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), Number(t.emdAmount).toLocaleString("en-IN"), esc(t.status)]); })) +
     tableHtml("Performance guarantees expiring in 30 days", ["Bid / tender", "Buyer", "PBG ₹", "Expiry"], pbg.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), Number(t.pbgAmount || 0).toLocaleString("en-IN"), dmyS(t.pbgValidity)]); })) +
     '<p style="margin-top:16px">' + btn(appUrl().replace(/\/exec.*/, "/exec"), "Open " + APP, "#02315B") + "</p>";
+  var gemNew = ""; try { gemNew = gemNewHtml(); } catch (e) { }
+  html = html.replace("<p style=\"margin-top:16px\">", gemNew + "<p style=\"margin-top:16px\">");
   mail(digestTo(), APP + " — tender summary " + dmyS(today), html);
+  try {
+    var emdPay = ts.filter(function (t) { return t.emdMode === "required" && Number(t.emdAmount) > 0 && (t.emdStatus || "to_pay") === "to_pay" && LIVE.indexOf(t.status) >= 0 && (!t.closing || t.closing >= today); });
+    var awarded = ts.filter(function (t) { return t.status === "awarded" && !/complet|closed|deliver/i.test(String(t.execStatus || "")); });
+    roleDigests({ gemNew: gemNew,
+      fresh: tableHtml("New tenders added since yesterday", ["Bid / tender", "Portal", "Buyer", "Item", "Closing"], fresh.map(function (t) { return rowHtml([esc(t.bid), esc(t.portal), esc(t.org), esc(t.items), dmyS(t.closing)]); })),
+      closing: tableHtml("Closing within 3 days", ["Bid / tender", "Buyer", "Item", "Closing", "Status"], closing.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), esc(t.items), "<b>" + dmyS(t.closing) + "</b>", esc(t.status)]); })),
+      ra: tableHtml("Reverse auction today", ["Bid / tender", "Buyer", "Item"], ra.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), esc(t.items)]); })),
+      pre: tableHtml("Pre-bid meetings (next 3 days)", ["Bid / tender", "Buyer", "Pre-bid"], pre.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), dmyS(t.preBid)]); })),
+      emdPay: tableHtml("EMD to pay for live bids", ["Bid / tender", "Buyer", "EMD ₹", "Closing"], emdPay.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), Number(t.emdAmount).toLocaleString("en-IN"), dmyS(t.closing)]); })),
+      refund: tableHtml("EMD to get back", ["Bid / tender", "Buyer", "EMD ₹", "Result"], refund.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), Number(t.emdAmount).toLocaleString("en-IN"), esc(t.status)]); })),
+      pbg: tableHtml("Performance guarantees expiring in 30 days", ["Bid / tender", "Buyer", "PBG ₹", "Expiry"], pbg.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), Number(t.pbgAmount || 0).toLocaleString("en-IN"), dmyS(t.pbgValidity)]); })),
+      awarded: tableHtml("Awarded orders to execute", ["Bid / tender", "Buyer", "Item", "Value ₹"], awarded.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), esc(t.items), Number(t.ourPrice || t.value || 0).toLocaleString("en-IN")]); })) });
+  } catch (e) { log("automation", "role-digest-error", String(e)); }
   props().setProperty("DIGEST_LAST", new Date().toISOString());
   log("automation", "daily-digest", "sent to " + digestTo());
   return { ok: true, live: live.length, closing: closing.length, fresh: fresh.length, watch: w };
 }
 function installAutomation() {
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (["hourlyWatch", "dailyDigest"].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (["hourlyWatch", "dailyDigest", "gemSweepJob"].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger("hourlyWatch").timeBased().everyHours(1).create();
+  try { gemSweepInstall(); } catch (e) { }
   ScriptApp.newTrigger("dailyDigest").timeBased().atHour(8).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
   props().setProperty("AUTO_ON", new Date().toISOString());
   return { ok: true };
@@ -431,10 +447,7 @@ function tdbWatch(alerts) {
   var P = props(), out = { email: 0, gem: 0, results: 0 }, gem = [];
   try { out.email = tdbUpsert((alerts || []).map(alertToRow), "Email alert").added; } catch (e) { log("automation", "tdb-email-error", String(e)); }
   try { var rr = resultsFromThreads(GmailApp.search(RESULT_Q + "newer_than:20d", 0, 60)); out.results = trUpsert(rr, "automation").added; } catch (e) { log("automation", "tdb-result-error", String(e)); }
-  if (cfg("gemDirect", "1") === "1" && Date.now() - Number(P.getProperty("GEM_LAST") || 0) > 5.5 * 36e5) {
-    P.setProperty("GEM_LAST", String(Date.now()));
-    try { gem = gemFetch(kwList()); out.gem = tdbUpsert(gem, "GeM direct").added; } catch (e) { log("automation", "tdb-gem-error", String(e)); }
-  }
+  try { var gs = gemSweep(90000); out.gem = (gs && gs.kept) || 0; } catch (e) { log("automation", "tdb-gem-error", String(e)); }
   try { tdbSyncRegister(); } catch (e) { log("automation", "tdb-register-error", String(e)); }
   P.setProperty("TDB_LAST", JSON.stringify({ at: new Date().toISOString(), email: out.email, gem: out.gem, results: out.results }));
   out.gemAlerts = gem.map(function (g) { return { bid: g.bid, portal: "GeM", org: g.org, item: g.item, subject: g.subject, closing: g.closing, fit: g.fit, link: g.link, emd: 0, value: 0, date: new Date().toISOString() }; });
@@ -543,7 +556,153 @@ function tdbStats() {
 function tdbState() {
   var P = props(), g = {}, l = {}; try { g = JSON.parse(P.getProperty("GEM_STATUS") || "{}"); } catch (e) { } try { l = JSON.parse(P.getProperty("TDB_LAST") || "{}"); } catch (e) { }
   var n = 0, r = 0; try { n = Math.max(0, tdbSheet().getLastRow() - 1); r = Math.max(0, trSheet().getLastRow() - 1); } catch (e) { }
-  return { ok: true, tenders: n, results: r, gem: g, gemOn: cfg("gemDirect", "1") === "1", last: l, backfill: tdbBackfillState(), auto: automationState(), sheet: ss().getUrl() };
+  return { ok: true, tenders: n, results: r, gem: g, gemOn: cfg("gemDirect", "1") === "1", last: l, backfill: tdbBackfillState(), auto: automationState(), sheet: ss().getUrl(), sweep: gemSweepState(), kw: kwList().length };
+}
+
+/* ================= GeM full sweep — every GeM bid for every Rivera keyword, nothing missed =================
+ * Source 1: bidplus.gem.gov.in "All bids" search — every result page for every keyword.
+ * Source 2: CPPP's public list of all active GeM bids (eprocure.gov.in/cppp/latestactivetendersnew/gemdata, ~3,500 pages)
+ *           — every page is read and every bid that matches a Rivera keyword is kept.
+ * Runs in slices of ~4.5 minutes (trigger every 15 min) and starts a fresh sweep every 3 hours.
+ * Matches go to TenderDB; strong matches (75%+) are also added to the Rivera tender register like email alerts.
+ */
+var SITE = "https://riverasalesindia-del.github.io/rivera-quote-studio/";
+var LINKS = { site: SITE, admin: SITE + "admin.html", apk: "https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio.apk", win: "https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Setup.exe" };
+var CPPP_GEM = "https://eprocure.gov.in/cppp/latestactivetendersnew/gemdata";
+var GEM_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36";
+var MON3 = { jan: 1, feb: 2, mar: 3, apr: 4, may: 5, jun: 6, jul: 7, aug: 8, sep: 9, oct: 10, nov: 11, dec: 12 };
+function isoAny(s) {
+  s = String(s || ""); var m = s.match(/(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0];
+  m = s.match(/(\d{1,2})[-\/ ]([A-Za-z]{3})[A-Za-z]*[-\/, ]+(\d{4})/); if (m && MON3[m[2].toLowerCase()]) return m[3] + "-" + ("0" + MON3[m[2].toLowerCase()]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+  m = s.match(/(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})/); if (m) return m[3] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[1]).slice(-2);
+  return "";
+}
+function gemSession() {
+  var home = UrlFetchApp.fetch("https://bidplus.gem.gov.in/all-bids", { muteHttpExceptions: true, followRedirects: true, headers: { "User-Agent": GEM_UA } });
+  if (home.getResponseCode() >= 400) throw "GeM page answered " + home.getResponseCode();
+  var h = home.getAllHeaders(), sc = h["Set-Cookie"] || h["set-cookie"] || []; if (!Array.isArray(sc)) sc = [sc];
+  var cookies = sc.map(function (c) { return String(c).split(";")[0]; }).join("; "), html = home.getContentText();
+  var csrf = (cookies.match(/csrf_gem_cookie=([^;]+)/) || [])[1] || (html.match(/name=["']csrf_bd_gem_nk["'][^>]*value=["']([^"']+)/i) || [])[1] || (html.match(/csrf_bd_gem_nk["']?\s*[:=,]\s*["']([A-Za-z0-9]{16,})/) || [])[1];
+  if (!csrf) throw "GeM security token not found (site changed?)";
+  return { cookies: cookies, csrf: csrf };
+}
+function gemPage(sess, kw, page, kws) {
+  var payload = { page: page, param: { searchBid: kw, searchType: "fullText" }, filter: { bidStatusType: "ongoing_bids", byType: "all", highBidValue: "", byEndDate: { from: "", to: "" }, sort: "Bid-End-Date-Latest" } };
+  var r = UrlFetchApp.fetch("https://bidplus.gem.gov.in/all-bids-data", { method: "post", muteHttpExceptions: true, payload: { payload: JSON.stringify(payload), csrf_bd_gem_nk: sess.csrf },
+    headers: { "User-Agent": GEM_UA, "Cookie": sess.cookies, "X-Requested-With": "XMLHttpRequest", "Referer": "https://bidplus.gem.gov.in/all-bids" } });
+  if (r.getResponseCode() >= 400) throw "GeM search answered " + r.getResponseCode();
+  var j = JSON.parse(r.getContentText() || "{}"), resp = (j.response || {}).response || {}, docs = resp.docs || [];
+  var f = function (d, k) { var v = d[k]; return Array.isArray(v) ? v[0] : v; };
+  return { numFound: Number(resp.numFound || 0), rows: docs.map(function (d) {
+    var bid = f(d, "b_bid_number") || f(d, "bid_number"), item = f(d, "b_category_name") || f(d, "bd_category_name") || f(d, "b_items") || kw, org = [f(d, "ba_official_details_minName"), f(d, "ba_official_details_deptName")].filter(Boolean).join(" / ");
+    var id = f(d, "b_id") || f(d, "id"), qty = f(d, "b_total_quantity");
+    return { bid: bid, portal: "GeM", org: org, item: item + (qty ? " · Qty " + qty : ""), published: String(f(d, "final_start_date_sort") || "").slice(0, 10), closing: String(f(d, "final_end_date_sort") || "").slice(0, 10),
+      link: id ? "https://bidplus.gem.gov.in/showbidDocument/" + id : "https://bidplus.gem.gov.in/all-bids", fit: fitOf(item + " " + org + " " + kw, kws), subject: "GeM search: " + kw };
+  }).filter(function (x) { return x.bid; }) };
+}
+function cpppParse(html) {
+  var out = [], total = Number(((String(html).match(/Total\s*Bid\(s\)\s*:?\s*([\d,]+)/i) || [])[1] || "0").replace(/,/g, ""));
+  var dec = function (s) { return String(s).replace(/<[^>]+>/g, " ").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&").replace(/&#0?39;|&apos;/g, "'").replace(/&quot;/g, '"').replace(/\s+/g, " ").trim(); };
+  (String(html).match(/<tr[\s\S]*?<\/tr>/gi) || []).forEach(function (tr) {
+    var tds = tr.match(/<td[\s\S]*?<\/td>/gi); if (!tds || tds.length < 6) return;
+    var t = tds.map(dec), bid = (t.join(" ").match(/GEM\/\d{4}\/[BR]\/\d{4,}/) || [])[0]; if (!bid) return;
+    var bi = 0; for (var i = 0; i < t.length; i++) if (t[i].indexOf(bid) >= 0) { bi = i; break; }
+    var dates = t.filter(function (x) { return isoAny(x); }), qty = (t[bi].replace(bid, "").match(/\d[\d,]*/) || [""])[0];
+    var href = (tr.match(/href=["']([^"']*gemtendersfullview[^"']*)["']/i) || tr.match(/href=["']([^"']+)["']/i) || [])[1] || "";
+    out.push({ bid: bid, portal: "GeM", published: isoAny(dates[0]), closing: isoAny(dates[1] || dates[0]), item: (t[bi + 1] || "") + (qty ? " · Qty " + qty : ""),
+      org: [t[bi + 2], t[bi + 3]].filter(Boolean).join(" / "), link: href ? (/^https?:/.test(href) ? href : "https://eprocure.gov.in" + (href.charAt(0) === "/" ? "" : "/") + href) : "https://bidplus.gem.gov.in/all-bids", subject: "CPPP GeM bids list" });
+  });
+  return { rows: out, total: total };
+}
+function kwHit(text, kws) { var t = String(text || "").toLowerCase(); return kws.some(function (w) { return w && t.indexOf(String(w).toLowerCase()) >= 0; }); }
+function gemSweepState() { try { return JSON.parse(props().getProperty("GEM_SWEEP") || "{}"); } catch (e) { return {}; } }
+function gemSweepJob() { return gemSweep(270000); }
+function gemSweep(budget, fresh) {
+  var P = props(), busy = Number(P.getProperty("GEM_SWEEP_BUSY") || 0);
+  if (busy && Date.now() - busy < 6 * 6e4) return { busy: true, state: gemSweepState() };
+  if (cfg("gemDirect", "1") !== "1") return { off: true };
+  P.setProperty("GEM_SWEEP_BUSY", String(Date.now()));
+  var t0 = Date.now(), s = gemSweepState(), kws = kwList(), kept = [], strong = [];
+  try {
+    budget = budget || 270000;
+    if (fresh || !s.started || (s.done && Date.now() - new Date(s.done).getTime() > 3 * 36e5)) s = { started: new Date().toISOString(), ki: 0, page: 1, cp: 1, cpTotal: 0, cpFirst: "", gemSeen: 0, cpSeen: 0, matched: 0, added: 0, gemErr: "", cpErr: "", perKw: {} };
+    if (s.done) return { state: s, idle: true };
+    // 1) GeM search: every page for every keyword
+    if (!s.gemDoneAt) {
+      try {
+        var sess = gemSession();
+        while (Date.now() - t0 < budget * 0.45 && s.ki < kws.length) {
+          var kw = kws[s.ki], r = gemPage(sess, kw, s.page, kws);
+          s.perKw[kw] = r.numFound; s.gemSeen += r.rows.length;
+          r.rows.forEach(function (x) { kept.push(x); });
+          if (!r.rows.length || s.page * 10 >= r.numFound || s.page >= 300) { s.ki++; s.page = 1; } else s.page++;
+          Utilities.sleep(250);
+        }
+        if (s.ki >= kws.length) s.gemDoneAt = new Date().toISOString();
+      } catch (e) { s.gemErr = String(e && e.message || e).slice(0, 160); s.gemDoneAt = new Date().toISOString(); }
+    }
+    // 2) CPPP list of every active GeM bid: all pages, 8 at a time
+    while (!s.cpDoneAt && Date.now() - t0 < budget) {
+      try {
+        var nums = []; for (var i = 0; i < 8; i++) nums.push(s.cp + i);
+        var res = UrlFetchApp.fetchAll(nums.map(function (n) { return { url: CPPP_GEM + "?page=" + n, muteHttpExceptions: true, followRedirects: true, headers: { "User-Agent": GEM_UA } }; }));
+        var any = false;
+        res.forEach(function (resp, k) {
+          if (resp.getResponseCode() >= 400) throw "CPPP answered " + resp.getResponseCode();
+          var p = cpppParse(resp.getContentText()); if (p.total) s.cpTotal = p.total;
+          if (!p.rows.length) return; any = true;
+          if (nums[k] === 1) s.cpFirst = p.rows[0].bid; else if (s.cpFirst && p.rows[0].bid === s.cpFirst) throw "CPPP ignored the page number";
+          s.cpSeen += p.rows.length;
+          p.rows.forEach(function (x) { if (!kwHit(x.item, kws)) return; x.fit = fitOf(x.item + " " + x.org, kws); kept.push(x); });
+        });
+        s.cp += nums.length;
+        if (!any || (s.cpTotal && (s.cp - 1) * 10 >= s.cpTotal) || s.cp > 8000) s.cpDoneAt = new Date().toISOString();
+      } catch (e) { s.cpErr = String(e && e.message || e).slice(0, 160); s.cpDoneAt = new Date().toISOString(); }
+    }
+    if (kept.length) {
+      var u = tdbUpsert(kept, "GeM portal"); s.added += u.added; s.matched += kept.filter(function (x) { return x.fit > 0; }).length;
+      strong = kept.filter(function (x) { return x.fit >= 75 && x.closing && x.closing >= todayIST(); });
+      if (strong.length) try { applyAlerts(strong.map(function (g) { return { bid: g.bid, portal: "GeM", org: g.org, item: g.item, subject: g.subject, closing: g.closing, fit: g.fit, link: g.link, emd: 0, value: 0, date: new Date().toISOString() }; })); } catch (e) { log("automation", "gem-sweep-register-error", String(e)); }
+    }
+    if (s.gemDoneAt && s.cpDoneAt) { s.done = new Date().toISOString(); log("automation", "gem-sweep", "GeM search " + s.gemSeen + " bids, CPPP list " + s.cpSeen + " bids, " + s.added + " new for Rivera" + (s.gemErr ? " · GeM: " + s.gemErr : "") + (s.cpErr ? " · CPPP: " + s.cpErr : "")); }
+    P.setProperty("GEM_STATUS", JSON.stringify({ at: new Date().toISOString(), ok: !(s.gemErr && s.cpErr), n: s.gemSeen + s.cpSeen, err: [s.gemErr && "GeM search: " + s.gemErr, s.cpErr && "CPPP list: " + s.cpErr].filter(Boolean).join(" · ") }));
+    return { state: s, kept: kept.length };
+  } finally {
+    P.setProperty("GEM_SWEEP", JSON.stringify(s)); P.deleteProperty("GEM_SWEEP_BUSY");
+  }
+}
+function gemSweepInstall() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (t.getHandlerFunction() === "gemSweepJob") ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger("gemSweepJob").timeBased().everyMinutes(15).create();
+}
+
+/* ---- team logins: role list, first-sign-in password change, login mail ---- */
+var ROLES = ["admin", "sales", "finance", "operation", "viewer"];
+var ROLE_NAME = { admin: "Admin", sales: "Sales", finance: "Finance", operation: "Operations", viewer: "View only" };
+function loginMailHtml(u, pw) {
+  return "<p>Hello " + esc(u.name) + ",</p><p>Your login for <b>" + APP + "</b> is ready. Role: <b>" + esc(ROLE_NAME[u.role] || u.role) + "</b>.</p>" +
+    '<table style="border-collapse:collapse;font-size:15px;margin:8px 0"><tr><td style="padding:6px 12px 6px 0;color:#555">Username</td><td style="padding:6px 0"><b>' + esc(u.email) + '</b></td></tr><tr><td style="padding:6px 12px 6px 0;color:#555">Temporary password</td><td style="padding:6px 0;font-family:monospace;font-size:16px"><b>' + esc(pw) + "</b></td></tr></table>" +
+    "<p>You will be asked to set your own password the first time you sign in. The admin (" + ADMIN + ") approves each new device once.</p>" +
+    "<p>" + btn(LINKS.site, "Sign in on the website", "#02315B") + btn(LINKS.apk, "Android app", "#F26A10") + btn(LINKS.win, "Windows app", "#555555") + "</p>" +
+    '<p style="color:#888;font-size:12px">Website: ' + LINKS.site + "<br>Keep this password private. If you did not expect this mail, tell " + ADMIN + ".</p>";
+}
+function roleDigests(sec) {
+  var v = users().getDataRange().getValues(), sent = [];
+  for (var i = 1; i < v.length; i++) {
+    var u = {}; UH.forEach(function (k, j) { u[k] = v[i][j]; });
+    if (u.status !== "approved" || !/@/.test(u.email) || u.email === digestTo() || ["sales", "finance", "operation"].indexOf(u.role) < 0) continue;
+    var parts = u.role === "finance" ? [sec.emdPay, sec.refund, sec.pbg] : u.role === "operation" ? [sec.awarded, sec.pbg, sec.closing] : [sec.gemNew, sec.fresh, sec.closing, sec.ra, sec.pre];
+    var body = parts.join("");
+    if (!body) body = "<p>Nothing needs your attention today.</p>";
+    mail(u.email, APP + " — " + (ROLE_NAME[u.role] || u.role) + " summary " + dmyS(todayIST()), "<p>Good morning " + esc(u.name) + ". Here is today's " + esc(ROLE_NAME[u.role]).toLowerCase() + " summary.</p>" + body + '<p style="margin-top:16px">' + btn(LINKS.site, "Open " + APP, "#02315B") + "</p>");
+    sent.push(u.email);
+  }
+  return sent;
+}
+function gemNewHtml() {
+  var since = new Date(Date.now() - 26 * 36e5).toISOString(), today = todayIST();
+  var L = tdbAll().filter(function (r) { return String(r.firstSeen) >= since && Number(r.fit) >= 50 && (!r.closing || r.closing >= today); }).sort(function (a, b) { return Number(b.fit) - Number(a.fit); }).slice(0, 60);
+  return tableHtml("New Rivera matches in the tender database (last 24 h)", ["Bid / tender", "Portal", "Buyer", "Item", "Closing", "Match"], L.map(function (r) { return rowHtml([r.link ? '<a href="' + esc(r.link) + '">' + esc(r.bid) + "</a>" : esc(r.bid), esc(r.portal), esc(r.org), esc(String(r.item).slice(0, 120)), dmyS(r.closing), r.fit + "%"]); }));
 }
 
 function api(d) {
@@ -654,7 +813,9 @@ function api(d) {
       putBlob("register", cur); return { ok: true, register: cur };
     } finally { lock.releaseLock(); }
   }
-  if (a === "password") { if (!eq(hashPw(String(d.old || ""), me.salt), me.hash)) throw "Current password is wrong"; if (String(d.pw || "").length < 40) throw "Password not accepted"; me.salt = Utilities.getUuid(); me.hash = hashPw(d.pw, me.salt); saveUser(me); log(me.email, "password-change", ""); return { ok: true }; }
+  if (a === "firstPassword") { if (String(me.mustChange || "") !== "1") throw "Use Change password in My account"; if (String(d.pw || "").length < 40) throw "Password not accepted"; me.salt = Utilities.getUuid(); me.hash = hashPw(d.pw, me.salt); me.mustChange = ""; saveUser(me); log(me.email, "password-first-set", ""); return { ok: true, user: pub(me) }; }
+  if (a === "links") return { ok: true, links: LINKS };
+  if (a === "password") { me.mustChange = ""; if (!eq(hashPw(String(d.old || ""), me.salt), me.hash)) throw "Current password is wrong"; if (String(d.pw || "").length < 40) throw "Password not accepted"; me.salt = Utilities.getUuid(); me.hash = hashPw(d.pw, me.salt); saveUser(me); log(me.email, "password-change", ""); return { ok: true }; }
   /* ---- tender database (all signed-in users) ---- */
   if (a === "tdbQuery") return tdbQuery(d);
   if (a === "trQuery") return trQuery(d);
@@ -672,11 +833,12 @@ function api(d) {
     finally { lk.releaseLock(); }
   }
   if (a === "tdbRun") {
-    if (d.op === "gem") { var g3 = gemFetch(kwList()), u3 = tdbUpsert(g3, "GeM direct"); applyAlerts(g3.map(function (g) { return { bid: g.bid, portal: "GeM", org: g.org, item: g.item, subject: g.subject, closing: g.closing, fit: g.fit, link: g.link, emd: 0, value: 0 }; })); props().setProperty("GEM_LAST", String(Date.now())); log(me.email, "tdb-gem", g3.length + " bids"); return { ok: true, found: g3.length, added: u3.added, state: tdbState() }; }
-    props().setProperty("GEM_LAST", "0"); var w3 = hourlyWatch(); return { ok: true, result: w3, state: tdbState() };
+    if (d.op === "gem") { props().deleteProperty("GEM_SWEEP_BUSY"); var g3 = gemSweep(240000, !!d.fresh); log(me.email, "tdb-gem", JSON.stringify((g3 && g3.state) || {}).slice(0, 200)); return { ok: true, found: (g3 && g3.kept) || 0, sweep: g3 && g3.state, state: tdbState() }; }
+    var w3 = hourlyWatch(); return { ok: true, result: w3, state: tdbState() };
   }
   /* ---- admin ---- */
   auth(d.token, true);
+  if (a === "mailLogin") { var mu = findUser(cleanEmail(d.email)); if (!mu) throw "No such user"; var to = /@/.test(mu.email) ? mu.email : mu.contact; if (!/@/.test(String(to || ""))) throw "This login has no email address"; if (String(d.pw || "").length < 8) throw "No password to send"; mail(to, APP + " — your login", loginMailHtml(mu, String(d.pw))); log(me.email, "login-mailed", mu.email + " → " + to); return { ok: true, to: to }; }
   if (a === "tdbBackfill") { if (d.op === "start") { tdbBackfillStart(); log(me.email, "tdb-backfill-start", ""); } if (d.op === "stop") tdbBackfillStop(); if (d.op === "now") tdbBackfill(); return { ok: true, state: tdbState() }; }
   if (a === "tdbConfig") { if (d.gemDirect !== undefined) props().setProperty("CFG_gemDirect", d.gemDirect ? "1" : "0"); return { ok: true, state: tdbState() }; }
 
@@ -684,18 +846,18 @@ function api(d) {
   if (a === "createUser") {
     var nid = cleanId(d.email), nn = String(d.name || "").trim().slice(0, 80); if (!nn) throw "Enter the person's name"; if (String(d.pw || "").length < 40) throw "Password not accepted";
     if (findUser(nid)) throw "That username already exists";
-    var role = ["admin", "sales", "viewer"].indexOf(d.role) >= 0 ? d.role : "sales";
-    var nu = { email: nid, name: nn, contact: String(d.contact || "").trim().slice(0, 120), role: role, status: "approved", created: new Date(), fails: 0, approvedBy: me.email, salt: Utilities.getUuid() }; nu.hash = hashPw(d.pw, nu.salt);
+    var role = ROLES.indexOf(d.role) >= 0 ? d.role : "sales";
+    var nu = { email: nid, name: nn, contact: String(d.contact || "").trim().slice(0, 120), role: role, status: "approved", created: new Date(), fails: 0, approvedBy: me.email, salt: Utilities.getUuid(), mustChange: d.keepPw ? "" : "1" }; nu.hash = hashPw(d.pw, nu.salt);
     saveUser(nu); log(me.email, "create-user", nid + " " + role); return { ok: true, user: pub(nu) };
   }
   if (a === "setUser") {
     var tu = findUser(cleanEmail(d.email)); if (!tu) throw "No such user";
     if (tu.email === ADMIN && (d.status && d.status !== "approved" || d.role && d.role !== "admin")) throw "The main admin account can't be changed";
     if (d.status) { if (["approved", "revoked"].indexOf(d.status) < 0) throw "Bad status"; tu.status = d.status; if (d.status === "approved") tu.approvedBy = me.email; }
-    if (d.role) { if (["admin", "sales", "viewer"].indexOf(d.role) < 0) throw "Bad role"; tu.role = d.role; }
+    if (d.role) { if (ROLES.indexOf(d.role) < 0) throw "Bad role"; tu.role = d.role; }
     if (d.name) tu.name = String(d.name).trim().slice(0, 80);
     if (d.contact !== undefined) tu.contact = String(d.contact || "").trim().slice(0, 120);
-    if (d.pw) { if (String(d.pw).length < 40) throw "Password not accepted"; tu.salt = Utilities.getUuid(); tu.hash = hashPw(d.pw, tu.salt); tu.fails = 0; tu.lockUntil = ""; }
+    if (d.pw) { if (String(d.pw).length < 40) throw "Password not accepted"; tu.salt = Utilities.getUuid(); tu.hash = hashPw(d.pw, tu.salt); tu.fails = 0; tu.lockUntil = ""; tu.mustChange = d.keepPw ? "" : "1"; }
     saveUser(tu); log(me.email, "set-user", tu.email + " " + (d.status || "") + " " + (d.role || "") + (d.pw ? " password-reset" : "")); return { ok: true, user: pub(tu) };
   }
   if (a === "deleteUser") { var du = findUser(cleanEmail(d.email)); if (!du || du.email === ADMIN) throw "Can't delete"; users().deleteRow(du.row); log(me.email, "delete-user", du.email); return { ok: true }; }

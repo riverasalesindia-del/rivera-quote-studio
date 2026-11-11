@@ -5565,6 +5565,142 @@ function tdbSources(B, S) {
   $("#tbfX")?.addEventListener("click", async () => { try { await AUTH.call("tdbBackfill", { op: "stop" }); tdbBust(); render(); } catch (e) { toast(e.message, "bad"); } });
 }
 
+
+/* ---------- p16: Rivera team logins, sign-in links, first sign-in password, GeM portal in the Tender finder ---------- */
+const TEAM16 = [
+  { email: "crm@rivera.co.in", name: "Rivera CRM (Admin)", role: "admin", tag: "Admin" },
+  { email: "sales@rivera.co.in", name: "Rivera Sales", role: "sales", tag: "Sal" },
+  { email: "finance@rivera.co.in", name: "Rivera Finance", role: "finance", tag: "Fin" },
+  { email: "operation@rivera.co.in", name: "Rivera Operations", role: "operation", tag: "Ops" }];
+const ROLE16 = { admin: "Admin — everything, approves devices", sales: "Sales — tenders, quotes, GeM", finance: "Finance — EMD, PBG, payments", operation: "Operations — work orders, delivery", viewer: "View only" };
+const LINKS16 = Object.assign({ site: location.origin + location.pathname.replace(/[^/]*$/, "") }, window.__RIVERA_LINKS__ || {});
+LINKS16.admin = LINKS16.site.replace(/\/?$/, "/") + "admin.html";
+function strongPw16(tag) {
+  const A = "ABCDEFGHJKMNPQRSTUVWXYZ", a = "abcdefghjkmnpqrstuvwxyz", d = "23456789", s = "@#$%&*", r = n => { const u = new Uint32Array(1); crypto.getRandomValues(u); return u[0] % n; }, pick = (set, n) => Array.from({ length: n }, () => set[r(set.length)]).join("");
+  return `Rvr${tag}${s[r(s.length)]}${pick(A, 1)}${pick(a, 3)}${pick(d, 2)}-${pick(A + a + d, 4)}${s[r(s.length)]}${pick(d, 2)}`;
+}
+function linksPanel16() {
+  const L = LINKS16, row = (k, label, url, note) => url ? `<tr><td><b>${label}</b><div class="small muted">${note}</div></td><td class="mono small" style="word-break:break-all"><a href="${esc(url)}" target="_blank" rel="noopener">${esc(url)}</a></td><td><button class="btn sm" data-lcp="${esc(url)}">Copy</button></td></tr>` : "";
+  return `<section class="panel" id="links16"><header><h2>Sign-in & app links</h2><button class="btn sm" id="lnkShare">${icon("share")}Share all</button></header><div class="scroll"><table class="t"><tbody>
+    ${row("site", "Team sign-in (website)", L.site, "Sales, Finance, Operations — any browser, phone or PC")}
+    ${row("admin", "Admin sign-in", L.admin, "crm@rivera.co.in")}
+    ${row("apk", "Android app", L.apk, "Install the APK (allow ‘install unknown apps’ once)")}
+    ${row("win", "Windows app (installer)", L.win, "Windows 10 / 11")}
+    ${row("winPortable", "Windows app (portable)", L.winPortable, "No install — run the .exe")}
+  </tbody></table></div></section>`;
+}
+function linksText16() { const L = LINKS16; return `Rivera Quote Studio\nSign in: ${L.site}\nAdmin: ${L.admin}${L.apk ? "\nAndroid app: " + L.apk : ""}${L.win ? "\nWindows app: " + L.win : ""}`; }
+function bindLinks16() {
+  $$("[data-lcp]").forEach(b => b.onclick = () => navigator.clipboard?.writeText(b.dataset.lcp).then(() => toast("Link copied"), () => toast(b.dataset.lcp)));
+  $("#lnkShare")?.addEventListener("click", async () => { const t = linksText16(); if (navigator.share) { try { await navigator.share({ title: "Rivera Quote Studio", text: t }); return; } catch { } } navigator.clipboard?.writeText(t).then(() => toast("All links copied"), () => toast(t)); });
+}
+function teamPanel16() {
+  return `<section class="panel" id="team16"><header><h2>Rivera team logins</h2><span class="muted small">Admin is <b>crm@rivera.co.in</b></span></header><div class="body stack">
+    <p class="small muted" style="margin:0">One click creates the Sales, Finance and Operations logins with strong passwords (or gives existing ones a new password). Everyone must set their own password at first sign-in, and you approve each new device once.</p>
+    <div class="scroll" id="team16T"><span class="muted small">Loading…</span></div>
+    <div class="row" style="gap:8px"><button class="btn primary" id="team16Go">${icon("key")}Create team logins & passwords</button></div>
+    <div id="team16Out"></div></div></section>`;
+}
+async function bindTeam16() {
+  const T = $("#team16T"); if (!T) return;
+  let U = [];
+  const draw = () => { T.innerHTML = `<table class="t"><thead><tr><th>Login</th><th>Role</th><th>Status</th><th>Last sign-in</th></tr></thead><tbody>${TEAM16.map(m => { const u = U.find(x => x.email === m.email); return `<tr><td><b>${esc(m.name)}</b><div class="mono small muted">${esc(m.email)}</div></td><td class="small">${esc(ROLE16[m.role])}</td><td>${!u ? '<span class="chip warn">Not created</span>' : u.status !== "approved" ? '<span class="chip bad">Disabled</span>' : u.mustChange ? '<span class="chip warn">Waiting for first sign-in</span>' : '<span class="chip ok">Active</span>'}</td><td class="small">${u?.lastLogin ? new Date(u.lastLogin).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}</td></tr>`; }).join("")}</tbody></table>`; };
+  try { U = (await AUTH.call("users")).users; draw(); } catch (e) { T.innerHTML = `<div class="note bad">${esc(e.message)}</div>`; return; }
+  $("#team16Go").onclick = async () => {
+    const todo = TEAM16.filter(m => m.role !== "admin"), have = todo.filter(m => U.some(x => x.email === m.email));
+    if (have.length && !confirm(`${have.map(m => m.email).join(", ")} already exist${have.length > 1 ? "" : "s"}.\n\nGive ${have.length > 1 ? "them" : "it"} a new password too? Their current password stops working.`)) return;
+    const btn = $("#team16Go"); btn.disabled = true; const out = [];
+    try {
+      for (const m of todo) {
+        const pw = strongPw16(m.tag), h = await AUTH.hash(pw, m.email);
+        if (U.some(x => x.email === m.email)) await AUTH.call("setUser", { email: m.email, pw: h, role: m.role, status: "approved" });
+        else await AUTH.call("createUser", { email: m.email, name: m.name, role: m.role, contact: m.email, pw: h });
+        out.push({ ...m, pw });
+      }
+      U = (await AUTH.call("users")).users; draw();
+      const txt = out.map(o => `${o.name}\nUsername: ${o.email}\nPassword: ${o.pw}`).join("\n\n") + "\n\n" + linksText16();
+      $("#team16Out").innerHTML = `<div class="note ok stack" style="gap:10px"><b>Logins ready — these passwords are shown only now.</b>
+        <table class="t"><thead><tr><th>Username</th><th>Temporary password</th><th>Role</th></tr></thead><tbody>${out.map(o => `<tr><td class="mono">${esc(o.email)}</td><td class="mono"><b>${esc(o.pw)}</b></td><td class="small">${esc(o.role)}</td></tr>`).join("")}</tbody></table>
+        <div class="row" style="gap:8px"><button class="btn primary" id="team16Mail">${icon("mail")}Email each person their login</button><button class="btn" id="team16Copy">Copy all</button></div></div>`;
+      $("#team16Copy").onclick = () => navigator.clipboard?.writeText(txt).then(() => toast("Logins and links copied"), () => toast(txt));
+      $("#team16Mail").onclick = async () => { const b = $("#team16Mail"); b.disabled = true; let ok = 0; for (const o of out) { try { await AUTH.call("mailLogin", { email: o.email, pw: o.pw }); ok++; } catch (e) { toast(o.email + ": " + e.message, "bad"); } } toast(`Login mails sent to ${ok} of ${out.length}`); b.textContent = "Mails sent"; };
+      toast("Team logins ready");
+    } catch (e) { toast(e.message, "bad"); } finally { btn.disabled = false; }
+  };
+}
+const _users16 = VIEWS.users;
+VIEWS.users = v => {
+  _users16(v);
+  const st = $(".stack", v) || v;
+  if (AUTH.isAdmin) {
+    st.insertAdjacentHTML("afterbegin", teamPanel16());
+    $$('#nuR, select[data-role]', v).forEach(s => { const cur = s.value; s.innerHTML = Object.keys(ROLE16).map(r => `<option value="${r}" ${r === cur ? "selected" : ""}>${s.id === "nuR" ? ROLE16[r] : r}</option>`).join(""); });
+    bindTeam16();
+    // role selects in the user table are drawn after load: refresh their options when they appear
+    const T = $("#uTbl"); if (T) new MutationObserver(() => $$("select[data-role]", T).forEach(s => { if (s.options.length < 5) { const cur = s.value; s.innerHTML = Object.keys(ROLE16).map(r => `<option value="${r}" ${r === cur ? "selected" : ""}>${r}</option>`).join(""); s.value = cur; } })).observe(T, { childList: true, subtree: true });
+  }
+  st.insertAdjacentHTML(AUTH.isAdmin ? "beforeend" : "afterbegin", linksPanel16());
+  bindLinks16();
+};
+/* first sign-in: set your own password */
+function mustPw16() {
+  if (!AUTH.user?.mustChange || $("#mustPw16")) return;
+  document.body.insertAdjacentHTML("beforeend", `<div id="mustPw16" class="sheet-ov on" style="display:flex;align-items:center;justify-content:center;z-index:9999;background:rgba(2,20,40,.72)"><div class="panel" style="max-width:420px;width:calc(100% - 32px)" role="dialog" aria-modal="true" aria-labelledby="mp16h"><header><h2 id="mp16h">Set your own password</h2></header><div class="body stack">
+    <p class="small muted" style="margin:0">Welcome ${esc(AUTH.user.name || "")}. You signed in with a temporary password from the admin — choose your own now. Use 10+ characters with letters, numbers and a symbol.</p>
+    <label class="f">New password<input type="password" id="mp16a" autocomplete="new-password"></label><label class="f">Repeat new password<input type="password" id="mp16b" autocomplete="new-password"></label>
+    <button class="btn primary" id="mp16go">Save password</button></div></div></div>`);
+  $("#mp16a").focus();
+  $("#mp16go").onclick = async () => {
+    const p = $("#mp16a").value, bad = pwRules(p); if (p.length < 10) bad.push("10+ characters"); if (!/[^A-Za-z0-9]/.test(p)) bad.push("a symbol");
+    if (bad.length) return toast("Password needs " + [...new Set(bad)].join(", "), "bad"); if (p !== $("#mp16b").value) return toast("Passwords don't match", "bad");
+    try { $("#mp16go").disabled = true; const d = await AUTH.call("firstPassword", { pw: await AUTH.hash(p, AUTH.user.email) }); const s = AUTH.s; s.user = { ...s.user, ...(d.user || {}), mustChange: false }; AUTH.s = s; $("#mustPw16").remove(); toast("Password saved — welcome to Rivera Quote Studio"); }
+    catch (e) { toast(e.message, "bad"); $("#mp16go").disabled = false; }
+  };
+}
+const _render16 = render;
+render = function () { _render16(); try { mustPw16(); } catch { } };
+const _boot16 = boot;
+boot = function () { _boot16(); setTimeout(async () => { try { if (AUTH.valid?.() && AUTH.api) { const d = await AUTH.call("me"); const s = AUTH.s; if (s && d.user) { s.user = { ...s.user, ...d.user }; AUTH.s = s; mustPw16(); } } } catch { } }, 3000); };
+
+/* Tender finder: every live GeM portal bid for Rivera's keywords, straight from the tender database */
+const _tdbLoad16 = tdbLoad;
+tdbLoad = async function (key, action, body, timeout) { const r = await _tdbLoad16(key, action, body, timeout); if (STATE.route === "intel") render(); return r; };
+const _intel16 = VIEWS.intel;
+VIEWS.intel = v => {
+  _intel16(v);
+  const S = I12(); if (S.tab !== "find" || !AUTH.api || !AUTH.user) return;
+  const T = TDB(), page = S.gp || 1, body = { status: "live", portal: "GeM", q: S.q || "", fit: S.st === "match" ? 50 : 1, sort: "closing", page, size: 50, vmin: S.vmin || "", vmax: S.vmax || "" };
+  if (S.within) { const d = new Date(Date.now() + +S.within * 864e5); body.to = d.toISOString().slice(0, 10); }
+  const key = "gemf:" + JSON.stringify(body), c = T.cache[key] || (tdbLoad(key, "tdbQuery", body), T.cache[key]), d = c?.d;
+  const mine = new Set((STATE.data.tenders || []).map(t => t.bid));
+  const B = $("#intelBody"); if (!B) return;
+  B.insertAdjacentHTML("beforeend", `<section class="panel" style="margin-top:16px" id="gemAll16"><header style="flex-wrap:wrap;gap:8px"><div><h2>GeM portal — every live bid for Rivera's keywords</h2><span class="muted small">Pulled from GeM search (all pages) and the full CPPP list of GeM bids · refreshed every 3 hours</span></div><div class="row" style="gap:6px"><span class="chip navy">${d ? d.total.toLocaleString("en-IN") + " bids" : "…"}</span><a class="btn sm" href="#tdb">Open Tender database</a></div></header>
+    ${c?.err ? `<div class="empty"><b>Couldn't load GeM bids</b>${esc(c.err)}</div>` : !d ? `<div class="empty"><b>Loading GeM bids…</b></div>` : !d.rows.length ? `<div class="empty"><b>No live GeM bids in the database yet</b>The first full GeM pull runs automatically after the server update (Tender database ▸ Sources & automation ▸ Full GeM pull now).</div>` :
+    `<div class="body stack" style="gap:8px">${d.rows.map((r, i) => `<div class="feed-row ${r.fit >= 50 ? "hot" : ""}"><div class="feed-fit" title="Match with Rivera's keywords">${num(r.fit)}%</div><div style="min-width:0;flex:1"><b class="mono small">${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.bid)}</a>` : esc(r.bid)}</b> ${r.closing ? dueChip(r.closing) : ""} ${Number(r.corr) ? `<span class="chip warn">date changed</span>` : ""}<div class="small"><b>${esc(r.org || "—")}</b> · ${esc(String(r.item || "").slice(0, 160))}</div><div class="small muted">${r.state ? esc(r.state) + " · " : ""}${esc(r.source || "")}</div></div>${mine.has(r.bid) || r.tracked ? `<span class="chip ok">Tracked</span>` : `<button class="btn sm primary" data-g16="${i}">Track</button>`}</div>`).join("")}</div>
+    ${d.total > d.size ? `<div class="row" style="padding:12px 16px;gap:8px"><button class="btn sm" id="g16p" ${d.page <= 1 ? "disabled" : ""}>‹ Previous</button><span class="small muted">${(d.page - 1) * d.size + 1}–${Math.min(d.total, d.page * d.size)} of ${d.total.toLocaleString("en-IN")}</span><button class="btn sm" id="g16n" ${d.page * d.size >= d.total ? "disabled" : ""}>Next ›</button></div>` : ""}`}</section>`);
+  $$("[data-g16]", B).forEach(b => b.onclick = () => tdbTrack(d.rows[+b.dataset.g16]));
+  $("#g16p")?.addEventListener("click", () => { S.gp = page - 1; render(); }); $("#g16n")?.addEventListener("click", () => { S.gp = page + 1; render(); });
+  // typing a new keyword starts the GeM list from page 1
+  $("#inQ")?.addEventListener("input", () => { S.gp = 1; });
+};
+
+/* Sources tab: full GeM sweep progress and a button for a fresh pull */
+const _sources16 = tdbSources;
+tdbSources = function (B, S) {
+  _sources16(B, S);
+  const d = S.cache.state?.d; if (!d) return;
+  const w = d.sweep || {}, kw = Object.entries(w.perKw || {}).filter(([, n]) => n).sort((a, b) => b[1] - a[1]);
+  const cpPct = w.cpTotal ? Math.min(100, Math.round(((w.cp || 1) - 1) * 10 / w.cpTotal * 100)) : 0;
+  B.insertAdjacentHTML("afterbegin", `<section class="panel" style="margin-bottom:16px"><header><h2>Full GeM pull</h2><span class="chip ${w.done ? "ok" : w.started ? "warn" : ""}">${w.done ? "Complete · " + new Date(w.done).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : w.started ? "Running" : "Not run yet"}</span></header><div class="body stack">
+    <div class="grid g4"><div class="panel kpi"><span class="eyebrow">GeM search results read</span><span class="v">${(w.gemSeen || 0).toLocaleString("en-IN")}</span><span class="s">${w.gemErr ? esc(w.gemErr) : `${Math.min(w.ki || 0, d.kw || 0)} of ${d.kw || 0} keywords done`}</span></div>
+    <div class="panel kpi"><span class="eyebrow">CPPP GeM list read</span><span class="v">${(w.cpSeen || 0).toLocaleString("en-IN")}</span><span class="s">${w.cpErr ? esc(w.cpErr) : w.cpTotal ? `${cpPct}% of ${w.cpTotal.toLocaleString("en-IN")} live GeM bids` : "—"}</span></div>
+    <div class="panel kpi"><span class="eyebrow">Matched Rivera keywords</span><span class="v">${(w.matched || 0).toLocaleString("en-IN")}</span><span class="s">${(w.added || 0).toLocaleString("en-IN")} new in the database</span></div>
+    <div class="panel kpi"><span class="eyebrow">Auto-added to Tenders</span><span class="v" style="font-size:1.1rem">75%+ match</span><span class="s">weaker matches stay in the database</span></div></div>
+    ${kw.length ? `<div class="small"><b>GeM bids per keyword:</b> ${kw.map(([k, n]) => `${esc(k)} <b>${n}</b>`).join(" · ")}</div>` : ""}
+    <div class="row" style="gap:8px"><button class="btn primary" id="sw16">${icon("spark")}Full GeM pull now</button><span class="small muted">Reads every GeM page for every keyword. Long pulls continue by themselves every 15 minutes.</span></div></div></section>`);
+  $("#sw16").onclick = async () => { const b = $("#sw16"); b.disabled = true; b.textContent = "Pulling from GeM… (up to 4 min)"; try { const x = await AUTH.call("tdbRun", { op: "gem", fresh: true }, 300000); toast(`GeM: ${x.found} matching bids read in this run${x.sweep?.done ? "" : " — continuing in the background"}`); tdbBust(); render(); } catch (e) { toast(e.message, "bad"); b.disabled = false; } };
+};
+
 boot();
 
 </script>

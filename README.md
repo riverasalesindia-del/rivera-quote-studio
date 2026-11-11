@@ -21,6 +21,8 @@ Company costing data (rate card, past jobs, bank details) is **not** in this rep
 - **Quote workings** – stator (diamond), Roebel bar, armature, equalizer, main pole, interpole, rotor pole, re-insulation
 - **Quotation** – Rivera letterhead, domestic / export / service / GeM terms, PDF · Word · Excel · HTML
 - **Tender database** (Tender247-style) – every tender ever seen (email alerts from GeM / CPPP / Coal India / NIC / Tender247 …, GeM direct search, Excel import, Rivera register) kept for good as live + archive; results with every bidder's price and L1; buyer and competitor analysis; one-time backfill of 3 years of old mails. Data lives in the TenderDB and TenderResults tabs of the sign-in server's Google Sheet.
+- **Full GeM pull** – every live GeM bid for Rivera's keywords: all result pages of GeM search for each keyword plus every page of CPPP's list of active GeM bids, every 3 hours (runs in 15-minute slices). Shown in Tender intelligence ▸ Tender finder and the Tender database; 75%+ matches are added to Tenders automatically.
+- **Team logins** – admin crm@rivera.co.in; one click in Users & access creates sales@, finance@ and operation@ with strong temporary passwords, emails each person their login and links, and forces a new password at first sign-in. Roles: admin, sales, finance, operation, viewer. Each role gets its own 8:30 morning mail.
 - **Work orders**, **Tenders & GeM** (checklist + annexure kit II–X), **Vendors, price book & RFQ**
 - **Export & share** – any format, WhatsApp, email, or any app on the phone
 - **Synology** – connect the SALES folder once; jobs, registers and tender kits are filed automatically
