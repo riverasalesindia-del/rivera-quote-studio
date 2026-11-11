@@ -25,6 +25,10 @@ Company costing data (rate card, past jobs, bank details) is **not** in this rep
 - **Team logins** – admin crm@rivera.co.in; one click in Users & access creates sales@, finance@ and operation@ with strong temporary passwords, emails each person their login and links, and forces a new password at first sign-in. Roles: admin, sales, finance, operation, viewer. Each role gets its own 8:30 morning mail.
 - **Copper supplier = Swarnagiri Wire Insulations** – Swarnagiri ISO / test / copper certificates, GST and factory licence are indexed from Dropbox and Synology and used wherever a bid asks for raw-material or supplier papers; Quality Insulated Conductors papers are blocked and never go into a bid.
 - **Search everywhere** – one search box on every page (Ctrl + K): pages, quotations, tenders, documents, work orders, vendors and the full tender database.
+- **Each login sees only its pages** – Sales: Tender intelligence, Tenders & GeM, GeM Bid Desk, Tender database, Quote Workings, Quotation, Finance requests. Finance: Finance requests and Tenders & GeM. Admin (crm@rivera.co.in): everything.
+- **Finance requests** – sales asks for an EMD, bank guarantee or document; finance accepts, attaches the proof and marks it completed; sales is told by mail.
+- **Go to portal + upload status** beside every Bid Desk button (Pending / In progress / Completed).
+- **GeM from the office PC** – GeM only answers Indian connections, so the Windows app pulls every live and closed GeM bid for Rivera's keywords and every bidder's price and rank from GeM bid results every 3 hours. **Company lookup** shows every tender any company bid. NIC portals (etenders, Coal India, BHEL, TANGEDCO, RRVUN) need a CAPTCHA, so their tenders come in through their alert mails.
 - **Work orders**, **Tenders & GeM** (checklist + annexure kit II–X), **Vendors, price book & RFQ**
 - **Export & share** – any format, WhatsApp, email, or any app on the phone
 - **Synology** – connect the SALES folder once; jobs, registers and tender kits are filed automatically

@@ -79,6 +79,32 @@ function scanDocs() {
     if (files.length) { win.webContents.executeJavaScript(`window.riveraDocScan && window.riveraDocScan(${JSON.stringify(files)}, ${JSON.stringify(path.basename(root))})`).catch(() => {}); return; }
   }
 }
+
+// GeM bids: GeM blocks requests from outside India, so the Windows app on the office PC does the GeM search and hands the rows to the page.
+const GEM = { sess: null, at: 0 };
+const GEM_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0 Safari/537.36";
+async function gemSession(force) {
+  if (!force && GEM.sess && Date.now() - GEM.at < 15 * 60000) return GEM.sess;
+  const r = await fetch("https://bidplus.gem.gov.in/all-bids", { headers: { "User-Agent": GEM_UA } });
+  const html = await r.text(), sc = typeof r.headers.getSetCookie === "function" ? r.headers.getSetCookie() : [r.headers.get("set-cookie") || ""];
+  const cookies = sc.map(c => String(c).split(";")[0]).filter(Boolean).join("; ");
+  const pick = id => (html.match(new RegExp('id=["\']' + id + '["\'][^>]*value=["\']([^"\']+)', "i")) || html.match(new RegExp('value=["\']([^"\']+)["\'][^>]*id=["\']' + id + '["\']', "i")) || [])[1];
+  const csrf = pick("chash"), cname = pick("cname") || "csrf_bd_gem_nk";
+  if (!csrf) throw new Error("GeM security token not found");
+  GEM.sess = { cookies, csrf, cname }; GEM.at = Date.now(); return GEM.sess;
+}
+async function gemSearch(kw, page, status) {
+  for (let attempt = 0; attempt < 2; attempt++) {
+    const s = await gemSession(attempt > 0);
+    const payload = { page, param: { searchBid: kw, searchType: "fullText" }, filter: { bidStatusType: status || "ongoing_bids", byType: "all", highBidValue: "", byEndDate: { from: "", to: "" }, sort: "Bid-End-Date-Latest" } };
+    const body = new URLSearchParams({ payload: JSON.stringify(payload) }); body.set(s.cname, s.csrf);
+    const r = await fetch("https://bidplus.gem.gov.in/all-bids-data", { method: "POST", body, headers: { "User-Agent": GEM_UA, "Cookie": s.cookies, "X-Requested-With": "XMLHttpRequest", "Referer": "https://bidplus.gem.gov.in/all-bids", "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8" } });
+    const t = await r.text(); let j = null; try { j = JSON.parse(t); } catch (e) { }
+    if (j && j.response && j.response.response) return j.response.response;
+    GEM.sess = null;
+  }
+  throw new Error("GeM did not answer the search");
+}
 // Original tender documents for the bid pack: only PDF / Word files inside the scanned tender folders.
 async function dropboxFile(rel) {
   const head = { "access-control-allow-origin": "*" };
@@ -123,6 +149,17 @@ if (!app.requestSingleInstanceLock()) {
       const u = new URL(req.url);
       let p = decodeURIComponent(u.pathname || "/");
       if (u.host === "dbx") return dropboxFile(p);
+      if (u.host === "gem" && p === "/result") return (async () => {
+        try { const id = String(u.searchParams.get("id") || "").replace(/[^0-9]/g, ""); if (!id) throw new Error("No bid id");
+          const r = await fetch("https://bidplus.gem.gov.in/bidding/bid/getBidResultView/" + id, { headers: { "User-Agent": GEM_UA } });
+          return new Response(await r.text(), { status: r.status, headers: { "content-type": "text/html; charset=utf-8" } }); }
+        catch (e) { return new Response(String(e && e.message || e), { status: 502 }); }
+      })();
+      if (u.host === "gem") return (async () => {
+        const head = { "content-type": "application/json", "access-control-allow-origin": "*" };
+        try { const r = await gemSearch(String(u.searchParams.get("kw") || "").slice(0, 80), Math.max(1, Math.min(500, +u.searchParams.get("page") || 1)), u.searchParams.get("status") || "ongoing_bids"); return new Response(JSON.stringify({ ok: true, numFound: r.numFound || 0, docs: r.docs || [] }), { headers: head }); }
+        catch (e) { return new Response(JSON.stringify({ ok: false, error: String(e && e.message || e) }), { status: 502, headers: head }); }
+      })();
       if (p === "/" || p === "") p = "/index.html";
       const file = path.normalize(path.join(WEB, p));
       if (!file.startsWith(WEB)) return new Response("Not allowed", { status: 403 });

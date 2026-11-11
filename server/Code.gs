@@ -561,7 +561,7 @@ function tdbStats() {
 function tdbState() {
   var P = props(), g = {}, l = {}; try { g = JSON.parse(P.getProperty("GEM_STATUS") || "{}"); } catch (e) { } try { l = JSON.parse(P.getProperty("TDB_LAST") || "{}"); } catch (e) { }
   var n = 0, r = 0; try { n = Math.max(0, tdbSheet().getLastRow() - 1); r = Math.max(0, trSheet().getLastRow() - 1); } catch (e) { }
-  return { ok: true, tenders: n, results: r, gem: g, gemOn: cfg("gemDirect", "1") === "1", last: l, backfill: tdbBackfillState(), auto: automationState(), sheet: ss().getUrl(), sweep: gemSweepState(), kw: kwList().length };
+  return { ok: true, tenders: n, results: r, gem: g, gemOn: cfg("gemDirect", "0") === "1", last: l, backfill: tdbBackfillState(), auto: automationState(), sheet: ss().getUrl(), sweep: gemSweepState(), kw: kwList().length };
 }
 
 /* ================= GeM full sweep — every GeM bid for every Rivera keyword, nothing missed =================
@@ -626,7 +626,7 @@ function gemSweepJob() { return gemSweep(270000); }
 function gemSweep(budget, fresh) {
   var P = props(), busy = Number(P.getProperty("GEM_SWEEP_BUSY") || 0);
   if (busy && Date.now() - busy < 6 * 6e4) return { busy: true, state: gemSweepState() };
-  if (cfg("gemDirect", "1") !== "1") return { off: true };
+  if (cfg("gemDirect", "0") !== "1") return { off: true };
   P.setProperty("GEM_SWEEP_BUSY", String(Date.now()));
   var t0 = Date.now(), s = gemSweepState(), kws = kwList(), kept = [], strong = [];
   try {
@@ -786,6 +786,64 @@ function tdbPredict() {
   return { ok: true, rows: out.slice(0, 300) };
 }
 
+/* ================= Finance requests: sales asks, finance does the work and uploads the proof, sales uses it ================= */
+var FRH = ["id", "type", "bid", "org", "amount", "needBy", "note", "by", "byName", "status", "finBy", "finNote", "fileId", "fileName", "created", "updated"];
+var FR_TYPES = { emd: "EMD payment", bg: "Bank guarantee / PBG", doc: "Document / certificate", invoice: "Invoice / payment follow-up", other: "Other" };
+function frSheet() { var sh = sheet("FinanceRequests", FRH); tdbFmt(sh, FRH.length); return sh; }
+function usersByRole(roles) { var v = users().getDataRange().getValues(), out = []; for (var i = 1; i < v.length; i++) { if (v[i][4] === "approved" && roles.indexOf(v[i][5]) >= 0 && /@/.test(v[i][0])) out.push(v[i][0]); } return out; }
+function frList(me) {
+  var all = readTable(frSheet(), FRH);
+  if (["admin", "finance"].indexOf(me.role) < 0) all = all.filter(function (r) { return r.by === me.email || me.role === "operation"; });
+  return all.sort(function (a, b) { return String(b.created).localeCompare(String(a.created)); });
+}
+function frCreate(d, me) {
+  var r = { id: "FR" + Utilities.formatDate(new Date(), "Asia/Kolkata", "yyMMdd") + "-" + Utilities.getUuid().slice(0, 4).toUpperCase(), type: FR_TYPES[d.type] ? d.type : "other", bid: clean(d.bid, 80), org: clean(d.org, 160), amount: Number(d.amount) || "", needBy: clean(d.needBy, 10), note: clean(d.note, 800),
+    by: me.email, byName: me.name || me.email, status: "requested", finBy: "", finNote: "", fileId: "", fileName: "", created: new Date().toISOString(), updated: new Date().toISOString() };
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try { var sh = frSheet(), all = readTable(sh, FRH); all.push(r); writeTable(sh, FRH, all); } finally { lock.releaseLock(); }
+  var to = usersByRole(["finance"]); if (!to.length) to = [ADMIN];
+  try { mail(to.join(","), APP + " — finance request " + r.id + ": " + FR_TYPES[r.type], "<p><b>" + esc(r.byName) + "</b> needs: <b>" + esc(FR_TYPES[r.type]) + "</b></p><p>Tender: " + esc(r.bid || "—") + " " + esc(r.org) + "<br>Amount: " + (r.amount ? "₹" + Number(r.amount).toLocaleString("en-IN") : "—") + "<br>Needed by: " + (r.needBy ? dmyS(r.needBy) : "—") + "</p><p>" + esc(r.note) + "</p><p>" + btn(LINKS.site + "#finreq", "Open finance requests", "#02315B") + "</p>"); } catch (e) { }
+  log(me.email, "finance-request", r.id + " " + r.type + " " + r.bid);
+  return { ok: true, request: r };
+}
+function frUpdate(d, me) {
+  var lock = LockService.getScriptLock(), r; lock.waitLock(20000);
+  try {
+    var sh = frSheet(), all = readTable(sh, FRH); r = all.filter(function (x) { return x.id === d.id; })[0];
+    if (!r) throw "Request not found";
+    var fin = ["admin", "finance"].indexOf(me.role) >= 0;
+    if (d.status === "cancelled") { if (r.by !== me.email && !fin) throw "Only the person who asked can cancel"; r.status = "cancelled"; }
+    else { if (!fin) throw "Only finance can update this request"; if (["accepted", "completed", "rejected"].indexOf(d.status) >= 0) r.status = d.status; r.finBy = me.email; }
+    if (d.finNote !== undefined) r.finNote = clean(d.finNote, 800);
+    if (d.fileId) { r.fileId = clean(d.fileId, 120); r.fileName = clean(d.fileName, 160); }
+    r.updated = new Date().toISOString(); writeTable(sh, FRH, all);
+  } finally { lock.releaseLock(); }
+  if (["completed", "rejected", "accepted"].indexOf(r.status) >= 0 && /@/.test(r.by)) try { mail(r.by, APP + " — finance request " + r.id + " " + r.status, "<p>Your request <b>" + esc(FR_TYPES[r.type] || r.type) + "</b> for " + esc(r.bid || "—") + " is <b>" + esc(r.status) + "</b>.</p>" + (r.finNote ? "<p>Finance: " + esc(r.finNote) + "</p>" : "") + (r.fileName ? "<p>Document attached in the app: " + esc(r.fileName) + "</p>" : "") + "<p>" + btn(LINKS.site + "#finreq", "Open finance requests", "#02315B") + "</p>"); } catch (e) { }
+  log(me.email, "finance-request-" + r.status, r.id);
+  return { ok: true, request: r };
+}
+
+/* ================= Company lookup: every tender a company bid, rank, price, qualified or not ================= */
+function companyLookup(d) {
+  var q = nkey(d.q || ""); if (q.length < 3) return { ok: true, companies: [], rows: [] };
+  var R = trAll(), T = {}; tdbAll().forEach(function (t) { T[t.key] = t; });
+  var names = {}, rows = [];
+  R.forEach(function (r) { var k = nkey(r.bidder); if (!k || k.indexOf(q) < 0) return; names[k] = names[k] || { name: r.bidder, n: 0 }; names[k].n++; });
+  var pick = d.exact ? nkey(d.exact) : null;
+  R.forEach(function (r) {
+    var k = nkey(r.bidder); if (!k || (pick ? k !== pick : k.indexOf(q) < 0)) return;
+    var t = T[tkey(r.bid)] || {}, all = R.filter(function (x) { return tkey(x.bid) === tkey(r.bid); }), l1 = all.filter(function (x) { return Number(x.rank) === 1; })[0];
+    rows.push({ bid: r.bid, bidder: r.bidder, org: r.org || t.org || "", item: r.item || t.item || "", closing: t.closing || "", link: t.link || "", rank: r.rank, price: r.price, note: r.note, awarded: r.awarded, date: r.resultDate || t.closing || "", bidders: all.length, l1: l1 ? { bidder: l1.bidder, price: l1.price } : null, source: r.source });
+  });
+  rows.sort(function (a, b) { return String(b.date).localeCompare(String(a.date)); });
+  var comps = Object.keys(names).map(function (k) { return names[k]; }).sort(function (a, b) { return b.n - a.n; }).slice(0, 30);
+  var s = { bids: rows.length, l1: rows.filter(function (r) { return Number(r.rank) === 1; }).length, priced: rows.filter(function (r) { return Number(r.price) > 0; }).length, qualified: rows.filter(function (r) { return /qualified/i.test(r.note) && !/disqualified/i.test(r.note); }).length, disq: rows.filter(function (r) { return /disqualified/i.test(r.note); }).length, value: rows.reduce(function (a, r) { return a + (Number(r.rank) === 1 ? Number(r.price) || 0 : 0); }, 0), buyers: {}, items: {} };
+  rows.forEach(function (r) { if (r.org) s.buyers[r.org] = (s.buyers[r.org] || 0) + 1; var it = String(r.item || "").split(/[,;(]/)[0].trim().slice(0, 50); if (it) s.items[it] = (s.items[it] || 0) + 1; });
+  var top = function (m) { return Object.keys(m).map(function (k) { return [k, m[k]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 8); };
+  s.buyers = top(s.buyers); s.items = top(s.items);
+  return { ok: true, companies: comps, rows: rows.slice(0, 1000), summary: s };
+}
+
 function api(d) {
   var a = d.action;
   if (a === "ping") return { ok: true, app: APP, setup: !adminReady() };
@@ -902,6 +960,11 @@ function api(d) {
   if (a === "trQuery") return trQuery(d);
   if (a === "tdbStats") return tdbStats();
   if (a === "tdbNote") return tdbNote(d, me);
+  if (a === "frList") return { ok: true, list: frList(me), types: FR_TYPES };
+  if (a === "frCreate") return frCreate(d, me);
+  if (a === "frUpdate") return frUpdate(d, me);
+  if (a === "frFile") { if (["admin", "finance"].indexOf(me.role) < 0) throw "Only finance can attach documents"; d.kind = "finance"; d.id = "fr_" + String(d.req || "x").replace(/[^A-Za-z0-9-]/g, "") + "_" + Utilities.getUuid().slice(0, 6); var fp = filePut(d, me.email, false); return { ok: true, id: fp.id }; }
+  if (a === "company") return companyLookup(d);
   if (a === "tdbPredict") return tdbPredict();
   if (a === "ssList") return { ok: true, list: ssList(me) };
   if (a === "ssSave") return ssSave(d, me);
@@ -910,7 +973,8 @@ function api(d) {
   if (a === "tdbState") { var st3 = tdbState(); if (me.role !== "admin") delete st3.sheet; return st3; }
   if (a === "tdbImport") {
     var rows3 = Array.isArray(d.rows) ? d.rows.slice(0, 3000) : [];
-    var r3 = d.kind === "results" ? trUpsert(rows3.map(function (x) { x.source = "Excel import"; return x; }), me.email) : tdbUpsert(rows3, "Excel import" + (d.label ? " (" + String(d.label).slice(0, 30) + ")" : ""));
+    var r3 = d.kind === "results" ? trUpsert(rows3.map(function (x) { x.source = d.source === "gem-pc" ? "GeM bid results" : "Excel import"; return x; }), me.email) : tdbUpsert(rows3, d.source === "gem-pc" ? "GeM portal" : "Excel import" + (d.label ? " (" + String(d.label).slice(0, 30) + ")" : ""));
+    if (d.source === "gem-pc") { var gs3 = { at: new Date().toISOString(), ok: true, n: rows3.length, err: "", via: me.email }; props().setProperty("GEM_STATUS", JSON.stringify(gs3)); }
     log(me.email, "tdb-import", (d.kind || "tenders") + ": " + rows3.length + " rows, " + r3.added + " new"); return { ok: true, result: r3 };
   }
   if (a === "tdbResultSave") { var rr3 = (Array.isArray(d.rows) ? d.rows : [d.row]).filter(Boolean).slice(0, 60).map(function (x) { x.source = x.source || "Manual"; return x; }); var o3 = trUpsert(rr3, me.email); log(me.email, "tdb-result", rr3.length + " rows for " + (rr3[0] && rr3[0].bid)); return { ok: true, result: o3 }; }
