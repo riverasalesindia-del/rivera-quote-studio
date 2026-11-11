@@ -273,6 +273,7 @@ function dailyDigest() {
       pbg: tableHtml("Performance guarantees expiring in 30 days", ["Bid / tender", "Buyer", "PBG ₹", "Expiry"], pbg.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), Number(t.pbgAmount || 0).toLocaleString("en-IN"), dmyS(t.pbgValidity)]); })),
       awarded: tableHtml("Awarded orders to execute", ["Bid / tender", "Buyer", "Item", "Value ₹"], awarded.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), esc(t.items), Number(t.ourPrice || t.value || 0).toLocaleString("en-IN")]); })) });
   } catch (e) { log("automation", "role-digest-error", String(e)); }
+  try { ssDigest(); } catch (e) { log("automation", "saved-search-error", String(e)); }
   props().setProperty("DIGEST_LAST", new Date().toISOString());
   log("automation", "daily-digest", "sent to " + digestTo());
   return { ok: true, live: live.length, closing: closing.length, fresh: fresh.length, watch: w };
@@ -333,12 +334,12 @@ function tdbUpsert(rows, source) {
   if (!rows.length) return { added: 0, updated: 0 };
   var lock = LockService.getScriptLock(); lock.waitLock(25000);
   try {
-    var sh = tdbSheet(), all = readTable(sh, TDH), by = {}, now = new Date().toISOString(), today = todayIST(), added = 0, updated = 0;
+    var sh = tdbSheet(), all = readTable(sh, TDH), by = {}, now = new Date().toISOString(), today = todayIST(), added = 0, updated = 0; var KW = kwList();
     all.forEach(function (r) { by[r.key] = r; });
     rows.forEach(function (a) {
       var k = tkey(a.bid), r = by[k];
       var inc = { bid: clean(a.bid, 80), portal: clean(a.portal, 40), org: clean(a.org, 160), item: clean(a.item, 400), state: clean(a.state || stateOf((a.org || "") + " " + (a.item || "") + " " + (a.city || "")), 40), city: clean(a.city, 60),
-        value: Number(a.value) || "", emd: Number(a.emd) || "", published: clean(a.published, 10), closing: clean(a.closing, 10), preBid: clean(a.preBid, 10), fit: Number(a.fit) || 0, link: clean(a.link, 400), subject: clean(a.subject, 200), status: a.status || "" };
+        value: Number(a.value) || "", emd: Number(a.emd) || "", published: clean(a.published, 10), closing: clean(a.closing, 10), preBid: clean(a.preBid, 10), fit: Number(a.fit) || fitOf((a.item || "") + " " + (a.org || ""), KW), link: clean(a.link, 400), subject: clean(a.subject, 200), status: a.status || "" };
       if (!r) {
         r = { key: k, source: source, firstSeen: now, lastSeen: now, corr: 0 }; TDH.forEach(function (f) { if (r[f] === undefined) r[f] = inc[f] === undefined ? "" : inc[f]; });
         r.status = tstatus(r, today); by[k] = r; all.push(r); added++; return;
@@ -484,7 +485,8 @@ function trAll() { return readTable(trSheet(), TRH); }
 function regIndex() { var reg = getBlob("register") || { data: {} }, m = {}; ((reg.data && reg.data.tenders) || []).forEach(function (t) { m[tkey(t.bid)] = { status: t.status, id: t.id }; }); return m; }
 function resIndex(R) { var m = {}; R.forEach(function (r) { var k = tkey(r.bid), b = m[k] = m[k] || { n: 0, l1: null, winner: "", rivera: null }; b.n++; var p = Number(r.price) || 0; if (Number(r.rank) === 1 || (p && (!b.l1 || p < b.l1.price))) { if (!b.l1 || Number(r.rank) === 1 || p < b.l1.price) b.l1 = { bidder: r.bidder, price: p }; } if (r.awarded === "yes") b.winner = r.bidder; if (/rivera/i.test(r.bidder)) b.rivera = { price: p, rank: r.rank }; }); return m; }
 function tdbQuery(d) {
-  var today = todayIST(), all = tdbAll(), q = String(d.q || "").toLowerCase().trim(), words = q ? q.split(/\s+/) : [], R = trAll(), ri = resIndex(R), reg = regIndex();
+  var today = todayIST(), all = tdbAll(), q = String(d.q || "").toLowerCase().trim(), words = q ? q.split(/\s+/) : [], R = trAll(), ri = resIndex(R), reg = regIndex(), NM = notesMap();
+  var ex = String(d.exclude || "").toLowerCase().split(/[,;]+/).map(function (w) { return w.trim(); }).filter(Boolean);
   var counts = { all: all.length, live: 0, closed: 0, results: R.length, resultTenders: Object.keys(ri).length };
   all.forEach(function (r) { r.status = tstatus(r, today); if (r.status === "live") counts.live++; else counts.closed++; });
   var L = all.filter(function (r) {
@@ -498,6 +500,9 @@ function tdbQuery(d) {
     if (d.vmax && r.value && Number(r.value) > Number(d.vmax)) return false;
     if (d.fit && Number(r.fit || 0) < Number(d.fit)) return false;
     if (d.hasResult && !ri[r.key]) return false;
+    if (d.star && !(NM[r.key] && NM[r.key].star === "1")) return false;
+    if (d.owner && !(NM[r.key] && NM[r.key].owner === d.owner)) return false;
+    if (ex.length) { var sx = (r.org + " " + r.item + " " + r.subject).toLowerCase(); for (var e = 0; e < ex.length; e++) if (sx.indexOf(ex[e]) >= 0) return false; }
     if (words.length) { var s = (r.bid + " " + r.org + " " + r.item + " " + r.state + " " + r.city + " " + r.portal + " " + r.subject).toLowerCase(); for (var i = 0; i < words.length; i++) if (s.indexOf(words[i]) < 0) return false; }
     return true;
   });
@@ -509,7 +514,7 @@ function tdbQuery(d) {
     return String(b.closing || b.published || "").localeCompare(String(a.closing || a.published || ""));
   });
   var facet = function (k) { var m = {}; L.forEach(function (r) { if (r[k]) m[r[k]] = (m[r[k]] || 0) + 1; }); return Object.keys(m).map(function (x) { return [x, m[x]]; }).sort(function (a, b) { return b[1] - a[1]; }).slice(0, 60); };
-  var size = Math.min(Number(d.size) || 50, 5000), page = Math.max(1, Number(d.page) || 1), rows = L.slice((page - 1) * size, page * size).map(function (r) { r.result = ri[r.key] || null; r.tracked = reg[r.key] || null; return r; });
+  var size = Math.min(Number(d.size) || 50, 5000), page = Math.max(1, Number(d.page) || 1), rows = L.slice((page - 1) * size, page * size).map(function (r) { r.result = ri[r.key] || null; r.tracked = reg[r.key] || null; r.notes = NM[r.key] || null; return r; });
   var byYear = {}; L.forEach(function (r) { var y = String(r.closing || r.published || "").slice(0, 4); if (y) byYear[y] = (byYear[y] || 0) + 1; });
   return { ok: true, rows: rows, total: L.length, page: page, size: size, counts: counts, facets: { portal: facet("portal"), state: facet("state") }, byYear: byYear, allPortals: Object.keys(all.reduce(function (m, r) { if (r.portal) m[r.portal] = 1; return m; }, {})).sort() };
 }
@@ -582,13 +587,14 @@ function gemSession() {
   if (home.getResponseCode() >= 400) throw "GeM page answered " + home.getResponseCode();
   var h = home.getAllHeaders(), sc = h["Set-Cookie"] || h["set-cookie"] || []; if (!Array.isArray(sc)) sc = [sc];
   var cookies = sc.map(function (c) { return String(c).split(";")[0]; }).join("; "), html = home.getContentText();
-  var csrf = (cookies.match(/csrf_gem_cookie=([^;]+)/) || [])[1] || (html.match(/name=["']csrf_bd_gem_nk["'][^>]*value=["']([^"']+)/i) || [])[1] || (html.match(/csrf_bd_gem_nk["']?\s*[:=,]\s*["']([A-Za-z0-9]{16,})/) || [])[1];
+  var csrf = (html.match(/id=["']chash["'][^>]*value=["']([^"']+)/i) || html.match(/value=["']([^"']+)["'][^>]*id=["']chash["']/i) || [])[1] || (html.match(/name=["']csrf_bd_gem_nk["'][^>]*value=["']([^"']+)/i) || [])[1] || (cookies.match(/csrf_gem_cookie=([^;]+)/) || [])[1];
+  var cname = (html.match(/id=["']cname["'][^>]*value=["']([^"']+)/i) || html.match(/value=["']([^"']+)["'][^>]*id=["']cname["']/i) || [])[1] || "csrf_bd_gem_nk";
   if (!csrf) throw "GeM security token not found (site changed?)";
-  return { cookies: cookies, csrf: csrf };
+  return { cookies: cookies, csrf: csrf, cname: cname };
 }
 function gemPage(sess, kw, page, kws) {
   var payload = { page: page, param: { searchBid: kw, searchType: "fullText" }, filter: { bidStatusType: "ongoing_bids", byType: "all", highBidValue: "", byEndDate: { from: "", to: "" }, sort: "Bid-End-Date-Latest" } };
-  var r = UrlFetchApp.fetch("https://bidplus.gem.gov.in/all-bids-data", { method: "post", muteHttpExceptions: true, payload: { payload: JSON.stringify(payload), csrf_bd_gem_nk: sess.csrf },
+  var r = UrlFetchApp.fetch("https://bidplus.gem.gov.in/all-bids-data", { method: "post", muteHttpExceptions: true, payload: (function () { var o = { payload: JSON.stringify(payload) }; o[sess.cname || "csrf_bd_gem_nk"] = sess.csrf; return o; })(),
     headers: { "User-Agent": GEM_UA, "Cookie": sess.cookies, "X-Requested-With": "XMLHttpRequest", "Referer": "https://bidplus.gem.gov.in/all-bids" } });
   if (r.getResponseCode() >= 400) throw "GeM search answered " + r.getResponseCode();
   var j = JSON.parse(r.getContentText() || "{}"), resp = (j.response || {}).response || {}, docs = resp.docs || [];
@@ -703,6 +709,81 @@ function gemNewHtml() {
   var since = new Date(Date.now() - 26 * 36e5).toISOString(), today = todayIST();
   var L = tdbAll().filter(function (r) { return String(r.firstSeen) >= since && Number(r.fit) >= 50 && (!r.closing || r.closing >= today); }).sort(function (a, b) { return Number(b.fit) - Number(a.fit); }).slice(0, 60);
   return tableHtml("New Rivera matches in the tender database (last 24 h)", ["Bid / tender", "Portal", "Buyer", "Item", "Closing", "Match"], L.map(function (r) { return rowHtml([r.link ? '<a href="' + esc(r.link) + '">' + esc(r.bid) + "</a>" : esc(r.bid), esc(r.portal), esc(r.org), esc(String(r.item).slice(0, 120)), dmyS(r.closing), r.fit + "%"]); }));
+}
+
+/* ================= Tender247-style extras: shortlist / notes / owner, saved searches with daily mail, expected re-tenders ================= */
+var NH = ["key", "bid", "star", "note", "owner", "by", "at"];
+var SSH = ["id", "user", "name", "filters", "email", "lastRun", "created"];
+function notesSheet() { var sh = sheet("TenderNotes", NH); tdbFmt(sh, NH.length); return sh; }
+function savedSheet() { var sh = sheet("SavedSearches", SSH); tdbFmt(sh, SSH.length); return sh; }
+function notesMap() { var m = {}; try { readTable(notesSheet(), NH).forEach(function (r) { m[r.key] = r; }); } catch (e) { } return m; }
+function tdbNote(d, me) {
+  var k = tkey(d.bid); if (k.length < 5) throw "No bid number";
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var sh = notesSheet(), all = readTable(sh, NH), r = all.filter(function (x) { return x.key === k; })[0];
+    if (!r) { r = { key: k, bid: clean(d.bid, 80), star: "", note: "", owner: "" }; all.push(r); }
+    if (d.star !== undefined) r.star = d.star ? "1" : "";
+    if (d.note !== undefined) r.note = clean(d.note, 500);
+    if (d.owner !== undefined) r.owner = clean(d.owner, 80);
+    r.by = me.email; r.at = new Date().toISOString();
+    writeTable(sh, NH, all.filter(function (x) { return x.star || x.note || x.owner; }));
+    return { ok: true, note: r };
+  } finally { lock.releaseLock(); }
+}
+function ssList(me) { return readTable(savedSheet(), SSH).filter(function (r) { return r.user === me.email; }).map(function (r) { try { r.filters = JSON.parse(r.filters || "{}"); } catch (e) { r.filters = {}; } return r; }); }
+function ssSave(d, me) {
+  var lock = LockService.getScriptLock(); lock.waitLock(20000);
+  try {
+    var sh = savedSheet(), all = readTable(sh, SSH), r = d.id ? all.filter(function (x) { return x.id === d.id && x.user === me.email; })[0] : null;
+    if (!r) { if (all.filter(function (x) { return x.user === me.email; }).length >= 30) throw "Up to 30 saved searches"; r = { id: Utilities.getUuid().slice(0, 8), user: me.email, created: new Date().toISOString(), lastRun: new Date().toISOString() }; all.push(r); }
+    if (d.name !== undefined) r.name = clean(d.name, 80) || "My search";
+    if (d.filters !== undefined) { var f = d.filters || {}; delete f.page; delete f.size; r.filters = JSON.stringify(f).slice(0, 2000); }
+    if (d.email !== undefined) r.email = d.email ? "1" : "";
+    writeTable(sh, SSH, all); return { ok: true, list: ssList(me) };
+  } finally { lock.releaseLock(); }
+}
+function ssDel(d, me) { var sh = savedSheet(), all = readTable(sh, SSH); writeTable(sh, SSH, all.filter(function (x) { return !(x.id === d.id && x.user === me.email); })); return { ok: true, list: ssList(me) }; }
+/* every morning: each saved search with mail on gets the new matching tenders since its last run */
+function ssDigest() {
+  var sh = savedSheet(), all = readTable(sh, SSH), sent = 0, now = new Date().toISOString();
+  all.forEach(function (s) {
+    if (s.email !== "1" || !/@/.test(s.user)) return;
+    var f = {}; try { f = JSON.parse(s.filters || "{}"); } catch (e) { }
+    f.status = f.status || "live"; f.page = 1; f.size = 200;
+    var since = s.lastRun || s.created || "", q = tdbQuery(f), L = q.rows.filter(function (r) { return String(r.firstSeen) > since; });
+    s.lastRun = now;
+    if (!L.length) return;
+    mail(s.user, APP + " — " + L.length + " new tender" + (L.length > 1 ? "s" : "") + " for “" + s.name + "”", "<p>New tenders matching your saved search <b>" + esc(s.name) + "</b>:</p>" +
+      tableHtml(s.name, ["Bid / tender", "Portal", "Buyer", "Item", "Closing", "Match"], L.slice(0, 80).map(function (r) { return rowHtml([r.link ? '<a href="' + esc(r.link) + '">' + esc(r.bid) + "</a>" : esc(r.bid), esc(r.portal), esc(r.org), esc(String(r.item).slice(0, 120)), dmyS(r.closing), (r.fit || 0) + "%"]); })) +
+      '<p style="margin-top:16px">' + btn(LINKS.site + "#tdb", "Open the tender database", "#02315B") + "</p>");
+    sent++;
+  });
+  writeTable(sh, SSH, all);
+  return sent;
+}
+/* buyers who tender the same item again and again: when is the next one due? */
+function tdbPredict() {
+  var today = todayIST(), G = {};
+  tdbAll().forEach(function (r) {
+    var dt = String(r.closing || r.published || "").slice(0, 10); if (!/^\d{4}-\d{2}-\d{2}$/.test(dt) || !r.org) return;
+    var words = String(r.item || "").toLowerCase().replace(/[^a-z0-9 ]+/g, " ").split(/\s+/).filter(function (w) { return w.length > 2 && !/^(for|the|and|supply|of|with|qty|nos|no|item|items|set|sets|type|make)$/.test(w); }).slice(0, 3);
+    if (!words.length) return;
+    var k = nkey(r.org) + "|" + words.join(" "), g = G[k] = G[k] || { org: r.org, item: r.item, dates: {}, fit: 0, portal: r.portal, state: r.state, last: null, bids: [] };
+    g.dates[dt] = 1; g.fit = Math.max(g.fit, Number(r.fit) || 0); g.bids.push(r.bid);
+    if (!g.last || dt > g.last.dt) g.last = { dt: dt, bid: r.bid, link: r.link, value: r.value };
+  });
+  var out = [];
+  Object.keys(G).forEach(function (k) {
+    var g = G[k], ds = Object.keys(g.dates).sort(); if (ds.length < 2) return;
+    var gaps = []; for (var i = 1; i < ds.length; i++) { var d = (new Date(ds[i]) - new Date(ds[i - 1])) / 864e5; if (d >= 20) gaps.push(d); }
+    if (!gaps.length) return;
+    var avg = gaps.reduce(function (a, b) { return a + b; }, 0) / gaps.length, next = Utilities.formatDate(new Date(new Date(g.last.dt).getTime() + avg * 864e5), "Asia/Kolkata", "yyyy-MM-dd");
+    var lead = (new Date(next) - new Date(today)) / 864e5; if (lead < -90 || lead > 180) return;
+    out.push({ org: g.org, item: g.item, portal: g.portal, state: g.state, times: ds.length, every: Math.round(avg), lastDate: g.last.dt, lastBid: g.last.bid, link: g.last.link, value: g.last.value, next: next, inDays: Math.round(lead), fit: g.fit });
+  });
+  out.sort(function (a, b) { return b.fit - a.fit || a.next.localeCompare(b.next); });
+  return { ok: true, rows: out.slice(0, 300) };
 }
 
 function api(d) {
@@ -820,6 +901,12 @@ function api(d) {
   if (a === "tdbQuery") return tdbQuery(d);
   if (a === "trQuery") return trQuery(d);
   if (a === "tdbStats") return tdbStats();
+  if (a === "tdbNote") return tdbNote(d, me);
+  if (a === "tdbPredict") return tdbPredict();
+  if (a === "ssList") return { ok: true, list: ssList(me) };
+  if (a === "ssSave") return ssSave(d, me);
+  if (a === "ssDel") return ssDel(d, me);
+  if (a === "team") { var tv = users().getDataRange().getValues(), tl = []; for (var ti = 1; ti < tv.length; ti++) if (tv[ti][0] && tv[ti][4] === "approved") tl.push({ email: tv[ti][0], name: tv[ti][1], role: tv[ti][5] }); return { ok: true, team: tl }; }
   if (a === "tdbState") { var st3 = tdbState(); if (me.role !== "admin") delete st3.sheet; return st3; }
   if (a === "tdbImport") {
     var rows3 = Array.isArray(d.rows) ? d.rows.slice(0, 3000) : [];

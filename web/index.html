@@ -5376,7 +5376,7 @@ VIEWS.tdb = v => {
   $("#tdbRef").onclick = () => { tdbBust(); render(); };
   const B = $("#tdbBody");
   if (!AUTH.api || !AUTH.user) { B.innerHTML = `<section class="panel"><div class="empty"><b>Sign in to the team server first</b>The tender database lives on Rivera's sign-in server (Google Sheet), so the whole sales team sees the same data. Sign in from Users & access, then come back.</div></section>`; return; }
-  ({ search: tdbSearch, results: tdbResults, buyers: tdbBuyers, comp: tdbComp, import: tdbImport, sources: tdbSources })[S.tab](B, S);
+  (({ search: tdbSearch, results: tdbResults, buyers: tdbBuyers, comp: tdbComp, import: tdbImport, sources: tdbSources })[S.tab] || (() => { B.innerHTML = ""; }))(B, S);
 };
 function tdbSearch(B, S) {
   const f = S.f, body = { ...f, page: S.page, size: 50 }, key = "q:" + JSON.stringify(body), c = S.cache[key] || (tdbLoad(key, "tdbQuery", body), S.cache[key]);
@@ -5869,6 +5869,83 @@ render = function () { _render17(); try { gsButtons17(); } catch (e) { } };
 /* bid kit label */
 for (const r of GEM_DOCS) if (r[0] === "stock" && /Chhaperia/.test(r[1])) r[1] = r[1].replace("Chhaperia", "Chhaperia, Swarnagiri copper");
 
+
+
+/* ===================== p19: Tender247-style extras (shortlist, notes, owner, exclude words, saved searches, expected re-tenders, WhatsApp) ===================== */
+/* ---------- Tender database extras ---------- */
+const TEAM19 = { list: null };
+async function team19() { if (TEAM19.list) return TEAM19.list; try { TEAM19.list = (await AUTH.call("team")).team; } catch { TEAM19.list = []; } return TEAM19.list; }
+const _tdbView19 = VIEWS.tdb;
+VIEWS.tdb = v => {
+  const S = TDB();
+  _tdbView19(v);
+  const row = $(".tabs-row", v); if (!row) return;
+  const extra = [["upcoming", "Expected re-tenders"], ["saved", "Saved searches"]];
+  extra.forEach(([k, l]) => row.insertAdjacentHTML("beforeend", `<button role="tab" class="tab ${S.tab === k ? "on" : ""}" aria-selected="${S.tab === k}" data-ttab="${k}">${l}</button>`));
+  $$("[data-ttab]", row).forEach(b => b.onclick = () => { S.tab = b.dataset.ttab; render(); });
+  const B = $("#tdbBody"); if (!B || !AUTH.api || !AUTH.user) return;
+  if (S.tab === "upcoming") return tdbUpcoming19(B, S);
+  if (S.tab === "saved") return tdbSaved19(B, S);
+  if (S.tab === "search") tdbSearchExtras19(B, S);
+};
+function waText19(r) { return `Tender: ${r.bid}\nBuyer: ${r.org || "-"}\nItem: ${String(r.item || "").slice(0, 160)}\nClosing: ${r.closing ? dmy(r.closing) : "-"}${r.link ? "\n" + r.link : ""}`; }
+function tdbSearchExtras19(B, S) {
+  const f = S.f; f.exclude ??= ""; f.star ??= false;
+  const body = { ...f, page: S.page, size: 50 }, key = "q:" + JSON.stringify(body), d = S.cache[key]?.d;
+  // extra filters
+  const fields = $(".fields", B);
+  if (fields && !$("#tex19", B)) {
+    fields.insertAdjacentHTML("beforeend", `<label class="f" style="grid-column:span 2">Leave out words (comma separated)<input type="text" id="tex19" value="${esc(f.exclude)}" placeholder="diesel generator, printer, furniture"></label>`);
+    $("#tex19").onchange = e => { f.exclude = e.target.value; S.page = 1; render(); };
+    const chips = $("#thr", B)?.closest(".row");
+    chips?.insertAdjacentHTML("afterbegin", `<label class="chip"><input type="checkbox" id="tst19" ${f.star ? "checked" : ""}> ★ Shortlisted only</label><label class="chip"><input type="checkbox" id="tme19" ${f.owner ? "checked" : ""}> Assigned to me</label>`);
+    chips?.insertAdjacentHTML("beforeend", `<button class="btn sm" id="tsave19">${icon("save")}Save this search</button>`);
+    $("#tst19")?.addEventListener("change", e => { f.star = e.target.checked; S.page = 1; render(); });
+    $("#tme19")?.addEventListener("change", e => { f.owner = e.target.checked ? AUTH.user.email : ""; S.page = 1; render(); });
+    $("#tsave19")?.addEventListener("click", () => { S.saveOpen = true; render(); });
+    if (S.saveOpen) {
+      chips?.insertAdjacentHTML("afterend", `<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><input type="text" id="tsn19" placeholder="Name, e.g. Stator coils – Coal India" style="flex:1;min-width:220px" value="${esc(f.q || "")}"><label class="chip"><input type="checkbox" id="tse19" checked> Email me new matches every morning</label><button class="btn sm primary" id="tsg19">Save</button><button class="btn sm" id="tsx19">Cancel</button></div>`);
+      $("#tsx19").onclick = () => { S.saveOpen = false; render(); };
+      $("#tsg19").onclick = async () => { try { await AUTH.call("ssSave", { name: $("#tsn19").value.trim() || "My search", filters: { ...f }, email: $("#tse19").checked }); S.saveOpen = false; delete S.cache.saved; toast("Search saved — new matches come by mail every morning"); render(); } catch (e) { toast(e.message, "bad"); } };
+    }
+  }
+  if (!d || !d.rows?.length) return;
+  // per-row: shortlist, note / owner, WhatsApp
+  const rows = $$("table.t tbody tr", B);
+  rows.forEach((tr, i) => {
+    const r = d.rows[i]; if (!r) return; const n = r.notes || {};
+    const td = tr.lastElementChild; if (!td || $(".r19", td)) return;
+    td.insertAdjacentHTML("beforeend", `<div class="row r19" style="gap:4px;flex-wrap:nowrap;margin-top:4px"><button class="btn sm" data-star19="${i}" aria-label="${n.star === "1" ? "Remove from shortlist" : "Add to shortlist"}" title="Shortlist" style="${n.star === "1" ? "color:var(--cu,#F26A10)" : ""}">${n.star === "1" ? "★" : "☆"}</button><button class="btn sm" data-note19="${i}" title="Note / assign">${n.note || n.owner ? "Note ✓" : "Note"}</button><a class="btn sm" href="https://wa.me/?text=${encodeURIComponent(waText19(r))}" target="_blank" rel="noopener" title="Share on WhatsApp">WhatsApp</a></div>${n.note || n.owner ? `<div class="small muted" style="max-width:220px;margin-top:4px">${n.owner ? "→ " + esc(n.owner.split("@")[0]) + " · " : ""}${esc(n.note || "")}</div>` : ""}`);
+    if (S.noteFor === r.bid) tr.insertAdjacentHTML("afterend", `<tr><td colspan="11"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end"><label class="f" style="flex:2;min-width:240px">Note for the team<input type="text" id="nt19" value="${esc(n.note || "")}" placeholder="e.g. Check drawing, ask MCL for sample"></label><label class="f" style="flex:1;min-width:180px">Assign to<select id="no19"><option value="">— nobody —</option></select></label><button class="btn sm primary" id="ns19">Save</button><button class="btn sm" id="nc19">Close</button></div></td></tr>`);
+  });
+  $$("[data-star19]", B).forEach(b => b.onclick = async () => { const r = d.rows[+b.dataset.star19]; try { await AUTH.call("tdbNote", { bid: r.bid, star: !(r.notes?.star === "1") }); r.notes = { ...(r.notes || {}), star: r.notes?.star === "1" ? "" : "1" }; render(); } catch (e) { toast(e.message, "bad"); } });
+  $$("[data-note19]", B).forEach(b => b.onclick = () => { const r = d.rows[+b.dataset.note19]; S.noteFor = S.noteFor === r.bid ? "" : r.bid; render(); });
+  if ($("#no19")) {
+    const r = d.rows.find(x => x.bid === S.noteFor);
+    team19().then(T => { const sel = $("#no19"); if (!sel) return; sel.insertAdjacentHTML("beforeend", T.map(u => `<option value="${esc(u.email)}" ${r?.notes?.owner === u.email ? "selected" : ""}>${esc(u.name || u.email)} (${esc(u.role)})</option>`).join("")); });
+    $("#nc19").onclick = () => { S.noteFor = ""; render(); };
+    $("#ns19").onclick = async () => { try { const x = await AUTH.call("tdbNote", { bid: r.bid, note: $("#nt19").value, owner: $("#no19").value }); r.notes = x.note; S.noteFor = ""; toast("Saved for the team"); render(); } catch (e) { toast(e.message, "bad"); } };
+  }
+}
+function tdbSaved19(B, S) {
+  const c = S.cache.saved || (tdbLoad("saved", "ssList", {}), S.cache.saved), L = c?.d?.list;
+  B.innerHTML = `<section class="panel"><header><h2>My saved searches</h2><span class="muted small">Save any search on the Tender search tab — new matches come to your mail every morning at 8:30</span></header>
+  ${c?.err ? `<div class="empty"><b>Couldn't load</b>${esc(c.err)}</div>` : !L ? tdbSpinner() : !L.length ? `<div class="empty"><b>No saved searches yet</b>On Tender search, set the keyword and filters, then press “Save this search”.</div>` :
+  `<div class="scroll"><table class="t"><thead><tr><th>Name</th><th>Filters</th><th>Morning mail</th><th>Last checked</th><th></th></tr></thead><tbody>${L.map((s, i) => `<tr><td><b>${esc(s.name)}</b></td><td class="small">${esc(Object.entries(s.filters || {}).filter(([, v]) => v !== "" && v !== false && v != null).map(([k, v]) => k + ": " + v).join(" · ") || "—")}</td><td><label class="chip"><input type="checkbox" data-ssm="${i}" ${s.email === "1" ? "checked" : ""}> ${s.email === "1" ? "On" : "Off"}</label></td><td class="small">${s.lastRun ? new Date(s.lastRun).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}</td><td><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn sm primary" data-ssr="${i}">Run</button><button class="btn sm" data-ssd="${i}" aria-label="Delete">${icon("x")}</button></div></td></tr>`).join("")}</tbody></table></div>`}</section>`;
+  $$("[data-ssr]", B).forEach(b => b.onclick = () => { const s = L[+b.dataset.ssr]; S.f = { q: "", status: "live", portal: "", state: "", org: "", from: "", to: "", vmin: "", vmax: "", fit: "", sort: "", hasResult: false, exclude: "", star: false, ...s.filters }; S.page = 1; S.tab = "search"; render(); });
+  $$("[data-ssm]", B).forEach(x => x.onchange = async () => { const s = L[+x.dataset.ssm]; try { await AUTH.call("ssSave", { id: s.id, email: x.checked }); delete S.cache.saved; render(); } catch (e) { toast(e.message, "bad"); } });
+  $$("[data-ssd]", B).forEach(b => b.onclick = async () => { const s = L[+b.dataset.ssd]; try { await AUTH.call("ssDel", { id: s.id }); delete S.cache.saved; render(); } catch (e) { toast(e.message, "bad"); } });
+}
+function tdbUpcoming19(B, S) {
+  const c = S.cache.predict || (tdbLoad("predict", "tdbPredict", {}, 90000), S.cache.predict), all = c?.d?.rows, q = (S.uq || "").toLowerCase();
+  const L = (all || []).filter(r => (!S.ufit || r.fit >= 50) && (!q || `${r.org} ${r.item} ${r.state}`.toLowerCase().includes(q)));
+  B.innerHTML = `<section class="panel"><div class="body"><p class="small muted" style="margin:0 0 10px">Buyers who tender the same item again and again — worked out from every tender in the database. Get documents, rates and approvals ready before the tender comes out.</p><div class="fields"><label class="f" style="grid-column:span 2">Find buyer or item<input type="text" id="uq19" value="${esc(S.uq || "")}" placeholder="NCL, stator coil, Tamil Nadu…"></label><label class="f">Show<select id="uf19"><option value="">All repeat tenders</option><option value="1" ${S.ufit ? "selected" : ""}>Rivera matches (50%+)</option></select></label></div></div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>Expected re-tenders ${all ? "(" + L.length + ")" : ""}</h2></header>
+  ${c?.err ? `<div class="empty"><b>Couldn't load</b>${esc(c.err)}</div>` : !all ? tdbSpinner() : !L.length ? `<div class="empty"><b>No repeat pattern yet</b>Predictions appear once a buyer has tendered the same item at least twice (the old-mail backfill and Excel imports fill this quickly).</div>` :
+  `<div class="scroll"><table class="t"><thead><tr><th>Expected</th><th>Buyer</th><th>Item</th><th class="n">Times</th><th class="n">Every</th><th>Last tender</th><th class="n">Match</th></tr></thead><tbody>${L.map(r => `<tr><td>${dueChip(r.next)}<div class="small muted">${r.inDays < 0 ? Math.abs(r.inDays) + " days overdue" : "in " + r.inDays + " days"}</div></td><td><b>${esc(r.org)}</b><div class="small muted">${esc(r.state || "")}</div></td><td class="small" style="min-width:220px">${esc(String(r.item || "").slice(0, 140))}</td><td class="n">${r.times}</td><td class="n">${r.every} d</td><td class="small mono">${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.lastBid)}</a>` : esc(r.lastBid)}<div>${dmy(r.lastDate)}</div></td><td class="n"><span class="chip ${r.fit >= 75 ? "ok" : r.fit >= 50 ? "warn" : ""}">${r.fit}%</span></td></tr>`).join("")}</tbody></table></div>`}</section>`;
+  $("#uq19").oninput = e => { S.uq = e.target.value; clearTimeout(S._t); S._t = setTimeout(() => { const p = $("#uq19")?.selectionStart; render(); const i = $("#uq19"); if (i) { i.focus(); i.setSelectionRange(p, p); } }, 250); };
+  $("#uf19").onchange = e => { S.ufit = !!e.target.value; render(); };
+}
 
 boot();
 
