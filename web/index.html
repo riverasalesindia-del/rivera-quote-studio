@@ -5376,7 +5376,7 @@ VIEWS.tdb = v => {
   $("#tdbRef").onclick = () => { tdbBust(); render(); };
   const B = $("#tdbBody");
   if (!AUTH.api || !AUTH.user) { B.innerHTML = `<section class="panel"><div class="empty"><b>Sign in to the team server first</b>The tender database lives on Rivera's sign-in server (Google Sheet), so the whole sales team sees the same data. Sign in from Users & access, then come back.</div></section>`; return; }
-  ({ search: tdbSearch, results: tdbResults, buyers: tdbBuyers, comp: tdbComp, import: tdbImport, sources: tdbSources })[S.tab](B, S);
+  (({ search: tdbSearch, results: tdbResults, buyers: tdbBuyers, comp: tdbComp, import: tdbImport, sources: tdbSources })[S.tab] || (() => { B.innerHTML = ""; }))(B, S);
 };
 function tdbSearch(B, S) {
   const f = S.f, body = { ...f, page: S.page, size: 50 }, key = "q:" + JSON.stringify(body), c = S.cache[key] || (tdbLoad(key, "tdbQuery", body), S.cache[key]);
@@ -5869,6 +5869,334 @@ render = function () { _render17(); try { gsButtons17(); } catch (e) { } };
 /* bid kit label */
 for (const r of GEM_DOCS) if (r[0] === "stock" && /Chhaperia/.test(r[1])) r[1] = r[1].replace("Chhaperia", "Chhaperia, Swarnagiri copper");
 
+
+
+/* ===================== p19: Tender247-style extras (shortlist, notes, owner, exclude words, saved searches, expected re-tenders, WhatsApp) ===================== */
+/* ---------- Tender database extras ---------- */
+const TEAM19 = { list: null };
+async function team19() { if (TEAM19.list) return TEAM19.list; try { TEAM19.list = (await AUTH.call("team")).team; } catch { TEAM19.list = []; } return TEAM19.list; }
+const _tdbView19 = VIEWS.tdb;
+VIEWS.tdb = v => {
+  const S = TDB();
+  _tdbView19(v);
+  const row = $(".tabs-row", v); if (!row) return;
+  const extra = [["upcoming", "Expected re-tenders"], ["saved", "Saved searches"]];
+  extra.forEach(([k, l]) => row.insertAdjacentHTML("beforeend", `<button role="tab" class="tab ${S.tab === k ? "on" : ""}" aria-selected="${S.tab === k}" data-ttab="${k}">${l}</button>`));
+  $$("[data-ttab]", row).forEach(b => b.onclick = () => { S.tab = b.dataset.ttab; render(); });
+  const B = $("#tdbBody"); if (!B || !AUTH.api || !AUTH.user) return;
+  if (S.tab === "upcoming") return tdbUpcoming19(B, S);
+  if (S.tab === "saved") return tdbSaved19(B, S);
+  if (S.tab === "search") tdbSearchExtras19(B, S);
+};
+function waText19(r) { return `Tender: ${r.bid}\nBuyer: ${r.org || "-"}\nItem: ${String(r.item || "").slice(0, 160)}\nClosing: ${r.closing ? dmy(r.closing) : "-"}${r.link ? "\n" + r.link : ""}`; }
+function tdbSearchExtras19(B, S) {
+  const f = S.f; f.exclude ??= ""; f.star ??= false;
+  const body = { ...f, page: S.page, size: 50 }, key = "q:" + JSON.stringify(body), d = S.cache[key]?.d;
+  // extra filters
+  const fields = $(".fields", B);
+  if (fields && !$("#tex19", B)) {
+    fields.insertAdjacentHTML("beforeend", `<label class="f" style="grid-column:span 2">Leave out words (comma separated)<input type="text" id="tex19" value="${esc(f.exclude)}" placeholder="diesel generator, printer, furniture"></label>`);
+    $("#tex19").onchange = e => { f.exclude = e.target.value; S.page = 1; render(); };
+    const chips = $("#thr", B)?.closest(".row");
+    chips?.insertAdjacentHTML("afterbegin", `<label class="chip"><input type="checkbox" id="tst19" ${f.star ? "checked" : ""}> ★ Shortlisted only</label><label class="chip"><input type="checkbox" id="tme19" ${f.owner ? "checked" : ""}> Assigned to me</label>`);
+    chips?.insertAdjacentHTML("beforeend", `<button class="btn sm" id="tsave19">${icon("save")}Save this search</button>`);
+    $("#tst19")?.addEventListener("change", e => { f.star = e.target.checked; S.page = 1; render(); });
+    $("#tme19")?.addEventListener("change", e => { f.owner = e.target.checked ? AUTH.user.email : ""; S.page = 1; render(); });
+    $("#tsave19")?.addEventListener("click", () => { S.saveOpen = true; render(); });
+    if (S.saveOpen) {
+      chips?.insertAdjacentHTML("afterend", `<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><input type="text" id="tsn19" placeholder="Name, e.g. Stator coils – Coal India" style="flex:1;min-width:220px" value="${esc(f.q || "")}"><label class="chip"><input type="checkbox" id="tse19" checked> Email me new matches every morning</label><button class="btn sm primary" id="tsg19">Save</button><button class="btn sm" id="tsx19">Cancel</button></div>`);
+      $("#tsx19").onclick = () => { S.saveOpen = false; render(); };
+      $("#tsg19").onclick = async () => { try { await AUTH.call("ssSave", { name: $("#tsn19").value.trim() || "My search", filters: { ...f }, email: $("#tse19").checked }); S.saveOpen = false; delete S.cache.saved; toast("Search saved — new matches come by mail every morning"); render(); } catch (e) { toast(e.message, "bad"); } };
+    }
+  }
+  if (!d || !d.rows?.length) return;
+  // per-row: shortlist, note / owner, WhatsApp
+  const rows = $$("table.t tbody tr", B);
+  rows.forEach((tr, i) => {
+    const r = d.rows[i]; if (!r) return; const n = r.notes || {};
+    const td = tr.lastElementChild; if (!td || $(".r19", td)) return;
+    td.insertAdjacentHTML("beforeend", `<div class="row r19" style="gap:4px;flex-wrap:nowrap;margin-top:4px"><button class="btn sm" data-star19="${i}" aria-label="${n.star === "1" ? "Remove from shortlist" : "Add to shortlist"}" title="Shortlist" style="${n.star === "1" ? "color:var(--cu,#F26A10)" : ""}">${n.star === "1" ? "★" : "☆"}</button><button class="btn sm" data-note19="${i}" title="Note / assign">${n.note || n.owner ? "Note ✓" : "Note"}</button><a class="btn sm" href="https://wa.me/?text=${encodeURIComponent(waText19(r))}" target="_blank" rel="noopener" title="Share on WhatsApp">WhatsApp</a></div>${n.note || n.owner ? `<div class="small muted" style="max-width:220px;margin-top:4px">${n.owner ? "→ " + esc(n.owner.split("@")[0]) + " · " : ""}${esc(n.note || "")}</div>` : ""}`);
+    if (S.noteFor === r.bid) tr.insertAdjacentHTML("afterend", `<tr><td colspan="11"><div class="row" style="gap:8px;flex-wrap:wrap;align-items:flex-end"><label class="f" style="flex:2;min-width:240px">Note for the team<input type="text" id="nt19" value="${esc(n.note || "")}" placeholder="e.g. Check drawing, ask MCL for sample"></label><label class="f" style="flex:1;min-width:180px">Assign to<select id="no19"><option value="">— nobody —</option></select></label><button class="btn sm primary" id="ns19">Save</button><button class="btn sm" id="nc19">Close</button></div></td></tr>`);
+  });
+  $$("[data-star19]", B).forEach(b => b.onclick = async () => { const r = d.rows[+b.dataset.star19]; try { await AUTH.call("tdbNote", { bid: r.bid, star: !(r.notes?.star === "1") }); r.notes = { ...(r.notes || {}), star: r.notes?.star === "1" ? "" : "1" }; render(); } catch (e) { toast(e.message, "bad"); } });
+  $$("[data-note19]", B).forEach(b => b.onclick = () => { const r = d.rows[+b.dataset.note19]; S.noteFor = S.noteFor === r.bid ? "" : r.bid; render(); });
+  if ($("#no19")) {
+    const r = d.rows.find(x => x.bid === S.noteFor);
+    team19().then(T => { const sel = $("#no19"); if (!sel) return; sel.insertAdjacentHTML("beforeend", T.map(u => `<option value="${esc(u.email)}" ${r?.notes?.owner === u.email ? "selected" : ""}>${esc(u.name || u.email)} (${esc(u.role)})</option>`).join("")); });
+    $("#nc19").onclick = () => { S.noteFor = ""; render(); };
+    $("#ns19").onclick = async () => { try { const x = await AUTH.call("tdbNote", { bid: r.bid, note: $("#nt19").value, owner: $("#no19").value }); r.notes = x.note; S.noteFor = ""; toast("Saved for the team"); render(); } catch (e) { toast(e.message, "bad"); } };
+  }
+}
+function tdbSaved19(B, S) {
+  const c = S.cache.saved || (tdbLoad("saved", "ssList", {}), S.cache.saved), L = c?.d?.list;
+  B.innerHTML = `<section class="panel"><header><h2>My saved searches</h2><span class="muted small">Save any search on the Tender search tab — new matches come to your mail every morning at 8:30</span></header>
+  ${c?.err ? `<div class="empty"><b>Couldn't load</b>${esc(c.err)}</div>` : !L ? tdbSpinner() : !L.length ? `<div class="empty"><b>No saved searches yet</b>On Tender search, set the keyword and filters, then press “Save this search”.</div>` :
+  `<div class="scroll"><table class="t"><thead><tr><th>Name</th><th>Filters</th><th>Morning mail</th><th>Last checked</th><th></th></tr></thead><tbody>${L.map((s, i) => `<tr><td><b>${esc(s.name)}</b></td><td class="small">${esc(Object.entries(s.filters || {}).filter(([, v]) => v !== "" && v !== false && v != null).map(([k, v]) => k + ": " + v).join(" · ") || "—")}</td><td><label class="chip"><input type="checkbox" data-ssm="${i}" ${s.email === "1" ? "checked" : ""}> ${s.email === "1" ? "On" : "Off"}</label></td><td class="small">${s.lastRun ? new Date(s.lastRun).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}</td><td><div class="row" style="gap:6px;flex-wrap:nowrap"><button class="btn sm primary" data-ssr="${i}">Run</button><button class="btn sm" data-ssd="${i}" aria-label="Delete">${icon("x")}</button></div></td></tr>`).join("")}</tbody></table></div>`}</section>`;
+  $$("[data-ssr]", B).forEach(b => b.onclick = () => { const s = L[+b.dataset.ssr]; S.f = { q: "", status: "live", portal: "", state: "", org: "", from: "", to: "", vmin: "", vmax: "", fit: "", sort: "", hasResult: false, exclude: "", star: false, ...s.filters }; S.page = 1; S.tab = "search"; render(); });
+  $$("[data-ssm]", B).forEach(x => x.onchange = async () => { const s = L[+x.dataset.ssm]; try { await AUTH.call("ssSave", { id: s.id, email: x.checked }); delete S.cache.saved; render(); } catch (e) { toast(e.message, "bad"); } });
+  $$("[data-ssd]", B).forEach(b => b.onclick = async () => { const s = L[+b.dataset.ssd]; try { await AUTH.call("ssDel", { id: s.id }); delete S.cache.saved; render(); } catch (e) { toast(e.message, "bad"); } });
+}
+function tdbUpcoming19(B, S) {
+  const c = S.cache.predict || (tdbLoad("predict", "tdbPredict", {}, 90000), S.cache.predict), all = c?.d?.rows, q = (S.uq || "").toLowerCase();
+  const L = (all || []).filter(r => (!S.ufit || r.fit >= 50) && (!q || `${r.org} ${r.item} ${r.state}`.toLowerCase().includes(q)));
+  B.innerHTML = `<section class="panel"><div class="body"><p class="small muted" style="margin:0 0 10px">Buyers who tender the same item again and again — worked out from every tender in the database. Get documents, rates and approvals ready before the tender comes out.</p><div class="fields"><label class="f" style="grid-column:span 2">Find buyer or item<input type="text" id="uq19" value="${esc(S.uq || "")}" placeholder="NCL, stator coil, Tamil Nadu…"></label><label class="f">Show<select id="uf19"><option value="">All repeat tenders</option><option value="1" ${S.ufit ? "selected" : ""}>Rivera matches (50%+)</option></select></label></div></div></section>
+  <section class="panel" style="margin-top:16px"><header><h2>Expected re-tenders ${all ? "(" + L.length + ")" : ""}</h2></header>
+  ${c?.err ? `<div class="empty"><b>Couldn't load</b>${esc(c.err)}</div>` : !all ? tdbSpinner() : !L.length ? `<div class="empty"><b>No repeat pattern yet</b>Predictions appear once a buyer has tendered the same item at least twice (the old-mail backfill and Excel imports fill this quickly).</div>` :
+  `<div class="scroll"><table class="t"><thead><tr><th>Expected</th><th>Buyer</th><th>Item</th><th class="n">Times</th><th class="n">Every</th><th>Last tender</th><th class="n">Match</th></tr></thead><tbody>${L.map(r => `<tr><td>${dueChip(r.next)}<div class="small muted">${r.inDays < 0 ? Math.abs(r.inDays) + " days overdue" : "in " + r.inDays + " days"}</div></td><td><b>${esc(r.org)}</b><div class="small muted">${esc(r.state || "")}</div></td><td class="small" style="min-width:220px">${esc(String(r.item || "").slice(0, 140))}</td><td class="n">${r.times}</td><td class="n">${r.every} d</td><td class="small mono">${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.lastBid)}</a>` : esc(r.lastBid)}<div>${dmy(r.lastDate)}</div></td><td class="n"><span class="chip ${r.fit >= 75 ? "ok" : r.fit >= 50 ? "warn" : ""}">${r.fit}%</span></td></tr>`).join("")}</tbody></table></div>`}</section>`;
+  $("#uq19").oninput = e => { S.uq = e.target.value; clearTimeout(S._t); S._t = setTimeout(() => { const p = $("#uq19")?.selectionStart; render(); const i = $("#uq19"); if (i) { i.focus(); i.setSelectionRange(p, p); } }, 250); };
+  $("#uf19").onchange = e => { S.ufit = !!e.target.value; render(); };
+}
+
+
+/* ===================== p20: GeM pull from the office PC (GeM only answers Indian internet connections) ===================== */
+const GEMPC = { busy: false, last: LS.get("gemPc", null), prog: "" };
+async function gemPullPC(opts = {}) {
+  if (location.protocol !== "rivera:" || GEMPC.busy || !AUTH.api || !AUTH.valid?.()) return null;
+  GEMPC.busy = true; const kws = tenderKeywords(), rows = [], seen = new Set(), per = {}; let err = "";
+  const f = (d, k) => Array.isArray(d[k]) ? d[k][0] : d[k];
+  try {
+    for (const kw of kws) {
+      for (let page = 1; page <= 200; page++) {
+        GEMPC.prog = `${kw} · page ${page}`; if (STATE.route === "tdb") $("#gpc20p") && ($("#gpc20p").textContent = GEMPC.prog);
+        const j = await (await fetch(`rivera://gem/search?kw=${encodeURIComponent(kw)}&page=${page}`)).json();
+        if (!j.ok) { err = j.error || "GeM did not answer"; break; }
+        per[kw] = j.numFound;
+        for (const d of j.docs || []) {
+          const bid = f(d, "b_bid_number"); if (!bid || seen.has(bid)) continue; seen.add(bid);
+          const item = f(d, "b_category_name") || f(d, "bd_category_name") || kw, org = [f(d, "ba_official_details_minName"), f(d, "ba_official_details_deptName")].filter(Boolean).join(" / "), qty = f(d, "b_total_quantity"), id = f(d, "b_id") || f(d, "id");
+          rows.push({ bid, portal: "GeM", org, item: item + (qty ? " · Qty " + qty : ""), published: String(f(d, "final_start_date_sort") || "").slice(0, 10), closing: String(f(d, "final_end_date_sort") || "").slice(0, 10), link: id ? `https://bidplus.gem.gov.in/showbidDocument/${id}` : "https://bidplus.gem.gov.in/all-bids", fit: tenderFit(`${item} ${org}`) });
+        }
+        if (!(j.docs || []).length || page * 10 >= j.numFound) break;
+        await new Promise(r => setTimeout(r, 300));
+      }
+      if (err) break;
+    }
+    const keep = rows.filter(r => r.fit > 0);
+    let added = 0;
+    for (let i = 0; i < keep.length; i += 1000) { const x = await AUTH.call("tdbImport", { kind: "tenders", rows: keep.slice(i, i + 1000), source: "gem-pc" }, 120000); added += x.result?.added || 0; }
+    const have = new Set((STATE.data.tenders || []).map(t => t.bid)); let tracked = 0;
+    for (const r of keep) if (r.fit >= 75 && r.closing && r.closing >= todayISO() && !have.has(r.bid)) {
+      await DB.put("tenders", { id: r.bid.replace(/[^A-Za-z0-9]+/g, "-"), bid: r.bid, portal: "GeM", org: r.org, status: "identified", items: r.item, closing: r.closing, published: r.published, check: {}, emdMode: "exempt_mse", emd: "Exempted (MSE)", link: r.link, log: [{ at: new Date().toISOString(), by: "GeM portal (office PC)", what: `Added automatically — ${r.fit}% match with Rivera keywords` }] });
+      have.add(r.bid); tracked++;
+    }
+    GEMPC.last = { at: Date.now(), read: rows.length, kept: keep.length, added, tracked, per, err };
+  } catch (e) { GEMPC.last = { at: Date.now(), read: rows.length, kept: 0, added: 0, tracked: 0, per, err: e.message }; }
+  LS.set("gemPc", GEMPC.last); GEMPC.busy = false; GEMPC.prog = "";
+  if (!opts.quiet || GEMPC.last.tracked) toast(GEMPC.last.err && !GEMPC.last.read ? "GeM: " + GEMPC.last.err : `GeM: ${GEMPC.last.read} bids read, ${GEMPC.last.kept} match Rivera keywords, ${GEMPC.last.added} new${GEMPC.last.tracked ? `, ${GEMPC.last.tracked} added to Tenders` : ""}`, GEMPC.last.err && !GEMPC.last.read ? "bad" : "");
+  if (["tdb", "intel"].includes(STATE.route)) { tdbBust(); render(); }
+  return GEMPC.last;
+}
+const _sources20 = tdbSources;
+tdbSources = function (B, S) {
+  _sources20(B, S);
+  const L = GEMPC.last, pc = location.protocol === "rivera:";
+  B.insertAdjacentHTML("afterbegin", `<section class="panel" style="margin-bottom:16px"><header><h2>GeM portal — pulled by the office PC</h2><span class="chip ${L && !L.err ? "ok" : L?.err ? "bad" : ""}">${L ? (L.err && !L.read ? "Problem" : "Working") : "Not run yet"}</span></header><div class="body stack" style="gap:8px">
+    <p class="small muted" style="margin:0">GeM only answers internet connections from India, so the Windows app on the office PC searches every GeM page for every Rivera keyword every 3 hours and adds the bids here for the whole team.${pc ? "" : " Open the Rivera Windows app on the office PC to run it."}</p>
+    ${L ? `<div class="small">${new Date(L.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })} · <b>${L.read}</b> GeM bids read · <b>${L.kept}</b> match Rivera keywords · <b>${L.added}</b> new · <b>${L.tracked}</b> added to Tenders${L.err ? ` · <span style="color:var(--bad)">${esc(L.err)}</span>` : ""}</div>${Object.keys(L.per || {}).length ? `<div class="small muted">${Object.entries(L.per).filter(([, n]) => n).map(([k, n]) => `${esc(k)} <b>${n}</b>`).join(" · ")}</div>` : ""}` : ""}
+    ${pc ? `<div class="row" style="gap:8px"><button class="btn primary" id="gpc20">${GEMPC.busy ? "Pulling…" : "Pull every GeM bid now"}</button><span class="small muted" id="gpc20p">${esc(GEMPC.prog)}</span></div>` : ""}</div></section>`);
+  $("#gpc20")?.addEventListener("click", async () => { const b = $("#gpc20"); b.disabled = true; b.textContent = "Pulling from GeM…"; await gemPullPC(); });
+};
+const _boot20 = boot;
+boot = function () {
+  _boot20();
+  if (location.protocol !== "rivera:") return;
+  const due = () => !GEMPC.last || Date.now() - GEMPC.last.at > 3 * 36e5;
+  setTimeout(() => { if (due()) gemPullPC({ quiet: true }); }, 90000);
+  setInterval(() => { if (due()) gemPullPC({ quiet: true }); }, 20 * 60000);
+};
+
+
+/* ===================== p21: role-based pages, finance requests, Go to portal + upload status, quotation on letterhead, GeM archive & bid results, company lookup ===================== */
+/* ---------- 1. each login sees only its own pages ---------- */
+const ROLE_PAGES = {
+  sales: ["intel", "tenders", "biddesk", "tdb", "workings", "quote", "finreq", "users"],
+  finance: ["finreq", "tenders", "library", "users"],
+  operation: ["orders", "vendors", "library", "finreq", "users"],
+  viewer: ["intel", "tdb", "users"]
+};
+const myRole21 = () => (AUTH.user && AUTH.valid?.() ? AUTH.user.role : "") || "";
+function allowed21(route) { const r = myRole21(); if (!r || r === "admin") return true; const L = ROLE_PAGES[r]; return !L || L.includes(route); }
+function applyRole21() {
+  const r = myRole21(); if (!r || r === "admin" || !ROLE_PAGES[r]) return;
+  $$("[data-r]").forEach(a => { const ok = allowed21(a.dataset.r); a.hidden = !ok; a.style.display = ok ? "" : "none"; });
+  $$("#mobileNav option").forEach(o => { const k = String(o.value || "").replace(/^#/, ""); if (k) { o.hidden = !allowed21(k); o.disabled = !allowed21(k); } });
+  $$("#nav hr, nav hr, .nav .sep, .navsep").forEach(g => { g.style.display = "none"; });
+  if (STATE.route && !allowed21(STATE.route)) { location.hash = "#" + ROLE_PAGES[r][0]; }
+}
+const _render21 = render;
+render = function () {
+  if (STATE.route && !allowed21(STATE.route)) { const r = myRole21(); location.hash = "#" + ROLE_PAGES[r][0]; return; }
+  _render21(); try { applyRole21(); setTimeout(applyRole21, 0); setTimeout(applyRole21, 400); } catch { }
+  const nav = $("[data-r]")?.closest("nav, aside, #nav, .side");
+  if (nav && !nav._role21) { nav._role21 = new MutationObserver(() => { clearTimeout(nav._rt21); nav._rt21 = setTimeout(applyRole21, 30); }); nav._role21.observe(nav, { childList: true, subtree: true }); }
+};
+/* search only offers what the login may open */
+const _gsr21 = gsResults17;
+gsResults17 = q => _gsr21(q).filter(x => { if (x.g === "Page") { const k = (ROUTES.find(([, l]) => l === x.t) || [])[0]; return !k || allowed21(k); } if (x.g === "Quotation") return allowed21("quote") || allowed21("register"); if (x.g === "Work order") return allowed21("orders"); if (x.g === "Vendor") return allowed21("vendors"); if (x.g === "Document") return allowed21("library"); if (x.g === "Tender") return allowed21("tenders"); if (x.g === "Tender database") return allowed21("tdb"); return true; });
+
+/* ---------- 2. finance requests ---------- */
+IC.plus = IC.plus || '<path d="M12 5v14M5 12h14"/>';
+IC.wallet = IC.wallet || '<rect x="3" y="6" width="18" height="13" rx="2"/><path d="M16 12.5h2M3 9h18"/><path d="M6 6V4.5h11V6"/>';
+if (!ROUTES.some(r => r[0] === "finreq")) ROUTES.splice(Math.max(0, ROUTES.findIndex(r => r[0] === "tdb") + 1) || ROUTES.length, 0, ["finreq", "Finance requests", "wallet"]);
+const FR = { list: null, types: null, f: "open", form: null };
+const FR_ST = { requested: ["Requested", "warn"], accepted: ["Finance working", "navy"], completed: ["Completed", "ok"], rejected: ["Rejected", "bad"], cancelled: ["Cancelled", ""] };
+async function frLoad(force) { if (FR.list && !force) return; try { const d = await AUTH.call("frList"); FR.list = d.list; FR.types = d.types; } catch (e) { FR.err = e.message; FR.list = []; } if (STATE.route === "finreq") render(); }
+VIEWS.finreq = v => {
+  const role = myRole21(), fin = role === "admin" || role === "finance";
+  if (!AUTH.api || !AUTH.user) { v.innerHTML = `<div class="topbar"><div><h1>Finance requests</h1></div></div><section class="panel"><div class="empty"><b>Sign in first</b>Finance requests are shared through the team server.</div></section>`; return; }
+  if (!FR.list) { frLoad(); }
+  const T = FR.types || { emd: "EMD payment", bg: "Bank guarantee / PBG", doc: "Document / certificate", invoice: "Invoice / payment follow-up", other: "Other" };
+  const L = (FR.list || []).filter(r => FR.f === "all" ? true : FR.f === "done" ? ["completed", "rejected", "cancelled"].includes(r.status) : ["requested", "accepted"].includes(r.status));
+  const n = s => (FR.list || []).filter(r => r.status === s).length;
+  const tenders = (STATE.data.tenders || []).filter(t => !["awarded", "not_awarded", "dropped", "cancelled"].includes(t.status)).slice(0, 200);
+  const F = FR.form;
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">${fin ? "Finance desk" : "Ask finance"}</div><h1>Finance requests</h1><p>${fin ? "Sales asks here — accept it, do the payment or document, attach the proof and mark it completed. Sales is told by mail." : "Ask finance for an EMD payment, a bank guarantee or a document. Finance attaches the proof here and you get a mail when it is ready."}</p></div>
+    <div class="row">${role !== "finance" ? `<button class="btn primary" id="frNew">${icon("plus") || "+"}New request</button>` : ""}<button class="btn" id="frRef">${icon("spark")}Refresh</button></div></div>
+  <div class="hero-strip"><div><span>Waiting for finance</span><b>${n("requested")}</b></div><div><span>Finance working</span><b>${n("accepted")}</b></div><div><span>Completed</span><b>${n("completed")}</b></div></div>
+  ${F ? `<section class="panel" style="margin-bottom:16px"><header><h2>New finance request</h2></header><div class="body"><div class="fields">
+    <label class="f">What is needed<select id="frT">${Object.entries(T).map(([k, l]) => `<option value="${k}" ${F.type === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
+    <label class="f" style="grid-column:span 2">Tender<select id="frB"><option value="">— not for a tender —</option>${tenders.map(t => `<option value="${esc(t.id)}" ${F.tid === t.id ? "selected" : ""}>${esc(t.bid)} · ${esc(String(t.org || "").slice(0, 40))}</option>`).join("")}</select></label>
+    <label class="f">Amount ₹<input type="number" id="frA" min="0" value="${esc(F.amount || "")}"></label>
+    <label class="f">Needed by<input type="date" id="frD" value="${esc(F.needBy || "")}"></label>
+    <label class="f" style="grid-column:1/-1">Details for finance<textarea id="frN" rows="3" placeholder="e.g. EMD ₹45,000 to NCL through GeM, bid closes 20-11 3 pm">${esc(F.note || "")}</textarea></label></div>
+    <div class="row" style="margin-top:10px;gap:8px"><button class="btn primary" id="frGo">Send to finance</button><button class="btn" id="frX">Cancel</button></div></div></section>` : ""}
+  <div class="tabs-row" role="tablist">${[["open", "Open"], ["done", "Done"], ["all", "All"]].map(([k, l]) => `<button role="tab" class="tab ${FR.f === k ? "on" : ""}" aria-selected="${FR.f === k}" data-frf="${k}">${l}</button>`).join("")}</div>
+  <section class="panel">${!FR.list ? `<div class="empty"><b>Loading…</b></div>` : FR.err ? `<div class="empty"><b>Couldn't load</b>${esc(FR.err)}. If the server was just updated, deploy the new version.</div>` : !L.length ? `<div class="empty"><b>Nothing here</b>${fin ? "No requests waiting." : "Press New request to ask finance."}</div>` :
+  `<div class="body stack" style="gap:10px">${L.map(r => { const st = FR_ST[r.status] || [r.status, ""]; return `<div class="note" style="display:flex;gap:12px;flex-wrap:wrap;align-items:flex-start"><div style="flex:1;min-width:240px"><div><b>${esc(T[r.type] || r.type)}</b> <span class="chip ${st[1]}">${st[0]}</span> <span class="mono small muted">${esc(r.id)}</span></div>
+    <div class="small">${r.bid ? `<b>${esc(r.bid)}</b> ${esc(r.org || "")} · ` : ""}${r.amount ? "₹" + Number(r.amount).toLocaleString("en-IN") + " · " : ""}${r.needBy ? "needed by <b>" + dmy(r.needBy) + "</b> · " : ""}asked by ${esc(r.byName || r.by)} on ${dmy(String(r.created).slice(0, 10))}</div>
+    ${r.note ? `<div class="small" style="margin-top:4px">${esc(r.note)}</div>` : ""}${r.finNote ? `<div class="small" style="margin-top:4px"><b>Finance:</b> ${esc(r.finNote)}</div>` : ""}
+    ${r.fileId ? `<div style="margin-top:6px"><button class="btn sm" data-frdl="${esc(r.id)}">${icon("dl")}${esc(r.fileName || "Document")}</button></div>` : ""}</div>
+    <div class="row" style="gap:6px;flex-wrap:wrap">${fin && r.status === "requested" ? `<button class="btn sm primary" data-frs="${esc(r.id)}|accepted">Accept</button><button class="btn sm" data-frs="${esc(r.id)}|rejected">Reject</button>` : ""}
+    ${fin && ["requested", "accepted"].includes(r.status) ? `<label class="btn sm" style="cursor:pointer">${icon("up")}Attach proof<input type="file" data-frup="${esc(r.id)}" hidden accept=".pdf,.jpg,.jpeg,.png,.docx,.xlsx"></label><button class="btn sm primary" data-frs="${esc(r.id)}|completed">Mark completed</button>` : ""}
+    ${!fin && r.by === AUTH.user?.email && r.status === "requested" ? `<button class="btn sm" data-frs="${esc(r.id)}|cancelled">Cancel</button>` : ""}</div></div>`; }).join("")}</div>`}</section>`;
+  $("#frRef").onclick = () => { FR.list = null; render(); };
+  $("#frNew")?.addEventListener("click", () => { FR.form = { type: "emd" }; render(); });
+  $$("[data-frf]").forEach(b => b.onclick = () => { FR.f = b.dataset.frf; render(); });
+  if (F) {
+    $("#frX").onclick = () => { FR.form = null; render(); };
+    $("#frB").onchange = e => { const t = tenders.find(x => x.id === e.target.value); if (t && $("#frT").value === "emd" && !$("#frA").value) $("#frA").value = num(t.emdAmount) || ""; if (t && !$("#frD").value && t.closing) $("#frD").value = t.closing; };
+    $("#frGo").onclick = async () => { const t = tenders.find(x => x.id === $("#frB").value); const body = { type: $("#frT").value, bid: t?.bid || "", org: t?.org || "", amount: $("#frA").value, needBy: $("#frD").value, note: $("#frN").value.trim() }; if (!body.note && !body.bid) return toast("Tell finance what is needed", "bad"); try { $("#frGo").disabled = true; await AUTH.call("frCreate", body); FR.form = null; toast("Sent to finance — you'll get a mail when it is done"); frLoad(true); } catch (e) { toast(e.message, "bad"); $("#frGo").disabled = false; } };
+  }
+  $$("[data-frs]").forEach(b => b.onclick = async () => { const [id, status] = b.dataset.frs.split("|"); let finNote; if (status !== "cancelled" && fin) { const cur = (FR.list || []).find(r => r.id === id); finNote = cur?.finNote; } try { b.disabled = true; await AUTH.call("frUpdate", { id, status, finNote }); toast(status === "completed" ? "Completed — sales has been told by mail" : "Updated"); frLoad(true); } catch (e) { toast(e.message, "bad"); b.disabled = false; } });
+  $$("[data-frup]").forEach(inp => inp.onchange = async () => { const f = inp.files[0]; if (!f) return; if (f.size > 15e6) return toast("File too large (15 MB max)", "bad"); try { toast("Uploading " + f.name + "…"); const b64 = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(String(r.result).split(",")[1]); r.onerror = rej; r.readAsDataURL(f); }); const x = await AUTH.call("frFile", { req: inp.dataset.frup, name: f.name, type: f.type || "application/octet-stream", b64 }, 180000); await AUTH.call("frUpdate", { id: inp.dataset.frup, fileId: x.id, fileName: f.name, status: "accepted" }); toast("Proof attached — press Mark completed when the work is done"); frLoad(true); } catch (e) { toast(e.message, "bad"); } });
+  $$("[data-frdl]").forEach(b => b.onclick = async () => { const r = (FR.list || []).find(x => x.id === b.dataset.frdl); try { const f = await DSTORE.get(r.fileId); await saveFile(r.fileName || "document", f.blob); } catch (e) { toast(e.message, "bad"); } });
+};
+
+/* ---------- 3. Go to portal + upload status beside every Bid Desk button ---------- */
+const PORTAL_URL = [[/gem/i, "https://bidplus.gem.gov.in/all-bids"], [/cppp|eprocure|etender|central/i, "https://etenders.gov.in/eprocure/app"], [/coal ?india|\bcil\b|ncl|mcl|secl|wcl|ccl|bccl|ecl|nclcil/i, "https://coalindiatenders.nic.in/nicgep/app"], [/bhel/i, "https://eprocurebhel.co.in/nicgep/app"], [/ntpc/i, "https://eprocurentpc.nic.in/nicgep/app"], [/ireps|railway/i, "https://www.ireps.gov.in"], [/tangedco|tneb|tamil|tntender/i, "https://tntenders.gov.in/nicgep/app"], [/kpcl|karnataka/i, "https://kppp.karnataka.gov.in"], [/rrvun|rajasthan/i, "https://eproc.rajasthan.gov.in/nicgep/app"], [/nhpc/i, "https://nhpc.eproc.in"], [/tender ?247/i, "https://www.tender247.com"]];
+function portalUrl21(t) { if (t.link && /^https?:/i.test(t.link)) return t.link; const s = `${t.portal || ""} ${t.org || ""} ${t.bid || ""}`; if (/^GEM\//i.test(t.bid || "")) return "https://bidplus.gem.gov.in/all-bids"; return (PORTAL_URL.find(([re]) => re.test(s)) || [, "https://etenders.gov.in/eprocure/app"])[1]; }
+const UP_ST = { pending: ["Pending", "warn"], progress: ["In progress", "navy"], completed: ["Completed", "ok"] };
+function portalCtl21(t) {
+  const s = t.uploadStatus || "pending";
+  return `<span class="ctl21" style="gap:6px;flex-wrap:wrap;display:flex;margin-top:6px;justify-content:flex-end"><a class="btn sm" href="${esc(portalUrl21(t))}" target="_blank" rel="noopener" data-gp21="${esc(t.id)}" title="Open the tender portal to upload documents">Go to portal ↗</a><label class="sr-only" for="us21-${esc(t.id)}">Upload status</label><select id="us21-${esc(t.id)}" class="btn sm us21 ${UP_ST[s][1]}" data-us21="${esc(t.id)}" title="Portal upload status">${Object.entries(UP_ST).map(([k, [l]]) => `<option value="${k}" ${k === s ? "selected" : ""}>Status: ${l}</option>`).join("")}</select></span>`;
+}
+function addPortalCtls21(root) {
+  const byId = Object.fromEntries((STATE.data.tenders || []).map(t => [t.id, t]));
+  $$("[data-iob], [data-tbd], [data-bdopen]", root).forEach(el => {
+    const id = el.dataset.iob || el.dataset.tbd || el.dataset.bdopen, t = byId[id]; if (!t) return;
+    const host = el.dataset.bdopen ? el : (el.closest("td") || el.closest(".feed-row") || el.parentElement); if (!host || $(".ctl21", host)) return;
+    if (el.dataset.bdopen) el.insertAdjacentHTML("beforeend", portalCtl21(t)); else host.insertAdjacentHTML("beforeend", portalCtl21(t));
+  });
+  $$("[data-us21]", root).forEach(s => { s.onclick = e => e.stopPropagation(); s.onchange = async e => { e.stopPropagation(); const t = byId[s.dataset.us21]; if (!t) return; const v = s.value; t.uploadStatus = v; t.log = [...(t.log || []), { at: new Date().toISOString(), by: who(), what: `Portal upload: ${UP_ST[v][0]}` }]; await DB.put("tenders", t); toast(`${t.bid}: upload ${UP_ST[v][0].toLowerCase()}`); render(); }; });
+  $$("[data-gp21]", root).forEach(a => a.onclick = e => { e.stopPropagation(); const t = byId[a.dataset.gp21]; if (t && (t.uploadStatus || "pending") === "pending") { t.uploadStatus = "progress"; t.log = [...(t.log || []), { at: new Date().toISOString(), by: who(), what: "Opened the portal to upload" }]; DB.put("tenders", t); } });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.us21{padding-right:22px;width:auto !important;min-width:0 !important}td .ctl21{justify-content:flex-start !important}.feed-row .ctl21{flex-basis:100%}.feed-row:has(.ctl21){flex-wrap:wrap}.us21.ok{color:var(--ok,#1b7f4b);border-color:currentColor}.us21.warn{color:var(--warn,#b26a00);border-color:currentColor}.us21.navy{color:var(--navy,#02315B);border-color:currentColor}.sr-only{position:absolute;width:1px;height:1px;overflow:hidden;clip:rect(0 0 0 0)}</style>`);
+const _render21b = render;
+render = function () { _render21b(); try { if (["intel", "tenders", "biddesk"].includes(STATE.route)) addPortalCtls21($("#view")); } catch (e) { } };
+
+/* ---------- 4. quotation PDF on the RCM letterhead (with MD signature & seal) when the letterhead template is loaded ---------- */
+const _quotePdf21 = quotePdf;
+quotePdf = async function (Q) { try { if (DSTORE.template?.()) return await blocksPdf(quoteBlocks(Q)); } catch (e) { ERRLOG.add("Letterhead quotation: " + e.message, "export"); } return _quotePdf21(Q); };
+
+/* ---------- 5. GeM archive + bid results (every bidder, price, rank) from the office PC ---------- */
+function gemCleanName21(s) { return String(s || "").replace(/\s*Under PMA\s*$/i, "").replace(/\((MSE|MII|MSE,MII)[^)]*\)/gi, "").replace(/\(\s*MSE Social Category[^)]*\)?/gi, "").replace(/\s+/g, " ").trim(); }
+function gemParseResult21(html, bid) {
+  const doc = new DOMParser().parseFromString(html, "text/html"), out = {}, add = (name, o) => { const k = gemCleanName21(name).toLowerCase(); if (!k) return; out[k] = { ...(out[k] || { bid, bidder: gemCleanName21(name) }), ...o }; };
+  for (const tb of doc.querySelectorAll("table")) {
+    const hdr = [...(tb.querySelector("tr")?.cells || [])].map(c => c.textContent.trim().toLowerCase()); const iN = hdr.findIndex(h => h.includes("seller name")); if (iN < 0) continue;
+    const iP = hdr.findIndex(h => h.includes("total price")), iR = hdr.findIndex(h => h === "rank"), iS = hdr.findIndex(h => h === "status");
+    for (const tr of [...tb.querySelectorAll("tr")].slice(1)) {
+      const c = [...tr.cells].map(x => x.textContent.trim().replace(/\s+/g, " ")); if (!c[iN]) continue;
+      const o = {}; if (iS >= 0) o.note = c[iS]; if (iP >= 0) o.price = num(String(c[iP]).replace(/[^\d.]/g, "")) || ""; if (iR >= 0) o.rank = num(String(c[iR]).replace(/[^\d]/g, "")) || "";
+      add(c[iN], o);
+    }
+  }
+  return Object.values(out);
+}
+const GEMRES = { done: new Set(LS.get("gemResDone", [])) };
+async function gemArchivePC(opts = {}) {
+  if (location.protocol !== "rivera:" || !AUTH.api || !AUTH.valid?.()) return null;
+  const kws = tenderKeywords(), f = (d, k) => Array.isArray(d[k]) ? d[k][0] : d[k], rows = [], ids = [], seen = new Set(); let err = "";
+  const maxPages = opts.full ? 300 : 3;      // first run reads every closed page; later runs read the newest pages
+  for (const kw of kws) {
+    for (let page = 1; page <= maxPages; page++) {
+      const j = await (await fetch(`rivera://gem/search?kw=${encodeURIComponent(kw)}&page=${page}&status=closed_bids`)).json().catch(() => ({ ok: false, error: "no answer" }));
+      if (!j.ok) { err = j.error; break; }
+      for (const d of j.docs || []) {
+        const bid = f(d, "b_bid_number"); if (!bid || seen.has(bid)) continue; seen.add(bid);
+        const item = f(d, "b_category_name") || f(d, "bd_category_name") || kw, org = [f(d, "ba_official_details_minName"), f(d, "ba_official_details_deptName")].filter(Boolean).join(" / "), id = f(d, "b_id") || f(d, "id"), fit = tenderFit(`${item} ${org}`);
+        if (fit <= 0) continue;
+        rows.push({ bid, portal: "GeM", org, item, published: String(f(d, "final_start_date_sort") || "").slice(0, 10), closing: String(f(d, "final_end_date_sort") || "").slice(0, 10), link: id ? `https://bidplus.gem.gov.in/showbidDocument/${id}` : "", fit });
+        if (id && !GEMRES.done.has(String(id))) ids.push({ id: String(id), bid, org, item });
+      }
+      if (!(j.docs || []).length || page * 10 >= j.numFound) break;
+      await new Promise(r => setTimeout(r, 300));
+    }
+    if (err) break;
+  }
+  for (let i = 0; i < rows.length; i += 1000) await AUTH.call("tdbImport", { kind: "tenders", rows: rows.slice(i, i + 1000), source: "gem-pc" }, 120000);
+  // bid results: every participating seller, qualified or not, price and rank — a few hundred per run, newest first
+  let resRows = [], got = 0;
+  for (const x of ids.slice(0, opts.full ? 600 : 250)) {
+    try {
+      const h = await (await fetch(`rivera://gem/result?id=${x.id}`)).text();
+      const R = gemParseResult21(h, x.bid).map(r => ({ ...r, org: x.org, item: x.item, resultDate: "" }));
+      if (R.length) { resRows.push(...R); got++; GEMRES.done.add(x.id); }
+      else if (/BID DETAILS/i.test(h)) GEMRES.done.add(x.id);   // no result published for this bid
+    } catch { }
+    if (resRows.length >= 800) { await AUTH.call("tdbImport", { kind: "results", rows: resRows, source: "gem-pc" }, 120000); resRows = []; }
+    await new Promise(r => setTimeout(r, 400));
+  }
+  if (resRows.length) await AUTH.call("tdbImport", { kind: "results", rows: resRows, source: "gem-pc" }, 120000);
+  LS.set("gemResDone", [...GEMRES.done].slice(-60000));
+  const out = { at: Date.now(), closed: rows.length, results: got, pending: Math.max(0, ids.length - got), err };
+  LS.set("gemArch", out);
+  if (!opts.quiet) toast(`GeM archive: ${rows.length} closed bids, results for ${got} bids${out.pending ? ` · ${out.pending} more next run` : ""}`);
+  return out;
+}
+const _gemPull21 = gemPullPC;
+gemPullPC = async function (opts = {}) { const a = await _gemPull21(opts); try { const last = LS.get("gemArch", null); await gemArchivePC({ quiet: opts.quiet, full: !last }); } catch (e) { ERRLOG.add("GeM archive: " + e.message, "gem"); } if (["tdb", "intel"].includes(STATE.route)) { tdbBust(); render(); } return a; };
+
+/* ---------- 6. company lookup (Tender247-style): any company → every tender it bid ---------- */
+const CL = { q: "", pick: "", data: null, busy: false };
+async function clSearch(q, pick) { CL.busy = true; render(); try { CL.data = await AUTH.call("company", { q, exact: pick || "" }, 90000); } catch (e) { CL.data = { err: e.message }; } CL.busy = false; render(); }
+const _tdbView21 = VIEWS.tdb;
+VIEWS.tdb = v => {
+  const S = TDB();
+  _tdbView21(v);
+  const row = $(".tabs-row", v); if (!row) return;
+  row.insertAdjacentHTML("beforeend", `<button role="tab" class="tab ${S.tab === "company" ? "on" : ""}" aria-selected="${S.tab === "company"}" data-ttab="company">Company lookup</button>`);
+  $$("[data-ttab]", row).forEach(b => b.onclick = () => { S.tab = b.dataset.ttab; render(); });
+  const B = $("#tdbBody"); if (!B || S.tab !== "company" || !AUTH.api || !AUTH.user) return;
+  const d = CL.data, s = d?.summary;
+  B.innerHTML = `<section class="panel"><div class="body"><p class="small muted" style="margin:0 0 10px">Type any company — a competitor, a buyer's favourite vendor, or Rivera itself — to see every tender it bid: rank, price, qualified or not, and who won. Data comes from GeM bid results, result mails, Excel imports and Rivera's own records.</p>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><input type="text" id="cl21" value="${esc(CL.q)}" placeholder="e.g. ABB India, Gokul Enterprises, Rivera" style="flex:1;min-width:240px"><button class="btn primary" id="cl21go">${CL.busy ? "Searching…" : "Search"}</button></div></div></section>
+  ${d?.err ? `<section class="panel" style="margin-top:16px"><div class="empty"><b>Couldn't search</b>${esc(d.err)}</div></section>` : ""}
+  ${d && !d.err && d.companies?.length > 1 ? `<section class="panel" style="margin-top:16px"><header><h2>Companies matching “${esc(CL.q)}”</h2></header><div class="body row" style="gap:6px;flex-wrap:wrap">${d.companies.map(c => `<button class="btn sm ${CL.pick === c.name ? "primary" : ""}" data-clp="${esc(c.name)}">${esc(c.name)} <span class="muted">${c.n}</span></button>`).join("")}</div></section>` : ""}
+  ${s ? `<div class="hero-strip" style="margin-top:16px"><div><span>Tenders bid</span><b>${s.bids}</b></div><div><span>Times L1</span><b>${s.l1}</b></div><div><span>Qualified / disqualified</span><b>${s.qualified} / ${s.disq}</b></div><div><span>L1 value</span><b>${tdbMoney(s.value)}</b></div></div>
+    <section class="panel" style="margin-top:16px"><div class="body"><div class="small"><b>Main buyers:</b> ${s.buyers.map(([k, n]) => `${esc(k)} (${n})`).join(" · ") || "—"}</div><div class="small" style="margin-top:6px"><b>Main items:</b> ${s.items.map(([k, n]) => `${esc(k)} (${n})`).join(" · ") || "—"}</div></div></section>
+    <section class="panel" style="margin-top:16px"><header><h2>${d.rows.length} tender${d.rows.length === 1 ? "" : "s"}</h2></header><div class="scroll"><table class="t"><thead><tr><th>Date</th><th>Bid / tender</th><th>Buyer</th><th>Item</th><th>Company</th><th class="n">Rank</th><th class="n">Price ₹</th><th>Status</th><th>L1 (winner)</th><th class="n">Bidders</th></tr></thead><tbody>${d.rows.map(r => `<tr${Number(r.rank) === 1 ? ' style="background:var(--ok-soft)"' : ""}><td class="small mono">${r.date ? dmy(r.date) : "—"}</td><td class="mono small">${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.bid)}</a>` : esc(r.bid)}</td><td class="small">${esc(r.org || "—")}</td><td class="small" style="min-width:200px">${esc(String(r.item || "").slice(0, 120))}</td><td class="small"><b>${esc(r.bidder)}</b></td><td class="n">${r.rank ? "L" + r.rank : "—"}</td><td class="n mono">${num(r.price) ? fmt(num(r.price), "INR", 0) : "—"}</td><td class="small">${esc(r.note || (r.awarded === "yes" ? "Awarded" : ""))}</td><td class="small">${r.l1 ? `${esc(r.l1.bidder)}${num(r.l1.price) ? " · " + tdbMoney(r.l1.price) : ""}` : "—"}</td><td class="n">${r.bidders}</td></tr>`).join("")}</tbody></table></div></section>` : d && !d.err ? `<section class="panel" style="margin-top:16px"><div class="empty"><b>No tenders found for “${esc(CL.q)}”</b>The office PC adds GeM bid results every 3 hours; result mails and Excel imports add more.</div></section>` : ""}`;
+  const go = () => { CL.q = $("#cl21").value.trim(); CL.pick = ""; if (CL.q.length < 3) return toast("Type at least 3 letters", "bad"); clSearch(CL.q); };
+  $("#cl21go").onclick = go; $("#cl21").onkeydown = e => { if (e.key === "Enter") go(); };
+  $$("[data-clp]", B).forEach(b => b.onclick = () => { CL.pick = b.dataset.clp; clSearch(CL.q, CL.pick); });
+};
+/* competitor names in Results / Competitors open the company lookup */
+const _comp21 = tdbComp;
+tdbComp = function (B, S) { _comp21(B, S); $$("[data-cb]", B).forEach(r => r.onclick = () => { CL.q = r.dataset.cb; CL.pick = r.dataset.cb; S.tab = "company"; clSearch(CL.q, CL.pick); }); };
+
+
+/* ===================== p22: three logins only — admin (crm@), sales, finance ===================== */
+{ const i = TEAM16.findIndex(m => m.role === "operation"); if (i >= 0) TEAM16.splice(i, 1); }
 
 boot();
 
