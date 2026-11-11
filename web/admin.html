@@ -4900,11 +4900,11 @@ async function lhWriter(doc, A) {
       const line = (t, yy, f, sz, c) => { const tw = f.widthOfTextAtSize(t, sz); page.drawText(t, { x: rx + (200 - tw) / 2, y: yy, size: sz, font: f, color: c || ink }); };
       line("For RIVERA COIL MANUFACTURING", top - 10, FB, 10, navy);
       line("INDIA PRIVATE LIMITED", top - 22, FB, 10, navy);
-      if (A) { const sw = 150, sh = sw * A.sign.height / A.sign.width; page.drawImage(A.sign, { x: rx + 25, y: top - 30 - sh, width: sw, height: sh }); }
+      if (A && A.sign) { const sw = 150, sh = sw * A.sign.height / A.sign.width; page.drawImage(A.sign, { x: rx + 25, y: top - 30 - sh, width: sw, height: sh }); }
       line("P.N. NIRMAL RAJ", top - 84, FB, 10.5, navy);
       line("Managing Director", top - 97, FB, 10, navy);
       if (label) line(label, top - 116, FI, 10);
-      if (A) { const ss = 96, sh2 = ss * A.seal.height / A.seal.width; page.drawImage(A.seal, { x: rx - ss - 14, y: top - 22 - sh2, width: ss, height: sh2 }); }
+      if (A && A.seal) { const ss = 96, sh2 = ss * A.seal.height / A.seal.width; page.drawImage(A.seal, { x: rx - ss - 14, y: top - 22 - sh2, width: ss, height: sh2 }); }
       y = top - BOX + 8;
     }
   };
@@ -5669,7 +5669,7 @@ const _intel16 = VIEWS.intel;
 VIEWS.intel = v => {
   _intel16(v);
   const S = I12(); if (S.tab !== "find" || !AUTH.api || !AUTH.user) return;
-  const T = TDB(), page = S.gp || 1, body = { status: "live", portal: "GeM", q: S.q || "", fit: S.st === "match" ? 50 : 1, sort: "closing", page, size: 50, vmin: S.vmin || "", vmax: S.vmax || "" };
+  const T = TDB(), page = 1, body = { status: "live", portal: "GeM", q: S.q || "", fit: S.st === "match" ? 50 : 1, sort: "closing", page, size: S.gsize || 100, vmin: S.vmin || "", vmax: S.vmax || "" };
   if (S.within) { const d = new Date(Date.now() + +S.within * 864e5); body.to = d.toISOString().slice(0, 10); }
   const key = "gemf:" + JSON.stringify(body), c = T.cache[key] || (tdbLoad(key, "tdbQuery", body), T.cache[key]), d = c?.d;
   const mine = new Set((STATE.data.tenders || []).map(t => t.bid));
@@ -5677,9 +5677,9 @@ VIEWS.intel = v => {
   B.insertAdjacentHTML("beforeend", `<section class="panel" style="margin-top:16px" id="gemAll16"><header style="flex-wrap:wrap;gap:8px"><div><h2>GeM portal — every live bid for Rivera's keywords</h2><span class="muted small">Pulled from GeM search (all pages) and the full CPPP list of GeM bids · refreshed every 3 hours</span></div><div class="row" style="gap:6px"><span class="chip navy">${d ? d.total.toLocaleString("en-IN") + " bids" : "…"}</span><a class="btn sm" href="#tdb">Open Tender database</a></div></header>
     ${c?.err ? `<div class="empty"><b>Couldn't load GeM bids</b>${esc(c.err)}</div>` : !d ? `<div class="empty"><b>Loading GeM bids…</b></div>` : !d.rows.length ? `<div class="empty"><b>No live GeM bids in the database yet</b>The first full GeM pull runs automatically after the server update (Tender database ▸ Sources & automation ▸ Full GeM pull now).</div>` :
     `<div class="body stack" style="gap:8px">${d.rows.map((r, i) => `<div class="feed-row ${r.fit >= 50 ? "hot" : ""}"><div class="feed-fit" title="Match with Rivera's keywords">${num(r.fit)}%</div><div style="min-width:0;flex:1"><b class="mono small">${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.bid)}</a>` : esc(r.bid)}</b> ${r.closing ? dueChip(r.closing) : ""} ${Number(r.corr) ? `<span class="chip warn">date changed</span>` : ""}<div class="small"><b>${esc(r.org || "—")}</b> · ${esc(String(r.item || "").slice(0, 160))}</div><div class="small muted">${r.state ? esc(r.state) + " · " : ""}${esc(r.source || "")}</div></div>${mine.has(r.bid) || r.tracked ? `<span class="chip ok">Tracked</span>` : `<button class="btn sm primary" data-g16="${i}">Track</button>`}</div>`).join("")}</div>
-    ${d.total > d.size ? `<div class="row" style="padding:12px 16px;gap:8px"><button class="btn sm" id="g16p" ${d.page <= 1 ? "disabled" : ""}>‹ Previous</button><span class="small muted">${(d.page - 1) * d.size + 1}–${Math.min(d.total, d.page * d.size)} of ${d.total.toLocaleString("en-IN")}</span><button class="btn sm" id="g16n" ${d.page * d.size >= d.total ? "disabled" : ""}>Next ›</button></div>` : ""}`}</section>`);
+    ${d.total > d.rows.length ? `<div class="row" style="padding:12px 16px;gap:8px;justify-content:center"><span class="small muted">Showing ${d.rows.length.toLocaleString("en-IN")} of ${d.total.toLocaleString("en-IN")}</span><button class="btn sm primary" id="g16more">Show ${Math.min(200, d.total - d.rows.length)} more</button><button class="btn sm" id="g16all">Show all</button></div>` : d.total ? `<div class="small muted" style="padding:12px 16px;text-align:center">All ${d.total.toLocaleString("en-IN")} bids shown</div>` : ""}`}</section>`);
   $$("[data-g16]", B).forEach(b => b.onclick = () => tdbTrack(d.rows[+b.dataset.g16]));
-  $("#g16p")?.addEventListener("click", () => { S.gp = page - 1; render(); }); $("#g16n")?.addEventListener("click", () => { S.gp = page + 1; render(); });
+  $("#g16more")?.addEventListener("click", () => { S.gsize = (S.gsize || 100) + 200; render(); }); $("#g16all")?.addEventListener("click", () => { S.gsize = 5000; render(); });
   // typing a new keyword starts the GeM list from page 1
   $("#inQ")?.addEventListener("input", () => { S.gp = 1; });
 };
@@ -6218,6 +6218,111 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 </style>`);
 const _render23 = render;
 render = function () { _render23(); try { logout23(); } catch (e) { } };
+
+
+/* ===================== p24: real RCM letterhead (from "RCM Blank Letter head.docx"), user chip with Log out at the top, GeM list to the very end ===================== */
+const LH24 = { tried: false, head: null, foot: null, urls: null };
+async function lh24Load() {
+  if (LH24.head || LH24.tried) return LH24.head ? LH24 : null;
+  LH24.tried = true;
+  try {
+    if (!DSTORE.online?.()) { LH24.tried = false; return null; }
+    const f = await DSTORE.get("rcm_letterhead_docx"); if (!f?.blob) return null;
+    const Z = await getZip(), z = await Z.loadAsync(f.blob), imgs = [];
+    for (const n of Object.keys(z.files).filter(n => /^word\/media\/.+\.(png|jpe?g)$/i.test(n))) {
+      const blob = await z.file(n).async("blob"), bm = await createImageBitmap(blob).catch(() => null); if (!bm) continue;
+      imgs.push({ n, blob, w: bm.width, h: bm.height, r: bm.width / bm.height, png: /png$/i.test(n) });
+    }
+    const pick = t => imgs.filter(t).sort((a, b) => b.w * b.h - a.w * a.h)[0];
+    LH24.head = pick(i => i.r > 5 && i.r < 10.5); LH24.foot = pick(i => i.r >= 10.5);
+    if (!LH24.head) return null;
+    LH24.urls = { head: URL.createObjectURL(LH24.head.blob), foot: LH24.foot ? URL.createObjectURL(LH24.foot.blob) : "" };
+    if (STATE.route === "quote") render();
+    return LH24;
+  } catch (e) { ERRLOG.add("RCM letterhead: " + e.message, "pdf"); return null; }
+}
+/* PDF letters and quotations: header and footer from the real letterhead; MD signature and seal stay from the stored template when present */
+const _lhAssets24 = lhAssets;
+lhAssets = async function (doc) {
+  const base = await _lhAssets24(doc).catch(() => null), L = await lh24Load();
+  if (!L) return base;
+  const emb = async i => i.png ? doc.embedPng(new Uint8Array(await i.blob.arrayBuffer())) : doc.embedJpg(new Uint8Array(await i.blob.arrayBuffer()));
+  try { const head = await emb(L.head), foot = L.foot ? await emb(L.foot) : base?.foot; return { head, foot, sign: base?.sign || null, seal: base?.seal || null }; }
+  catch (e) { ERRLOG.add("RCM letterhead in PDF: " + e.message, "pdf"); return base; }
+};
+const _quotePdf24 = quotePdf;
+quotePdf = async function (Q) { try { if (await lh24Load()) return await blocksPdf(quoteBlocks(Q)); } catch (e) { ERRLOG.add("Letterhead quotation: " + e.message, "export"); } return _quotePdf24(Q); };
+function lhPreview24(root) {
+  if (!LH24.urls) return;
+  for (const p of $$(".paper", root)) {
+    const lh = $(".lh", p); if (!lh || lh.dataset.real) continue;
+    lh.dataset.real = "1"; lh.innerHTML = `<img src="${LH24.urls.head}" alt="Rivera Coil Manufacturing India Pvt Ltd letterhead" style="width:100%;display:block">`; lh.style.display = "block"; lh.style.borderBottom = "0"; lh.style.paddingBottom = "6px";
+    if (LH24.urls.foot && !$(".lhfoot24", p)) p.insertAdjacentHTML("beforeend", `<img class="lhfoot24" src="${LH24.urls.foot}" alt="" style="width:100%;display:block;margin-top:28px">`);
+  }
+}
+/* user chip with a clear Log out, moved to the top of the side rail under Search */
+logout23 = function () {
+  $("#lo23")?.remove(); $("#lo23m")?.remove();
+  const c = $("#userChip"), s = $("#gs17b"); if (!c || !AUTH.user) return;
+  if (s && c.previousElementSibling !== s) s.insertAdjacentElement("afterend", c);
+  const b = $("#ucOut", c); if (b && !b.dataset.t24) { b.dataset.t24 = "1"; b.className = "btn sm lo24"; b.innerHTML = `${icon("lock")}<span>Log out</span>`; }
+  const mob = $("#gs17m"); if (mob && !$("#lo23m")) { mob.insertAdjacentHTML("afterend", `<button type="button" id="lo23m" class="gs17-mbtn" aria-label="Log out">${icon("lock")}</button>`); $("#lo23m").onclick = () => signOut(); }
+};
+document.head.insertAdjacentHTML("beforeend", `<style>
+#userChip{margin:0 12px 14px !important}
+#userChip .lo24{display:inline-flex;align-items:center;gap:6px;padding:6px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.06);color:#fff;font-weight:600;white-space:nowrap}
+#userChip .lo24:hover{background:rgba(242,106,16,.25);border-color:rgba(242,106,16,.7)}
+#userChip .lo24 svg{width:14px;height:14px}
+.feed-row[data-go24]{cursor:pointer}
+.feed-row[data-go24]:hover{border-color:var(--cu,#F26A10)}
+</style>`);
+/* Tender intelligence: the GeM list goes to the very end ("Show more"), and a click opens the bid on GeM */
+const _intel24 = VIEWS.intel;
+VIEWS.intel = v => {
+  const S = I12(); if (S.tab === "find") { S.gp = 1; S.gsize = S.gsize || 100; }
+  _intel24(v);
+  const P = $("#gemAll16", v); if (!P) return;
+  const rows = $$(".feed-row", P);
+  rows.forEach(r => { const a = $("a[href^='http']", r); if (!a) return; r.dataset.go24 = a.href; r.title = "Open this bid on the portal"; r.onclick = e => { if (e.target.closest("button,a,select,input,label")) return; window.open(r.dataset.go24, "_blank", "noopener"); }; });
+};
+const _render24 = render;
+render = function () { _render24(); try { logout23(); if (STATE.route === "quote") { lh24Load(); lhPreview24($("#view")); } } catch (e) { } };
+
+
+/* p24b: letterhead upload (admin), GeM bids without a stored link, ISRO portal */
+PORTAL_URL.unshift([/isro/i, "https://eproc.isro.gov.in"]);
+async function lhUpload24(file) {
+  if (!/\.docx$/i.test(file.name)) return toast("Choose the RCM letterhead Word file (.docx)", "bad");
+  try { await DSTORE.put("rcm_letterhead_docx", file, { kind: "template", type: "letterhead", title: "RCM letterhead", path: file.name }); Object.assign(LH24, { tried: false, head: null, foot: null, urls: null }); await lh24Load(); toast(LH24.head ? "RCM letterhead saved — every quotation and letter now uses it" : "Saved, but no letterhead picture was found inside that Word file", LH24.head ? "" : "bad"); render(); }
+  catch (e) { toast(e.message, "bad"); }
+}
+function lhNote24(v) {
+  if (STATE.route !== "quote" || LH24.head || !LH24.tried || $("#lh24n", v)) return;
+  ($(".topbar", v))?.insertAdjacentHTML("afterend", `<div class="note" id="lh24n" style="margin-bottom:14px"><b>RCM letterhead not loaded yet.</b> ${AUTH.isAdmin ? `Upload “RCM Blank Letter head.docx” once and every quotation and letter uses it. <label class="btn sm" style="margin-left:8px">Upload letterhead (.docx)<input type="file" accept=".docx" id="lh24f" hidden></label>` : "Ask the admin to upload it once."}</div>`);
+  $("#lh24f")?.addEventListener("change", e => { const f = e.target.files[0]; if (f) lhUpload24(f); });
+}
+async function openGemBid24(bid, link) {
+  if (link && !/all-bids$/.test(link)) return window.open(link, "_blank", "noopener");
+  if (location.protocol === "rivera:" && /^GEM\//i.test(bid)) {
+    try { const j = await (await fetch(`rivera://gem/search?kw=${encodeURIComponent(bid)}&page=1`)).json(); const d = (j.docs || []).find(x => [].concat(x.b_bid_number)[0] === bid) || (j.docs || [])[0]; const id = d && [].concat(d.b_id || d.id)[0]; if (id) return window.open(`https://bidplus.gem.gov.in/showbidDocument/${id}`, "_blank", "noopener"); } catch { }
+  }
+  try { await navigator.clipboard.writeText(bid); } catch { }
+  toast(`${bid} copied — paste it in the GeM search box`);
+  window.open("https://bidplus.gem.gov.in/all-bids", "_blank", "noopener");
+}
+const _intel24b = VIEWS.intel;
+VIEWS.intel = v => {
+  _intel24b(v);
+  const P = $("#gemAll16", v); if (!P) return;
+  $$(".feed-row", P).forEach(r => {
+    if (r.dataset.go24) return;
+    const bid = ($("b.mono", r)?.innerText || "").trim(); if (!bid) return;
+    r.dataset.go24 = "1"; r.title = "Open this bid on GeM";
+    r.onclick = e => { if (e.target.closest("button,a,select,input,label")) return; openGemBid24(bid, ""); };
+  });
+};
+const _render24b = render;
+render = function () { _render24b(); try { lhNote24($("#view")); } catch (e) { } };
 
 boot();
 
