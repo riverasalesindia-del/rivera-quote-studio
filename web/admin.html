@@ -5809,44 +5809,62 @@ function gsResults17(q) {
   if (AUTH.api && AUTH.user) out.push({ g: "Tender database", t: `Search all tenders for “${q}”`, s: "GeM, CPPP, Coal India, Tender247 alerts, archive and results", go: () => { const S = TDB(); S.f.q = q; S.f.status = "all"; S.page = 1; S.tab = "search"; location.hash = "#tdb"; render(); } });
   return out.slice(0, 40);
 }
-function gsBox17() {
-  const v = $("#view"); if (!v || $("#gs17", v)) return;
-  v.insertAdjacentHTML("afterbegin", `<div id="gs17" class="gs17" role="search"><span class="gs17-i" aria-hidden="true">${icon("search") || "⌕"}</span><input id="gs17q" type="text" autocomplete="off" spellcheck="false" placeholder="Search everything — quotations, tenders, GeM bids, documents, work orders, vendors… (Ctrl + K)" aria-label="Search everything" value="${esc(GS17.q)}"><div id="gs17r" class="gs17-r" role="listbox" hidden></div></div>`);
-  const i = $("#gs17q"), R = $("#gs17r");
+/* compact search: a small button in the side rail (and the phone header) opens a search palette */
+function gsOpen17() {
+  if ($("#gs17")) { $("#gs17q")?.focus(); return; }
+  document.body.insertAdjacentHTML("beforeend", `<div id="gs17" class="gs17-ov" role="dialog" aria-modal="true" aria-label="Search everything"><div class="gs17-box" role="search">
+    <div class="gs17-in"><span class="gs17-i" aria-hidden="true">${icon("search")}</span><input id="gs17q" type="text" autocomplete="off" spellcheck="false" placeholder="Search quotations, tenders, GeM bids, documents, work orders, vendors…" aria-label="Search everything" value="${esc(GS17.q)}"><kbd class="gs17-k">Esc</kbd></div>
+    <div id="gs17r" class="gs17-r" role="listbox"></div></div></div>`);
+  const ov = $("#gs17"), i = $("#gs17q"), R = $("#gs17r");
+  const close = () => { ov.remove(); };
   const draw = () => {
     const L = gsResults17(GS17.q); GS17.list = L; GS17.sel = Math.min(GS17.sel, Math.max(0, L.length - 1));
-    if (!GS17.q.trim() || GS17.q.trim().length < 2) { R.hidden = true; return; }
-    R.hidden = false;
-    R.innerHTML = L.length ? L.map((r, k) => `<button type="button" role="option" class="gs17-o ${k === GS17.sel ? "on" : ""}" data-gs="${k}"><span class="chip">${esc(r.g)}</span><span class="gs17-t"><b>${esc(r.t)}</b>${r.s ? `<span class="small muted">${esc(r.s)}</span>` : ""}</span></button>`).join("") : `<div class="small muted" style="padding:12px">Nothing found for “${esc(GS17.q)}”</div>`;
-    $$("[data-gs]", R).forEach(b => b.onmousedown = e => { e.preventDefault(); const r = L[+b.dataset.gs]; GS17.q = ""; R.hidden = true; r.go(); });
+    if (GS17.q.trim().length < 2) { R.innerHTML = `<div class="small muted" style="padding:12px 14px">Type at least 2 letters · ↑ ↓ to move · Enter to open</div>`; return; }
+    R.innerHTML = L.length ? L.map((r, k) => `<button type="button" role="option" aria-selected="${k === GS17.sel}" class="gs17-o ${k === GS17.sel ? "on" : ""}" data-gs="${k}"><span class="chip">${esc(r.g)}</span><span class="gs17-t"><b>${esc(r.t)}</b>${r.s ? `<span class="small muted">${esc(r.s)}</span>` : ""}</span></button>`).join("") : `<div class="small muted" style="padding:12px 14px">Nothing found for “${esc(GS17.q)}”</div>`;
+    $$("[data-gs]", R).forEach(b => b.onclick = () => { const r = L[+b.dataset.gs]; GS17.q = ""; close(); r.go(); });
+    $(".gs17-o.on", R)?.scrollIntoView({ block: "nearest" });
   };
   i.oninput = () => { GS17.q = i.value; GS17.sel = 0; draw(); };
   i.onkeydown = e => {
     const L = GS17.list || [];
     if (e.key === "ArrowDown") { GS17.sel = Math.min(L.length - 1, GS17.sel + 1); draw(); e.preventDefault(); }
     else if (e.key === "ArrowUp") { GS17.sel = Math.max(0, GS17.sel - 1); draw(); e.preventDefault(); }
-    else if (e.key === "Enter" && L[GS17.sel]) { const r = L[GS17.sel]; GS17.q = ""; R.hidden = true; r.go(); }
-    else if (e.key === "Escape") { GS17.q = ""; i.value = ""; R.hidden = true; i.blur(); }
+    else if (e.key === "Enter" && L[GS17.sel]) { const r = L[GS17.sel]; GS17.q = ""; close(); r.go(); }
+    else if (e.key === "Escape") { close(); }
   };
-  i.onblur = () => setTimeout(() => { R.hidden = true; }, 150);
-  i.onfocus = () => { if (GS17.q) draw(); };
+  ov.onmousedown = e => { if (e.target === ov) close(); };
+  draw(); i.focus(); i.select();
+}
+function gsButtons17() {
+  const rail = $("#brandRail");
+  if (rail && !$("#gs17b")) rail.insertAdjacentHTML("afterend", `<button type="button" id="gs17b" class="gs17-btn" aria-label="Search everything (Ctrl + K)">${icon("search")}<span>Search</span><kbd>Ctrl K</kbd></button>`);
+  const mh = $(".mobilehead");
+  if (mh && !$("#gs17m")) $("#mobileNav")?.insertAdjacentHTML("beforebegin", `<button type="button" id="gs17m" class="gs17-mbtn" aria-label="Search everything">${icon("search")}</button>`);
+  $("#gs17b") && ($("#gs17b").onclick = gsOpen17); $("#gs17m") && ($("#gs17m").onclick = gsOpen17);
 }
 document.head.insertAdjacentHTML("beforeend", `<style>
-.gs17{position:relative;margin:0 0 14px}
-#gs17 input#gs17q{width:100%;box-sizing:border-box;padding:11px 14px 11px 42px !important;border-radius:10px;border:1px solid var(--line,#d5dbe3);background:var(--card,#fff);font-size:.95rem;color:inherit}
-.gs17 input:focus{outline:2px solid var(--cu,#F26A10);outline-offset:1px}
-.gs17-i{position:absolute;left:13px;top:50%;transform:translateY(-50%);opacity:.6;display:flex;width:18px;height:18px}
-.gs17-i svg{width:18px;height:18px}
-.gs17-r{position:absolute;left:0;right:0;top:calc(100% + 4px);z-index:60;max-height:min(60vh,520px);overflow:auto;background:var(--card,#fff);border:1px solid var(--line,#d5dbe3);border-radius:10px;box-shadow:0 12px 32px rgba(2,30,60,.18)}
-.gs17-o{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:10px 12px;border:0;border-bottom:1px solid var(--line,#eef1f4);background:transparent;color:inherit;cursor:pointer;min-height:44px}
+.gs17-btn{display:flex;align-items:center;gap:8px;width:calc(100% - 24px);margin:4px 12px 10px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.07);color:rgba(255,255,255,.85);font:inherit;font-size:.86rem;cursor:pointer;min-height:38px}
+.gs17-btn:hover,.gs17-btn:focus-visible{background:rgba(255,255,255,.14);outline:none}
+.gs17-btn svg{width:16px;height:16px;flex:none}
+.gs17-btn span{flex:1;text-align:left}
+.gs17-btn kbd,.gs17-k{font:600 .66rem/1 system-ui,sans-serif;padding:3px 5px;border-radius:4px;border:1px solid currentColor;opacity:.6}
+.gs17-mbtn{display:flex;align-items:center;justify-content:center;width:44px;height:44px;flex:none;border-radius:10px;border:1px solid rgba(255,255,255,.2);background:rgba(255,255,255,.08);color:inherit;cursor:pointer}
+.gs17-mbtn svg{width:20px;height:20px}
+.gs17-ov{position:fixed;inset:0;z-index:9000;background:rgba(2,20,40,.45);display:flex;justify-content:center;align-items:flex-start;padding:10vh 16px 16px}
+.gs17-box{width:100%;max-width:640px;background:var(--card,#fff);color:var(--ink,#13202e);border-radius:12px;box-shadow:0 24px 60px rgba(2,20,40,.35);overflow:hidden}
+.gs17-in{display:flex;align-items:center;gap:10px;padding:4px 14px;border-bottom:1px solid var(--line,#e3e8ee)}
+.gs17-in svg{width:18px;height:18px;opacity:.6;flex:none}
+#gs17 input#gs17q{flex:1;border:0 !important;outline:0 !important;box-shadow:none !important;background:transparent !important;padding:12px 0 !important;font-size:1rem;color:inherit;min-width:0}
+.gs17-r{max-height:min(60vh,480px);overflow:auto}
+.gs17-o{display:flex;gap:10px;align-items:flex-start;width:100%;text-align:left;padding:10px 14px;border:0;border-bottom:1px solid var(--line,#eef1f4);background:transparent;color:inherit;cursor:pointer;min-height:44px}
 .gs17-o.on,.gs17-o:hover{background:rgba(242,106,16,.08)}
 .gs17-t{display:flex;flex-direction:column;gap:2px;min-width:0}
 .gs17-t b{font-weight:600;overflow:hidden;text-overflow:ellipsis}
 </style>`);
 if (!IC.search) IC.search = '<circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/>';
-document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { const i = $("#gs17q"); if (i) { e.preventDefault(); i.focus(); i.select(); } } });
+document.addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === "k") { e.preventDefault(); gsOpen17(); } });
 const _render17 = render;
-render = function () { _render17(); try { gsBox17(); } catch (e) { } };
+render = function () { _render17(); try { gsButtons17(); } catch (e) { } };
 
 /* bid kit label */
 for (const r of GEM_DOCS) if (r[0] === "stock" && /Chhaperia/.test(r[1])) r[1] = r[1].replace("Chhaperia", "Chhaperia, Swarnagiri copper");
