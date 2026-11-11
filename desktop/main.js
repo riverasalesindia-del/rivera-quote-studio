@@ -60,7 +60,7 @@ function findPack() {
 }
 
 // Scan the synced Dropbox tender folders and send the file list to the app (it classifies and adds new documents).
-const SCAN_DIRS = ["RIVERA Team Folder/SALES/RCM", "RIVERA Team Folder/FINANCE/COMPANY DOCUMENTS", "RIVERA Team Folder/OPERATIONS", "RIVERA Team Folder/SALES/Rivera Quote Studio"];
+const SCAN_DIRS = ["RIVERA Team Folder/SALES/RCM", "RIVERA Team Folder/FINANCE/COMPANY DOCUMENTS", "RIVERA Team Folder/OPERATIONS", "RIVERA Team Folder/SALES/Rivera Quote Studio", "RIVERA Team Folder/SALES/COMPANY CREDENTIALS", "RIVERA Team Folder/QUALITY", "RIVERA Team Folder/PURCHASE/10.SUPPLIER REGISTRATION", "RIVERA Team Folder/PURCHASE/SWARNAGIRI COPPER CERTIFICATE"];
 function walk(dir, base, out, depth) {
   if (depth > 10 || out.length > 80000) return;
   let ents = []; try { ents = fs.readdirSync(dir, { withFileTypes: true }); } catch (e) { return; }
