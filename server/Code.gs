@@ -228,6 +228,7 @@ function hourlyWatch() {
       tableHtml("Corrigendum — closing date changed", ["Bid / tender", "Buyer", "Was", "Now"], res.changed.map(function (c) { return rowHtml([esc(c.bid), esc(c.org), dmyS(c.from), "<b>" + dmyS(c.to) + "</b>"]); })) +
       '<p style="margin-top:16px">' + btn(appUrl().replace(/\/exec.*/, "/exec"), "Open " + APP, "#02315B") + "</p>";
     mail(digestTo(), APP + " — " + (hot.length ? hot.length + " new tender" + (hot.length > 1 ? "s" : "") + " for Rivera" : "tender date changed"), html);
+    try { roleEmails(["sales"]).forEach(function (e) { mail(e, APP + " — " + (hot.length ? hot.length + " new tender" + (hot.length > 1 ? "s" : "") + " for Rivera" : "tender date changed"), html); }); } catch (e) { log("automation", "sales-mail-error", String(e)); }
     hot.forEach(function (a) { sent[a.bid] = Date.now(); });
     var keys = Object.keys(sent).sort(function (x, y) { return sent[y] - sent[x]; }).slice(0, 800), keep = {}; keys.forEach(function (k) { keep[k] = sent[k]; });
     P.setProperty("ALERTED", JSON.stringify(keep));
@@ -334,7 +335,7 @@ function tdbUpsert(rows, source) {
   if (!rows.length) return { added: 0, updated: 0 };
   var lock = LockService.getScriptLock(); lock.waitLock(25000);
   try {
-    var sh = tdbSheet(), all = readTable(sh, TDH), by = {}, now = new Date().toISOString(), today = todayIST(), added = 0, updated = 0; var KW = kwList();
+    var sh = tdbSheet(), all = readTable(sh, TDH), by = {}, now = new Date().toISOString(), today = todayIST(), added = 0, updated = 0, newRows = []; var KW = kwList();
     all.forEach(function (r) { by[r.key] = r; });
     rows.forEach(function (a) {
       var k = tkey(a.bid), r = by[k];
@@ -342,7 +343,7 @@ function tdbUpsert(rows, source) {
         value: Number(a.value) || "", emd: Number(a.emd) || "", published: clean(a.published, 10), closing: clean(a.closing, 10), preBid: clean(a.preBid, 10), fit: Number(a.fit) || fitOf((a.item || "") + " " + (a.org || ""), KW), link: clean(a.link, 400), subject: clean(a.subject, 200), status: a.status || "" };
       if (!r) {
         r = { key: k, source: source, firstSeen: now, lastSeen: now, corr: 0 }; TDH.forEach(function (f) { if (r[f] === undefined) r[f] = inc[f] === undefined ? "" : inc[f]; });
-        r.status = tstatus(r, today); by[k] = r; all.push(r); added++; return;
+        r.status = tstatus(r, today); by[k] = r; all.push(r); added++; newRows.push(r); return;
       }
       ["portal", "org", "item", "state", "city", "value", "emd", "published", "preBid", "link", "subject"].forEach(function (f) { if (inc[f] && (!r[f] || (f === "item" && String(inc[f]).length > String(r[f]).length + 20))) r[f] = inc[f]; });
       if (inc.closing && inc.closing !== r.closing && (!r.closing || inc.closing > r.closing)) { if (r.closing) r.corr = Number(r.corr || 0) + 1; r.closing = inc.closing; }
@@ -353,7 +354,7 @@ function tdbUpsert(rows, source) {
     });
     all.forEach(function (r) { r.status = tstatus(r, today); });
     writeTable(sh, TDH, all);
-    return { added: added, updated: updated, total: all.length };
+    return { added: added, updated: updated, total: all.length, newRows: newRows };
   } finally { lock.releaseLock(); }
 }
 function trUpsert(rows, by) {
@@ -692,6 +693,15 @@ function loginMailHtml(u, pw) {
     "<p>" + btn(LINKS.site, "Sign in on the website", "#02315B") + btn(LINKS.apk, "Android app", "#F26A10") + btn(LINKS.win, "Windows app", "#555555") + "</p>" +
     '<p style="color:#888;font-size:12px">Website: ' + LINKS.site + "<br>Keep this password private. If you did not expect this mail, tell " + ADMIN + ".</p>";
 }
+function roleEmails(roles) { var v = users().getDataRange().getValues(), out = []; for (var i = 1; i < v.length; i++) { var e = v[i][0], st = v[i][4], ro = v[i][5]; if (st === "approved" && /@/.test(e) && roles.indexOf(ro) >= 0 && e !== digestTo()) out.push(e); } return out; }
+/* new tenders that match Rivera go straight to the sales team's inbox too */
+function mailSalesNew(rows, from) {
+  rows = (rows || []).filter(function (r) { return Number(r.fit) >= 50 && (!r.closing || r.closing >= todayIST()); }); if (!rows.length) return 0;
+  var to = roleEmails(["sales"]); if (!to.length) return 0;
+  var html = "<p>New tenders for Rivera" + (from ? " (" + esc(from) + ")" : "") + ":</p>" + tableHtml("New tenders", ["Bid / tender", "Portal", "Buyer", "Item", "Closing", "Match"], rows.slice(0, 80).map(function (r) { return rowHtml([r.link ? '<a href="' + esc(r.link) + '">' + esc(r.bid) + "</a>" : esc(r.bid), esc(r.portal || ""), esc(r.org || ""), esc(String(r.item || r.items || "").slice(0, 120)), dmyS(r.closing), (r.fit || 0) + "%"]); })) + '<p style="margin-top:16px">' + btn(LINKS.site + "#intel", "Open Tender intelligence", "#02315B") + "</p>";
+  to.forEach(function (e) { mail(e, APP + " — " + rows.length + " new tender" + (rows.length > 1 ? "s" : "") + " for Rivera", html); });
+  return to.length;
+}
 function roleDigests(sec) {
   var v = users().getDataRange().getValues(), sent = [];
   for (var i = 1; i < v.length; i++) {
@@ -974,8 +984,8 @@ function api(d) {
   if (a === "tdbImport") {
     var rows3 = Array.isArray(d.rows) ? d.rows.slice(0, 3000) : [];
     var r3 = d.kind === "results" ? trUpsert(rows3.map(function (x) { x.source = d.source === "gem-pc" ? "GeM bid results" : "Excel import"; return x; }), me.email) : tdbUpsert(rows3, d.source === "gem-pc" ? "GeM portal" : "Excel import" + (d.label ? " (" + String(d.label).slice(0, 30) + ")" : ""));
-    if (d.source === "gem-pc") { var gs3 = { at: new Date().toISOString(), ok: true, n: rows3.length, err: "", via: me.email }; props().setProperty("GEM_STATUS", JSON.stringify(gs3)); }
-    log(me.email, "tdb-import", (d.kind || "tenders") + ": " + rows3.length + " rows, " + r3.added + " new"); return { ok: true, result: r3 };
+    if (d.source === "gem-pc") { try { mailSalesNew(r3.newRows, "GeM portal"); } catch (e) { } delete r3.newRows; var gs3 = { at: new Date().toISOString(), ok: true, n: rows3.length, err: "", via: me.email }; props().setProperty("GEM_STATUS", JSON.stringify(gs3)); }
+    delete r3.newRows; log(me.email, "tdb-import", (d.kind || "tenders") + ": " + rows3.length + " rows, " + r3.added + " new"); return { ok: true, result: r3 };
   }
   if (a === "tdbResultSave") { var rr3 = (Array.isArray(d.rows) ? d.rows : [d.row]).filter(Boolean).slice(0, 60).map(function (x) { x.source = x.source || "Manual"; return x; }); var o3 = trUpsert(rr3, me.email); log(me.email, "tdb-result", rr3.length + " rows for " + (rr3[0] && rr3[0].bid)); return { ok: true, result: o3 }; }
   if (a === "tdbResultDel") {
