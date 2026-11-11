@@ -5744,6 +5744,16 @@ async function purgeQic17() {
 }
 
 /* ---------- Synology: every tender / company document in the connected folder is indexed and stored ---------- */
+const typeLabel27 = t => d26short(DOC_TYPES[t] || t || "Other");
+const d26short = x => String(x).split(/ [–—(] |\s*\(/)[0].replace(/[^A-Za-z0-9& -]+/g, "-").replace(/-+/g, "-").replace(/^-|-$/g, "").trim().slice(0, 40) || "Other";
+/* standard Rivera file name: RCM_<document type>_<customer / ref>_<date>.<ext> */
+function stdName27(d) {
+  const ext = ((d.path || "").match(/\.[a-z0-9]{2,5}$/i)?.[0] || ".pdf").toLowerCase();
+  const part = x => String(x || "").replace(/\b(m\/s|pvt|private|ltd|limited)\b\.?/gi, "").replace(/[^A-Za-z0-9&]+/g, " ").trim().replace(/\s+/g, "-").slice(0, 40);
+  const base = String(docFile(d)).replace(/\.[a-z0-9]{2,5}$/i, "");
+  const who = part(d.customer || d.ref) || (/swarnagiri/i.test(d.path || "") ? "Swarnagiri" : part(base).slice(0, 30));
+  return ["RCM", part(typeLabel27(d.type)).toUpperCase(), who, /^\d{4}-\d{2}-\d{2}$/.test(d.date || "") ? d.date : ""].filter(Boolean).join("_") + ext;
+}
 const NASDOC = { busy: false, at: LS.get("nasDocAt", 0), last: LS.get("nasDoc", null) };
 async function scanSynologyDocs(opts = {}) {
   if (NASDOC.busy || !STATE.dir) return null;
@@ -5751,7 +5761,7 @@ async function scanSynologyDocs(opts = {}) {
   const walk = async (dir, rel, depth) => {
     if (depth > 9 || files.length > 40000) return;
     for await (const [name, h] of dir.entries()) {
-      if (name.startsWith(".") || name.startsWith("#") || /^@|^RCR\b|^RCR[ _-]|^TRANSFER$/i.test(name)) continue;
+      if (name.startsWith(".") || name.startsWith("#") || /^@|^RCR\b|^RCR[ _-]|^TRANSFER$|^_RIVERA DOCUMENTS$/i.test(name)) continue;
       const p = rel + "/" + name;
       if (h.kind === "directory") await walk(h, p, depth + 1);
       else if (/\.(pdf|docx?|xlsx?)$/i.test(name)) { try { const f = await h.getFile(); files.push({ path: "/SYNOLOGY/" + root + p, size: f.size, date: new Date(f.lastModified).toISOString().slice(0, 10) }); handles.set("/SYNOLOGY/" + root + p, h); } catch { } }
@@ -5766,12 +5776,35 @@ async function scanSynologyDocs(opts = {}) {
       await DSTORE.load(true);
       const queue = found.filter(d => KEEP_TYPES.includes(d.type) && /\.(pdf|docx?)$/i.test(d.path) && !DSTORE.has(d.id) && (d.size || 0) < 9e6).slice(0, opts.max || 40);
       for (const d of queue) {
-        try { const f = await handles.get(d.path).getFile(); await DSTORE.put(d.id, new File([f], docFile(d), { type: f.type || (/\.pdf$/i.test(d.path) ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document") }), { kind: "doc", type: d.type, path: d.path, title: d.title || docTitle(d), customer: d.customer, ref: d.ref, date: d.date, status: d.status, from: "synology" }); stored++; }
+        try { const f = await handles.get(d.path).getFile(); await DSTORE.put(d.id, new File([f], stdName27(d), { type: f.type || (/\.pdf$/i.test(d.path) ? "application/pdf" : "application/vnd.openxmlformats-officedocument.wordprocessingml.document") }), { kind: "doc", type: d.type, path: d.path, title: d.title || docTitle(d), customer: d.customer, ref: d.ref, date: d.date, status: d.status, from: "synology" }); stored++; }
         catch (e) { ERRLOG.add("Store " + docFile(d) + ": " + e.message, "synology"); }
       }
     }
-    NASDOC.last = { at: Date.now(), files: files.length, docs: found.length, added, stored }; NASDOC.at = Date.now(); LS.set("nasDoc", NASDOC.last); LS.set("nasDocAt", NASDOC.at);
-    if (added || stored) toast(`Synology: ${added} new document${added === 1 ? "" : "s"} indexed, ${stored} stored permanently`);
+    /* tidy copy with a standard name in <Synology>/_RIVERA DOCUMENTS/<document type>/ — the original files are never moved or renamed */
+    let filed = 0;
+    if (opts.file !== false) {
+      try {
+        const top = await STATE.dir.getDirectoryHandle("_RIVERA DOCUMENTS", { create: true }), dirs = {};
+        const todo = found.filter(d => d.type && d.type !== "other" && !qicDoc17(d) && handles.has(d.path) && (d.size || 0) < 50e6);
+        for (const d of todo) {
+          if (filed >= (opts.fileMax || 300)) break;
+          try {
+            const label = typeLabel27(d.type);
+            const dir = dirs[label] ||= await top.getDirectoryHandle(label, { create: true }), f = await handles.get(d.path).getFile();
+            let name = stdName27(d), n = 1;
+            while (true) {
+              let ex = null; try { ex = await (await dir.getFileHandle(name)).getFile(); } catch { }
+              if (!ex) break; if (ex.size === f.size) { name = ""; break; }
+              n++; name = stdName27(d).replace(/(\.[a-z0-9]+)$/i, ` (${n})$1`);
+            }
+            if (!name) continue;
+            const w = await (await dir.getFileHandle(name, { create: true })).createWritable(); await w.write(f); await w.close(); filed++;
+          } catch (e) { ERRLOG.add("File " + docFile(d) + ": " + e.message, "synology"); }
+        }
+      } catch (e) { ERRLOG.add("Synology tidy folder: " + e.message, "synology"); }
+    }
+    NASDOC.last = { at: Date.now(), files: files.length, docs: found.length, added, stored, filed }; NASDOC.at = Date.now(); LS.set("nasDoc", NASDOC.last); LS.set("nasDocAt", NASDOC.at);
+    if (added || stored || filed) toast(`Synology: ${added} new document${added === 1 ? "" : "s"} indexed, ${stored} stored permanently, ${filed} renamed into _RIVERA DOCUMENTS`);
   } catch (e) { ERRLOG.add("Synology document scan: " + e.message, "synology"); }
   NASDOC.busy = false; if (["library", "biddesk"].includes(STATE.route)) render();
   return NASDOC.last;
@@ -5784,14 +5817,14 @@ VIEWS.library = v => {
   top.insertAdjacentHTML("afterend", `<section class="panel" style="margin-bottom:16px"><header><h2>Document sources</h2></header><div class="body stack" style="gap:8px">
     <div class="note ok small"><b>Copper supplier: Swarnagiri Wire Insulations Pvt Ltd.</b> ${sw} Swarnagiri certificate${sw === 1 ? "" : "s"} in the library. Quality Insulated Conductors papers are blocked and never go into a bid.</div>
     <div class="row" style="gap:8px;flex-wrap:wrap"><span class="small">Dropbox: Windows app scans SALES, COMPANY DOCUMENTS, OPERATIONS and PURCHASE certificate folders and stores originals automatically.</span></div>
-    <div class="row" style="gap:8px;flex-wrap:wrap"><span class="small">Synology: ${STATE.dir ? `connected (${esc(STATE.dir.name || "")})` : "not connected — connect it in Synology & Files"} · ${L ? `last scan ${new Date(L.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}: ${L.files} files, ${L.docs} documents, ${L.added} new, ${L.stored} stored` : "not scanned yet"}</span>
-    ${STATE.dir ? `<button class="btn sm primary" id="nas17">${NASDOC.busy ? "Scanning…" : "Scan Synology & store documents"}</button>` : ""}</div></div></section>`);
-  $("#nas17")?.addEventListener("click", async () => { const b = $("#nas17"); b.disabled = true; b.textContent = "Scanning Synology…"; const r = await scanSynologyDocs({ max: 80 }); toast(r ? `Synology: ${r.docs} documents found · ${r.added} new · ${r.stored} stored` : "Synology scan could not run", r ? "" : "bad"); });
+    <div class="row" style="gap:8px;flex-wrap:wrap"><span class="small">Synology: ${STATE.dir ? `connected (${esc(STATE.dir.name || "")})` : "not connected — connect it in Synology & Files"} · ${L ? `last scan ${new Date(L.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}: ${L.files} files, ${L.docs} documents, ${L.added} new, ${L.stored} stored, ${L.filed || 0} renamed into <b>_RIVERA DOCUMENTS</b>` : "not scanned yet"} · runs by itself every 6 hours</span>
+    ${STATE.dir ? `<button class="btn sm primary" id="nas17">${NASDOC.busy ? "Scanning…" : "Scan, rename & store now"}</button>` : ""}</div></div></section>`);
+  $("#nas17")?.addEventListener("click", async () => { const b = $("#nas17"); b.disabled = true; b.textContent = "Scanning Synology…"; const r = await scanSynologyDocs({ max: 80 }); toast(r ? `Synology: ${r.docs} documents found · ${r.added} new · ${r.stored} stored · ${r.filed || 0} renamed` : "Synology scan could not run", r ? "" : "bad"); });
 };
 const _boot17 = boot;
 boot = function () {
   _boot17();
-  const w = setInterval(() => { if (!STATE.loaded) return; clearInterval(w); purgeQic17(); setTimeout(() => { if (STATE.dir && AUTH.isAdmin && Date.now() - NASDOC.at > 24 * 36e5) scanSynologyDocs({ max: 30 }); }, 20000); }, 500);
+  const w = setInterval(() => { if (!STATE.loaded) return; clearInterval(w); purgeQic17(); const auto = () => { if (STATE.dir && (AUTH.isAdmin || ["sales", "finance"].includes(AUTH.user?.role)) && Date.now() - NASDOC.at > 6 * 36e5) scanSynologyDocs({ max: 30 }); }; setTimeout(auto, 20000); setInterval(auto, 30 * 6e4); }, 500);
 };
 
 
@@ -6010,7 +6043,7 @@ boot = function () {
 /* ===================== p21: role-based pages, finance requests, Go to portal + upload status, quotation on letterhead, GeM archive & bid results, company lookup ===================== */
 /* ---------- 1. each login sees only its own pages ---------- */
 const ROLE_PAGES = {
-  sales: ["intel", "tenders", "biddesk", "tdb", "workings", "quote", "finreq", "users"],
+  sales: ["home", "intel", "tenders", "biddesk", "tdb", "workings", "quote", "compare", "register", "history", "library", "finreq", "users"],
   finance: ["finreq", "tenders", "library", "users"],
   operation: ["orders", "vendors", "library", "finreq", "users"],
   viewer: ["intel", "tdb", "users"]
