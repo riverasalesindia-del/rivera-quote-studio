@@ -6198,6 +6198,27 @@ tdbComp = function (B, S) { _comp21(B, S); $$("[data-cb]", B).forEach(r => r.onc
 /* ===================== p22: three logins only — admin (crm@), sales, finance ===================== */
 { const i = TEAM16.findIndex(m => m.role === "operation"); if (i >= 0) TEAM16.splice(i, 1); }
 
+
+/* ===================== p23: a clear Log out button for every login (side rail + phone header) ===================== */
+function logout23() {
+  const signedIn = AUTH.api && AUTH.valid?.() && AUTH.user;
+  const rail = $("#gs17b"), mob = $("#gs17m");
+  if (!signedIn) { $("#lo23")?.remove(); $("#lo23m")?.remove(); return; }
+  if (rail && !$("#lo23")) rail.insertAdjacentHTML("afterend", `<button type="button" id="lo23" class="lo23" title="Log out of ${esc(AUTH.user.email || "")}">${icon("lock")}<span>Log out</span><small>${esc(String(AUTH.user.name || AUTH.user.email || "").split(/[ @]/)[0])} · ${esc(AUTH.user.role || "")}</small></button>`);
+  if (mob && !$("#lo23m")) mob.insertAdjacentHTML("afterend", `<button type="button" id="lo23m" class="gs17-mbtn" aria-label="Log out">${icon("lock")}</button>`);
+  const go = () => { const b = $("#ucOut") || $("#acOut"); if (b) b.click(); else { AUTH.s = null; location.reload(); } };
+  $("#lo23") && ($("#lo23").onclick = go); $("#lo23m") && ($("#lo23m").onclick = go);
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.lo23{display:flex;align-items:center;gap:8px;width:calc(100% - 24px);margin:0 12px 12px;padding:8px 10px;border-radius:8px;border:1px solid rgba(255,255,255,.18);background:transparent;color:rgba(255,255,255,.85);font:inherit;font-size:.86rem;cursor:pointer;min-height:40px}
+.lo23:hover,.lo23:focus-visible{background:rgba(242,106,16,.18);border-color:rgba(242,106,16,.6);outline:none}
+.lo23 svg{width:16px;height:16px;flex:none}
+.lo23 span{flex:1;text-align:left}
+.lo23 small{opacity:.6;font-size:.72rem;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:90px}
+</style>`);
+const _render23 = render;
+render = function () { _render23(); try { logout23(); } catch (e) { } };
+
 boot();
 
 </script>
