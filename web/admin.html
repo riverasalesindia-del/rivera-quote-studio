@@ -8157,12 +8157,94 @@ if (typeof ROLE_PAGES !== "undefined") {
 {
   const _vp33 = VIEWS.purchase;
   VIEWS.purchase = v => {
-    const rule = CARD33[myRole21?.() || ""]?.purchase;
+    const rule = tabsAllowed34("purchase");
     if (rule && !rule.includes(BIZ.ui.pur)) BIZ.ui.pur = rule[0];
     _vp33(v);
     if (rule) $$("[data-pt]", v).forEach(b => { if (!rule.includes(b.dataset.pt)) b.remove(); });
   };
 }
+
+/* ===================== p34: GrowSmart-style user management — any number of logins, each with its own modules / pages / tabs and Full or View-only access ===================== */
+const TABS34 = { purchase: ["pur", "pt"], accounts: ["acc", "act"], service: ["svc", "svt"], hr: ["hr", "hrt"], crm: ["crm", "crmt"], jobs: ["jobs", "jt"] };
+const ALWAYS34 = ["apps", "module", "users"];
+const tok34 = c => { const v = Object.values(c[2] || {})[0]; return v ? `${c[1]}.${v}` : c[1]; };
+function myTokens34() { const p = AUTH.user?.pages; return Array.isArray(p) && p.length && AUTH.user.role !== "admin" ? p : null; }
+/* the role's default as tokens (used to pre-tick the matrix) */
+function roleTokens34(role) {
+  if (role === "admin") return MODS32.flatMap(m => Object.values(m.groups).flat().map(tok34));
+  const pages = (typeof ROLE_PAGES !== "undefined" && ROLE_PAGES[role]) || [], rule = CARD33[role] || {};
+  return [...new Set(MODS32.flatMap(m => Object.values(m.groups).flat()).filter(c => pages.includes(c[1])).map(c => { const r = rule[c[1]]; return r ? (Object.values(c[2] || {})[0] && r.includes(Object.values(c[2])[0]) ? tok34(c) : r.map(v => `${c[1]}.${v}`)) : c[1]; }).flat())];
+}
+{
+  const _al = allowed21;
+  allowed21 = function (route) { const T = myTokens34(); if (!T) return _al(route); return ALWAYS34.includes(route) || T.some(t => t === route || t.startsWith(route + ".")); };
+  const _co = cardOk32;
+  cardOk32 = function (c) { const T = myTokens34(); if (!T) return _co(c); return T.includes(c[1]) || T.includes(tok34(c)); };
+}
+function tabsAllowed34(route) {
+  const T = myTokens34();
+  if (!T) { const r = CARD33[myRole21?.() || ""]?.[route]; return r || null; }
+  if (T.includes(route)) return null;
+  const L = T.filter(t => t.startsWith(route + ".")).map(t => t.split(".")[1]); return L.length ? L : null;
+}
+Object.entries(TABS34).forEach(([route, [key, attr]]) => {
+  const _v = VIEWS[route]; if (!_v) return;
+  VIEWS[route] = v => {
+    const ok = tabsAllowed34(route);
+    if (ok && !ok.includes(BIZ.ui[key] || "")) BIZ.ui[key] = ok[0];
+    _v(v);
+    if (ok) $$(`[data-${attr}]`, v).forEach(b => { if (!ok.includes(b.dataset[attr])) b.remove(); });
+  };
+});
+{ const _n = nav32; nav32 = function () { const nav = $("#nav"), k = JSON.stringify(AUTH.user?.pages || []) + (AUTH.user?.access || ""); if (nav && nav.dataset.p34 !== k) { nav.dataset.p34 = k; nav.dataset.sig32 = ""; } return _n(); }; }
+/* view-only logins: a clear banner; the server refuses changes */
+{
+  const _r = render;
+  render = function () { _r(); try { const ro = AUTH.user?.access === "view" && AUTH.user?.role !== "admin"; document.body.classList.toggle("ro34", ro); if (ro && !$("#ro34b")) $("#view")?.insertAdjacentHTML("afterbegin", '<div id="ro34b" class="note warn small" style="margin-bottom:12px"><b>View-only login</b> — you can see and download everything here, but changes are turned off. Ask the admin if you need to edit.</div>'); } catch { } };
+}
+
+/* ---- permissions editor (Users & access) ---- */
+const ROLE_TPL34 = [["sales", "Sales"], ["finance", "Finance / accounts"], ["operation", "Workshop / stores"], ["viewer", "View only (management)"], ["admin", "Admin — everything"]];
+async function permPanel34(email) {
+  let U; try { U = (await AUTH.call("users")).users.find(x => x.email === email); } catch (e) { return toast(e.message, "bad"); }
+  if (!U) return toast("User not found", "bad");
+  const cur = new Set(U.pages?.length ? U.pages : roleTokens34(U.role)), custom = !!U.pages?.length;
+  const D = panel28({
+    title: `Permissions — ${U.name}`, chips: `<span class="chip">${esc(U.email)}</span><span class="chip ${custom ? "warn" : ""}">${custom ? "custom pages" : "role default: " + esc(U.role)}</span>`,
+    body: `<div class="fields"><label class="f">Role<select id="pm34r">${ROLE_TPL34.map(([k, l]) => `<option value="${k}" ${U.role === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><label class="f">Access<select id="pm34a"><option value="full" ${U.access !== "view" ? "selected" : ""}>Full — can add and change</option><option value="view" ${U.access === "view" ? "selected" : ""}>View only — can only look</option></select></label></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin:10px 0"><span class="small muted">Start from:</span>${ROLE_TPL34.map(([k, l]) => `<button type="button" class="btn sm" data-tpl="${k}">${l.split(" ")[0]}</button>`).join("")}<button type="button" class="btn sm ghost" data-tpl="none">Clear all</button></div>
+      ${MODS32.map(m => `<section class="pm34"><header><label><input type="checkbox" data-mall="${m.id}"> <b>${esc(m.name)}</b></label></header>${Object.entries(m.groups).filter(([, L]) => L.length).map(([g, L]) => `<div class="pm34-g"><span>${g}</span>${L.map(c => `<label class="pm34-c"><input type="checkbox" data-tok="${tok34(c)}" data-m="${m.id}" ${cur.has(tok34(c)) || cur.has(c[1]) ? "checked" : ""}> ${esc(c[0])}</label>`).join("")}</div>`).join("")}</section>`).join("")}
+      <p class="small muted">Ticked cards show for this person in All modules, the sidebar and search; everything else is hidden, and the server refuses records from modules they don't have. Use "Role default" to go back to the standard pages for the role.</p>`,
+    foot: `<button class="btn ghost" id="pm34d" type="button">Role default</button><span style="flex:1"></span><button class="btn" type="button" onclick="closeDrawer26()">Cancel</button><button class="btn primary" id="pm34s" type="button">Save permissions</button>`
+  });
+  const sync = () => $$("[data-mall]", D).forEach(a => { const L = $$(`[data-m="${a.dataset.mall}"]`, D); a.checked = L.length && L.every(x => x.checked); a.indeterminate = !a.checked && L.some(x => x.checked); });
+  sync(); $$("[data-tok]", D).forEach(c => c.onchange = sync);
+  $$("[data-mall]", D).forEach(a => a.onchange = () => { $$(`[data-m="${a.dataset.mall}"]`, D).forEach(x => { x.checked = a.checked; }); sync(); });
+  $$("[data-tpl]", D).forEach(b => b.onclick = () => { const T = new Set(b.dataset.tpl === "none" ? [] : roleTokens34(b.dataset.tpl)); $$("[data-tok]", D).forEach(x => { x.checked = T.has(x.dataset.tok) || T.has(x.dataset.tok.split(".")[0]); }); if (b.dataset.tpl !== "none") $("#pm34r").value = b.dataset.tpl; sync(); });
+  $("#pm34s").onclick = async e => { const pages = [...new Set($$("[data-tok]:checked", D).map(x => x.dataset.tok))]; if (!pages.length && $("#pm34r").value !== "admin") return toast("Tick at least one page", "bad"); e.target.disabled = true; try { await AUTH.call("setUser", { email, role: $("#pm34r").value, access: $("#pm34a").value, pages: $("#pm34r").value === "admin" ? [] : pages }); toast("Permissions saved — they apply the next time " + U.name + " opens the app"); closeDrawer26(); render(); } catch (er) { toast(er.message, "bad"); e.target.disabled = false; } };
+  $("#pm34d").onclick = async e => { e.target.disabled = true; try { await AUTH.call("setUser", { email, role: $("#pm34r").value, access: $("#pm34a").value, pages: [] }); toast("Back to the role's default pages"); closeDrawer26(); render(); } catch (er) { toast(er.message, "bad"); e.target.disabled = false; } };
+}
+/* add a Permissions button on every login row and the extra roles in the role pickers */
+function users34(v) {
+  if (STATE.route !== "users" || !AUTH.isAdmin) return;
+  const tbl = $("#uTbl", v) || $("#uTbl"); if (!tbl || tbl.dataset.p34 === tbl.innerHTML.length + "") return;
+  $$("[data-rp]", tbl).forEach(b => { if (b.parentElement.querySelector("[data-perm]")) return; b.insertAdjacentHTML("beforebegin", `<button class="btn sm primary" data-perm="${esc(b.dataset.rp)}" type="button">${icon("lock")}Permissions</button>`); });
+  $$("[data-perm]", tbl).forEach(b => b.onclick = () => permPanel34(b.dataset.perm));
+  const sels = $$("select[data-role]", tbl); sels.forEach(s => { ROLE_TPL34.forEach(([k]) => { if (![...s.options].some(o => o.value === k)) s.add(new Option(k, k, false, false)); }); });
+  if (sels.length) AUTH.call("users").then(d => sels.forEach(s => { const u = d.users.find(x => x.email === s.dataset.role); if (u) { s.value = u.role; const td = s.closest("td"); if (td && u.pages?.length && !td.querySelector(".pm34-t")) td.insertAdjacentHTML("beforeend", `<div class="pm34-t small muted">${u.pages.length} pages${u.access === "view" ? " · view only" : ""}</div>`); } })).catch(() => { });
+  const nr = $("#nuR"); if (nr) ROLE_TPL34.forEach(([k, l]) => { if (![...nr.options].some(o => o.value === k)) nr.add(new Option(l, k)); });
+  tbl.dataset.p34 = tbl.innerHTML.length + "";
+}
+{
+  const _r = render;
+  render = function () { _r(); try { users34($("#view")); } catch (e) { console.warn("p34", e); } };
+  new MutationObserver(() => { if (STATE.route === "users") users34($("#view")); }).observe(document.body, { childList: true, subtree: true });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.pm34{border:1px solid var(--line);border-radius:12px;padding:10px 12px;margin-top:10px}.pm34 header label{display:flex;gap:8px;align-items:center;cursor:pointer}
+.pm34-g{display:flex;flex-wrap:wrap;gap:6px 14px;align-items:center;margin-top:8px}.pm34-g>span{width:100%;font-size:.7rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.pm34-c{display:inline-flex;gap:6px;align-items:center;font-size:.86rem;cursor:pointer}.pm34 input{width:17px;height:17px;accent-color:var(--copper)}
+</style>`);
 
 boot();
 
