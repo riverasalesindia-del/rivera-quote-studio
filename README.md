@@ -45,6 +45,8 @@ Company costing data (rate card, past jobs, bank details) is **not** in this rep
 - **HR & payroll** (admin + finance only) – employees with salary structure, attendance grid, leave requests with approval, payroll with PF / ESI / PT / TDS / advance, payslips, bank transfer and PF/ESI lists.
 - **Team comments with @mentions** on every record (mail to the person), **Activity** feed and a **Business dashboard** with sales vs collections, pipeline, ageing, top customers and workshop.
 - **Smart Scan** is now on the Sales login too.
+- **Sales (order to cash)** – History ▸ Records shows Won / Lost / Open automatically and a **Sales order** button on every quotation (and awarded tender). The order compares with the quote, checks overdue invoices, credit limit and free stock, and sends exceptions to admin for approval; then delivery planner, delivery challan (stock goes out), invoice, receivables, collection status by salesperson and email / WhatsApp reminders. Everything is linked: quotation, lead, order, delivery, invoice, purchase order and project. The old Purchase & stock page is now **Sales** (Sales orders · Deliveries · Purchase orders · Stock · Movements).
+- **Earlier prices** on the Quotation page (this customer and similar items) and a **Team tracker** map of sales visits and service check-ins.
 - **Work orders**, **Tenders & GeM** (checklist + annexure kit II–X), **Vendors, price book & RFQ**
 - **Export & share** – any format, WhatsApp, email, or any app on the phone
 - **Synology** – connect the SALES folder once; jobs, registers and tender kits are filed automatically
