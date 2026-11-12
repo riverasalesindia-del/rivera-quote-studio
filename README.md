@@ -35,6 +35,10 @@ Company costing data (rate card, past jobs, bank details) is **not** in this rep
 - **Synology tidy copy** – every 6 hours the app scans the connected Synology folder, stores the documents and puts a copy of each one with a standard name (RCM_<TYPE>_<party>_<date>) in `_RIVERA DOCUMENTS/<document type>/`. Original files are never moved or renamed.
 - **Sales sees history** – Sales also gets the Dashboard, Register, History & reports, Compare and Company documents.
 - **Company only** – every page needs a Rivera login approved by the admin; search engines are told not to list the site.
+- **Leads & follow-ups (CRM)** – every enquiry (phone, email, IndiaMART, WhatsApp, visit, tender) on a drag-and-drop board: owner, value, next follow-up, call / WhatsApp / email in one tap, call-and-visit history, "Start quote workings", follow-up list (late / today / this week) and reports by source, salesperson and lost reason.
+- **Repair jobs** – every motor, generator or transformer from inward DC to dispatch on a stage board: job number RJ/yy-yy/nnn, rating, serial, promised date with late alerts, printable job card, estimate, material issued from stock and turnaround reports.
+- **Purchase & stock** – purchase orders (RCM/PO/yy-yy/nnn) with admin approval, print / email / WhatsApp to supplier, last purchase rate, GRN into stock, copper / insulation stock with minimum-level reorder alerts, issue to jobs, stock value and movement history.
+- **My work** – follow-ups, tasks, late jobs, stock to reorder and POs to approve in one page with a 14-day calendar; tasks given to someone are mailed to them; one morning mail per person with what is due.
 - **Work orders**, **Tenders & GeM** (checklist + annexure kit II–X), **Vendors, price book & RFQ**
 - **Export & share** – any format, WhatsApp, email, or any app on the phone
 - **Synology** – connect the SALES folder once; jobs, registers and tender kits are filed automatically

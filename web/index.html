@@ -6586,6 +6586,405 @@ render = function () { _render26(); try { appbar26(); rows26(); } catch (e) { co
   boot = async function (...a) { const r = await _boot26(...a); try { appbar26(); setTimeout(() => newTenders26(true), 1500); setInterval(() => newTenders26(), 10 * 6e4); } catch (e) { } return r; };
 }
 
+/* ===================== p28: business (GrowSmart-style) — Leads & follow-ups (CRM), Repair jobs (workshop), Purchase & stock, My work (tasks + today) ===================== */
+IC.funnel28 = '<path d="M3 4h18l-7 8.5V19l-4 2v-8.5z"/>';
+IC.wrench28 = '<path d="M14.7 6.3a4 4 0 0 0 5 5L21 13l-8 8-3-3 6.6-6.6a4 4 0 0 1-5-5L13 5z" transform="translate(-1 -1)"/><path d="M4 20l5-5"/>';
+IC.box28 = '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>';
+IC.check28 = '<rect x="3" y="3" width="18" height="18" rx="3"/><path d="m8 12 3 3 5-6"/>';
+IC.phone28 = '<path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.4c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/>';
+IC.print28 = '<path d="M6 9V2h12v7M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/>';
+
+const TEAM28 = [["crm@rivera.co.in", "Admin (CRM)"], ["sales@rivera.co.in", "Sales"], ["finance@rivera.co.in", "Finance"]];
+const who28 = e => (TEAM28.find(t => t[0] === e) || [e, String(e || "").split("@")[0] || "—"])[1];
+const inr28 = n => "₹" + Math.round(Number(n) || 0).toLocaleString("en-IN");
+const me28 = () => AUTH.user?.email || "";
+const isAdmin28 = () => AUTH.isAdmin || AUTH.user?.role === "admin";
+const daysTo28 = d => d ? Math.round((new Date(d) - new Date(todayISO())) / 864e5) : null;
+function dueChip28(d, done) { if (!d) return '<span class="chip">no date</span>'; if (done) return `<span class="chip">${dmy(d)}</span>`; const n = daysTo28(d); return `<span class="chip ${n < 0 ? "bad" : n === 0 ? "warn" : ""}">${n < 0 ? Math.abs(n) + "d late · " : n === 0 ? "today · " : n === 1 ? "tomorrow · " : ""}${dmy(d)}</span>`; }
+
+const LEAD_ST = [["new", "New enquiry"], ["contacted", "Contacted"], ["visit", "Site visit / meeting"], ["quoted", "Quoted"], ["nego", "Negotiation"], ["won", "Won"], ["lost", "Lost"]];
+const LEAD_SRC = ["Phone call", "Email", "IndiaMART", "Website", "WhatsApp", "Tender", "Reference", "Existing customer", "Walk-in", "Exhibition", "Other"];
+const LOST_WHY = ["Price high", "Delivery time", "Went to competitor", "Budget dropped", "No reply", "Technical", "Other"];
+const JOB_ST = [["received", "Received"], ["inspection", "Inspection"], ["estimate", "Estimate sent"], ["approved", "PO / approved"], ["work", "In work"], ["testing", "Testing"], ["ready", "Ready"], ["dispatched", "Dispatched"], ["invoiced", "Invoiced"]];
+const JOB_EQ = ["HT motor", "LT motor", "DC motor", "Generator / alternator", "Traction motor", "Transformer", "Slip-ring motor", "Exciter", "Other"];
+const JOB_WORK = ["Full rewinding", "Stator rewinding", "Rotor rewinding", "Armature rewinding", "Field coils", "Overhaul & bearing", "Testing & report", "Re-varnishing", "Other"];
+const PO_ST = [["draft", "Draft", ""], ["pending", "Waiting approval", "warn"], ["approved", "Approved", "ok"], ["sent", "Sent to supplier", "navy"], ["part", "Part received", "warn"], ["received", "Received", "ok"], ["closed", "Closed", ""], ["cancelled", "Cancelled", "bad"]];
+const ITEM_CAT = ["Copper", "Insulation", "Varnish & resin", "Wedges & sleeves", "Bearings & spares", "Consumables", "Other"];
+const UNITS = ["kg", "m", "nos", "ltr", "roll", "sheet", "set"];
+const TASK_PRI = [["high", "High"], ["normal", "Normal"], ["low", "Low"]];
+
+/* ---- shared store: one sheet on the team server, synced in the background, kept on the device for instant pages ---- */
+const BIZ = { rows: {}, at: "", t: 0, busy: false, loaded: false, err: "", ui: { crm: "board", jobs: "board", pur: "po", tasks: "mine", q: "" } };
+const bizKey28 = () => "rqs.biz28." + me28();
+try { const j = JSON.parse(localStorage.getItem(bizKey28()) || "null"); if (j) { BIZ.rows = j.rows || {}; BIZ.at = j.at || ""; BIZ.loaded = true; } } catch { }
+function bizSave28() { try { localStorage.setItem(bizKey28(), JSON.stringify({ rows: BIZ.rows, at: BIZ.at })); } catch { } }
+const BIZ_ROUTES = ["crm", "jobs", "purchase", "tasks"];
+async function bizSync28(force) {
+  if (!AUTH.api || !signed26() || BIZ.busy || (!force && Date.now() - BIZ.t < 45000)) return;
+  if (!BIZ.loaded) { try { const j = JSON.parse(localStorage.getItem(bizKey28()) || "null"); if (j) { BIZ.rows = j.rows || {}; BIZ.at = j.at || ""; BIZ.loaded = true; } } catch { } }
+  BIZ.busy = true;
+  try {
+    const d = await AUTH.call("recList", BIZ.at ? { since: BIZ.at } : {}, 45000);
+    (d.rows || []).forEach(r => { if (r._del) delete BIZ.rows[r.id]; else BIZ.rows[r.id] = r; });
+    BIZ.at = d.at; BIZ.loaded = true; BIZ.err = ""; bizSave28();
+  } catch (e) { BIZ.err = e.message; }
+  BIZ.busy = false; BIZ.t = Date.now();
+  if (BIZ_ROUTES.includes(STATE.route) && !$(".dr26-ov")) render(); else work28();
+}
+async function bizPut28(recs) { const d = await AUTH.call("recPut", { recs: [].concat(recs) }, 45000); d.recs.forEach(r => { BIZ.rows[r.id] = r; }); bizSave28(); return d.recs; }
+async function bizDel28(id) { await AUTH.call("recDel", { id }); delete BIZ.rows[id]; bizSave28(); }
+const all28 = k => Object.values(BIZ.rows).filter(r => r.kind === k);
+const stockOf28 = id => all28("move").filter(m => m.item === id).reduce((a, m) => a + (Number(m.qty) || 0), 0);
+const lastRate28 = id => { const L = all28("move").filter(m => m.item === id && Number(m.rate) > 0).sort((a, b) => String(b.date || b.at).localeCompare(String(a.date || a.at))); return L[0] ? Number(L[0].rate) : Number(BIZ.rows[id]?.rate) || 0; };
+
+/* ---- pages, roles, nav ---- */
+{
+  const at = (after, row) => { if (ROUTES.some(r => r[0] === row[0])) return; const i = ROUTES.findIndex(r => r[0] === after); ROUTES.splice(i >= 0 ? i + 1 : ROUTES.length, 0, row); };
+  at("home", ["tasks", "My work", "check28"]);
+  at("register", ["crm", "Leads & follow-ups", "funnel28"]);
+  at("crm", ["jobs", "Repair jobs", "wrench28"]);
+  at("jobs", ["purchase", "Purchase & stock", "box28"]);
+  if (typeof ROLE_PAGES !== "undefined") {
+    const add = (role, L) => { if (ROLE_PAGES[role]) L.forEach(x => { if (!ROLE_PAGES[role].includes(x)) ROLE_PAGES[role].push(x); }); };
+    add("sales", ["tasks", "crm", "jobs", "purchase"]); add("finance", ["tasks", "jobs", "purchase"]); add("operation", ["tasks", "jobs", "purchase"]);
+  }
+}
+
+/* ---- generic side panel form ---- */
+function field28(f, rec) {
+  const [k, label, type, opts, span] = f, v = rec[k] ?? "", id = "f28_" + k, st = span ? ' style="grid-column:1/-1"' : "";
+  if (type === "select") return `<label class="f"${st}>${label}<select id="${id}" data-k="${k}">${opts.map(o => { const [ov, ol] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(ov)}" ${String(v) === String(ov) ? "selected" : ""}>${esc(ol)}</option>`; }).join("")}</select></label>`;
+  if (type === "textarea") return `<label class="f"${st || ' style="grid-column:1/-1"'}>${label}<textarea id="${id}" data-k="${k}" rows="3">${esc(v)}</textarea></label>`;
+  if (type === "list") return `<label class="f"${st}>${label}<input id="${id}" data-k="${k}" list="${id}_l" value="${esc(v)}"><datalist id="${id}_l">${opts.map(o => `<option value="${esc(o)}">`).join("")}</datalist></label>`;
+  return `<label class="f"${st}>${label}<input id="${id}" data-k="${k}" type="${type || "text"}" ${type === "number" ? 'min="0" step="any"' : ""} value="${esc(v)}"></label>`;
+}
+function readForm28(root, rec) { $$("[data-k]", root).forEach(el => { const k = el.dataset.k; rec[k] = el.type === "number" ? (el.value === "" ? "" : Number(el.value)) : el.value.trim(); }); return rec; }
+function panel28({ title, chips = "", body, foot }) {
+  closeDrawer26();
+  document.body.insertAdjacentHTML("beforeend", `<div id="dr26" class="dr26-ov"><aside class="dr26" role="dialog" aria-modal="true" aria-label="${esc(title)}">
+    <header class="dr26-h"><div style="min-width:0"><div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px">${chips}</div><h2 style="margin:0;font-family:var(--f-display);font-size:1.15rem">${esc(title)}</h2></div><button class="dr26-x" id="dr26x" type="button" aria-label="Close">${icon("x26")}</button></header>
+    <div class="dr26-b">${body}</div>${foot ? `<footer class="dr28-f">${foot}</footer>` : ""}</aside></div>`);
+  document.body.classList.add("dr26-open");
+  const D = $("#dr26"); D.onclick = e => { if (e.target === D) closeDrawer26(); }; $("#dr26x").onclick = closeDrawer26;
+  const k = e => { if (e.key === "Escape") { closeDrawer26(); removeEventListener("keydown", k); } }; addEventListener("keydown", k);
+  return D;
+}
+function timeline28(log) { const L = (log || []).slice().reverse(); return L.length ? `<ol class="tl28">${L.map(x => `<li><span class="tl28-d">${esc(new Date(x.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }))} · ${esc(who28(x.by))}</span><b>${esc(x.type || "")}</b> ${esc(x.text || "")}</li>`).join("")}</ol>` : '<p class="small muted">Nothing logged yet.</p>'; }
+const logAdd28 = (rec, type, text) => { rec.log = [...(rec.log || []), { at: new Date().toISOString(), by: me28(), type, text: String(text || "").slice(0, 600) }].slice(-80); };
+async function save28(btn, recs, msg) { const b = btn; if (b) { b.disabled = true; b.dataset.t = b.textContent; b.textContent = "Saving…"; } try { const out = await bizPut28(recs); toast(msg || "Saved"); return out; } catch (e) { toast(e.message, "bad"); if (b) { b.disabled = false; b.textContent = b.dataset.t; } return null; } }
+function printHtml28(title, inner) {
+  const f = document.createElement("iframe"); f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0"; document.body.appendChild(f);
+  f.contentDocument.write(`<!doctype html><html><head><meta charset="utf-8"><title>${esc(title)}</title><style>body{font:13px/1.45 Arial,sans-serif;color:#111;margin:24px}h1{font-size:20px;margin:0 0 4px}table{width:100%;border-collapse:collapse;margin:10px 0}td,th{border:1px solid #999;padding:6px 8px;text-align:left;vertical-align:top}th{background:#eef2f6}.n{text-align:right}.hd{display:flex;justify-content:space-between;border-bottom:3px solid #02315B;padding-bottom:8px;margin-bottom:12px}.big{font-size:28px;font-weight:700;letter-spacing:1px}.sig{margin-top:50px;display:flex;justify-content:space-between}</style></head><body><div class="hd"><div><b style="font-size:16px">RIVERA COIL MANUFACTURING (I) PVT LTD</b><br>Coils · Rewinding · Insulation</div><div style="text-align:right">${esc(title)}<br>${dmy(todayISO())}</div></div>${inner}</body></html>`);
+  f.contentDocument.close(); setTimeout(() => { try { f.contentWindow.focus(); f.contentWindow.print(); } catch (e) { toast("Print is blocked here", "bad"); } setTimeout(() => f.remove(), 60000); }, 300);
+}
+const tabs28 = (cur, list, attr) => `<div class="tabs-row" role="tablist">${list.map(([k, l]) => `<button role="tab" class="tab ${cur === k ? "on" : ""}" aria-selected="${cur === k}" data-${attr}="${k}">${l}</button>`).join("")}</div>`;
+const loadNote28 = () => !AUTH.api || !signed26() ? `<section class="panel"><div class="empty"><b>Sign in first</b>These records are shared by the whole team through the Rivera server.</div></section>` : BIZ.err && !BIZ.loaded ? `<section class="panel"><div class="empty"><b>Couldn't load</b>${esc(BIZ.err)}. If the server was just updated, it needs the new version deployed.</div></section>` : !BIZ.loaded ? `<section class="panel"><div class="empty"><b>Loading…</b></div></section>` : "";
+function board28(cols, items, card, attr) {
+  return `<div class="kb28">${cols.map(([k, l]) => { const L = items.filter(x => (x.stage || cols[0][0]) === k); return `<div class="kb28-c" data-${attr}="${k}"><header><b>${esc(l)}</b><span class="chip">${L.length}</span></header><div class="kb28-l">${L.map(card).join("") || '<div class="kb28-e">—</div>'}</div></div>`; }).join("")}</div>`;
+}
+function dnd28(v, attr, onDrop) {
+  $$("[draggable=true]", v).forEach(c => c.addEventListener("dragstart", e => { e.dataTransfer.setData("text/plain", c.dataset.id); c.classList.add("drag"); }));
+  $$("[draggable=true]", v).forEach(c => c.addEventListener("dragend", () => c.classList.remove("drag")));
+  $$(`.kb28-c[data-${attr}]`, v).forEach(col => {
+    col.addEventListener("dragover", e => { e.preventDefault(); col.classList.add("over"); });
+    col.addEventListener("dragleave", () => col.classList.remove("over"));
+    col.addEventListener("drop", e => { e.preventDefault(); col.classList.remove("over"); const id = e.dataTransfer.getData("text/plain"); if (id) onDrop(id, col.dataset[attr]); });
+  });
+}
+
+/* =============== Leads & follow-ups =============== */
+function leadPanel28(src) {
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "lead", stage: "new", owner: me28(), source: "Phone call", next: todayISO() };
+  const F = [["company", "Customer / company *", "text"], ["contact", "Contact person", "text"], ["phone", "Phone", "tel"], ["email", "Email", "email"], ["city", "City / site", "text"], ["source", "Lead source", "list", LEAD_SRC], ["need", "What they need", "text", null, 1], ["value", "Expected value ₹", "number"], ["stage", "Stage", "select", LEAD_ST], ["owner", "Owner", "select", TEAM28], ["next", "Next follow-up", "date"], ["nextNote", "Next step", "text", null, 1], ["lostWhy", "Lost reason", "select", [["", "—"], ...LOST_WHY]]];
+  const D = panel28({
+    title: src ? r.company : "New lead", chips: src ? `<span class="chip">${esc(r.no || "")}</span><span class="chip ${r.stage === "won" ? "ok" : r.stage === "lost" ? "bad" : ""}">${esc((LEAD_ST.find(s => s[0] === r.stage) || [])[1] || "")}</span>` : "",
+    body: `${src ? `<div class="dr26-a">${r.phone ? `<a class="btn" href="tel:${esc(r.phone)}">${icon("phone28")}Call</a><button class="btn" id="l28w" type="button">${icon("wa")}WhatsApp</button>` : ""}${r.email ? `<a class="btn" href="mailto:${esc(r.email)}">${icon("mail")}Email</a>` : ""}<button class="btn" id="l28q" type="button">${icon("sheet")}Start quote workings</button></div>` : ""}
+      <div class="fields">${F.map(f => field28(f, r)).join("")}</div>
+      ${src ? `<section class="dr26-sec"><h3>Log a call, visit or email</h3><div class="fields"><label class="f">Type<select id="l28t">${["Call", "Visit", "Email", "WhatsApp", "Meeting", "Note"].map(x => `<option>${x}</option>`).join("")}</select></label><label class="f">Next follow-up<input type="date" id="l28n" value="${esc(r.next || "")}"></label><label class="f" style="grid-column:1/-1">What happened<textarea id="l28x" rows="2" placeholder="e.g. Spoke to Mr. Kumar — wants rewinding quote by Friday"></textarea></label></div><div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn sm" id="l28a" type="button">Add to history</button></div></section>
+      <section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>` : ""}`,
+    foot: `${src ? `<button class="btn ghost" id="l28d" type="button">Delete</button>` : ""}<span style="flex:1"></span><button class="btn" type="button" onclick="closeDrawer26()">Cancel</button><button class="btn primary" id="l28s" type="button">Save lead</button>`
+  });
+  $("#l28s").onclick = async e => {
+    const before = r.stage; readForm28(D, r); if (!r.company) return toast("Customer name is needed", "bad");
+    if (r.stage === "lost" && !r.lostWhy) return toast("Pick a lost reason", "bad");
+    if (!src) logAdd28(r, "Created", r.need); else if (before !== r.stage) logAdd28(r, "Stage", (LEAD_ST.find(s => s[0] === r.stage) || [])[1]);
+    if (r.stage === "won" && !r.wonAt) r.wonAt = todayISO();
+    if (await save28(e.target, r, "Lead saved")) { closeDrawer26(); render(); }
+  };
+  $("#l28a") && ($("#l28a").onclick = async e => { const t = $("#l28x").value.trim(); if (!t) return toast("Write what happened", "bad"); readForm28(D, r); logAdd28(r, $("#l28t").value, t); r.next = $("#l28n").value; r.lastAt = todayISO(); if (await save28(e.target, r, "Added to history")) leadPanel28(BIZ.rows[r.id]); });
+  $("#l28w") && ($("#l28w").onclick = () => openLink("https://wa.me/" + String(r.phone).replace(/\D/g, "").replace(/^(\d{10})$/, "91$1")));
+  $("#l28q") && ($("#l28q").onclick = () => { STATE.work = newWorkings({ customer: r.company, title: r.need || r.company }); saveDrafts(); closeDrawer26(); location.hash = "workings"; toast("Quote workings started for " + r.company); });
+  $("#l28d") && ($("#l28d").onclick = async () => { try { await bizDel28(r.id); closeDrawer26(); render(); toast("Lead deleted"); } catch (e) { toast(e.message, "bad"); } });
+}
+VIEWS.crm = v => {
+  bizSync28();
+  const U = BIZ.ui, q = U.q.toLowerCase(), all = all28("lead"), L = all.filter(x => !q || `${x.company} ${x.contact} ${x.need} ${x.city} ${x.no}`.toLowerCase().includes(q));
+  const open = all.filter(x => !["won", "lost"].includes(x.stage)), today = todayISO(), month = today.slice(0, 7);
+  const due = open.filter(x => x.next && x.next <= today), wonM = all.filter(x => x.stage === "won" && String(x.wonAt || x.at).slice(0, 7) === month);
+  const card = x => `<button type="button" class="kb28-k" draggable="true" data-id="${x.id}"><b>${esc(x.company || "?")}</b><small>${esc(String(x.need || "").slice(0, 70))}</small><span class="kb28-m">${x.value ? `<span class="small">${inr28(x.value)}</span>` : ""}${!["won", "lost"].includes(x.stage) ? dueChip28(x.next) : ""}<span class="av28" title="${esc(who28(x.owner))}">${esc(who28(x.owner)[0])}</span></span></button>`;
+  let body = "";
+  if (U.crm === "board") body = board28(LEAD_ST, L, card, "st");
+  else if (U.crm === "follow") {
+    const G = [["Late", x => x.next < today], ["Today", x => x.next === today], ["Tomorrow", x => daysTo28(x.next) === 1], ["Next 7 days", x => daysTo28(x.next) > 1 && daysTo28(x.next) <= 7], ["Later", x => daysTo28(x.next) > 7], ["No date set", x => !x.next]];
+    const O = L.filter(x => !["won", "lost"].includes(x.stage));
+    body = G.map(([g, fn]) => { const R = O.filter(x => (g === "No date set" ? !x.next : x.next && fn(x))); return R.length ? `<section class="panel" style="margin-bottom:12px"><header><h2>${g} <span class="chip ${g === "Late" ? "bad" : g === "Today" ? "warn" : ""}">${R.length}</span></h2></header><div class="body stack" style="gap:8px">${R.map(x => `<div class="fu28"><button type="button" class="fu28-x" data-id="${x.id}"><b>${esc(x.company)}</b><small>${esc(x.nextNote || x.need || "")} · ${esc(who28(x.owner))}${x.next ? " · " + dmy(x.next) : ""}</small></button>${x.phone ? `<a class="btn sm" href="tel:${esc(x.phone)}" aria-label="Call ${esc(x.company)}">${icon("phone28")}</a>` : ""}<button class="btn sm" data-open="${x.id}" type="button">Log</button></div>`).join("")}</div></section>` : ""; }).join("") || `<section class="panel"><div class="empty"><b>No follow-ups</b>Add a next follow-up date on a lead and it shows here.</div></section>`;
+  } else if (U.crm === "list") {
+    body = `<section class="panel"><div class="tablewrap"><table class="t"><thead><tr><th>Lead</th><th>Customer</th><th>Need</th><th>Source</th><th>Stage</th><th class="n">Value</th><th>Next</th><th>Owner</th></tr></thead><tbody>${L.sort((a, b) => String(b.at).localeCompare(String(a.at))).map(x => `<tr class="r26" data-id="${x.id}" tabindex="0"><td class="mono" style="font-size:.75rem">${esc(x.no || "")}</td><td><b>${esc(x.company)}</b><div class="small muted">${esc(x.contact || "")} ${esc(x.city || "")}</div></td><td>${esc(String(x.need || "").slice(0, 80))}</td><td>${esc(x.source || "")}</td><td>${esc((LEAD_ST.find(s => s[0] === x.stage) || [])[1] || "")}</td><td class="n">${x.value ? inr28(x.value) : "—"}</td><td>${["won", "lost"].includes(x.stage) ? "—" : dueChip28(x.next)}</td><td>${esc(who28(x.owner))}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No leads yet</td></tr>'}</tbody></table></div></section>`;
+  } else {
+    const grp = key => { const m = {}; all.forEach(x => { const k = x[key] || "—"; const g = m[k] ||= { n: 0, won: 0, lost: 0, v: 0, wv: 0 }; g.n++; g.v += Number(x.value) || 0; if (x.stage === "won") { g.won++; g.wv += Number(x.value) || 0; } if (x.stage === "lost") g.lost++; }); return Object.entries(m).sort((a, b) => b[1].n - a[1].n); };
+    const tbl = (t, rows, nameFn) => `<section class="panel"><header><h2>${t}</h2></header><div class="tablewrap"><table class="t"><thead><tr><th>${t.split(" ").pop()}</th><th class="n">Leads</th><th class="n">Won</th><th class="n">Lost</th><th class="n">Win rate</th><th class="n">Won value</th></tr></thead><tbody>${rows.map(([k, g]) => `<tr><td>${esc(nameFn ? nameFn(k) : k)}</td><td class="n">${g.n}</td><td class="n">${g.won}</td><td class="n">${g.lost}</td><td class="n">${g.won + g.lost ? Math.round(100 * g.won / (g.won + g.lost)) + "%" : "—"}</td><td class="n">${inr28(g.wv)}</td></tr>`).join("") || '<tr><td colspan="6" class="muted">No data yet</td></tr>'}</tbody></table></div></section>`;
+    const why = {}; all.filter(x => x.stage === "lost").forEach(x => { why[x.lostWhy || "—"] = (why[x.lostWhy || "—"] || 0) + 1; });
+    body = `<div class="grid28">${tbl("By lead source", grp("source"))}${tbl("By salesperson", grp("owner"), who28)}<section class="panel"><header><h2>Why we lost</h2></header><div class="body stack" style="gap:6px">${Object.entries(why).sort((a, b) => b[1] - a[1]).map(([k, n]) => `<div class="bar28"><span>${esc(k)}</span><i style="--w:${Math.round(100 * n / Math.max(...Object.values(why)))}%"></i><b>${n}</b></div>`).join("") || '<p class="small muted">No lost leads yet.</p>'}</div></section></div>`;
+  }
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">CRM</div><h1>Leads & follow-ups</h1><p>Every enquiry from phone, email, IndiaMART, WhatsApp or a visit — who owns it, the next follow-up, and the whole history.</p></div>
+    <div class="row"><button class="btn primary" id="l28new">${icon("plus")}New lead</button><button class="btn" id="biz28r">${icon("spark")}${BIZ.busy ? "Syncing…" : "Refresh"}</button></div></div>
+    ${loadNote28() || `<div class="hero-strip"><div><span>Open leads</span><b>${open.length}</b></div><div><span>Pipeline value</span><b>${inr28(open.reduce((a, x) => a + (Number(x.value) || 0), 0))}</b></div><div><span>Follow-ups due</span><b>${due.length}</b></div><div><span>Won this month</span><b>${inr28(wonM.reduce((a, x) => a + (Number(x.value) || 0), 0))}</b></div></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">${tabs28(U.crm, [["board", "Board"], ["follow", "Follow-ups"], ["list", "List"], ["rep", "Reports"]], "crmt")}<input class="q28" id="q28" type="search" placeholder="Find a lead…" value="${esc(U.q)}" aria-label="Find a lead"></div>${body}`}`;
+  $("#l28new").onclick = () => leadPanel28(); $("#biz28r").onclick = () => bizSync28(true);
+  $$("[data-crmt]", v).forEach(b => b.onclick = () => { U.crm = b.dataset.crmt; render(); });
+  $("#q28") && ($("#q28").oninput = e => { U.q = e.target.value; clearTimeout(BIZ.qt); BIZ.qt = setTimeout(() => { render(); const i = $("#q28"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 250); });
+  $$("[data-id]", v).forEach(el => el.addEventListener("click", e => { if (e.target.closest("a,[data-open]")) return; leadPanel28(BIZ.rows[el.dataset.id]); }));
+  $$("[data-open]", v).forEach(b => b.onclick = () => leadPanel28(BIZ.rows[b.dataset.open]));
+  dnd28(v, "st", async (id, st) => { const r = { ...BIZ.rows[id] }; if (!r || r.stage === st) return; if (st === "lost") return leadPanel28({ ...r, stage: "lost" }); r.stage = st; logAdd28(r, "Stage", (LEAD_ST.find(s => s[0] === st) || [])[1]); if (st === "won") r.wonAt = todayISO(); BIZ.rows[id] = r; render(); await save28(null, r, "Moved to " + (LEAD_ST.find(s => s[0] === st) || [])[1]); });
+};
+
+/* =============== Repair jobs (workshop) =============== */
+function jobPanel28(src) {
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "job", stage: "received", received: todayISO(), equipment: "HT motor", work: "Full rewinding" };
+  const F = [["customer", "Customer *", "text"], ["contact", "Contact / phone", "text"], ["equipment", "Equipment", "list", JOB_EQ], ["make", "Make", "text"], ["rating", "Rating (kW / HP / kVA)", "text"], ["voltage", "Voltage", "text"], ["rpm", "RPM / poles", "text"], ["serial", "Serial no", "text"], ["work", "Work", "list", JOB_WORK], ["complaint", "Problem reported", "text", null, 1], ["received", "Received on", "date"], ["inward", "Inward DC / gate pass", "text"], ["promised", "Promised delivery", "date"], ["tech", "Technician / in-charge", "text"], ["estimate", "Estimate ₹", "number"], ["custPo", "Customer PO no", "text"], ["stage", "Stage", "select", JOB_ST], ["invoiceNo", "Invoice no", "text"], ["notes", "Inspection findings / notes", "textarea"]];
+  const mats = src ? all28("move").filter(m => m.job === r.id) : [], matCost = mats.reduce((a, m) => a + Math.abs(Number(m.qty) || 0) * (Number(m.rate) || lastRate28(m.item)), 0);
+  const D = panel28({
+    title: src ? `${r.no} · ${r.customer}` : "New repair job", chips: src ? `<span class="chip">${esc((JOB_ST.find(s => s[0] === r.stage) || [])[1] || "")}</span>${r.promised && !["dispatched", "invoiced"].includes(r.stage) ? dueChip28(r.promised) : ""}` : "",
+    body: `${src ? `<div class="dr26-a"><button class="btn" id="j28p" type="button">${icon("print28")}Print job card</button><button class="btn" id="j28q" type="button">${icon("sheet")}Make estimate</button><button class="btn" id="j28i" type="button">${icon("box28")}Issue material</button></div>` : ""}
+      <div class="fields">${F.map(f => field28(f, r)).join("")}</div>
+      ${src ? `<section class="dr26-sec"><h3>Material used · ${inr28(matCost)}</h3>${mats.length ? `<table class="t"><tbody>${mats.map(m => `<tr><td>${esc(BIZ.rows[m.item]?.name || "?")}</td><td class="n">${Math.abs(m.qty)} ${esc(BIZ.rows[m.item]?.unit || "")}</td><td>${dmy(m.date || String(m.at).slice(0, 10))}</td></tr>`).join("")}</tbody></table>` : '<p class="small muted">No material issued to this job yet.</p>'}${r.estimate ? `<p class="small">Estimate ${inr28(r.estimate)} − material ${inr28(matCost)} = <b>${inr28(r.estimate - matCost)}</b> before labour.</p>` : ""}</section>
+      <section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>` : ""}`,
+    foot: `${src ? `<button class="btn ghost" id="j28d" type="button">Delete</button>` : ""}<span style="flex:1"></span><button class="btn" type="button" onclick="closeDrawer26()">Cancel</button><button class="btn primary" id="j28s" type="button">Save job</button>`
+  });
+  $("#j28s").onclick = async e => { const before = r.stage; readForm28(D, r); if (!r.customer) return toast("Customer is needed", "bad"); if (!src) logAdd28(r, "Received", `${r.equipment} ${r.rating}`); else if (before !== r.stage) logAdd28(r, "Stage", (JOB_ST.find(s => s[0] === r.stage) || [])[1]); if (await save28(e.target, r, "Job saved")) { closeDrawer26(); render(); } };
+  $("#j28d") && ($("#j28d").onclick = async () => { try { await bizDel28(r.id); closeDrawer26(); render(); toast("Job deleted"); } catch (e) { toast(e.message, "bad"); } });
+  $("#j28q") && ($("#j28q").onclick = () => { STATE.work = newWorkings({ customer: r.customer, title: `${r.work || "Rewinding"} — ${r.equipment || ""} ${r.rating || ""}`.trim() }); saveDrafts(); closeDrawer26(); location.hash = "workings"; });
+  $("#j28i") && ($("#j28i").onclick = () => movePanel28({ type: "issue", job: r.id, jobNo: r.no }));
+  $("#j28p") && ($("#j28p").onclick = () => printHtml28("Job card " + r.no, `<div class="big">${esc(r.no)}</div><table><tbody>${[["Customer", r.customer], ["Contact", r.contact], ["Equipment", `${r.equipment || ""} ${r.make || ""}`], ["Rating / voltage / RPM", `${r.rating || ""} · ${r.voltage || ""} · ${r.rpm || ""}`], ["Serial no", r.serial], ["Work", r.work], ["Problem reported", r.complaint], ["Received", `${dmy(r.received)} · DC ${r.inward || "—"}`], ["Promised", r.promised ? dmy(r.promised) : "—"], ["In-charge", r.tech], ["Customer PO", r.custPo], ["Notes", r.notes]].map(([k, x]) => `<tr><th style="width:30%">${k}</th><td>${esc(x || "")}</td></tr>`).join("")}</tbody></table><h3>Stage sign-off</h3><table><thead><tr><th>Stage</th><th>Date</th><th>By</th><th>Remarks</th></tr></thead><tbody>${JOB_ST.map(([, l]) => `<tr><td>${l}</td><td style="width:16%"></td><td style="width:18%"></td><td></td></tr>`).join("")}</tbody></table><div class="sig"><span>Received by</span><span>Checked by</span><span>Customer</span></div>`));
+}
+VIEWS.jobs = v => {
+  bizSync28();
+  const U = BIZ.ui, q = U.q.toLowerCase(), all = all28("job"), L = all.filter(x => !q || `${x.no} ${x.customer} ${x.equipment} ${x.serial} ${x.rating}`.toLowerCase().includes(q));
+  const live = all.filter(x => !["dispatched", "invoiced"].includes(x.stage)), late = live.filter(x => x.promised && x.promised < todayISO());
+  const card = x => `<button type="button" class="kb28-k" draggable="true" data-id="${x.id}"><b>${esc(x.no)} · ${esc(x.customer || "?")}</b><small>${esc(x.equipment || "")} ${esc(x.rating || "")} · ${esc(x.work || "")}</small><span class="kb28-m">${x.estimate ? `<span class="small">${inr28(x.estimate)}</span>` : ""}${!["dispatched", "invoiced"].includes(x.stage) && x.promised ? dueChip28(x.promised) : ""}</span></button>`;
+  let body;
+  if (U.jobs === "board") body = board28(JOB_ST, L, card, "js");
+  else if (U.jobs === "list") body = `<section class="panel"><div class="tablewrap"><table class="t"><thead><tr><th>Job</th><th>Customer</th><th>Equipment</th><th>Work</th><th>Stage</th><th>Received</th><th>Promised</th><th class="n">Estimate</th></tr></thead><tbody>${L.sort((a, b) => String(b.no).localeCompare(String(a.no))).map(x => `<tr class="r26" data-id="${x.id}" tabindex="0"><td class="mono" style="font-size:.75rem">${esc(x.no)}</td><td><b>${esc(x.customer)}</b></td><td>${esc(x.equipment || "")} ${esc(x.rating || "")}<div class="small muted">${esc(x.serial || "")}</div></td><td>${esc(x.work || "")}</td><td>${esc((JOB_ST.find(s => s[0] === x.stage) || [])[1] || "")}</td><td>${x.received ? dmy(x.received) : "—"}</td><td>${["dispatched", "invoiced"].includes(x.stage) ? (x.promised ? dmy(x.promised) : "—") : dueChip28(x.promised)}</td><td class="n">${x.estimate ? inr28(x.estimate) : "—"}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No jobs yet</td></tr>'}</tbody></table></div></section>`;
+  else {
+    const done = all.filter(x => ["dispatched", "invoiced"].includes(x.stage) && x.received), tat = done.map(x => { const d = (x.log || []).find(l => /Dispatched/.test(l.text || "")); return d ? (new Date(d.at) - new Date(x.received)) / 864e5 : null; }).filter(x => x !== null && x >= 0);
+    const by = {}; all.forEach(x => { const g = by[x.customer || "—"] ||= { n: 0, v: 0, live: 0 }; g.n++; g.v += Number(x.estimate) || 0; if (!["dispatched", "invoiced"].includes(x.stage)) g.live++; });
+    const ontime = done.filter(x => x.promised && (x.log || []).some(l => /Dispatched/.test(l.text || "") && l.at.slice(0, 10) <= x.promised)).length;
+    body = `<div class="hero-strip"><div><span>Jobs finished</span><b>${done.length}</b></div><div><span>Average turnaround</span><b>${tat.length ? Math.round(tat.reduce((a, b) => a + b, 0) / tat.length) + " days" : "—"}</b></div><div><span>On time</span><b>${done.length ? Math.round(100 * ontime / done.length) + "%" : "—"}</b></div></div>
+      <section class="panel"><header><h2>By customer</h2></header><div class="tablewrap"><table class="t"><thead><tr><th>Customer</th><th class="n">Jobs</th><th class="n">In workshop</th><th class="n">Estimate value</th></tr></thead><tbody>${Object.entries(by).sort((a, b) => b[1].v - a[1].v).map(([k, g]) => `<tr><td>${esc(k)}</td><td class="n">${g.n}</td><td class="n">${g.live}</td><td class="n">${inr28(g.v)}</td></tr>`).join("") || '<tr><td colspan="4" class="muted">No data yet</td></tr>'}</tbody></table></div></section>`;
+  }
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Workshop</div><h1>Repair jobs</h1><p>Every motor, generator or transformer that comes in — from inward DC to dispatch, with job card, estimate, material used and promised date.</p></div>
+    <div class="row"><button class="btn primary" id="j28new">${icon("plus")}New job</button><button class="btn" id="biz28r">${icon("spark")}${BIZ.busy ? "Syncing…" : "Refresh"}</button></div></div>
+    ${loadNote28() || `<div class="hero-strip"><div><span>In workshop</span><b>${live.length}</b></div><div><span>Late</span><b>${late.length}</b></div><div><span>Ready to dispatch</span><b>${all.filter(x => x.stage === "ready").length}</b></div><div><span>Waiting customer approval</span><b>${all.filter(x => x.stage === "estimate").length}</b></div></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">${tabs28(U.jobs, [["board", "Board"], ["list", "List"], ["rep", "Reports"]], "jt")}<input class="q28" id="q28" type="search" placeholder="Find job, customer, serial…" value="${esc(U.q)}" aria-label="Find a job"></div>${body}`}`;
+  $("#j28new").onclick = () => jobPanel28(); $("#biz28r").onclick = () => bizSync28(true);
+  $$("[data-jt]", v).forEach(b => b.onclick = () => { U.jobs = b.dataset.jt; render(); });
+  $("#q28") && ($("#q28").oninput = e => { U.q = e.target.value; clearTimeout(BIZ.qt); BIZ.qt = setTimeout(() => { render(); const i = $("#q28"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 250); });
+  $$("[data-id]", v).forEach(el => el.addEventListener("click", () => jobPanel28(BIZ.rows[el.dataset.id])));
+  dnd28(v, "js", async (id, st) => { const r = { ...BIZ.rows[id] }; if (!r || r.stage === st) return; r.stage = st; logAdd28(r, "Stage", (JOB_ST.find(s => s[0] === st) || [])[1]); BIZ.rows[id] = r; render(); await save28(null, r, "Moved to " + (JOB_ST.find(s => s[0] === st) || [])[1]); });
+};
+
+/* =============== Purchase orders, stock, movements =============== */
+function poTotal28(p) { return (p.lines || []).reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.rate) || 0) * (1 + (Number(l.gst) || 0) / 100), 0); }
+function poPanel28(src) {
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "po", status: "draft", date: todayISO(), lines: [{ qty: 1, unit: "kg", gst: 18 }], terms: "100% within 30 days of delivery", deliverTo: "Rivera Coil Manufacturing (I) Pvt Ltd, factory" };
+  const items = all28("item").sort((a, b) => String(a.name).localeCompare(String(b.name))), sups = [...new Set(all28("po").map(p => p.supplier).filter(Boolean))];
+  const st = PO_ST.find(s => s[0] === r.status) || PO_ST[0], lock = !["draft", "pending"].includes(r.status) && !isAdmin28();
+  const lineRow = (l, i) => { const lr = l.item ? lastRate28(l.item) : 0; return `<div class="pl28" data-ln="${i}"><div class="pl28-a"><select data-l="item" aria-label="Stock item"><option value="">— not a stock item —</option>${items.map(it => `<option value="${it.id}" ${l.item === it.id ? "selected" : ""}>${esc(it.name)}</option>`).join("")}</select><button class="btn sm ghost" data-rm="${i}" type="button" aria-label="Remove line">${icon("x26")}</button></div><input data-l="desc" placeholder="Description / grade / size" value="${esc(l.desc || "")}" aria-label="Description"><div class="pl28-b"><label>Qty<input data-l="qty" type="number" min="0" step="any" value="${esc(l.qty ?? "")}"></label><label>Unit<select data-l="unit">${UNITS.map(u => `<option ${l.unit === u ? "selected" : ""}>${u}</option>`).join("")}</select></label><label>Rate ₹<input data-l="rate" type="number" min="0" step="any" value="${esc(l.rate ?? "")}"></label><label>GST %<input data-l="gst" type="number" min="0" step="any" value="${esc(l.gst ?? 18)}"></label><div class="pl28-amt"><span>Amount</span><b data-amt>${inr28((Number(l.qty) || 0) * (Number(l.rate) || 0))}</b></div></div>${lr || Number(l.recd) ? `<div class="small muted">${lr ? "Last rate " + inr28(lr) : ""}${Number(l.recd) ? ` · received ${l.recd} ${esc(l.unit || "")}` : ""}</div>` : ""}</div>`; };
+  const draw = () => {
+    const D = panel28({
+      title: src ? r.no : "New purchase order", chips: `<span class="chip ${st[2]}">${st[1]}</span>`,
+      body: `<div class="fields">${field28(["supplier", "Supplier *", "list", sups], r)}${field28(["supplierEmail", "Supplier email", "email"], r)}${field28(["supplierPhone", "Supplier phone", "tel"], r)}${field28(["quoteRef", "Supplier quote ref", "text"], r)}${field28(["date", "PO date", "date"], r)}${field28(["needBy", "Needed by", "date"], r)}${field28(["jobNo", "For job / tender (optional)", "text"], r)}${field28(["terms", "Payment terms", "text"], r)}${field28(["deliverTo", "Deliver to", "text", null, 1], r)}</div>
+        <div class="po28" style="margin-top:10px">${r.lines.map(lineRow).join("")}</div>
+        <div class="row" style="justify-content:space-between;margin-top:6px"><button class="btn sm" id="p28add" type="button">${icon("plus")}Add line</button><b id="p28tot">Total with GST: ${inr28(poTotal28(r))}</b></div>
+        ${field28(["notes", "Notes for supplier", "textarea"], r)}
+        ${src && ["approved", "sent", "part"].includes(r.status) ? `<section class="dr26-sec"><h3>Receive goods (GRN)</h3><div class="fields"><label class="f">Supplier invoice no<input id="g28inv"></label><label class="f">Received on<input type="date" id="g28d" value="${todayISO()}"></label></div><table class="t"><tbody>${r.lines.map((l, i) => `<tr><td>${esc(BIZ.rows[l.item]?.name || l.desc || "Line " + (i + 1))}</td><td class="small muted">${Number(l.recd) || 0} / ${l.qty} ${esc(l.unit || "")} received</td><td><input type="number" min="0" step="any" data-g="${i}" value="${Math.max(0, (Number(l.qty) || 0) - (Number(l.recd) || 0))}" style="width:90px" aria-label="Quantity received now"></td></tr>`).join("")}</tbody></table><div class="row" style="justify-content:flex-end;margin-top:6px"><button class="btn primary sm" id="g28go" type="button">Save GRN — add to stock</button></div></section>` : ""}
+        ${src ? `<section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>` : ""}`,
+      foot: `${src && r.status === "draft" ? `<button class="btn ghost" id="p28del" type="button">Delete</button>` : ""}<span style="flex:1"></span>
+        ${src && !["draft", "pending", "cancelled"].includes(r.status) ? `<button class="btn" id="p28pr" type="button">${icon("print28")}Print PO</button>${r.supplierEmail ? `<button class="btn" id="p28em" type="button">${icon("mail")}Email</button>` : ""}${r.supplierPhone ? `<button class="btn" id="p28wa" type="button">${icon("wa")}WhatsApp</button>` : ""}` : ""}
+        ${r.status === "pending" && isAdmin28() ? `<button class="btn" id="p28rej" type="button">Send back</button><button class="btn primary" id="p28ap" type="button">Approve</button>` : ""}
+        ${["draft"].includes(r.status) ? `<button class="btn" id="p28s" type="button">Save draft</button><button class="btn primary" id="p28sub" type="button">${isAdmin28() ? "Save & approve" : "Send for approval"}</button>` : ""}
+        ${["approved", "sent", "part", "pending"].includes(r.status) && !lock ? `<button class="btn" id="p28s" type="button">Save</button>` : ""}
+        ${["received"].includes(r.status) ? `<button class="btn" id="p28cl" type="button">Close PO</button>` : ""}`
+    });
+    const sync = () => { readForm28(D, r); $$(".pl28[data-ln]", D).forEach(tr => { const l = r.lines[+tr.dataset.ln]; $$("[data-l]", tr).forEach(el => { l[el.dataset.l] = el.type === "number" ? (el.value === "" ? "" : Number(el.value)) : el.value; }); if (l.item && !l.desc) l.desc = BIZ.rows[l.item]?.name || ""; if (l.item && !l.unit) l.unit = BIZ.rows[l.item]?.unit; }); r.total = Math.round(poTotal28(r)); };
+    $$(".pl28 select[data-l=item]", D).forEach(s => s.onchange = () => { sync(); const l = r.lines[+s.closest(".pl28").dataset.ln], it = BIZ.rows[l.item]; if (it) { l.unit = it.unit || l.unit; if (!Number(l.rate)) l.rate = lastRate28(it.id) || ""; l.desc = l.desc || it.name; } draw(); });
+    $$(".pl28 input[data-l=qty], .pl28 input[data-l=rate], .pl28 input[data-l=gst]", D).forEach(i => i.oninput = () => { const row = i.closest(".pl28"), l = r.lines[+row.dataset.ln]; l[i.dataset.l] = i.value === "" ? "" : Number(i.value); row.querySelector("[data-amt]").textContent = inr28((Number(l.qty) || 0) * (Number(l.rate) || 0)); $("#p28tot").textContent = "Total with GST: " + inr28(poTotal28(r)); });
+    $("#p28add").onclick = () => { sync(); r.lines.push({ qty: 1, unit: "kg", gst: 18 }); draw(); };
+    $$("[data-rm]", D).forEach(b => b.onclick = () => { sync(); r.lines.splice(+b.dataset.rm, 1); if (!r.lines.length) r.lines.push({ qty: 1, unit: "kg", gst: 18 }); draw(); });
+    const go = async (btn, status, msg, logText) => { sync(); if (!r.supplier) return toast("Supplier is needed", "bad"); if (!r.lines.some(l => Number(l.qty) > 0)) return toast("Add at least one line", "bad"); if (status) { r.status = status; logAdd28(r, (PO_ST.find(s => s[0] === status) || [])[1], logText || ""); } else if (!src) logAdd28(r, "Created", ""); const out = await save28(btn, r, msg); if (out) { closeDrawer26(); render(); } };
+    $("#p28s") && ($("#p28s").onclick = e => go(e.target, null, "PO saved"));
+    $("#p28sub") && ($("#p28sub").onclick = e => go(e.target, isAdmin28() ? "approved" : "pending", isAdmin28() ? "PO approved" : "Sent to admin for approval"));
+    $("#p28ap") && ($("#p28ap").onclick = e => go(e.target, "approved", "PO approved"));
+    $("#p28rej") && ($("#p28rej").onclick = e => go(e.target, "draft", "Sent back to draft", "sent back by admin"));
+    $("#p28cl") && ($("#p28cl").onclick = e => go(e.target, "closed", "PO closed"));
+    $("#p28del") && ($("#p28del").onclick = async () => { try { await bizDel28(r.id); closeDrawer26(); render(); toast("PO deleted"); } catch (e) { toast(e.message, "bad"); } });
+    const text = () => `Purchase order ${r.no} from Rivera Coil Manufacturing (I) Pvt Ltd\nDate: ${dmy(r.date)}${r.needBy ? "\nNeeded by: " + dmy(r.needBy) : ""}\n\n${r.lines.map((l, i) => `${i + 1}. ${BIZ.rows[l.item]?.name || ""} ${l.desc || ""} — ${l.qty} ${l.unit} @ ₹${l.rate} + GST ${l.gst}%`).join("\n")}\n\nTotal with GST: ${inr28(poTotal28(r))}\nPayment: ${r.terms || ""}\nDeliver to: ${r.deliverTo || ""}${r.notes ? "\n\n" + r.notes : ""}`;
+    const sent = async () => { if (r.status === "approved") { r.status = "sent"; logAdd28(r, "Sent to supplier", ""); await save28(null, r, "Marked as sent"); render(); } };
+    $("#p28em") && ($("#p28em").onclick = () => { openLink(`mailto:${encodeURIComponent(r.supplierEmail)}?subject=${encodeURIComponent("Purchase order " + r.no)}&body=${encodeURIComponent(text())}`); sent(); });
+    $("#p28wa") && ($("#p28wa").onclick = () => { openLink("https://wa.me/" + String(r.supplierPhone).replace(/\D/g, "").replace(/^(\d{10})$/, "91$1") + "?text=" + encodeURIComponent(text())); sent(); });
+    $("#p28pr") && ($("#p28pr").onclick = () => printHtml28("Purchase order " + r.no, `<h1>PURCHASE ORDER</h1><p><b>${esc(r.no)}</b> · ${dmy(r.date)}${r.quoteRef ? " · Your ref " + esc(r.quoteRef) : ""}</p><p>To: <b>${esc(r.supplier)}</b><br>${esc(r.supplierEmail || "")} ${esc(r.supplierPhone || "")}</p><table><thead><tr><th>#</th><th>Description</th><th class="n">Qty</th><th>Unit</th><th class="n">Rate ₹</th><th class="n">GST %</th><th class="n">Amount ₹</th></tr></thead><tbody>${r.lines.map((l, i) => `<tr><td>${i + 1}</td><td>${esc([BIZ.rows[l.item]?.name, l.desc].filter((x, j, a) => x && a.indexOf(x) === j).join(" — "))}</td><td class="n">${l.qty}</td><td>${esc(l.unit)}</td><td class="n">${Number(l.rate || 0).toLocaleString("en-IN")}</td><td class="n">${l.gst}</td><td class="n">${Math.round((Number(l.qty) || 0) * (Number(l.rate) || 0)).toLocaleString("en-IN")}</td></tr>`).join("")}<tr><th colspan="6" class="n">Total with GST</th><th class="n">${inr28(poTotal28(r))}</th></tr></tbody></table><p>Payment terms: ${esc(r.terms || "")}<br>Deliver to: ${esc(r.deliverTo || "")}${r.needBy ? "<br>Required by: " + dmy(r.needBy) : ""}</p>${r.notes ? `<p>${esc(r.notes)}</p>` : ""}<div class="sig"><span></span><span>For Rivera Coil Manufacturing (I) Pvt Ltd<br><br><br>Authorised signatory</span></div>`));
+    $("#g28go") && ($("#g28go").onclick = async e => {
+      const moves = [], d = $("#g28d").value || todayISO(), inv = $("#g28inv").value.trim();
+      $$("[data-g]", D).forEach(i => { const q = Number(i.value) || 0, l = r.lines[+i.dataset.g]; if (q <= 0) return; l.recd = (Number(l.recd) || 0) + q; if (l.item) moves.push({ kind: "move", item: l.item, qty: q, rate: Number(l.rate) || 0, type: "grn", ref: r.no, date: d, note: inv ? "Invoice " + inv : "" }); });
+      if (!moves.length && !r.lines.some(l => Number(l.recd) > 0)) return toast("Enter the quantity received", "bad");
+      r.status = r.lines.every(l => (Number(l.recd) || 0) >= (Number(l.qty) || 0)) ? "received" : "part"; logAdd28(r, "Goods received", `${inv ? "Invoice " + inv + " · " : ""}${dmy(d)}`);
+      if (await save28(e.target, [r, ...moves], `GRN saved — ${moves.length} item${moves.length === 1 ? "" : "s"} added to stock`)) { closeDrawer26(); render(); }
+    });
+  };
+  draw();
+}
+function itemPanel28(src) {
+  const r = src ? { ...src } : { kind: "item", unit: "kg", category: "Copper", min: "" };
+  const D = panel28({
+    title: src ? r.name : "New stock item", chips: src ? `<span class="chip">${esc(r.no || "")}</span><span class="chip ${Number(r.min) && stockOf28(r.id) < Number(r.min) ? "bad" : "ok"}">${stockOf28(r.id)} ${esc(r.unit || "")} in stock</span>` : "",
+    body: `<div class="fields">${[["name", "Item name *", "text", null, 1], ["category", "Category", "list", ITEM_CAT], ["unit", "Unit", "select", UNITS], ["min", "Minimum stock (alert below)", "number"], ["rate", "Standard rate ₹", "number"], ["location", "Rack / bin", "text"], ["spec", "Grade / size / spec", "text", null, 1]].map(f => field28(f, r)).join("")}</div>
+      ${src ? `<section class="dr26-sec"><h3>Movements</h3>${(() => { const M = all28("move").filter(m => m.item === r.id).sort((a, b) => String(b.date || b.at).localeCompare(String(a.date || a.at))); return M.length ? `<table class="t"><thead><tr><th>Date</th><th>Type</th><th>Ref</th><th class="n">Qty</th></tr></thead><tbody>${M.slice(0, 60).map(m => `<tr><td>${dmy(m.date || String(m.at).slice(0, 10))}</td><td>${esc(m.type)}</td><td>${esc(m.ref || m.jobNo || "")} <span class="muted">${esc(m.note || "")}</span></td><td class="n" style="color:${m.qty < 0 ? "var(--bad)" : "var(--ok)"}">${m.qty > 0 ? "+" : ""}${m.qty}</td></tr>`).join("")}</tbody></table>` : '<p class="small muted">No movements yet.</p>'; })()}</section>` : ""}`,
+    foot: `<span style="flex:1"></span>${src ? `<button class="btn" id="i28in" type="button">Stock in / adjust</button><button class="btn" id="i28out" type="button">Issue</button>` : ""}<button class="btn primary" id="i28s" type="button">Save item</button>`
+  });
+  $("#i28s").onclick = async e => { readForm28(D, r); if (!r.name) return toast("Item name is needed", "bad"); if (await save28(e.target, r, "Item saved")) { closeDrawer26(); render(); } };
+  $("#i28in") && ($("#i28in").onclick = () => movePanel28({ type: "adjust", item: r.id }));
+  $("#i28out") && ($("#i28out").onclick = () => movePanel28({ type: "issue", item: r.id }));
+}
+function movePanel28(o) {
+  const items = all28("item").sort((a, b) => String(a.name).localeCompare(String(b.name))), jobs = all28("job").filter(j => !["dispatched", "invoiced"].includes(j.stage));
+  const issue = o.type === "issue";
+  const D = panel28({
+    title: issue ? "Issue material" : "Stock in / adjust", chips: o.jobNo ? `<span class="chip">${esc(o.jobNo)}</span>` : "",
+    body: `<div class="fields"><label class="f" style="grid-column:1/-1">Item<select id="m28i">${items.map(it => `<option value="${it.id}" ${o.item === it.id ? "selected" : ""}>${esc(it.name)} — ${stockOf28(it.id)} ${esc(it.unit || "")}</option>`).join("")}</select></label>
+      ${issue ? `<label class="f">Quantity issued<input type="number" id="m28q" min="0" step="any"></label><label class="f">For job<select id="m28j"><option value="">— general use —</option>${jobs.map(j => `<option value="${j.id}" ${o.job === j.id ? "selected" : ""}>${esc(j.no)} · ${esc(j.customer)}</option>`).join("")}</select></label>` : `<label class="f">Quantity (+ in, − out)<input type="number" id="m28q" step="any"></label><label class="f">Rate ₹ (for stock in)<input type="number" id="m28r" min="0" step="any"></label><label class="f">Type<select id="m28t"><option value="adjust">Stock count / adjustment</option><option value="in">Opening stock / stock in</option><option value="return">Returned from job</option></select></label>`}
+      <label class="f">Date<input type="date" id="m28d" value="${todayISO()}"></label><label class="f" style="grid-column:1/-1">Note<input id="m28n"></label></div>`,
+    foot: `<span style="flex:1"></span><button class="btn" type="button" onclick="closeDrawer26()">Cancel</button><button class="btn primary" id="m28s" type="button">Save</button>`
+  });
+  if (!items.length) { $("#m28s").disabled = true; D.querySelector(".dr26-b").insertAdjacentHTML("afterbegin", '<div class="note warn small">Add stock items first (Purchase & stock ▸ Stock ▸ New item).</div>'); }
+  $("#m28s").onclick = async e => {
+    const q = Number($("#m28q").value) || 0; if (!q) return toast("Enter a quantity", "bad");
+    const item = $("#m28i").value, jid = issue ? $("#m28j").value : "", job = BIZ.rows[jid];
+    if (issue && q > stockOf28(item)) { if (!confirm(`Only ${stockOf28(item)} in stock. Issue anyway?`)) return; }
+    const m = { kind: "move", item, qty: issue ? -Math.abs(q) : q, rate: issue ? lastRate28(item) : Number($("#m28r")?.value) || 0, type: issue ? "issue" : $("#m28t").value, job: jid, jobNo: job?.no || "", ref: job?.no || "", date: $("#m28d").value || todayISO(), note: $("#m28n").value.trim() };
+    if (await save28(e.target, m, issue ? "Material issued" : "Stock updated")) { closeDrawer26(); render(); }
+  };
+}
+VIEWS.purchase = v => {
+  bizSync28();
+  const U = BIZ.ui, q = U.q.toLowerCase(), pos = all28("po"), items = all28("item");
+  const low = items.filter(it => Number(it.min) > 0 && stockOf28(it.id) < Number(it.min)), value = items.reduce((a, it) => a + Math.max(0, stockOf28(it.id)) * lastRate28(it.id), 0);
+  const openPo = pos.filter(p => ["approved", "sent", "part"].includes(p.status));
+  let body;
+  if (U.pur === "po") {
+    const L = pos.filter(p => !q || `${p.no} ${p.supplier} ${(p.lines || []).map(l => l.desc).join(" ")}`.toLowerCase().includes(q)).sort((a, b) => String(b.no).localeCompare(String(a.no)));
+    body = `<section class="panel"><div class="tablewrap"><table class="t"><thead><tr><th>PO</th><th>Supplier</th><th>Items</th><th>Status</th><th>Needed by</th><th class="n">Total</th></tr></thead><tbody>${L.map(p => { const s = PO_ST.find(x => x[0] === p.status) || PO_ST[0]; return `<tr class="r26" data-po="${p.id}" tabindex="0"><td class="mono" style="font-size:.75rem">${esc(p.no)}<div class="muted">${p.date ? dmy(p.date) : ""}</div></td><td><b>${esc(p.supplier || "")}</b></td><td>${esc((p.lines || []).map(l => BIZ.rows[l.item]?.name || l.desc).filter(Boolean).join(", ").slice(0, 90))}</td><td><span class="chip ${s[2]}">${s[1]}</span></td><td>${["received", "closed", "cancelled"].includes(p.status) ? (p.needBy ? dmy(p.needBy) : "—") : dueChip28(p.needBy)}</td><td class="n">${inr28(p.total || poTotal28(p))}</td></tr>`; }).join("") || '<tr><td colspan="6" class="muted">No purchase orders yet</td></tr>'}</tbody></table></div></section>`;
+  } else if (U.pur === "stock") {
+    const L = items.filter(it => !q || `${it.name} ${it.category} ${it.spec} ${it.location}`.toLowerCase().includes(q)).sort((a, b) => String(a.category).localeCompare(String(b.category)) || String(a.name).localeCompare(String(b.name)));
+    body = `<section class="panel"><div class="tablewrap"><table class="t"><thead><tr><th>Item</th><th>Category</th><th>Rack / bin</th><th class="n">In stock</th><th class="n">Minimum</th><th class="n">Value</th></tr></thead><tbody>${L.map(it => { const s = stockOf28(it.id), isLow = Number(it.min) > 0 && s < Number(it.min); return `<tr class="r26" data-it="${it.id}" tabindex="0"><td><b>${esc(it.name)}</b><div class="small muted">${esc(it.spec || "")}</div></td><td>${esc(it.category || "")}</td><td>${esc(it.location || "")}</td><td class="n"><span class="chip ${isLow ? "bad" : "ok"}">${s} ${esc(it.unit || "")}</span></td><td class="n">${it.min || "—"}</td><td class="n">${inr28(Math.max(0, s) * lastRate28(it.id))}</td></tr>`; }).join("") || '<tr><td colspan="6" class="muted">No stock items yet — add copper, insulation, varnish…</td></tr>'}</tbody></table></div></section>`;
+  } else {
+    const M = all28("move").filter(m => !q || `${BIZ.rows[m.item]?.name} ${m.ref} ${m.note} ${m.type}`.toLowerCase().includes(q)).sort((a, b) => String(b.date || b.at).localeCompare(String(a.date || a.at)));
+    body = `<section class="panel"><div class="tablewrap"><table class="t"><thead><tr><th>Date</th><th>Item</th><th>Type</th><th>Ref</th><th class="n">Qty</th><th>By</th></tr></thead><tbody>${M.slice(0, 300).map(m => `<tr><td>${dmy(m.date || String(m.at).slice(0, 10))}</td><td>${esc(BIZ.rows[m.item]?.name || "?")}</td><td>${esc({ grn: "GRN", issue: "Issue", adjust: "Adjust", in: "Stock in", return: "Return" }[m.type] || m.type)}</td><td>${esc(m.ref || "")} <span class="muted small">${esc(m.note || "")}</span></td><td class="n" style="color:${m.qty < 0 ? "var(--bad)" : "var(--ok)"}">${m.qty > 0 ? "+" : ""}${m.qty} ${esc(BIZ.rows[m.item]?.unit || "")}</td><td>${esc(who28(m.by))}</td></tr>`).join("") || '<tr><td colspan="6" class="muted">No movements yet</td></tr>'}</tbody></table></div></section>`;
+  }
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Purchase</div><h1>Purchase & stock</h1><p>Purchase orders with approval, GRN into stock, copper / insulation stock with minimum-level alerts, and material issued to each job.</p></div>
+    <div class="row">${U.pur === "stock" ? `<button class="btn primary" id="i28new">${icon("plus")}New item</button><button class="btn" id="m28new">Issue / adjust</button>` : `<button class="btn primary" id="p28new">${icon("plus")}New PO</button>`}<button class="btn" id="biz28r">${icon("spark")}${BIZ.busy ? "Syncing…" : "Refresh"}</button></div></div>
+    ${loadNote28() || `<div class="hero-strip"><div><span>Waiting approval</span><b>${pos.filter(p => p.status === "pending").length}</b></div><div><span>Open POs (to receive)</span><b>${openPo.length} · ${inr28(openPo.reduce((a, p) => a + (Number(p.total) || 0), 0))}</b></div><div><span>Stock value</span><b>${inr28(value)}</b></div><div><span>Below minimum</span><b>${low.length}</b></div></div>
+    ${low.length ? `<div class="note bad small" style="margin-bottom:10px"><b>Reorder:</b> ${low.map(it => `${esc(it.name)} (${stockOf28(it.id)} / ${it.min} ${esc(it.unit || "")})`).join(" · ")}</div>` : ""}
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">${tabs28(U.pur, [["po", "Purchase orders"], ["stock", "Stock"], ["moves", "Movements"]], "pt")}<input class="q28" id="q28" type="search" placeholder="Find…" value="${esc(U.q)}" aria-label="Find"></div>${body}`}`;
+  $("#p28new") && ($("#p28new").onclick = () => poPanel28()); $("#i28new") && ($("#i28new").onclick = () => itemPanel28()); $("#m28new") && ($("#m28new").onclick = () => movePanel28({ type: "issue" })); $("#biz28r").onclick = () => bizSync28(true);
+  $$("[data-pt]", v).forEach(b => b.onclick = () => { U.pur = b.dataset.pt; render(); });
+  $("#q28") && ($("#q28").oninput = e => { U.q = e.target.value; clearTimeout(BIZ.qt); BIZ.qt = setTimeout(() => { render(); const i = $("#q28"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 250); });
+  $$("[data-po]", v).forEach(el => el.addEventListener("click", () => poPanel28(BIZ.rows[el.dataset.po])));
+  $$("[data-it]", v).forEach(el => el.addEventListener("click", () => itemPanel28(BIZ.rows[el.dataset.it])));
+};
+
+/* =============== My work: today + tasks + 14-day calendar =============== */
+function taskPanel28(src) {
+  const r = src ? { ...src } : { kind: "task", assignee: me28(), due: todayISO(), pri: "normal", status: "open" };
+  const D = panel28({
+    title: src ? r.title : "New task", chips: src ? `<span class="chip">${esc(r.no || "")}</span><span class="chip">${esc(who28(r.by))} → ${esc(who28(r.assignee))}</span>` : "",
+    body: `<div class="fields">${[["title", "Task *", "text", null, 1], ["assignee", "Give to", "select", TEAM28], ["due", "Due", "date"], ["pri", "Priority", "select", TASK_PRI], ["link", "For (customer / job / tender)", "text"], ["note", "Details", "textarea"]].map(f => field28(f, r)).join("")}</div>${src ? `<section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>` : ""}`,
+    foot: `${src ? `<button class="btn ghost" id="t28d" type="button">Delete</button>` : ""}<span style="flex:1"></span>${src && r.status !== "done" ? `<button class="btn" id="t28c" type="button">${icon("check28")}Mark done</button>` : ""}<button class="btn primary" id="t28s" type="button">Save task</button>`
+  });
+  $("#t28s").onclick = async e => { readForm28(D, r); if (!r.title) return toast("Write the task", "bad"); if (!src) logAdd28(r, "Created", "for " + who28(r.assignee)); if (await save28(e.target, r, r.assignee !== me28() ? "Task given to " + who28(r.assignee) + " — they get a mail" : "Task saved")) { closeDrawer26(); render(); } };
+  $("#t28c") && ($("#t28c").onclick = async e => { readForm28(D, r); r.status = "done"; r.doneAt = todayISO(); logAdd28(r, "Done", ""); if (await save28(e.target, r, "Done")) { closeDrawer26(); render(); } });
+  $("#t28d") && ($("#t28d").onclick = async () => { try { await bizDel28(r.id); closeDrawer26(); render(); toast("Task deleted"); } catch (e) { toast(e.message, "bad"); } });
+}
+function myDue28() {
+  const me = me28(), t = todayISO(), adm = isAdmin28();
+  return {
+    follow: all28("lead").filter(x => !["won", "lost"].includes(x.stage) && x.next && x.next <= t && (adm || x.owner === me || (!x.owner && x.by === me))),
+    tasks: all28("task").filter(x => x.status !== "done" && x.due && x.due <= t && (x.assignee === me || (adm && !x.assignee))),
+    late: all28("job").filter(x => !["dispatched", "invoiced"].includes(x.stage) && x.promised && x.promised < t),
+    low: all28("item").filter(it => Number(it.min) > 0 && stockOf28(it.id) < Number(it.min)),
+    approve: adm ? all28("po").filter(p => p.status === "pending") : [],
+    receive: all28("po").filter(p => ["approved", "sent", "part"].includes(p.status) && p.needBy && p.needBy <= t)
+  };
+}
+VIEWS.tasks = v => {
+  bizSync28();
+  const U = BIZ.ui, me = me28(), t = todayISO(), d = myDue28();
+  const T = all28("task").filter(x => U.tasks === "mine" ? x.assignee === me : U.tasks === "gave" ? x.by === me && x.assignee !== me : true).filter(x => U.tasks === "done" ? x.status === "done" : x.status !== "done" || U.tasks === "all");
+  const card = (label, n, route, tone, hint) => `<a class="wk28 ${n ? tone : ""}" href="#${route}"><span>${label}</span><b>${n}</b><small>${hint}</small></a>`;
+  const cal = []; for (let i = 0; i < 14; i++) { const dd = new Date(Date.now() + i * 864e5 + 19800000).toISOString().slice(0, 10); cal.push(dd); }
+  const ev = dd => [...all28("lead").filter(x => x.next === dd && !["won", "lost"].includes(x.stage)).map(x => ["Follow-up", x.company, "crm", x.id]), ...all28("task").filter(x => x.due === dd && x.status !== "done").map(x => ["Task", x.title + " · " + who28(x.assignee), "tasks", x.id]), ...all28("job").filter(x => x.promised === dd && !["dispatched", "invoiced"].includes(x.stage)).map(x => ["Job due", x.no + " " + x.customer, "jobs", x.id]), ...all28("po").filter(x => x.needBy === dd && ["approved", "sent", "part"].includes(x.status)).map(x => ["Delivery", x.no + " " + x.supplier, "purchase", x.id]), ...(STATE.data.tenders || []).filter(x => String(x.closing || x.due || "").slice(0, 10) === dd && !["awarded", "not_awarded", "dropped", "cancelled", "submitted"].includes(x.status)).map(x => ["Tender closes", (x.bid || "") + " " + (x.org || ""), "tenders", ""])];
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">${esc(dmy(t))}</div><h1>My work</h1><p>Everything due today for you in one place — follow-ups, tasks, late jobs, stock to reorder and POs to approve. Tasks you give go to that person by mail.</p></div>
+    <div class="row"><button class="btn primary" id="t28new">${icon("plus")}New task</button><button class="btn" id="biz28r">${icon("spark")}${BIZ.busy ? "Syncing…" : "Refresh"}</button></div></div>
+    ${loadNote28() || `<div class="wk28-g">${card("Follow-ups due", d.follow.length, "crm", "warn", "calls & visits to make")}${card("Tasks due", d.tasks.length, "tasks", "warn", "given to you")}${card("Jobs late", d.late.length, "jobs", "bad", "past promised date")}${card("Stock to reorder", d.low.length, "purchase", "bad", "below minimum")}${isAdmin28() ? card("POs to approve", d.approve.length, "purchase", "warn", "waiting for you") : ""}${card("Deliveries due", d.receive.length, "purchase", "", "POs to receive")}</div>
+    <div class="grid28" style="grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)">
+      <section class="panel"><header><h2>Tasks</h2></header><div class="body">${tabs28(U.tasks, [["mine", "Given to me"], ["gave", "I gave"], ["all", "Everyone"], ["done", "Done"]], "tt")}
+        <div class="stack" style="gap:8px;margin-top:10px">${T.sort((a, b) => String(a.due || "9").localeCompare(String(b.due || "9"))).map(x => `<div class="fu28"><input type="checkbox" class="tk28" data-done="${x.id}" ${x.status === "done" ? "checked" : ""} aria-label="Done: ${esc(x.title)}"><button type="button" class="fu28-x" data-task="${x.id}"><b style="${x.status === "done" ? "text-decoration:line-through;opacity:.6" : ""}">${x.pri === "high" ? '<span class="chip bad">High</span> ' : ""}${esc(x.title)}</b><small>${esc(who28(x.by))} → ${esc(who28(x.assignee))}${x.link ? " · " + esc(x.link) : ""}</small></button>${x.status === "done" ? "" : dueChip28(x.due)}</div>`).join("") || '<p class="small muted">No tasks here.</p>'}</div></div></section>
+      <section class="panel"><header><h2>Next 14 days</h2></header><div class="body stack" style="gap:10px">${cal.map(dd => { const E = ev(dd); return E.length ? `<div><div class="small" style="font-weight:700;margin-bottom:4px">${dd === t ? "Today" : new Date(dd).toLocaleDateString("en-IN", { weekday: "short", day: "numeric", month: "short" })}</div>${E.map(([k, l, r, id]) => `<a class="cal28" href="#${r}" ${id ? `data-ev="${id}"` : ""}><span class="chip">${k}</span>${esc(String(l).slice(0, 70))}</a>`).join("")}</div>` : ""; }).join("") || '<p class="small muted">Nothing scheduled in the next two weeks.</p>'}</div></section></div>`}`;
+  $("#t28new").onclick = () => taskPanel28(); $("#biz28r").onclick = () => bizSync28(true);
+  $$("[data-tt]", v).forEach(b => b.onclick = () => { U.tasks = b.dataset.tt; render(); });
+  $$("[data-task]", v).forEach(b => b.onclick = () => taskPanel28(BIZ.rows[b.dataset.task]));
+  $$("[data-done]", v).forEach(c => c.onchange = async () => { const r = { ...BIZ.rows[c.dataset.done] }; r.status = c.checked ? "done" : "open"; r.doneAt = c.checked ? todayISO() : ""; logAdd28(r, c.checked ? "Done" : "Reopened", ""); BIZ.rows[r.id] = r; render(); await save28(null, r, c.checked ? "Done" : "Reopened"); });
+  $$("[data-ev]", v).forEach(a => a.addEventListener("click", e => { const r = BIZ.rows[a.dataset.ev]; if (!r) return; e.preventDefault(); ({ lead: leadPanel28, task: taskPanel28, job: jobPanel28, po: poPanel28 })[r.kind]?.(r); }));
+};
+
+/* ---- top bar: "My work" counter next to the tender bell ---- */
+function work28() {
+  const bar = $("#appbar26 .ab26-r"); if (!bar || !BIZ.loaded) return;
+  const d = myDue28(), n = d.follow.length + d.tasks.length + d.approve.length + (isAdmin28() ? d.late.length + d.low.length : 0);
+  let b = $("#wk28b");
+  if (!b) { bar.insertAdjacentHTML("afterbegin", `<a class="ab26-ib" id="wk28b" href="#tasks" title="My work due today">${icon("check28")}</a>`); b = $("#wk28b"); }
+  b.setAttribute("aria-label", `My work: ${n} due`); b.querySelector("i")?.remove(); if (n) b.insertAdjacentHTML("beforeend", `<i>${n > 99 ? "99+" : n}</i>`);
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.kb28{display:grid;grid-auto-flow:column;grid-auto-columns:minmax(230px,1fr);gap:10px;overflow-x:auto;padding-bottom:10px;scroll-snap-type:x proximity}
+.kb28-c{background:var(--sunk);border:1px solid var(--line);border-radius:12px;display:flex;flex-direction:column;min-height:200px;scroll-snap-align:start}.kb28-c.over{outline:2px dashed var(--copper);outline-offset:-3px}
+.kb28-c header{display:flex;justify-content:space-between;align-items:center;padding:10px 12px;border-bottom:1px solid var(--line);font-size:.84rem}
+.kb28-l{display:flex;flex-direction:column;gap:8px;padding:10px;max-height:62vh;overflow:auto}.kb28-e{color:var(--muted);text-align:center;padding:14px 0;font-size:.8rem}
+.kb28-k{display:flex;flex-direction:column;gap:4px;text-align:left;padding:10px 11px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:inherit;font:inherit;cursor:grab;box-shadow:0 1px 2px rgba(0,0,0,.04)}.kb28-k:hover,.kb28-k:focus-visible{border-color:var(--copper);outline:none}.kb28-k.drag{opacity:.45}
+.kb28-k b{font-size:.86rem;line-height:1.25}.kb28-k small{color:var(--muted);font-size:.76rem;line-height:1.3}.kb28-m{display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-top:2px}
+.av28{margin-left:auto;width:22px;height:22px;border-radius:50%;background:var(--copper);color:#fff;display:grid;place-items:center;font-size:.68rem;font-weight:700}
+.q28{height:38px;min-width:200px;flex:1;max-width:320px;margin-left:auto;padding:0 12px;border:1px solid var(--line);border-radius:9px;background:var(--surface);color:var(--ink);font:inherit}
+.fu28{display:flex;align-items:center;gap:10px;padding:8px 10px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.fu28-x{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px;text-align:left;border:0;background:none;color:inherit;font:inherit;cursor:pointer;padding:0}.fu28-x b{font-size:.88rem}.fu28-x small{color:var(--muted);font-size:.76rem}
+.dr26 .f input:not([type]),.dr26 .f input[type=email],.dr26 .f input[type=tel],.q28{width:100%;border:1px solid var(--line-2);background:var(--surface);border-radius:6px;padding:7px 9px;color:var(--ink);font-size:.88rem;font-weight:400;min-width:0}.dr26 .f input,.dr26 .f select{min-height:38px}
+@media (max-width:640px){.q28{max-width:none;margin-left:0;flex:1 1 100%}}
+.tk28{width:20px;height:20px;accent-color:var(--copper);flex:none}
+.grid28{display:grid;grid-template-columns:repeat(auto-fit,minmax(320px,1fr));gap:14px;align-items:start}
+.bar28{display:grid;grid-template-columns:140px 1fr 32px;align-items:center;gap:8px;font-size:.84rem}.bar28 i{height:10px;border-radius:5px;background:linear-gradient(90deg,var(--copper) var(--w),var(--sunk) var(--w))}
+.tl28{list-style:none;margin:0;padding:0 0 0 14px;border-left:2px solid var(--line);display:flex;flex-direction:column;gap:10px}.tl28 li{font-size:.86rem;position:relative}.tl28 li::before{content:"";position:absolute;left:-20px;top:5px;width:10px;height:10px;border-radius:50%;background:var(--copper)}.tl28-d{display:block;font-size:.72rem;color:var(--muted)}
+.dr28-f{display:flex;align-items:center;gap:8px;flex-wrap:wrap;padding:12px 18px calc(12px + env(safe-area-inset-bottom,0px));border-top:1px solid var(--line);background:var(--surface)}
+.dr26 .fields{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}@media (max-width:520px){.dr26 .fields{grid-template-columns:1fr}}
+.po28{display:flex;flex-direction:column;gap:10px}.pl28{display:flex;flex-direction:column;gap:6px;padding:10px;border:1px solid var(--line);border-radius:10px;background:var(--sunk)}.pl28-a{display:flex;gap:6px}.pl28-a select{flex:1}.pl28 input,.pl28 select{height:36px;padding:0 9px;border:1px solid var(--line);border-radius:8px;background:var(--surface);color:var(--ink);font:inherit;width:100%;min-width:0}.pl28-b{display:grid;grid-template-columns:1fr .8fr 1.2fr .8fr 1.1fr;gap:6px;align-items:end}.pl28-b label{display:flex;flex-direction:column;gap:3px;font-size:.72rem;color:var(--muted)}.pl28-amt{display:flex;flex-direction:column;gap:3px;text-align:right}.pl28-amt span{font-size:.72rem;color:var(--muted)}.pl28-amt b{height:36px;line-height:36px;font-size:.9rem}@media (max-width:520px){.pl28-b{grid-template-columns:1fr 1fr 1fr}}
+.wk28-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px;margin-bottom:16px}
+.wk28{display:flex;flex-direction:column;gap:2px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:inherit;text-decoration:none}.wk28:hover{border-color:var(--copper)}.wk28 span{font-size:.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.wk28 b{font-family:var(--f-display);font-size:1.8rem;line-height:1.1}.wk28 small{color:var(--muted);font-size:.76rem}
+.wk28.warn{border-color:var(--warn);background:var(--warn-soft)}.wk28.bad{border-color:var(--bad);background:var(--bad-soft,var(--warn-soft))}
+.cal28{display:flex;align-items:center;gap:8px;padding:6px 8px;border-radius:8px;color:inherit;text-decoration:none;font-size:.84rem}.cal28:hover{background:var(--sunk)}
+</style>`);
+{
+  const _r28 = render;
+  render = function () { _r28(); try { work28(); } catch (e) { console.warn("p28", e); } };
+  const _b28 = boot;
+  boot = async function (...a) { const r = await _b28(...a); try { setTimeout(() => bizSync28(true), 2500); setInterval(() => bizSync28(), 3 * 6e4); } catch (e) { } return r; };
+}
+
 boot();
 
 </script>

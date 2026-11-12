@@ -275,6 +275,7 @@ function dailyDigest() {
       awarded: tableHtml("Awarded orders to execute", ["Bid / tender", "Buyer", "Item", "Value ₹"], awarded.map(function (t) { return rowHtml([esc(t.bid), esc(t.org), esc(t.items), Number(t.ourPrice || t.value || 0).toLocaleString("en-IN")]); })) });
   } catch (e) { log("automation", "role-digest-error", String(e)); }
   try { ssDigest(); } catch (e) { log("automation", "saved-search-error", String(e)); }
+  try { recDigest(); } catch (e) { log("automation", "work-digest-error", String(e)); }
   props().setProperty("DIGEST_LAST", new Date().toISOString());
   log("automation", "daily-digest", "sent to " + digestTo());
   return { ok: true, live: live.length, closing: closing.length, fresh: fresh.length, watch: w };
@@ -317,7 +318,7 @@ function nkey(s) { return String(s || "").toLowerCase().replace(/\b(m\/s|messrs|
 function todayIST() { return Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyy-MM-dd"); }
 function cellStr(x) { return x instanceof Date ? Utilities.formatDate(x, "Asia/Kolkata", "yyyy-MM-dd") : x === null || x === undefined ? "" : x; }
 /* p26: fast reads — TenderDB / TenderResults / TenderNotes are kept in the script cache and dropped on every write */
-var TBL_MEMO = {}, FAST_TABLES = { TenderDB: 1, TenderResults: 1, TenderNotes: 1 };
+var TBL_MEMO = {}, FAST_TABLES = { TenderDB: 1, TenderResults: 1, TenderNotes: 1, Records: 1 };
 function tblVer(n) { return props().getProperty("TBLV_" + n) || "0"; }
 function tblBump(n) { delete TBL_MEMO[n]; try { props().setProperty("TBLV_" + n, String(Date.now())); } catch (e) { } }
 function tblRows(H, A) { return A.map(function (a) { var o = {}; for (var j = 0; j < H.length; j++) o[H[j]] = a[j] === undefined ? "" : a[j]; return o; }); }
@@ -995,6 +996,10 @@ function api(d) {
   if (a === "trQuery") return trQuery(d);
   if (a === "tdbStats") return tdbStats();
   if (a === "tdbNote") return tdbNote(d, me);
+  /* ---- business records: leads, repair jobs, purchase orders, stock, tasks ---- */
+  if (a === "recList") return recList(d, me);
+  if (a === "recPut") return recPut(d, me);
+  if (a === "recDel") return recDel(d, me);
   if (a === "frList") return { ok: true, list: frList(me), types: FR_TYPES };
   if (a === "frCreate") return frCreate(d, me);
   if (a === "frUpdate") return frUpdate(d, me);
@@ -1089,3 +1094,76 @@ function doGet(e) {
 }
 /** Run once from the editor to create the sheets and grant permissions. */
 function setup() { secret(); users(); sessions(); sheet("Log", ["time", "email", "action", "detail"]); sheet("Store", ["key", "updated", "chunks..."]); Logger.log("Ready. Sheet: " + ss().getUrl()); }
+
+
+/* ================= p28: business records (GrowSmart-style) — leads & follow-ups, repair jobs, purchase orders, stock, tasks ================= */
+var RCH = ["id", "kind", "no", "data", "by", "at", "del"];
+var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK" };
+function recSheet() { var sh = sheet("Records", RCH); tdbFmt(sh, RCH.length); return sh; }
+function recRows() { return fastRead("Records", RCH, recSheet); }
+function recOut(r) { var o = {}; try { o = JSON.parse(r.data || "{}"); } catch (e) { } o.id = r.id; o.kind = r.kind; o.no = r.no; o.by = r.by; o.at = r.at; return o; }
+function recList(d, me) {
+  var kinds = (d.kinds || Object.keys(REC_KINDS)).filter(function (k) { return REC_KINDS[k]; }), since = String(d.since || "");
+  var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (!since ? r.del !== "1" : String(r.at) > since); });
+  return { ok: true, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.del === "1") o._del = 1; return o; }) };
+}
+function fyShort() { var t = new Date(), y = Number(Utilities.formatDate(t, "Asia/Kolkata", "yyyy")), m = Number(Utilities.formatDate(t, "Asia/Kolkata", "M")); if (m < 4) y--; return String(y).slice(2) + "-" + String(y + 1).slice(2); }
+function recPut(d, me) {
+  if (me.role === "viewer") throw "View-only login";
+  var list = d.recs || (d.rec ? [d.rec] : []); if (!list.length) throw "Nothing to save";
+  if (list.length > 200) throw "Too many at once";
+  var lock = LockService.getScriptLock(), out = [], mails = []; lock.waitLock(25000);
+  try {
+    var sh = recSheet(), all = readTableRaw(sh, RCH), now = new Date().toISOString();
+    list.forEach(function (rec) {
+      var kind = rec.kind; if (!REC_KINDS[kind]) throw "Unknown record type";
+      if (kind === "lead" && ["admin", "sales"].indexOf(me.role) < 0) throw "Only sales can change leads";
+      var r = rec.id ? all.filter(function (x) { return x.id === rec.id; })[0] : null, before = null;
+      if (r) { try { before = JSON.parse(r.data || "{}"); } catch (e) { before = {}; } }
+      if (!r) {
+        var fy = fyShort(), pre = kind === "po" ? "RCM/PO/" + fy + "/" : kind === "job" ? "RJ/" + fy + "/" : REC_KINDS[kind] + "-", seq = 0;
+        all.forEach(function (x) { if (x.kind === kind && String(x.no).indexOf(pre) === 0) seq = Math.max(seq, Number(String(x.no).slice(pre.length)) || 0); });
+        r = { id: REC_KINDS[kind] + Utilities.getUuid().replace(/-/g, "").slice(0, 10), kind: kind, no: pre + String(seq + 1).padStart(kind === "move" || kind === "item" || kind === "task" ? 4 : 3, "0"), del: "" };
+        all.push(r);
+      }
+      var data = {}; Object.keys(rec).forEach(function (k) { if (["id", "kind", "no", "by", "at", "_del"].indexOf(k) < 0) data[k] = rec[k]; });
+      var js = JSON.stringify(data); if (js.length > 45000) throw "Record too large";
+      r.data = js; r.by = me.email; r.at = now;
+      out.push(recOut(r));
+      if (kind === "task" && /@/.test(data.assignee || "") && data.assignee !== me.email && (!before || before.assignee !== data.assignee)) mails.push([data.assignee, "New task for you: " + clean(data.title, 120), "<p><b>" + esc(me.name || me.email) + "</b> gave you a task:</p><p style=\"font-size:16px\"><b>" + esc(data.title || "") + "</b></p><p>" + esc(data.note || "") + "</p><p>Due: <b>" + esc(data.due || "—") + "</b></p><p>" + btn(LINKS.site + "#tasks", "Open My work", "#02315B") + "</p>"]);
+      if (kind === "po" && data.status === "pending" && (!before || before.status !== "pending")) mails.push([ADMIN, "Purchase order " + r.no + " waiting for your approval", "<p><b>" + esc(me.name || me.email) + "</b> raised <b>" + esc(r.no) + "</b> to <b>" + esc(data.supplier || "") + "</b> for ₹" + Number(data.total || 0).toLocaleString("en-IN") + ".</p><p>" + btn(LINKS.site + "#purchase", "Open Purchase", "#02315B") + "</p>"]);
+    });
+    writeTable(sh, RCH, all);
+  } finally { lock.releaseLock(); }
+  mails.forEach(function (m) { try { mail(m[0], APP + " — " + m[1], m[2]); } catch (e) { } });
+  return { ok: true, recs: out };
+}
+function recDel(d, me) {
+  if (me.role === "viewer") throw "View-only login";
+  var lock = LockService.getScriptLock(); lock.waitLock(25000);
+  try {
+    var sh = recSheet(), all = readTableRaw(sh, RCH), r = all.filter(function (x) { return x.id === d.id; })[0]; if (!r) throw "Not found";
+    if (r.kind === "lead" && ["admin", "sales"].indexOf(me.role) < 0) throw "Only sales can change leads";
+    r.del = "1"; r.at = new Date().toISOString(); r.by = me.email; writeTable(sh, RCH, all);
+  } finally { lock.releaseLock(); }
+  log(me.email, "record-delete", d.id);
+  return { ok: true };
+}
+/* morning: follow-ups due, tasks due, jobs past their promised date, stock below minimum — one mail per person */
+function recDigest() {
+  var today = todayIST(), R = recRows().filter(function (r) { return r.del !== "1"; }).map(recOut), per = {};
+  var add = function (who, sec, line) { if (!/@/.test(who || "")) return; per[who] = per[who] || {}; (per[who][sec] = per[who][sec] || []).push(line); };
+  R.forEach(function (x) {
+    if (x.kind === "lead" && x.next && x.next <= today && ["won", "lost"].indexOf(x.stage) < 0) add(x.owner || x.by, "Follow-ups due", esc(x.company || "") + " — " + esc(x.need || "") + " (" + dmyS(x.next) + ")");
+    if (x.kind === "task" && x.status !== "done" && x.due && x.due <= today) add(x.assignee || x.by, "Tasks due", esc(x.title || "") + " (" + dmyS(x.due) + ")");
+    if (x.kind === "job" && x.promised && x.promised < today && ["dispatched", "invoiced"].indexOf(x.stage) < 0) add(ADMIN, "Repair jobs late", esc(x.no) + " " + esc(x.customer || "") + " — " + esc(x.equipment || "") + " (promised " + dmyS(x.promised) + ")");
+  });
+  var stock = {}; R.forEach(function (x) { if (x.kind === "move") stock[x.item] = (stock[x.item] || 0) + Number(x.qty || 0); });
+  R.forEach(function (x) { if (x.kind === "item" && Number(x.min) > 0 && (stock[x.id] || 0) < Number(x.min)) add(ADMIN, "Stock below minimum", esc(x.name) + ": " + (stock[x.id] || 0) + " " + esc(x.unit || "") + " (min " + x.min + ")"); });
+  var sent = 0;
+  Object.keys(per).forEach(function (who) {
+    var html = Object.keys(per[who]).map(function (s) { return "<h3 style=\"margin:14px 0 6px\">" + s + "</h3><ul>" + per[who][s].slice(0, 40).map(function (l) { return "<li>" + l + "</li>"; }).join("") + "</ul>"; }).join("");
+    try { mail(who, APP + " — your work for " + dmyS(today), html + "<p>" + btn(LINKS.site + "#tasks", "Open My work", "#02315B") + "</p>"); sent++; } catch (e) { }
+  });
+  return sent;
+}
