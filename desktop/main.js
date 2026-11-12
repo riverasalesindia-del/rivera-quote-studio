@@ -160,6 +160,19 @@ if (!app.requestSingleInstanceLock()) {
         try { const r = await gemSearch(String(u.searchParams.get("kw") || "").slice(0, 80), Math.max(1, Math.min(500, +u.searchParams.get("page") || 1)), u.searchParams.get("status") || "ongoing_bids"); return new Response(JSON.stringify({ ok: true, numFound: r.numFound || 0, docs: r.docs || [] }), { headers: head }); }
         catch (e) { return new Response(JSON.stringify({ ok: false, error: String(e && e.message || e) }), { status: 502, headers: head }); }
       })();
+      /* Tally Prime bridge: the page POSTs Tally XML to rivera://tally?host=…&port=…; only this PC or the office LAN is allowed */
+      if (u.host === "tally") return (async () => {
+        const head = { "content-type": "text/xml; charset=utf-8", "access-control-allow-origin": "*" };
+        try {
+          const host = String(u.searchParams.get("host") || "localhost").trim(), port = Math.max(1, Math.min(65535, +u.searchParams.get("port") || 9000));
+          if (!/^(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|[a-z0-9-]+)$/i.test(host)) throw new Error("Tally must be on this PC or the office network");
+          const body = req.method === "POST" ? await req.text() : "";
+          if (body.length > 8e6) throw new Error("Too much at once");
+          const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 30000);
+          const r = await fetch(`http://${host}:${port}`, { method: "POST", body, headers: { "content-type": "text/xml; charset=utf-8" }, signal: ctl.signal }).finally(() => clearTimeout(t));
+          return new Response(await r.text(), { status: r.status, headers: head });
+        } catch (e) { return new Response(`<ERROR>${String(e && e.message || e).replace(/[<&]/g, "")}</ERROR>`, { status: 502, headers: head }); }
+      })();
       if (p === "/" || p === "") p = "/index.html";
       const file = path.normalize(path.join(WEB, p));
       if (!file.startsWith(WEB)) return new Response("Not allowed", { status: 403 });
