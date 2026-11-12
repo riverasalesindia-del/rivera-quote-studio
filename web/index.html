@@ -7458,6 +7458,42 @@ b.at29{display:inline-block;padding:1px 6px;border-radius:5px;min-width:0;height
 .ch29{width:100%;height:auto}.ch29 text{font-size:11px;fill:var(--muted)}.ch29 .gl{stroke:var(--line);stroke-dasharray:3 3}
 @media (max-width:640px){.ac29 .small{display:none}}
 </style>`);
+/* ===================== p30: Tender search — quick "Closing" buttons (today · 3 days · 7 days · this month) and the last search remembered on this device ===================== */
+document.head.insertAdjacentHTML("beforeend", `<style>
+.qc29{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px}.qc29>span{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
+</style>`);
+const QC29 = () => {
+  const t = todayISO(), [y, m] = t.split("-").map(Number), eom = new Date(Date.UTC(y, m, 0)).toISOString().slice(0, 10);
+  return [["0", "Closing today", t, t], ["3", "Next 3 days", t, addDays(t, 3)], ["7", "Next 7 days", t, addDays(t, 7)], ["30", "This month", t, eom]];
+};
+const qcActive29 = f => (QC29().find(([, , a, b]) => f.from === a && f.to === b) || [""])[0];
+const tdbSave29 = S => { try { const { exclude, star, owner, ...rest } = S.f; LS.set("tdbF29", { f: { ...rest, exclude: exclude || "", star: !!star }, qc: qcActive29(S.f) }); } catch (e) { } };
+{
+  const _tdb29 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    if (!STATE.tdb) {   // first open on this device / after reload: bring back the last search
+      const S = TDB(), sv = LS.get("tdbF29", null);
+      if (sv && sv.f && typeof sv.f === "object") {
+        Object.keys(sv.f).forEach(k => { if (k in S.f || k === "exclude" || k === "star") S.f[k] = sv.f[k]; });
+        const q = sv.qc && QC29().find(x => x[0] === sv.qc);
+        if (q) { S.f.from = q[2]; S.f.to = q[3]; } else if (S.f.to && S.f.to < todayISO() && S.f.status === "live") { S.f.from = ""; S.f.to = ""; }
+      }
+    }
+    _tdb29(v);
+    const S = TDB();
+    try { tdbSave29(S); } catch (e) { }
+    if (S.tab !== "search") return;
+    const panel = $("#tdbBody .fields")?.closest(".body"); if (!panel || $(".qc29", panel)) return;
+    const on = qcActive29(S.f);
+    panel.insertAdjacentHTML("afterbegin", `<div class="qc29" role="group" aria-label="Quick closing date"><span>Closing</span>${QC29().map(([k, l]) => `<button class="btn sm ${on === k ? "primary" : ""}" data-qc29="${k}" aria-pressed="${on === k}">${l}</button>`).join("")}<button class="btn sm ${!S.f.from && !S.f.to ? "primary" : ""}" data-qc29="">Any date</button></div>`);
+    $$("[data-qc29]", panel).forEach(b => b.onclick = () => {
+      const q = QC29().find(x => x[0] === b.dataset.qc29);
+      if (q) { S.f.from = q[2]; S.f.to = q[3]; S.f.status = "live"; if (!S.f.sort) S.f.sort = "closing"; }
+      else { S.f.from = ""; S.f.to = ""; }
+      S.page = 1; render();
+    });
+  };
+}
 
 boot();
 
