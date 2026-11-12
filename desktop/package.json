@@ -13,9 +13,22 @@
   "build": {
     "appId": "com.rivera.quotestudio",
     "productName": "Rivera Quote Studio",
-    "files": ["main.js", "icon.png", "web/**/*"],
-    "directories": { "output": "dist", "buildResources": "build" },
-    "win": { "target": ["nsis", "portable"], "icon": "build/icon.png" },
+    "files": [
+      "main.js",
+      "icon.png",
+      "web/**/*"
+    ],
+    "directories": {
+      "output": "dist",
+      "buildResources": "build"
+    },
+    "win": {
+      "target": [
+        "nsis",
+        "portable"
+      ],
+      "icon": "build/icon.png"
+    },
     "nsis": {
       "oneClick": false,
       "perMachine": false,
@@ -25,6 +38,19 @@
       "shortcutName": "Rivera Quote Studio",
       "artifactName": "RiveraQuoteStudio-Setup.${ext}"
     },
-    "portable": { "artifactName": "RiveraQuoteStudio-Portable.${ext}" }
+    "portable": {
+      "artifactName": "RiveraQuoteStudio-Portable.${ext}"
+    },
+    "publish": [
+      {
+        "provider": "github",
+        "owner": "riverasalesindia-del",
+        "repo": "rivera-quote-studio",
+        "releaseType": "release"
+      }
+    ]
+  },
+  "dependencies": {
+    "electron-updater": "6.3.9"
   }
 }

@@ -7843,7 +7843,10 @@ const MODS32 = [
     Reports: [["Health & automation", "health", {}, "Mails, triggers, errors"], ["Dashboard", "home", {}, "Quote studio overview"]] } }
 ];
 const okRoute32 = r => ROUTES.some(x => x[0] === r) && (typeof allowed21 !== "function" || allowed21(r));
-const modsFor32 = () => MODS32.map(m => ({ ...m, groups: Object.fromEntries(Object.entries(m.groups).map(([g, L]) => [g, L.filter(c => okRoute32(c[1]))])) })).filter(m => Object.values(m.groups).some(L => L.length));
+/* card-level access: Sales sees only Sales orders / Deliveries on the Sales page and only invoices / payments / receivables in Accounts */
+const CARD33 = { sales: { purchase: ["so", "dn"], accounts: ["inv", "rcpt", "recv"] } };
+function cardOk32(c) { const r = myRole21?.() || "", rule = CARD33[r]?.[c[1]]; if (!rule) return true; const v = Object.values(c[2] || {})[0]; return !v || rule.includes(v); }
+const modsFor32 = () => MODS32.map(m => ({ ...m, groups: Object.fromEntries(Object.entries(m.groups).map(([g, L]) => [g, L.filter(c => okRoute32(c[1]) && cardOk32(c))])) })).filter(m => Object.values(m.groups).some(L => L.length));
 function go32(route, ui) { Object.assign(BIZ.ui, ui || {}); BIZ.ui.q = ""; if (STATE.route === route) render(); else location.hash = route; }
 function cardsCount32(c) {
   const [, r, ui] = c, t = todayISO();
@@ -8068,7 +8071,7 @@ function tallyView32(v) {
       <div id="t32res"></div>
       <h3 style="font-size:.8rem;margin:6px 0 0">Recent</h3>${(TALLY32.log || []).slice(0, 8).map(l => `<div class="small"><span class="muted">${esc(new Date(l.at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }))}</span> · ${esc(l.t)}</div>`).join("") || '<p class="small muted">Nothing sent yet.</p>'}
     </div></section>
-    <section class="panel"><header><h2>Tally settings</h2></header><div class="body"><div class="fields">${[["host", "Tally PC (this PC = localhost)"], ["port", "Port"], ["company", "Company name in Tally (blank = open company)"], ["group", "Customer group"], ["sales", "Sales ledger"], ["cgst", "CGST ledger"], ["sgst", "SGST ledger"], ["igst", "IGST ledger"], ["round", "Round off ledger"], ["bank", "Bank ledger (receipts)"], ["tds", "TDS ledger"]].map(([k, l]) => `<label class="f">${l}<input data-t32="${k}" value="${esc(TALLY32[k])}"></label>`).join("")}</div>
+    <section class="panel"><header><h2>Tally settings</h2></header><div class="body"><div class="fields">${[["host", "Tally PC — localhost, or the Tally PC's IP / name on the office network"], ["port", "Port"], ["company", "Company name in Tally (blank = open company)"], ["group", "Customer group"], ["sales", "Sales ledger"], ["cgst", "CGST ledger"], ["sgst", "SGST ledger"], ["igst", "IGST ledger"], ["round", "Round off ledger"], ["bank", "Bank ledger (receipts)"], ["tds", "TDS ledger"]].map(([k, l]) => `<label class="f">${l}<input data-t32="${k}" value="${esc(TALLY32[k])}"></label>`).join("")}</div>
       <p class="small muted" style="margin-top:8px">In TallyPrime: F1 (Help) ▸ Settings ▸ Connectivity ▸ Client/Server configuration ▸ <b>TallyPrime acts as: Both</b>, port <b>9000</b>. Keep the company open. New customers are created under Sundry Debtors with GSTIN and state; invoices go as Sales vouchers with bill-wise reference, receipts as Receipt vouchers against those bills.</p></div></section></div>`;
   return body;
 }
@@ -8144,6 +8147,22 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 body.locked:has(#authSide32) .auth-ov{padding-left:min(46vw,640px)}
 @media (max-width:860px){.as32{display:none}body.locked:has(#authSide32) .auth-ov{padding-left:0}}
 </style>`);
+
+/* ===================== p33: each login sees only its own work (like GrowSmart roles) ===================== */
+if (typeof ROLE_PAGES !== "undefined") {
+  ROLE_PAGES.sales = ["apps", "module", "tasks", "home", "crm", "scan", "workings", "quote", "qfu", "purchase", "accounts", "customers", "register", "compare", "history", "tracker", "intel", "tenders", "biddesk", "tdb", "finreq", "library", "activity", "users"];
+  ROLE_PAGES.finance = ["apps", "module", "tasks", "dash", "accounts", "hr", "purchase", "customers", "projects", "finreq", "library", "activity", "users"];
+  ROLE_PAGES.viewer = ["apps", "module", "intel", "tdb", "users"];
+}
+{
+  const _vp33 = VIEWS.purchase;
+  VIEWS.purchase = v => {
+    const rule = CARD33[myRole21?.() || ""]?.purchase;
+    if (rule && !rule.includes(BIZ.ui.pur)) BIZ.ui.pur = rule[0];
+    _vp33(v);
+    if (rule) $$("[data-pt]", v).forEach(b => { if (!rule.includes(b.dataset.pt)) b.remove(); });
+  };
+}
 
 boot();
 

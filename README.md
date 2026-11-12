@@ -51,6 +51,8 @@ Company costing data (rate card, past jobs, bank details) is **not** in this rep
 - **Customers** – every customer in one list with a 360° view (quotes, orders, invoices, outstanding, jobs, service, equipment, AMC, tenders) and one-tap new lead / quotation / order / service call.
 - **Quotation automation** – Quick quotation from a lead or customer; saving a quotation moves its lead to Quoted (or creates the lead); Quote follow-ups on day 3, 7, 15 and 30 with WhatsApp / email text ready, Done, Order or Lost with reason.
 - **Tally Prime connection** – Accounts ▸ Tally in the Windows app on the Tally PC: test connection, send sales invoices and receipts (customer ledgers created with GSTIN and state, bill-wise), compare outstanding with Tally.
+- **Windows app updates itself** – it opens the newest pages from the website every time (with an offline copy), and installs new versions of the app from GitHub releases in the background (asks to restart).
+- **Strict roles** – Sales: Sales, Tenders, its invoices / payments / receivables, My work. Finance: Accounts (with Tally), HR & payroll, Purchase & stock, sales orders, customers, projects, finance requests. Admin: everything.
 - **Work orders**, **Tenders & GeM** (checklist + annexure kit II–X), **Vendors, price book & RFQ**
 - **Export & share** – any format, WhatsApp, email, or any app on the phone
 - **Synology** – connect the SALES folder once; jobs, registers and tender kits are filed automatically
