@@ -6670,7 +6670,7 @@ function panel28({ title, chips = "", body, foot }) {
   return D;
 }
 function timeline28(log) { const L = (log || []).slice().reverse(); return L.length ? `<ol class="tl28">${L.map(x => `<li><span class="tl28-d">${esc(new Date(x.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }))} · ${esc(who28(x.by))}</span><b>${esc(x.type || "")}</b> ${esc(x.text || "")}</li>`).join("")}</ol>` : '<p class="small muted">Nothing logged yet.</p>'; }
-const logAdd28 = (rec, type, text) => { rec.log = [...(rec.log || []), { at: new Date().toISOString(), by: me28(), type, text: String(text || "").slice(0, 600) }].slice(-80); };
+const logAdd28 = (rec, type, text) => { const g = BIZ._geo31 && /^(Visit|Meeting)$/.test(type) ? BIZ._geo31 : null; if (g) BIZ._geo31 = null; rec.log = [...(rec.log || []), { at: new Date().toISOString(), by: me28(), type, text: String(text || "").slice(0, 600), ...(g ? { lat: g.lat, lng: g.lng } : {}) }].slice(-80); };
 async function save28(btn, recs, msg) { const b = btn; if (b) { b.disabled = true; b.dataset.t = b.textContent; b.textContent = "Saving…"; } try { const out = await bizPut28(recs); toast(msg || "Saved"); return out; } catch (e) { toast(e.message, "bad"); if (b) { b.disabled = false; b.textContent = b.dataset.t; } return null; } }
 function printHtml28(title, inner) {
   const f = document.createElement("iframe"); f.style.cssText = "position:fixed;right:0;bottom:0;width:0;height:0;border:0"; document.body.appendChild(f);
@@ -7496,6 +7496,316 @@ const tdbSave29 = S => { try { const { exclude, star, owner, ...rest } = S.f; LS
     });
   };
 }
+
+/* ===================== p31: order to cash (GrowSmart video flow) — quotation → sales order (quote compare, credit & stock exception approval) → delivery planner → delivery note (stock out) → invoice → receivables → collection reminder; Won / Lost automatic in History; "Purchase & stock" becomes "Sales"; previous prices on the quotation; team tracker map ===================== */
+IC.so31 = '<path d="M6 2h9l5 5v15H6z"/><path d="M14 2v6h6M9 13h8M9 17h5"/>';
+IC.map31 = '<path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/>';
+const SO_ST = [["draft", "Draft", ""], ["exception", "Waiting approval", "warn"], ["confirmed", "Confirmed", "navy"], ["part", "Part delivered", "warn"], ["delivered", "Delivered", "ok"], ["invoiced", "Invoiced", "ok"], ["closed", "Closed", ""], ["cancelled", "Cancelled", "bad"]];
+const soSt31 = s => SO_ST.find(x => x[0] === s) || SO_ST[0];
+const norm31 = s => String(s || "").toLowerCase().replace(/\b(m\/s|pvt|private|ltd|limited|india|the)\b|[^a-z0-9]+/g, "");
+const soOfQuote31 = q => all28("so").find(o => o.status !== "cancelled" && (o.quoteId === q.id || (q.no && o.quoteNo === q.no)));
+const soOfTender31 = t => all28("so").find(o => o.status !== "cancelled" && (o.tenderId === t.id || (t.bid && o.tenderBid === t.bid)));
+const reserved31 = (item, exceptSo) => all28("so").filter(o => ["confirmed", "part", "exception"].includes(o.status) && o.id !== exceptSo).reduce((a, o) => a + (o.lines || []).filter(l => l.item === item).reduce((b, l) => b + Math.max(0, (Number(l.qty) || 0) - (Number(l.delivered) || 0)), 0), 0);
+const avail31 = (item, exceptSo) => stockOf28(item) - reserved31(item, exceptSo);
+const soTotal31 = o => (o.lines || []).reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.rate) || 0) * (1 + (Number(l.gst) || 0) / 100), 0);
+const soTaxable31 = o => (o.lines || []).reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0);
+
+/* ---- automatic Won / Lost / Open for every quotation and tender ---- */
+function autoSt31(r) {
+  if (r.k === "q") {
+    const q = (STATE.quotes || []).find(x => x.id === r.id) || {};
+    if (soOfQuote31(q) || q.status === "won" || (STATE.data.orders || []).some(o => (q.no && String(o.quote || o.quoteNo || o.ref || "").includes(q.no)))) return ["Won", "ok", "sales order booked"];
+    if (["lost", "regret"].includes(q.status)) return ["Lost", "bad", (STATUS[q.status] || [])[0]];
+    const lead = all28("lead").find(l => norm31(l.company) && norm31(l.company) === norm31(q.customer) && ["won", "lost"].includes(l.stage) && String(l.at) >= String(q.date));
+    if (lead?.stage === "lost") return ["Lost", "bad", "lead lost" + (lead.lostWhy ? " · " + lead.lostWhy : "")];
+    const age = -daysTo28(q.date);
+    if (age > 90) return ["Lost", "bad", "no order in 90 days"];
+    return ["Open", "warn", `${age} day${age === 1 ? "" : "s"} · ${(STATUS[q.status] || [q.status || "sent"])[0]}`];
+  }
+  if (r.k === "t") { const t = (STATE.data.tenders || []).find(x => x.id === r.id) || {}; if (t.status === "awarded" || soOfTender31(t)) return ["Won", "ok", "awarded"]; if (["not_awarded", "not_attended"].includes(t.status)) return ["Lost", "bad", (TENDER_ST[t.status] || [])[0]]; return ["Open", "warn", (TENDER_ST[t.status] || [t.status || ""])[0]]; }
+  return ["Won", "ok", "work order"];
+}
+function stCell31(r) { const [l, tone, hint] = autoSt31(r); return `<span class="chip ${tone}">${l}</span>${hint ? `<div class="muted" style="font-size:.68rem;margin-top:3px">${esc(hint)}</div>` : ""}`; }
+function soCell31(r) {
+  if (r.k === "o") return '<span class="muted small">—</span>';
+  const src = r.k === "q" ? (STATE.quotes || []).find(x => x.id === r.id) : (STATE.data.tenders || []).find(x => x.id === r.id);
+  if (!src) return "";
+  const so = r.k === "q" ? soOfQuote31(src) : soOfTender31(src);
+  if (so) { const s = soSt31(so.status); return `<button type="button" class="btn sm so31b on" data-soopen="${so.id}" title="Open ${esc(so.no)}">${icon("so31")}${esc(so.no)}</button><div class="muted" style="font-size:.68rem;margin-top:3px">${s[1]}</div>`; }
+  if (r.k === "t" && src.status !== "awarded") return '<span class="muted small">after award</span>';
+  return `<button type="button" class="btn sm so31b" data-somake="${r.k}:${r.id}">${icon("so31")}Sales order</button>`;
+}
+/* History ▸ Records: Status becomes automatic, and a Sales order column is added */
+{
+  const _hr = histRecords;
+  histRecords = function () { const R = _hr(); const Q = STATE.quotes || []; R.forEach(r => { if (r.k === "q" && !r.id) { const q = Q.find(x => x.date && String(x.date).slice(0, 10) === r.date && (x.no || "") + (x.rev ? "R" + x.rev : "") === r.ref); if (q) r.id = q.id; } if (r.k !== "o") { const [l] = autoSt31(r); r.won = l === "Won"; r.status = l; } }); return R; };
+}
+function hist31(v) {
+  if (STATE.route !== "history") return;
+  const tbl = [...$$("section.panel", v)].find(s => /^Records/.test(s.querySelector("h2")?.textContent || ""))?.querySelector("table"); if (!tbl || tbl.dataset.p31) return;
+  tbl.dataset.p31 = "1";
+  const h = H12(), L = histFilter(histRecords(), h, h.from, h.to).slice(0, 500);
+  tbl.querySelector("thead tr").insertAdjacentHTML("beforeend", "<th>Sales order</th>");
+  [...tbl.querySelectorAll("tbody tr")].forEach((tr, i) => { const r = L[i]; if (!r) return; tr.lastElementChild.innerHTML = stCell31(r); tr.insertAdjacentHTML("beforeend", `<td>${soCell31(r)}</td>`); });
+  wireSo31(v);
+}
+function wireSo31(v) {
+  $$("[data-soopen]", v).forEach(b => b.onclick = e => { e.stopPropagation(); goSo31(BIZ.rows[b.dataset.soopen]); });
+  $$("[data-somake]", v).forEach(b => b.onclick = e => { e.stopPropagation(); const [k, id] = b.dataset.somake.split(":"); goSo31(k === "q" ? soFromQuote31((STATE.quotes || []).find(x => x.id === id)) : soFromTender31((STATE.data.tenders || []).find(x => x.id === id))); });
+}
+function goSo31(so) { if (!so) return; BIZ.ui.pur = "so"; if (STATE.route !== "purchase") location.hash = "purchase"; setTimeout(() => soPanel31(so), STATE.route === "purchase" ? 0 : 450); }
+function soFromQuote31(q) {
+  if (!q) return null; const Q = q.quote || {}, fx = q.currency && q.currency !== "INR" ? (SETTINGS.fx[q.currency] || 1) : 1;
+  const lines = (Q.lines || []).filter(l => l.desc || l.rate).map(l => ({ desc: l.desc || q.subject || "", qty: num(l.qty) || 1, unit: l.unit || "Nos", rate: Math.round(num(l.rate) * fx * 100) / 100, gst: q.market === "international" ? 0 : Number(SETTINGS.ratecard?.gst) || 18, hsn: "8503" }));
+  return { kind: "so", status: "draft", date: todayISO(), quoteId: q.id, quoteNo: (q.no || "") + (q.rev ? "R" + q.rev : ""), quoteTotal: Math.round(qINR(q)), customer: q.customer || Q.to?.name || "", contact: Q.to?.contact || "", email: Q.to?.email || "", phone: Q.to?.phone || "", addr: Q.to?.address || "", gstin: Q.to?.gstin || "", pos: (Q.to?.gstin || "").slice(0, 2) || home29(), subject: q.subject || "", lines: lines.length ? lines : [{ desc: q.subject || "", qty: num(q.qty) || 1, unit: "Nos", rate: Math.round(num(q.rate) * fx), gst: 18, hsn: "8503" }], advance: Q.ctx?.advance ?? 30, deliveryText: Q.ctx?.delivery || "", owner: me28() };
+}
+function soFromTender31(t) {
+  if (!t) return null;
+  return { kind: "so", status: "draft", date: todayISO(), tenderId: t.id, tenderBid: t.bid || "", quoteTotal: Math.round(num(t.ourPrice || t.value)), customer: t.org || "", subject: t.items || "", pos: home29(), lines: [{ desc: t.items || t.bid || "", qty: 1, unit: "lot", rate: num(t.ourPrice || t.value), gst: 18, hsn: "8503" }], advance: 0, owner: me28() };
+}
+
+/* ---- sales order panel ---- */
+function exceptions31(r) {
+  const out = [], invs = all28("inv").filter(i => i.status !== "cancelled" && norm31(i.customer) === norm31(r.customer));
+  const overdue = invs.filter(i => i.balance > 0 && i.due < todayISO()), outst = invs.reduce((a, i) => a + (Number(i.balance) || 0), 0);
+  if (overdue.length) out.push(`Customer has ${overdue.length} overdue invoice${overdue.length > 1 ? "s" : ""} (${inr28(overdue.reduce((a, i) => a + i.balance, 0))})`);
+  if (Number(r.creditLimit) > 0 && outst + soTotal31(r) > Number(r.creditLimit)) out.push(`Credit limit ${inr28(r.creditLimit)} crossed (outstanding ${inr28(outst)} + this order ${inr28(soTotal31(r))})`);
+  (r.lines || []).forEach(l => { if (l.item) { const a = avail31(l.item, r.id), need = (Number(l.qty) || 0) - (Number(l.delivered) || 0); if (need > a) out.push(`Not enough stock: ${BIZ.rows[l.item]?.name || "item"} — need ${need}, free ${Math.max(0, a)} ${BIZ.rows[l.item]?.unit || ""}`); } });
+  if (r.quoteTotal && soTaxable31(r) < r.quoteTotal * 0.97) out.push(`Order value ${inr28(soTaxable31(r))} is ${Math.round(100 - 100 * soTaxable31(r) / r.quoteTotal)}% below the quotation (${inr28(r.quoteTotal)})`);
+  return out;
+}
+function links31(r) {
+  const L = [];
+  if (r.quoteId) { const q = (STATE.quotes || []).find(x => x.id === r.quoteId); L.push(["Quotation", r.quoteNo || q?.no || "", () => { location.hash = "history"; }]); }
+  if (r.tenderBid) L.push(["Tender", r.tenderBid, () => { location.hash = "tenders"; }]);
+  const lead = all28("lead").find(l => norm31(l.company) === norm31(r.customer)); if (lead) L.push(["Lead", lead.company, () => leadPanel28(lead)]);
+  all28("dn").filter(d => d.so === r.id).forEach(d => L.push(["Delivery note", d.no + " · " + dmy(d.date), () => dnPanel31(d)]));
+  all28("inv").filter(i => i.so === r.id).forEach(i => L.push(["Invoice", `${i.no} · ${inr28(i.total)}${i.balance > 0 ? " · due " + inr28(i.balance) : " · paid"}`, () => invPanel29(i)]));
+  all28("po").filter(p => p.soId === r.id).forEach(p => L.push(["Purchase order", `${p.no} · ${p.supplier}`, () => poPanel28(p)]));
+  all28("proj").filter(p => p.soId === r.id).forEach(p => L.push(["Project", p.name, () => projPanel29(p)]));
+  all28("job").filter(j => j.soId === r.id).forEach(j => L.push(["Repair job", j.no, () => jobPanel28(j)]));
+  return L;
+}
+function soPanel31(src) {
+  const r = JSON.parse(JSON.stringify(src || { kind: "so", status: "draft", date: todayISO(), pos: home29(), lines: [{ qty: 1, unit: "Nos", gst: 18, hsn: "8503" }], owner: me28() }));
+  r.lines ||= [];
+  const items = all28("item").sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const custs = [...new Set([...all28("inv").map(i => i.customer), ...all28("lead").map(l => l.company), ...(STATE.quotes || []).map(q => q.customer)].filter(Boolean))];
+  const draw = () => {
+    const st = soSt31(r.status), ex = exceptions31(r), L = r.id ? links31(r) : [], edit = ["draft", "exception"].includes(r.status) || (isAdmin28() && r.status === "confirmed");
+    const remain = l => Math.max(0, (Number(l.qty) || 0) - (Number(l.delivered) || 0));
+    const D = panel28({
+      title: r.id ? `${r.no} · ${r.customer}` : "New sales order", chips: `<span class="chip ${st[2]}">${st[1]}</span>${r.deliveryDate && ["confirmed", "part"].includes(r.status) ? dueChip28(r.deliveryDate) : ""}${r.quoteNo ? `<span class="chip">from ${esc(r.quoteNo)}</span>` : ""}`,
+      body: `${r.id && !["draft", "cancelled"].includes(r.status) ? `<div class="dr26-a">${["confirmed", "part"].includes(r.status) ? `<button class="btn primary" id="so31dn" type="button">${icon("box28")}Delivery note</button>` : ""}${["part", "delivered", "invoiced"].includes(r.status) || all28("dn").some(d => d.so === r.id && !d.inv) ? `<button class="btn" id="so31inv" type="button">${icon("acc29")}Invoice</button>` : ""}<button class="btn" id="so31po" type="button">${icon("box28")}Buy material (PO)</button><button class="btn" id="so31pj" type="button">${icon("proj29")}Project</button><button class="btn" id="so31pr" type="button">${icon("print28")}Order acceptance</button>${r.email ? `<button class="btn" id="so31em" type="button">${icon("mail")}Email</button>` : ""}${r.phone ? `<button class="btn" id="so31wa" type="button">${icon("wa")}WhatsApp</button>` : ""}</div>` : ""}
+        ${ex.length && !["delivered", "invoiced", "closed", "cancelled"].includes(r.status) ? `<div class="note ${r.status === "exception" ? "warn" : "bad"} small"><b>${r.status === "exception" ? "Waiting for admin approval:" : "Needs admin approval when you confirm:"}</b><ul style="margin:6px 0 0 18px;padding:0">${ex.map(x => `<li>${esc(x)}</li>`).join("")}</ul>${r.approvedBy ? `<div style="margin-top:4px">Approved by ${esc(who28(r.approvedBy))}</div>` : ""}</div>` : ""}
+        <div class="fields">${[["customer", "Customer *", "list", custs], ["contact", "Contact person", "text"], ["phone", "Phone", "tel"], ["email", "Email", "email"], ["gstin", "GSTIN", "text"], ["pos", "Place of supply", "select", Object.entries(STATES29).map(([k, n]) => [k, `${k} · ${n}`])], ["addr", "Address", "text", null, 1], ["poNo", "Customer PO / LOA no *", "text"], ["poDate", "PO date", "date"], ["date", "Order date", "date"], ["deliveryDate", "Promised delivery", "date"], ["advance", "Advance %", "number"], ["creditDays", "Credit days", "number"], ["creditLimit", "Credit limit ₹ (optional)", "number"], ["owner", "Salesperson", "select", TEAM28], ["notes", "Order notes / special terms", "textarea"]].map(f => field28(f, r)).join("")}</div>
+        <div class="po28" style="margin-top:10px">${r.lines.map((l, i) => { const a = l.item ? avail31(l.item, r.id) : null; return `<div class="pl28" data-sl="${i}"><div class="pl28-a"><input data-l="desc" placeholder="Description" value="${esc(l.desc || "")}" aria-label="Description" ${edit ? "" : "readonly"}>${edit ? `<button class="btn sm ghost" data-rm="${i}" type="button" aria-label="Remove line">${icon("x26")}</button>` : ""}</div><div class="pl28-b" style="grid-template-columns:1.4fr .8fr .8fr .8fr 1fr .7fr 1fr"><label>Stock item<select data-l="item" ${edit ? "" : "disabled"}><option value="">— made to order —</option>${items.map(it => `<option value="${it.id}" ${l.item === it.id ? "selected" : ""}>${esc(it.name)}</option>`).join("")}</select></label><label>HSN<input data-l="hsn" value="${esc(l.hsn || "")}" ${edit ? "" : "readonly"}></label><label>Qty<input data-l="qty" type="number" min="0" step="any" value="${esc(l.qty ?? "")}" ${edit ? "" : "readonly"}></label><label>Unit<input data-l="unit" value="${esc(l.unit || "")}" ${edit ? "" : "readonly"}></label><label>Rate ₹<input data-l="rate" type="number" min="0" step="any" value="${esc(l.rate ?? "")}" ${edit ? "" : "readonly"}></label><label>GST %<input data-l="gst" type="number" min="0" step="any" value="${esc(l.gst ?? 18)}" ${edit ? "" : "readonly"}></label><div class="pl28-amt"><span>Amount</span><b data-amt>${inr28((Number(l.qty) || 0) * (Number(l.rate) || 0))}</b></div></div><div class="small muted">${a !== null ? `Stock ${stockOf28(l.item)} · free ${Math.max(0, a)} ${esc(BIZ.rows[l.item]?.unit || "")}${a < remain(l) ? ' · <b style="color:var(--bad)">short ' + (remain(l) - Math.max(0, a)) + "</b>" : ""} · ` : ""}${r.id ? `Delivered ${Number(l.delivered) || 0} of ${l.qty}` : ""}</div></div>`; }).join("")}</div>
+        ${edit ? `<button class="btn sm" id="so31add" type="button" style="margin-top:6px">${icon("plus")}Add line</button>` : ""}
+        <div class="tot29" id="so31tot"></div>
+        ${L.length ? `<section class="dr26-sec"><h3>Connected</h3>${L.map((x, i) => `<button type="button" class="dr26-li" data-lk="${i}"><b>${esc(x[0])}</b><small>${esc(x[1])}</small></button>`).join("")}</section>` : ""}
+        ${r.id ? `<section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>` : ""}`,
+      foot: `${r.id && !["delivered", "invoiced", "closed", "cancelled"].includes(r.status) && !all28("dn").some(d => d.so === r.id) ? `<button class="btn ghost" id="so31x" type="button">Cancel order</button>` : ""}<span style="flex:1"></span>
+        ${r.status === "exception" && isAdmin28() ? `<button class="btn primary" id="so31ap" type="button">Approve exception</button>` : ""}
+        ${edit ? `<button class="btn" id="so31s" type="button">Save${r.status === "draft" ? " draft" : ""}</button>` : ""}${r.status === "draft" ? `<button class="btn primary" id="so31c" type="button">Confirm order</button>` : ""}
+        ${r.status === "invoiced" ? `<button class="btn" id="so31cl" type="button">Close order</button>` : ""}`
+    });
+    const tot = () => { $("#so31tot").innerHTML = `<div><span>Taxable</span><b>${inr28(soTaxable31(r))}</b></div><div><span>GST</span><b>${inr28(soTotal31(r) - soTaxable31(r))}</b></div><div class="g"><span>Order total</span><b>${inr28(soTotal31(r))}</b></div>${r.quoteTotal ? `<div><span>Quoted</span><b>${inr28(r.quoteTotal)}</b><small class="${soTaxable31(r) < r.quoteTotal ? "" : ""}" style="font-size:.72rem;color:${soTaxable31(r) < r.quoteTotal * .97 ? "var(--bad)" : "var(--ok)"}">${soTaxable31(r) >= r.quoteTotal ? "+" : ""}${Math.round(100 * soTaxable31(r) / r.quoteTotal - 100)}% vs quote</small></div>` : ""}`; };
+    const sync = () => { readForm28(D, r); $$(".pl28[data-sl]", D).forEach(row => { const l = r.lines[+row.dataset.sl]; $$("[data-l]", row).forEach(el => { l[el.dataset.l] = el.type === "number" ? (el.value === "" ? "" : Number(el.value)) : el.value; }); }); };
+    tot();
+    $$(".pl28[data-sl] input", D).forEach(i => i.addEventListener("input", () => { sync(); const row = i.closest(".pl28"), l = r.lines[+row.dataset.sl]; row.querySelector("[data-amt]").textContent = inr28((Number(l.qty) || 0) * (Number(l.rate) || 0)); tot(); }));
+    $$(".pl28[data-sl] select[data-l=item]", D).forEach(s => s.onchange = () => { sync(); const l = r.lines[+s.closest(".pl28").dataset.sl], it = BIZ.rows[l.item]; if (it) { l.unit = it.unit; l.desc ||= it.name; if (!Number(l.rate)) l.rate = Number(it.rate) || lastRate28(it.id); } draw(); });
+    $("#so31add") && ($("#so31add").onclick = () => { sync(); r.lines.push({ qty: 1, unit: "Nos", gst: 18, hsn: r.lines.at(-1)?.hsn || "8503" }); draw(); });
+    $$("[data-rm]", D).forEach(b => b.onclick = () => { sync(); r.lines.splice(+b.dataset.rm, 1); if (!r.lines.length) r.lines.push({ qty: 1, unit: "Nos", gst: 18 }); draw(); });
+    $$("[data-lk]", D).forEach(b => b.onclick = () => L[+b.dataset.lk][2]());
+    const finish = r2 => { r2.total = Math.round(soTotal31(r2)); r2.taxable = Math.round(soTaxable31(r2)); };
+    const won = async () => { /* quotation → Won, lead → Won */
+      const q = (STATE.quotes || []).find(x => x.id === r.quoteId); if (q && q.status !== "won") { const c = clone(q); c.status = "won"; c.wonAt = todayISO(); c.soNo = r.no; await Store.saveQuote(c); }
+      const lead = all28("lead").find(l => norm31(l.company) === norm31(r.customer) && !["won", "lost"].includes(l.stage)); if (lead) { const l2 = { ...lead, stage: "won", wonAt: todayISO(), value: lead.value || r.taxable }; logAdd28(l2, "Stage", "Won — " + (r.no || "sales order")); await bizPut28(l2).catch(() => { }); }
+      if (r.tenderId) { const t = (STATE.data.tenders || []).find(x => x.id === r.tenderId); if (t && t.status !== "awarded") { t.status = "awarded"; try { await DB.put("tenders", t); } catch { } } }
+    };
+    $("#so31s") && ($("#so31s").onclick = async e => { sync(); if (!r.customer) return toast("Customer is needed", "bad"); finish(r); if (!r.id) logAdd28(r, "Created", r.quoteNo ? "from " + r.quoteNo : ""); if (await save28(e.target, r, "Sales order saved")) { closeDrawer26(); render(); } });
+    $("#so31c") && ($("#so31c").onclick = async e => {
+      sync(); if (!r.customer) return toast("Customer is needed", "bad"); if (!r.poNo) return toast("Enter the customer's PO / LOA number", "bad"); if (!r.lines.some(l => Number(l.qty) * Number(l.rate) > 0)) return toast("Add the order lines", "bad");
+      finish(r); const ex = exceptions31(r); r.exceptions = ex;
+      if (ex.length && !isAdmin28()) { r.status = "exception"; logAdd28(r, "Sent for approval", ex.join(" · ")); }
+      else { r.status = "confirmed"; if (ex.length) { r.approvedBy = me28(); logAdd28(r, "Confirmed with exception", ex.join(" · ")); } else logAdd28(r, "Confirmed", "PO " + r.poNo); }
+      const out = await save28(e.target, r, r.status === "exception" ? "Sent to admin — exception needs approval" : "Order confirmed"); if (out) { r.id = out[0].id; r.no = out[0].no; await won(); closeDrawer26(); render(); }
+    });
+    $("#so31ap") && ($("#so31ap").onclick = async e => { sync(); r.status = "confirmed"; r.approvedBy = me28(); logAdd28(r, "Exception approved", (r.exceptions || []).join(" · ")); finish(r); if (await save28(e.target, r, "Approved — order confirmed")) { await won(); closeDrawer26(); render(); } });
+    $("#so31x") && ($("#so31x").onclick = async e => { r.status = "cancelled"; logAdd28(r, "Cancelled", ""); if (await save28(e.target, r, "Order cancelled")) { closeDrawer26(); render(); } });
+    $("#so31cl") && ($("#so31cl").onclick = async e => { r.status = "closed"; logAdd28(r, "Closed", ""); if (await save28(e.target, r, "Order closed")) { closeDrawer26(); render(); } });
+    $("#so31dn") && ($("#so31dn").onclick = () => dnPanel31(null, r));
+    $("#so31inv") && ($("#so31inv").onclick = () => invFromSo31(r));
+    $("#so31po") && ($("#so31po").onclick = () => { const short = r.lines.filter(l => l.item && avail31(l.item, r.id) < (Number(l.qty) || 0) - (Number(l.delivered) || 0)).map(l => ({ item: l.item, desc: BIZ.rows[l.item]?.name || l.desc, qty: (Number(l.qty) || 0) - (Number(l.delivered) || 0) - Math.max(0, avail31(l.item, r.id)), unit: BIZ.rows[l.item]?.unit || l.unit, rate: lastRate28(l.item) || "", gst: 18 })); poPanel28({ kind: "po", status: "draft", date: todayISO(), soId: r.id, jobNo: r.no, needBy: r.deliveryDate, lines: short.length ? short : [{ qty: 1, unit: "kg", gst: 18 }], terms: "100% within 30 days of delivery", deliverTo: "Rivera Coil Manufacturing (I) Pvt Ltd, factory", notes: `For our sales order ${r.no} (${r.customer})` }); });
+    $("#so31pj") && ($("#so31pj").onclick = () => projPanel29({ kind: "proj", status: "running", soId: r.id, name: `${r.customer} — ${String(r.subject || r.lines[0]?.desc || "").slice(0, 60)}`, customer: r.customer, custPo: r.poNo, value: r.taxable, start: r.date, end: r.deliveryDate, ms: [{ name: "Advance received", bill: Number(r.advance) || 0 }, { name: "Material ready" }, { name: "Dispatch", bill: 100 - (Number(r.advance) || 0) }], boq: r.lines.map(l => ({ item: l.desc, qty: l.qty, rate: l.rate, done: l.delivered || 0 })), budget: {} }));
+    const ack = () => `Dear Sir/Madam,\n\nThank you for your order ${r.poNo || ""}${r.poDate ? " dated " + dmy(r.poDate) : ""}. We confirm our sales order ${r.no}:\n\n${r.lines.map((l, i) => `${i + 1}. ${l.desc} — ${l.qty} ${l.unit} @ ₹${Number(l.rate || 0).toLocaleString("en-IN")} + GST ${l.gst}%`).join("\n")}\n\nOrder total (with GST): ${inr28(soTotal31(r))}\nDelivery: ${r.deliveryDate ? dmy(r.deliveryDate) : r.deliveryText || "as agreed"}\nAdvance: ${r.advance || 0}%\n\nRegards,\n${SETTINGS.company?.name || "Rivera Coil Manufacturing (I) Pvt Ltd"}`;
+    $("#so31em") && ($("#so31em").onclick = () => openLink(`mailto:${encodeURIComponent(r.email)}?subject=${encodeURIComponent("Order acceptance " + r.no + " / your PO " + (r.poNo || ""))}&body=${encodeURIComponent(ack())}`));
+    $("#so31wa") && ($("#so31wa").onclick = () => openLink("https://wa.me/" + String(r.phone).replace(/\D/g, "").replace(/^(\d{10})$/, "91$1") + "?text=" + encodeURIComponent(ack())));
+    $("#so31pr") && ($("#so31pr").onclick = () => printHtml28("Order acceptance " + r.no, `<h1>ORDER ACCEPTANCE</h1><p><b>${esc(r.no)}</b> · ${dmy(r.date)}<br>Your PO: <b>${esc(r.poNo || "")}</b>${r.poDate ? " dated " + dmy(r.poDate) : ""}${r.quoteNo ? "<br>Against our quotation " + esc(r.quoteNo) : ""}</p><p>To: <b>${esc(r.customer)}</b><br>${esc(r.addr || "")}<br>GSTIN: ${esc(r.gstin || "—")}</p><table><thead><tr><th>#</th><th>Description</th><th>HSN</th><th class="n">Qty</th><th>Unit</th><th class="n">Rate ₹</th><th class="n">GST %</th><th class="n">Amount ₹</th></tr></thead><tbody>${r.lines.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.desc)}</td><td>${esc(l.hsn || "")}</td><td class="n">${l.qty}</td><td>${esc(l.unit)}</td><td class="n">${Number(l.rate || 0).toLocaleString("en-IN")}</td><td class="n">${l.gst}</td><td class="n">${Math.round((Number(l.qty) || 0) * (Number(l.rate) || 0)).toLocaleString("en-IN")}</td></tr>`).join("")}<tr><th colspan="7" class="n">Total with GST</th><th class="n">${inr28(soTotal31(r))}</th></tr></tbody></table><p>Delivery: ${r.deliveryDate ? dmy(r.deliveryDate) : esc(r.deliveryText || "as agreed")} · Advance ${r.advance || 0}% · Credit ${r.creditDays || 0} days</p>${r.notes ? `<p>${esc(r.notes)}</p>` : ""}<div class="sig"><span></span><span>For ${esc(SETTINGS.company?.name || "")}<br><br><br>Authorised signatory</span></div>`));
+    if (r.id) comments29(D, r, "purchase");
+  };
+  draw();
+}
+
+/* ---- delivery note: from a confirmed order, takes stock out, updates the order ---- */
+function dnPanel31(src, so) {
+  if (src) {
+    const r = src, s = BIZ.rows[r.so] || {};
+    const D = panel28({ title: `${r.no} · ${r.customer}`, chips: `<span class="chip">${esc(s.no || "")}</span>${r.inv ? `<span class="chip ok">invoiced ${esc(BIZ.rows[r.inv]?.no || "")}</span>` : '<span class="chip warn">not invoiced</span>'}`, body: `<dl class="dr26-d">${[["Date", dmy(r.date)], ["Vehicle / LR", esc(r.vehicle || "")], ["Transporter", esc(r.transporter || "")], ["E-way bill", esc(r.eway || "")]].map(([k, v]) => `<div><dt>${k}</dt><dd>${v || "—"}</dd></div>`).join("")}</dl><table class="t" style="margin-top:10px"><thead><tr><th>Item</th><th class="n">Qty</th></tr></thead><tbody>${(r.lines || []).map(l => `<tr><td>${esc(l.desc)}</td><td class="n">${l.qty} ${esc(l.unit || "")}</td></tr>`).join("")}</tbody></table>`, foot: `<span style="flex:1"></span><button class="btn" id="dn31p" type="button">${icon("print28")}Print delivery challan</button>${!r.inv ? `<button class="btn primary" id="dn31i" type="button">${icon("acc29")}Make invoice</button>` : ""}` });
+    $("#dn31p").onclick = () => printHtml28("Delivery challan " + r.no, `<h1>DELIVERY CHALLAN</h1><p><b>${esc(r.no)}</b> · ${dmy(r.date)} · Order ${esc(s.no || "")} · Your PO ${esc(s.poNo || "")}</p><p>To: <b>${esc(r.customer)}</b><br>${esc(s.addr || "")}<br>GSTIN: ${esc(s.gstin || "—")}</p><table><thead><tr><th>#</th><th>Description</th><th class="n">Qty</th><th>Unit</th></tr></thead><tbody>${(r.lines || []).map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.desc)}</td><td class="n">${l.qty}</td><td>${esc(l.unit || "")}</td></tr>`).join("")}</tbody></table><p>Vehicle / LR: ${esc(r.vehicle || "—")} · Transporter: ${esc(r.transporter || "—")} · E-way bill: ${esc(r.eway || "—")}</p><div class="sig"><span>Received the goods in good condition</span><span>For ${esc(SETTINGS.company?.name || "")}<br><br><br>Authorised signatory</span></div>`);
+    $("#dn31i") && ($("#dn31i").onclick = () => invFromSo31(s, r));
+    return;
+  }
+  const r = so, open = (r.lines || []).map((l, i) => ({ ...l, i, left: Math.max(0, (Number(l.qty) || 0) - (Number(l.delivered) || 0)) })).filter(l => l.left > 0);
+  const D = panel28({
+    title: "Delivery note — " + r.no, chips: `<span class="chip">${esc(r.customer)}</span>`,
+    body: `<div class="fields"><label class="f">Date<input type="date" id="dn31d" value="${todayISO()}"></label><label class="f">Vehicle / LR no<input id="dn31v"></label><label class="f">Transporter<input id="dn31t"></label><label class="f">E-way bill no<input id="dn31e"></label></div>
+      <table class="t" style="margin-top:10px"><thead><tr><th>Item</th><th class="n">Pending</th><th class="n">Send now</th></tr></thead><tbody>${open.map(l => `<tr><td>${esc(l.desc)}${l.item ? `<div class="small muted">stock ${stockOf28(l.item)} ${esc(BIZ.rows[l.item]?.unit || "")}</div>` : ""}</td><td class="n">${l.left} ${esc(l.unit || "")}</td><td class="n"><input type="number" min="0" step="any" data-dq="${l.i}" value="${l.item ? Math.min(l.left, Math.max(0, stockOf28(l.item))) : l.left}" style="width:90px" aria-label="Quantity to send"></td></tr>`).join("") || '<tr><td colspan="3" class="muted">Everything is delivered.</td></tr>'}</tbody></table>`,
+    foot: `<span style="flex:1"></span><button class="btn" type="button" onclick="closeDrawer26()">Cancel</button><button class="btn primary" id="dn31s" type="button">Save & take out of stock</button>`
+  });
+  $("#dn31s").onclick = async e => {
+    const send = $$("[data-dq]", D).map(i => ({ i: +i.dataset.dq, q: Number(i.value) || 0 })).filter(x => x.q > 0); if (!send.length) return toast("Enter what is going out", "bad");
+    const s2 = JSON.parse(JSON.stringify(r)), date = $("#dn31d").value || todayISO();
+    const dn = { kind: "dn", so: r.id, soNo: r.no, customer: r.customer, date, vehicle: $("#dn31v").value, transporter: $("#dn31t").value, eway: $("#dn31e").value, lines: send.map(x => ({ ...r.lines[x.i], qty: x.q, li: x.i })) };
+    send.forEach(x => { s2.lines[x.i].delivered = (Number(s2.lines[x.i].delivered) || 0) + x.q; });
+    s2.status = s2.lines.every(l => (Number(l.delivered) || 0) >= (Number(l.qty) || 0)) ? "delivered" : "part"; logAdd28(s2, s2.status === "delivered" ? "Delivered" : "Part delivered", dmy(date));
+    const out = await save28(e.target, [dn], "Delivery note saved"); if (!out) return;
+    const dnId = out[0].id, moves = send.filter(x => r.lines[x.i].item).map(x => ({ kind: "move", item: r.lines[x.i].item, qty: -x.q, rate: lastRate28(r.lines[x.i].item), type: "issue", ref: out[0].no, jobNo: r.no, date, note: "Delivered to " + r.customer }));
+    await save28(null, [s2, ...moves], moves.length ? "Stock reduced" : "Order updated"); closeDrawer26(); render(); dnPanel31(BIZ.rows[dnId]);
+  };
+}
+function invFromSo31(so, dn) {
+  const dns = dn ? [dn] : all28("dn").filter(d => d.so === so.id && !d.inv);
+  const lines = dns.length ? dns.flatMap(d => (d.lines || []).map(l => ({ desc: l.desc, hsn: l.hsn || "8503", qty: l.qty, unit: l.unit, rate: l.rate, gst: l.gst ?? 18 }))) : (so.lines || []).map(l => ({ desc: l.desc, hsn: l.hsn || "8503", qty: l.qty, unit: l.unit, rate: l.rate, gst: l.gst ?? 18 }));
+  invPanel29(null, { customer: so.customer, gstin: so.gstin, addr: so.addr, pos: so.pos || home29(), poRef: [so.poNo, so.poDate ? dmy(so.poDate) : ""].filter(Boolean).join(" / "), terms: so.creditDays || 30, so: so.id, soNo: so.no, dns: dns.map(d => d.id), dc: dns.map(d => d.no).join(", "), vehicle: dns[0]?.vehicle || "", eway: dns[0]?.eway || "", lines });
+}
+/* after an invoice from an order is saved: mark the delivery notes and the order */
+{
+  const _bp = bizPut28;
+  bizPut28 = async function (recs) {
+    const out = await _bp(recs);
+    try {
+      const inv = out.find(r => r.kind === "inv" && r.so && r.status !== "cancelled");
+      if (inv) {
+        const upd = (inv.dns || []).map(id => BIZ.rows[id]).filter(d => d && !d.inv).map(d => ({ ...d, inv: inv.id }));
+        const so = BIZ.rows[inv.so];
+        if (so && !["invoiced", "closed"].includes(so.status)) { const billed = all28("inv").filter(i => i.so === so.id && i.status !== "cancelled").reduce((a, i) => a + (Number(i.taxable) || 0), 0); if (so.status === "delivered" || billed >= soTaxable31(so) - 1) { const s2 = { ...so, status: "invoiced" }; logAdd28(s2, "Invoiced", inv.no); upd.push(s2); } }
+        if (upd.length) await _bp(upd);
+      }
+    } catch (e) { console.warn("p31 link", e); }
+    return out;
+  };
+}
+
+/* ---- "Purchase & stock" becomes "Sales": Sales orders · Deliveries first, then purchase, stock and movements ---- */
+{
+  const i = ROUTES.findIndex(r => r[0] === "purchase"); if (i >= 0) ROUTES[i] = ["purchase", "Sales", "so31"];
+  if (!BIZ.ui._p31) { BIZ.ui.pur = "so"; BIZ.ui._p31 = 1; }
+  const _vp = VIEWS.purchase;
+  VIEWS.purchase = v => {
+    const U = BIZ.ui, T = [["so", "Sales orders"], ["dn", "Deliveries"], ["po", "Purchase orders"], ["stock", "Stock"], ["moves", "Movements"]];
+    if (["po", "stock", "moves"].includes(U.pur)) {
+      _vp(v);
+      const h1 = $("h1", v); if (h1) h1.textContent = "Sales"; const eb = $(".eyebrow", v); if (eb) eb.textContent = "Order to cash";
+      const p = $(".topbar p", v); if (p) p.textContent = "Quotation → sales order → delivery → invoice → payment, with purchase orders, stock and movements in the same place.";
+      const tr = $(".tabs-row", v); if (tr) { tr.outerHTML = tabs28(U.pur, T, "pt"); $$("[data-pt]", v).forEach(b => b.onclick = () => { U.pur = b.dataset.pt; render(); }); }
+      return;
+    }
+    bizSync28();
+    const sos = all28("so"), live = sos.filter(o => ["confirmed", "part"].includes(o.status)), t = todayISO(), m = month29(t);
+    let body, btn = `<button class="btn primary" id="so31new">${icon("plus")}New sales order</button>`;
+    if (U.pur === "so") {
+      const L = qf29(sos, x => `${x.no} ${x.customer} ${x.poNo} ${x.quoteNo} ${(x.lines || []).map(l => l.desc).join(" ")}`).sort((a, b) => String(b.no || "").localeCompare(String(a.no || "")));
+      body = tbl29(["Order", "Customer", "Customer PO", "From", "Status", "Delivery", "Delivered", "Total"], L.map(o => { const s = soSt31(o.status), q = sum29(o.lines || [], "qty"), d = sum29(o.lines || [], "delivered"); return `<tr class="r26" data-so="${o.id}" tabindex="0"><td class="mono" style="font-size:.75rem">${esc(o.no || "draft")}<div class="muted">${dmy(o.date)}</div></td><td><b>${esc(o.customer)}</b><div class="small muted">${esc(who28(o.owner))}</div></td><td>${esc(o.poNo || "—")}</td><td class="small">${esc(o.quoteNo || o.tenderBid || "")}</td><td><span class="chip ${s[2]}">${s[1]}</span></td><td>${["confirmed", "part"].includes(o.status) ? dueChip28(o.deliveryDate) : o.deliveryDate ? dmy(o.deliveryDate) : "—"}</td><td style="min-width:110px"><div class="pg29"><i style="width:${q ? Math.round(100 * d / q) : 0}%"></i></div><span class="small">${d} / ${q}</span></td><td class="n">${inr28(o.total)}</td></tr>`; }), "No sales orders yet — open History ▸ Records and press “Sales order” on a quotation");
+    } else {
+      btn = "";
+      const pend = live.flatMap(o => (o.lines || []).map((l, i) => ({ o, l, i, left: (Number(l.qty) || 0) - (Number(l.delivered) || 0) })).filter(x => x.left > 0)).sort((a, b) => String(a.o.deliveryDate || "9").localeCompare(String(b.o.deliveryDate || "9")));
+      const dns = qf29(all28("dn"), x => `${x.no} ${x.customer} ${x.soNo} ${x.vehicle}`).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      body = `<section class="panel"><header><h2>Delivery planner</h2><span class="small muted">what is still to go, by promised date</span></header><div class="tablewrap"><table class="t"><thead><tr><th>Order</th><th>Customer</th><th>Item</th><th class="n">Pending</th><th class="n">In stock</th><th>Promised</th><th></th></tr></thead><tbody>${pend.map(x => `<tr><td class="mono" style="font-size:.75rem">${esc(x.o.no)}</td><td><b>${esc(x.o.customer)}</b></td><td>${esc(String(x.l.desc).slice(0, 80))}</td><td class="n">${x.left} ${esc(x.l.unit || "")}</td><td class="n">${x.l.item ? `<span class="chip ${stockOf28(x.l.item) >= x.left ? "ok" : "bad"}">${stockOf28(x.l.item)}</span>` : '<span class="muted small">made to order</span>'}</td><td>${dueChip28(x.o.deliveryDate)}</td><td><button class="btn sm" data-dnmk="${x.o.id}" type="button">Deliver</button></td></tr>`).join("") || '<tr><td colspan="7" class="muted">Nothing pending.</td></tr>'}</tbody></table></div></section><div style="height:12px"></div>
+        ${tbl29(["Delivery note", "Customer", "Order", "Date", "Vehicle / LR", "Invoice"], dns.map(d => `<tr class="r26" data-dn="${d.id}" tabindex="0"><td class="mono" style="font-size:.75rem">${esc(d.no)}</td><td><b>${esc(d.customer)}</b></td><td>${esc(d.soNo || "")}</td><td>${dmy(d.date)}</td><td>${esc(d.vehicle || "")}</td><td>${d.inv ? `<span class="chip ok">${esc(BIZ.rows[d.inv]?.no || "done")}</span>` : '<span class="chip warn">to invoice</span>'}</td></tr>`), "No delivery notes yet")}`;
+    }
+    v.innerHTML = head29("Order to cash", "Sales", "Quotation → sales order → delivery → invoice → payment, with purchase orders, stock and movements in the same place.", btn) + (loadNote28() || `${kpi29([["Orders this month", inr28(sum29(sos.filter(o => month29(o.date) === m && !["draft", "cancelled"].includes(o.status)), "taxable")), "booked, before GST"], ["Open orders", live.length, inr28(sum29(live, "total"))], ["Due to deliver", live.filter(o => o.deliveryDate && o.deliveryDate <= addDays(t, 7)).length, "in the next 7 days", live.some(o => o.deliveryDate && o.deliveryDate < t) ? "bad" : ""], ["Waiting approval", sos.filter(o => o.status === "exception").length, "credit / stock / price", sos.some(o => o.status === "exception") ? "warn" : ""], ["To invoice", all28("dn").filter(d => !d.inv).length, "delivery notes"]])}${sub29(U.pur, T, "pt")}${body}`);
+    $("#so31new") && ($("#so31new").onclick = () => soPanel31());
+    $$("[data-pt]", v).forEach(b => b.onclick = () => { U.pur = b.dataset.pt; render(); });
+    $$("[data-dnmk]", v).forEach(b => b.onclick = e => { e.stopPropagation(); dnPanel31(null, BIZ.rows[b.dataset.dnmk]); });
+    wire29(v, { so: id => soPanel31(BIZ.rows[id]), dn: id => dnPanel31(BIZ.rows[id]) });
+  };
+}
+OPEN29.so = x => soPanel31(x); OPEN29.dn = x => dnPanel31(x);
+KIND29.so = ["Sales order", "purchase"]; KIND29.dn = ["Delivery note", "purchase"];
+if (typeof ROLE_PAGES !== "undefined" && ROLE_PAGES.finance && !ROLE_PAGES.finance.includes("purchase")) ROLE_PAGES.finance.push("purchase");
+
+/* ---- receivables: collection status by salesperson + email statement ---- */
+{
+  const _va = VIEWS.accounts;
+  VIEWS.accounts = v => {
+    _va(v);
+    if (BIZ.ui.acc !== "recv") return;
+    $$("[data-remind]", v).forEach(b => {
+      const c = b.dataset.remind, inv = all28("inv").filter(i => i.customer === c && i.balance > 0 && i.status !== "cancelled"), so = all28("so").find(o => norm31(o.customer) === norm31(c)), lead = all28("lead").find(l => norm31(l.company) === norm31(c));
+      const rep = so?.owner || lead?.owner || "", mail = so?.email || lead?.email || "";
+      b.closest("td").insertAdjacentHTML("afterbegin", `<span class="small muted" style="margin-right:6px">${esc(rep ? who28(rep) : "")}</span>`);
+      b.insertAdjacentHTML("afterend", ` <button class="btn sm" data-stm="${esc(c)}" type="button">${icon("mail")}Email</button>`);
+      b.nextElementSibling.onclick = () => { const txt = `Dear Sir/Madam,\n\nAs per our records the following invoices are not yet paid. Please arrange payment at the earliest. If already paid, kindly ignore this message.\n\n${inv.map(i => `${i.no} dated ${dmy(i.date)} — balance ${inr28(i.balance)} (due ${dmy(i.due)}, ${Math.max(0, -daysTo28(i.due))} days overdue)`).join("\n")}\n\nTotal due: ${inr28(sum29(inv, "balance"))}\n\nBank: ${SETTINGS.bank?.name || ""} A/c ${SETTINGS.bank?.acc || ""} IFSC ${SETTINGS.bank?.ifsc || ""}\n\nThank you,\n${SETTINGS.company?.name || ""}`; openLink(`mailto:${encodeURIComponent(mail)}?subject=${encodeURIComponent("Payment reminder — overdue invoices")}&body=${encodeURIComponent(txt)}`); };
+    });
+    const by = {}; all28("inv").filter(i => i.balance > 0 && i.status !== "cancelled").forEach(i => { const so = BIZ.rows[i.so], rep = so?.owner || all28("lead").find(l => norm31(l.company) === norm31(i.customer))?.owner || "—"; const g = by[rep] ||= { n: 0, due: 0, over: 0 }; g.n++; g.due += i.balance; if (i.due < todayISO()) g.over += i.balance; });
+    const host = $$("section.panel", v).at(-1); host?.insertAdjacentHTML("afterend", `<div style="height:12px"></div>${tbl29(["Collection status by salesperson", "Invoices", "Outstanding", "Overdue"], Object.entries(by).map(([k, g]) => `<tr><td><b>${esc(k === "—" ? "Not assigned" : who28(k))}</b></td><td class="n">${g.n}</td><td class="n">${inr28(g.due)}</td><td class="n" style="color:${g.over ? "var(--bad)" : "inherit"}">${inr28(g.over)}</td></tr>`), "Nothing outstanding")}`);
+  };
+}
+
+/* ---- quotation page: earlier prices to this customer and for similar items ---- */
+function prevPrices31(v) {
+  if (STATE.route !== "quote" || $("#pp31", v) || !STATE.quote) return;
+  const Q = STATE.quote, cust = norm31(Q.to?.name), words = String(Q.subject || Q.lines?.[0]?.desc || "").toLowerCase().match(/\b(\d+(\.\d+)?\s?(kw|kv|mva|hp)|roebel|diamond|armature|pole|vpi|resin|stator|rotor)\b/g) || [];
+  const others = (STATE.quotes || []).filter(q => q.no !== Q.no);
+  const same = cust ? others.filter(q => norm31(q.customer) === cust) : [];
+  const sim = words.length ? others.filter(q => !same.includes(q)).map(q => ({ q, s: words.filter(w => String(q.subject || "").toLowerCase().includes(w)).length })).filter(x => x.s >= Math.min(2, words.length)).sort((a, b) => b.s - a.s || String(b.q.date).localeCompare(String(a.q.date))).slice(0, 6).map(x => x.q) : [];
+  const row = q => { const [st, tone] = autoSt31({ k: "q", id: q.id }); return `<tr><td class="mono" style="font-size:.72rem">${esc(q.no || "")}<div class="muted">${dmy(String(q.date).slice(0, 10))}</div></td><td>${esc(q.customer || "")}<div class="small muted">${esc(String(q.subject || "").slice(0, 70))}</div></td><td class="n">${q.rate ? fmt(num(q.rate), q.currency || "INR", 0) : "—"}<div class="small muted">qty ${esc(q.qty ?? "")}</div></td><td><span class="chip ${tone}">${st}</span></td></tr>`; };
+  const host = $(".split > .stack", v) || $(".split", v); if (!host) return;
+  host.insertAdjacentHTML("beforeend", `<section class="panel" id="pp31"><header><h2>Earlier prices</h2><span class="small muted">check before you quote</span></header><div class="body">${same.length ? `<h3 style="font-size:.8rem;margin:0 0 6px">To ${esc(Q.to?.name)}</h3><div class="tablewrap"><table class="t"><tbody>${same.slice(0, 8).map(row).join("")}</tbody></table></div>` : `<p class="small muted">${Q.to?.name ? "No earlier quotation to this customer." : "Type the customer name to see what we quoted them before."}</p>`}${sim.length ? `<h3 style="font-size:.8rem;margin:12px 0 6px">Similar items quoted to others</h3><div class="tablewrap"><table class="t"><tbody>${sim.map(row).join("")}</tbody></table></div>` : ""}</div></section>`);
+}
+
+/* ---- leads: visits logged with location; team tracker map ---- */
+{
+  const _lp = leadPanel28;
+  leadPanel28 = function (src, ...a) {
+    const r = _lp.call(this, src, ...a), b = $("#l28a");
+    if (b && src?.id) { const t = $("#l28t"); const hint = document.createElement("span"); hint.className = "small muted"; hint.style.marginRight = "auto"; hint.textContent = "Visit / meeting saves your location for the team map"; b.parentElement.prepend(hint);
+      b.addEventListener("click", ev => { if (b.dataset.geo || !["Visit", "Meeting"].includes(t.value) || !navigator.geolocation) return; ev.stopImmediatePropagation(); ev.preventDefault(); b.disabled = true; b.textContent = "Getting location…"; const go = pos => { b.dataset.geo = "1"; b.disabled = false; b.textContent = "Add to history"; if (pos) BIZ._geo31 = { lat: pos.coords.latitude, lng: pos.coords.longitude, at: new Date().toISOString() }; b.click(); }; navigator.geolocation.getCurrentPosition(go, () => go(null), { timeout: 8000 }); }, true); }
+    return r;
+  };
+}
+function points31() {
+  const P = [];
+  all28("lead").forEach(l => (l.log || []).forEach(x => { if (x.lat) P.push({ at: x.at, by: x.by, lat: x.lat, lng: x.lng, what: `${x.type}: ${l.company}`, note: x.text, kind: "lead", id: l.id }); }));
+  all28("svc").forEach(s => ["checkIn", "checkOut"].forEach(k => { const c = s[k]; if (c?.lat) P.push({ at: c.at, by: s.techEmail || s.by, lat: c.lat, lng: c.lng, what: `${k === "checkIn" ? "Service check-in" : "Check-out"}: ${s.customer}`, note: s.no, kind: "svc", id: s.id }); }));
+  return P.sort((a, b) => String(a.at).localeCompare(String(b.at)));
+}
+let LEAF31 = null;
+function leaflet31() { if (window.L?.map) return Promise.resolve(); if (LEAF31) return LEAF31; LEAF31 = new Promise((ok, no) => { const c = document.createElement("link"); c.rel = "stylesheet"; c.href = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css"; document.head.appendChild(c); const s = document.createElement("script"); s.src = "https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"; s.onload = ok; s.onerror = () => { LEAF31 = null; no(new Error("Map could not load — check the internet")); }; document.head.appendChild(s); }); return LEAF31; }
+VIEWS.tracker = v => {
+  bizSync28(); const U = BIZ.ui; U.trD ||= todayISO(); U.trW ??= "";
+  const P = points31().filter(p => String(p.at).slice(0, 10) === U.trD && (!U.trW || p.by === U.trW));
+  v.innerHTML = head29("Team", "Team tracker", "Where the team visited — sales visits and meetings logged on leads, and engineers' service check-ins — on a map for the day, in time order.", "") + (loadNote28() || `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px;align-items:flex-end"><label class="f" style="width:170px">Day<input type="date" id="tr31d" value="${U.trD}"></label><label class="f" style="width:200px">Person<select id="tr31w"><option value="">Everyone</option>${TEAM28.map(t => `<option value="${t[0]}" ${U.trW === t[0] ? "selected" : ""}>${t[1]}</option>`).join("")}</select></label><button class="btn sm" id="tr31p" type="button">Previous day</button><button class="btn sm" id="tr31n" type="button">Next day</button></div>
+    <div class="grid28" style="grid-template-columns:minmax(0,2fr) minmax(0,1fr)"><section class="panel"><div id="map31" class="map31" role="img" aria-label="Map of visits">${P.length ? "" : '<div class="empty" style="padding-top:120px"><b>No visits on this day</b>Log a Visit or Meeting on a lead, or check in on a service call.</div>'}</div></section>
+    <section class="panel"><header><h2>${P.length} stop${P.length === 1 ? "" : "s"}</h2></header><div class="body stack" style="gap:6px">${P.map((p, i) => `<button type="button" class="ac29" data-tp="${i}"><span class="av28">${i + 1}</span><span class="ac29-t">${esc(p.what)}<div class="small muted">${esc(who28(p.by))} · ${esc(new Date(p.at).toLocaleTimeString("en-IN", { timeStyle: "short" }))}</div></span></button>`).join("") || '<p class="small muted">Nothing logged.</p>'}</div></section></div>`);
+  $("#tr31d") && ($("#tr31d").onchange = e => { U.trD = e.target.value || todayISO(); render(); }); $("#tr31w") && ($("#tr31w").onchange = e => { U.trW = e.target.value; render(); });
+  $("#tr31p") && ($("#tr31p").onclick = () => { U.trD = addDays(U.trD, -1); render(); }); $("#tr31n") && ($("#tr31n").onclick = () => { U.trD = addDays(U.trD, 1); render(); });
+  $$("[data-tp]", v).forEach(b => b.onclick = () => { const p = P[+b.dataset.tp]; (p.kind === "lead" ? leadPanel28 : svcPanel29)(BIZ.rows[p.id]); });
+  if (P.length) leaflet31().then(() => { const el = $("#map31"); if (!el || el._m) return; const m = L.map(el); el._m = m; L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 18, attribution: "© OpenStreetMap" }).addTo(m); const byW = {}; P.forEach((p, i) => { L.marker([p.lat, p.lng]).addTo(m).bindPopup(`<b>${i + 1}. ${esc(p.what)}</b><br>${esc(who28(p.by))} · ${esc(new Date(p.at).toLocaleTimeString("en-IN", { timeStyle: "short" }))}<br>${esc(p.note || "")}`); (byW[p.by] ||= []).push([p.lat, p.lng]); }); Object.values(byW).forEach((pts, i) => { if (pts.length > 1) L.polyline(pts, { color: ["#E26A0C", "#02315B", "#2f8f5b"][i % 3], weight: 3 }).addTo(m); }); m.fitBounds(L.latLngBounds(P.map(p => [p.lat, p.lng])).pad(0.3)); }).catch(e => { const el = $("#map31"); if (el) el.innerHTML = `<div class="empty"><b>Map unavailable</b>${esc(e.message)}</div>`; });
+};
+{
+  const i = ROUTES.findIndex(r => r[0] === "activity"); if (!ROUTES.some(r => r[0] === "tracker")) ROUTES.splice(i >= 0 ? i + 1 : ROUTES.length, 0, ["tracker", "Team tracker", "map31"]);
+  if (typeof ROLE_PAGES !== "undefined") ["sales", "finance"].forEach(r => { if (ROLE_PAGES[r] && !ROLE_PAGES[r].includes("tracker")) ROLE_PAGES[r].push("tracker"); });
+  BIZ_ROUTES.push("tracker");
+  const _r31 = render;
+  render = function () { _r31(); try { const v = $("#view"); hist31(v); prevPrices31(v); if (STATE.route === "register") wireSo31(v); } catch (e) { console.warn("p31", e); } };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.so31b{white-space:nowrap}.so31b.on{border-color:var(--ok);color:var(--ok)}
+.map31{height:min(62vh,560px);border-radius:10px;overflow:hidden;background:var(--sunk)}
+.note ul li{margin:2px 0}
+</style>`);
 
 boot();
 
