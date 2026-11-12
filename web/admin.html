@@ -462,7 +462,7 @@ function historyStats(type) {
   };
 }
 const DEFAULT_SETTINGS = {
-  company: { name: "Rivera Coil Manufacturing (I) Pvt Ltd", tagline: "HV Motor & Generator Stator Coils · Roebel Bars · Armature & Pole Coils · Rewinding", address: "191/1, Perundurai Main Road, Thindal Post, Erode – 638 012, Tamil Nadu, India", gstin: "", cin: "", udyam: "", email: "riverarcmindia@gmail.com", phone: "0424 2273399 / 77085 49900", web: "", capacity: "20 coils/day (max 24)", qc: "", production: "", signatory: "Authorized Signature", hsn: "85030010", sac: "998717", jurisdiction: "Erode, Tamil Nadu, India" },
+  company: { name: "Rivera Coil Manufacturing (I) Pvt Ltd", tagline: "HV Motor & Generator Stator Coils · Roebel Bars · Armature & Pole Coils · Rewinding", address: "191/1, Perundurai Main Road, Thindal Post, Erode – 638 012, Tamil Nadu, India", gstin: "33AALCR4223N1Z5", cin: "", udyam: "", email: "riverarcmindia@gmail.com", phone: "0424 2273399 / 77085 49900", web: "", capacity: "20 coils/day (max 24)", qc: "", production: "", signatory: "Authorized Signature", hsn: "85030010", sac: "998717", jurisdiction: "Erode, Tamil Nadu, India" },
   bank: { name: "", acc: "", type: "", ifsc: "", micr: "", swift: "", branch: "" },
   fx: { USD: 92, EUR: 102, GBP: 118, AED: 25, SAR: 24.5, QAR: 25.2, SGD: 68, MYR: 20, NPR: 0.625, RUB: 1.1 },
   numbering: { prefix: "RCM", next: 1, fy: "26-27" },
@@ -6994,6 +6994,8 @@ IC.act29 = '<path d="M3 12h4l3 8 4-16 3 8h4"/>';
 IC.dash29 = '<rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/>';
 IC.chat29 = '<path d="M21 12a8 8 0 0 1-11.6 7.1L3 21l1.9-6.4A8 8 0 1 1 21 12z"/>';
 
+/* company GSTIN (from Rivera's own purchase papers) for devices whose saved settings have it blank */
+if (SETTINGS.company && !String(SETTINGS.company.gstin || "").trim()) SETTINGS.company.gstin = "33AALCR4223N1Z5";
 const role29 = () => AUTH.user?.role || "viewer";
 const can29 = k => isAdmin28() || ({ emp: ["finance"], att: ["finance"], sal: ["finance"], exp: ["finance"], bill: ["finance"], spay: ["finance"], inv: ["finance", "sales"], rcpt: ["finance", "sales"] }[k] || [role29()]).includes(role29());
 const month29 = d => String(d || "").slice(0, 7);
