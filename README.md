@@ -39,6 +39,12 @@ Company costing data (rate card, past jobs, bank details) is **not** in this rep
 - **Repair jobs** – every motor, generator or transformer from inward DC to dispatch on a stage board: job number RJ/yy-yy/nnn, rating, serial, promised date with late alerts, printable job card, estimate, material issued from stock and turnaround reports.
 - **Purchase & stock** – purchase orders (RCM/PO/yy-yy/nnn) with admin approval, print / email / WhatsApp to supplier, last purchase rate, GRN into stock, copper / insulation stock with minimum-level reorder alerts, issue to jobs, stock value and movement history.
 - **My work** – follow-ups, tasks, late jobs, stock to reorder and POs to approve in one page with a 14-day calendar; tasks given to someone are mailed to them; one morning mail per person with what is due.
+- **Service & AMC** – breakdown / preventive service calls with engineer, site check-in with location and time at site, service report with readings and customer signature, AMC contracts with planned visits and renewal alerts, and every customer machine with its repair and service history.
+- **Projects** – milestones with billing %, BOQ progress, budget against material, expenses and supplier bills, and invoice raising.
+- **Accounts & GST** – GST tax invoices (CGST/SGST or IGST from place of supply, HSN summary, amount in words), payments with TDS adjusted against invoices, receivables ageing with WhatsApp reminders, expenses, supplier bills and payments, monthly GST, GSTR-1 and HSN CSV, Tally XML export, profit & loss.
+- **HR & payroll** (admin + finance only) – employees with salary structure, attendance grid, leave requests with approval, payroll with PF / ESI / PT / TDS / advance, payslips, bank transfer and PF/ESI lists.
+- **Team comments with @mentions** on every record (mail to the person), **Activity** feed and a **Business dashboard** with sales vs collections, pipeline, ageing, top customers and workshop.
+- **Smart Scan** is now on the Sales login too.
 - **Work orders**, **Tenders & GeM** (checklist + annexure kit II–X), **Vendors, price book & RFQ**
 - **Export & share** – any format, WhatsApp, email, or any app on the phone
 - **Synology** – connect the SALES folder once; jobs, registers and tender kits are filed automatically
