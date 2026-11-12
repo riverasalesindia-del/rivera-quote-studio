@@ -123,6 +123,35 @@ function sendPack() {
   win.webContents.executeJavaScript(`window.riveraReceivePack && window.riveraReceivePack(${JSON.stringify(b.j)}, ${JSON.stringify(b.label)})`).catch(() => {});
 }
 
+/* ---- always the newest app: pages come from the live website (kept in a cache for offline use); the bundled copy is the last fallback ---- */
+const LIVE = "https://riverasalesindia-del.github.io/rivera-quote-studio";
+const LIVE_TYPES = { ".html": "text/html; charset=utf-8", ".js": "text/javascript", ".css": "text/css", ".json": "application/json", ".webmanifest": "application/manifest+json", ".png": "image/png", ".svg": "image/svg+xml", ".ico": "image/x-icon", ".txt": "text/plain" };
+function cacheDir() { const d = path.join(app.getPath("userData"), "webcache"); try { fs.mkdirSync(d, { recursive: true }); } catch (e) {} return d; }
+async function liveFile(p, bundled) {
+  const ext = path.extname(p).toLowerCase(), type = LIVE_TYPES[ext];
+  const cached = path.join(cacheDir(), p.replace(/[^a-z0-9._-]+/gi, "_"));
+  if (type && p !== "/sw.js") {
+    try {
+      const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), ext === ".html" ? 5000 : 8000);
+      const r = await fetch(LIVE + p + (ext === ".html" ? "?v=" + Date.now() : ""), { signal: ctl.signal, cache: "no-store" }).finally(() => clearTimeout(t));
+      if (r.ok) { const buf = Buffer.from(await r.arrayBuffer()); if (buf.length > 200 || ext !== ".html") { try { fs.writeFileSync(cached, buf); } catch (e) {} return new Response(buf, { headers: { "content-type": type } }); } }
+    } catch (e) {}
+    try { if (fs.existsSync(cached)) return new Response(fs.readFileSync(cached), { headers: { "content-type": type } }); } catch (e) {}
+  }
+  return net.fetch(pathToFileURL(bundled).toString());
+}
+/* ---- the Windows app updates itself from GitHub releases ---- */
+function setupAutoUpdate() {
+  let au; try { au = require("electron-updater").autoUpdater; } catch (e) { return; }
+  au.autoDownload = true; au.autoInstallOnAppQuit = true;
+  au.on("update-downloaded", info => {
+    const { dialog } = require("electron");
+    dialog.showMessageBox(win, { type: "info", buttons: ["Restart now", "Later"], defaultId: 0, cancelId: 1, title: "Update ready", message: `Rivera Quote Studio ${info.version} is ready.`, detail: "Restart now to use it, or it will be installed when you close the app." }).then(r => { if (r.response === 0) au.quitAndInstall(); }).catch(() => {});
+  });
+  au.on("error", () => {});
+  const check = () => au.checkForUpdates().catch(() => {});
+  setTimeout(check, 8000); setInterval(check, 2 * 3600 * 1000);
+}
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 920, minWidth: 900, minHeight: 600,
@@ -135,7 +164,7 @@ function createWindow() {
   win.webContents.on("did-finish-load", () => { sendFiles(filesFromArgs(process.argv)); setTimeout(sendPack, 2500); setTimeout(scanDocs, 9000); });
   setInterval(scanDocs, 30 * 60000);
   win.on("focus", () => { if (Date.now() - (win._pk || 0) > 600000) { win._pk = Date.now(); sendPack(); } });
-  win.loadURL("rivera://app/index.html#home");
+  win.loadURL("rivera://app/index.html#apps");
 }
 
 if (!app.requestSingleInstanceLock()) {
@@ -160,15 +189,29 @@ if (!app.requestSingleInstanceLock()) {
         try { const r = await gemSearch(String(u.searchParams.get("kw") || "").slice(0, 80), Math.max(1, Math.min(500, +u.searchParams.get("page") || 1)), u.searchParams.get("status") || "ongoing_bids"); return new Response(JSON.stringify({ ok: true, numFound: r.numFound || 0, docs: r.docs || [] }), { headers: head }); }
         catch (e) { return new Response(JSON.stringify({ ok: false, error: String(e && e.message || e) }), { status: 502, headers: head }); }
       })();
+      /* Tally Prime bridge: the page POSTs Tally XML to rivera://tally?host=…&port=…; only this PC or the office LAN is allowed */
+      if (u.host === "tally") return (async () => {
+        const head = { "content-type": "text/xml; charset=utf-8", "access-control-allow-origin": "*" };
+        try {
+          const host = String(u.searchParams.get("host") || "localhost").trim(), port = Math.max(1, Math.min(65535, +u.searchParams.get("port") || 9000));
+          if (!/^(localhost|127\.0\.0\.1|10\.\d+\.\d+\.\d+|192\.168\.\d+\.\d+|172\.(1[6-9]|2\d|3[01])\.\d+\.\d+|[a-z0-9-]+)$/i.test(host)) throw new Error("Tally must be on this PC or the office network");
+          const body = req.method === "POST" ? await req.text() : "";
+          if (body.length > 8e6) throw new Error("Too much at once");
+          const ctl = new AbortController(), t = setTimeout(() => ctl.abort(), 30000);
+          const r = await fetch(`http://${host}:${port}`, { method: "POST", body, headers: { "content-type": "text/xml; charset=utf-8" }, signal: ctl.signal }).finally(() => clearTimeout(t));
+          return new Response(await r.text(), { status: r.status, headers: head });
+        } catch (e) { return new Response(`<ERROR>${String(e && e.message || e).replace(/[<&]/g, "")}</ERROR>`, { status: 502, headers: head }); }
+      })();
       if (p === "/" || p === "") p = "/index.html";
       const file = path.normalize(path.join(WEB, p));
       if (!file.startsWith(WEB)) return new Response("Not allowed", { status: 403 });
-      return net.fetch(pathToFileURL(file).toString());
+      return liveFile(p, file);
     });
     session.defaultSession.setPermissionRequestHandler((_wc, _perm, cb) => cb(true));
     session.defaultSession.setPermissionCheckHandler(() => true);
     Menu.setApplicationMenu(null);
     createWindow();
+    setupAutoUpdate();
   });
   app.on("window-all-closed", () => app.quit());
 }

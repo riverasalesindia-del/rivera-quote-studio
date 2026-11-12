@@ -117,4 +117,6 @@ jobs:
           tag_name: v1.0.${{ github.run_number }}
           files: |
             desktop/dist/RiveraQuoteStudio-Setup.exe
+            desktop/dist/RiveraQuoteStudio-Setup.exe.blockmap
             desktop/dist/RiveraQuoteStudio-Portable.exe
+            desktop/dist/latest.yml
