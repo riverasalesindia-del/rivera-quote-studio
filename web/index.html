@@ -7807,6 +7807,344 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .note ul li{margin:2px 0}
 </style>`);
 
+/* ===================== p32: GrowSmart-style shell — module launcher after login (Sales · Tenders · Workshop & Service · Purchase & Stock · Accounts · HR · Admin), Transactions / Masters / Reports cards, grouped sidebar, Customers 360, quotation automation (auto lead, follow-ups), Tally Prime connection, new sign-in screen ===================== */
+IC.grid32 = '<rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/>';
+IC.cust32 = '<circle cx="12" cy="8" r="4"/><path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8"/>';
+IC.fu32 = '<path d="M21 12a9 9 0 1 1-3-6.7L21 8"/><path d="M21 3v5h-5M12 7v5l3 2"/>';
+IC.tally32 = '<path d="M4 4h16v16H4z"/><path d="M8 9h8M8 13h8M8 17h4"/><circle cx="17" cy="17" r="3" fill="currentColor"/>';
+IC.chev32 = '<path d="m9 6 6 6-6 6"/>';
+const MODS32 = [
+  { id: "sales", name: "Sales", icon: "funnel28", tone: "#E26A0C", blurb: "Enquiry to cash", groups: {
+    Transactions: [["Leads & follow-ups", "crm", {}, "Enquiries, visits, next follow-up"], ["Smart Scan", "scan", {}, "Read an enquiry or PO"], ["Quote workings", "workings", {}, "Costing for coils"], ["Quotation", "quote", {}, "Rivera letterhead quote"], ["Quote follow-ups", "qfu", {}, "Sent quotes waiting for reply"], ["Sales orders", "purchase", { pur: "so" }, "Customer PO → order"], ["Deliveries", "purchase", { pur: "dn" }, "Delivery planner & challan"], ["Invoices", "accounts", { acc: "inv" }, "GST tax invoices"], ["Payments in", "accounts", { acc: "rcpt" }, "Receipts with TDS"]],
+    Masters: [["Customers", "customers", {}, "360° view of every customer"], ["Quotation register", "register", {}, "Every quote, every revision"], ["Compare offers", "compare", {}, "Vendor quotes side by side"]],
+    Reports: [["History & reports", "history", {}, "Won / lost, by period"], ["Receivables & collection", "accounts", { acc: "recv" }, "Ageing and reminders"], ["Lead reports", "crm", { crm: "rep" }, "Source, salesperson, lost reason"], ["Team tracker", "tracker", {}, "Visits on a map"]] } },
+  { id: "tenders", name: "Tenders", icon: "gem", tone: "#9a5b00", blurb: "GeM, CPPP & PSU bids", groups: {
+    Transactions: [["Tender intelligence", "intel", {}, "Live bids for Rivera"], ["Tenders & GeM", "tenders", {}, "Bids we are working on"], ["GeM Bid Desk", "biddesk", {}, "Documents & upload status"], ["Finance requests", "finreq", {}, "EMD, PBG, documents"]],
+    Masters: [["Company documents", "library", {}, "Certificates, GST, Swarnagiri"]],
+    Reports: [["Tender database", "tdb", {}, "Every tender, results, L1"]] } },
+  { id: "service", name: "Workshop & Service", icon: "wrench28", tone: "#2f6fb0", blurb: "Repairs, site service, projects", groups: {
+    Transactions: [["Repair jobs", "jobs", {}, "Inward to dispatch"], ["Service calls", "service", { svc: "calls" }, "Breakdown & preventive"], ["Projects", "projects", {}, "Milestones, BOQ, budget"]],
+    Masters: [["AMC contracts", "service", { svc: "amc" }, "Visits and renewals"], ["Customer equipment", "service", { svc: "eq" }, "Every machine's history"]],
+    Reports: [["Service reports", "service", { svc: "rep" }, "Response time, hours"], ["Workshop reports", "jobs", { jobs: "rep" }, "Turnaround, on time"]] } },
+  { id: "purchase", name: "Purchase & Stock", icon: "box28", tone: "#2f8f5b", blurb: "Buying, stores, work orders", groups: {
+    Transactions: [["Purchase orders", "purchase", { pur: "po" }, "Approval, GRN"], ["Issue / adjust stock", "purchase", { pur: "stock" }, "Copper, insulation, varnish"], ["Work orders", "orders", {}, "Orders in the factory"]],
+    Masters: [["Stock items", "purchase", { pur: "stock" }, "Minimum levels, racks"], ["Vendors & RFQ", "vendors", {}, "Price book, RFQ"], ["Rate card", "ratecard", {}, "Costing rates"]],
+    Reports: [["Stock movements", "purchase", { pur: "moves" }, "In, out, adjustments"]] } },
+  { id: "accounts", name: "Accounts", icon: "acc29", tone: "#6b4bb8", blurb: "GST, receivables, Tally", groups: {
+    Transactions: [["Invoices", "accounts", { acc: "inv" }, "GST tax invoices"], ["Payments in", "accounts", { acc: "rcpt" }, "Customer receipts"], ["Expenses", "accounts", { acc: "exp" }, "Day-to-day spends"], ["Supplier bills", "accounts", { acc: "bill" }, "Bills and payments"]],
+    Masters: [["Tally connection", "accounts", { acc: "tally" }, "Send to Tally Prime"]],
+    Reports: [["Receivables", "accounts", { acc: "recv" }, "Ageing by customer"], ["GST", "accounts", { acc: "gst" }, "GSTR-1, HSN"], ["Profit & loss", "accounts", { acc: "pl" }, "Month by month"], ["Business dashboard", "dash", {}, "Whole company"]] } },
+  { id: "hr", name: "HR & Payroll", icon: "hr29", tone: "#b03a5b", blurb: "People and salary", groups: {
+    Transactions: [["Attendance", "hr", { hr: "att" }, "Daily grid"], ["Leave", "hr", { hr: "leave" }, "Requests & approval"], ["Payroll", "hr", { hr: "pay" }, "PF, ESI, payslips"]],
+    Masters: [["Employees", "hr", { hr: "emp" }, "Salary structure"]], Reports: [] } },
+  { id: "admin", name: "Admin", icon: "lock", tone: "#02315B", blurb: "Users, data, automation", groups: {
+    Transactions: [["My work", "tasks", {}, "Today's follow-ups & tasks"], ["Activity", "activity", {}, "Who changed what"]],
+    Masters: [["Users & access", "users", {}, "Logins and devices"], ["Synology & files", "storage", {}, "Shared folders"]],
+    Reports: [["Health & automation", "health", {}, "Mails, triggers, errors"], ["Dashboard", "home", {}, "Quote studio overview"]] } }
+];
+const okRoute32 = r => ROUTES.some(x => x[0] === r) && (typeof allowed21 !== "function" || allowed21(r));
+const modsFor32 = () => MODS32.map(m => ({ ...m, groups: Object.fromEntries(Object.entries(m.groups).map(([g, L]) => [g, L.filter(c => okRoute32(c[1]))])) })).filter(m => Object.values(m.groups).some(L => L.length));
+function go32(route, ui) { Object.assign(BIZ.ui, ui || {}); BIZ.ui.q = ""; if (STATE.route === route) render(); else location.hash = route; }
+function cardsCount32(c) {
+  const [, r, ui] = c, t = todayISO();
+  try {
+    if (r === "crm") return all28("lead").filter(x => !["won", "lost"].includes(x.stage) && x.next && x.next <= t).length;
+    if (r === "qfu") return qfuList32().filter(x => x.due <= t).length;
+    if (r === "purchase" && ui.pur === "so") return all28("so").filter(x => x.status === "exception").length;
+    if (r === "purchase" && ui.pur === "dn") return all28("so").filter(x => ["confirmed", "part"].includes(x.status) && x.deliveryDate && x.deliveryDate <= t).length;
+    if (r === "accounts" && ui.acc === "recv") return all28("inv").filter(i => i.balance > 0 && i.due < t).length;
+    if (r === "jobs") return all28("job").filter(j => !["dispatched", "invoiced"].includes(j.stage) && j.promised && j.promised < t).length;
+    if (r === "service" && ui.svc === "calls") return all28("svc").filter(s => s.status !== "closed" && s.visit && s.visit <= t).length;
+    if (r === "purchase" && ui.pur === "po") return isAdmin28() ? all28("po").filter(p => p.status === "pending").length : 0;
+    if (r === "hr" && ui.hr === "leave") return all28("leave").filter(l => l.status === "applied").length;
+    if (r === "tasks") return myDue28().tasks.length;
+  } catch { }
+  return 0;
+}
+VIEWS.apps = v => {
+  bizSync28();
+  const M = modsFor32(), u = AUTH.user || {}, hr = new Date().getHours();
+  v.innerHTML = `<div class="ap32-hero"><div><div class="eyebrow">${esc(dmy(todayISO()))}</div><h1>Good ${hr < 12 ? "morning" : hr < 17 ? "afternoon" : "evening"}${u.name && !/^(admin|sales|finance)$/i.test(u.name) ? ", " + esc(u.name.split(" ")[0]) : ""}</h1><p>Pick a module. Everything is connected — a lead becomes a quotation, an order, a delivery, an invoice and a payment, and goes to Tally.</p></div></div>
+    <div class="ap32-grid">${M.map(m => { const n = Object.values(m.groups).flat().reduce((a, c) => a + cardsCount32(c), 0); return `<button type="button" class="ap32-tile" data-mod="${m.id}" style="--t:${m.tone}"><span class="ap32-ic">${icon(m.icon)}</span><b>${esc(m.name)}</b><small>${esc(m.blurb)}</small>${n ? `<i class="ap32-n">${n}</i>` : ""}</button>`; }).join("")}</div>
+    <section class="panel" style="margin-top:18px"><header><h2>Jump to</h2></header><div class="body ap32-quick">${M.flatMap(m => m.groups.Transactions.slice(0, 3).map(c => ({ c, m }))).slice(0, 12).map(({ c, m }, i) => `<button type="button" class="ap32-q" data-qk="${m.id}|${i}" style="--t:${m.tone}">${esc(c[0])}</button>`).join("")}</div></section>`;
+  $$("[data-mod]", v).forEach(b => b.onclick = () => go32("module", { mod: b.dataset.mod }));
+  const flat = M.flatMap(m => m.groups.Transactions.slice(0, 3)).slice(0, 12);
+  $$("[data-qk]", v).forEach((b, i) => b.onclick = () => go32(flat[i][1], flat[i][2]));
+};
+VIEWS.module = v => {
+  bizSync28();
+  const M = modsFor32(), m = M.find(x => x.id === BIZ.ui.mod) || M[0];
+  if (!m) { v.innerHTML = '<div class="empty"><b>No modules for this login</b></div>'; return; }
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow"><a href="#apps" class="ap32-back">All modules</a></div><h1 style="display:flex;align-items:center;gap:12px"><span class="ap32-ic sm" style="--t:${m.tone}">${icon(m.icon)}</span>${esc(m.name)}</h1><p>${esc(m.blurb)}</p></div></div>
+    <div class="row ap32-mods">${M.map(x => `<button type="button" class="chip ${x.id === m.id ? "ok" : ""}" data-mod="${x.id}">${esc(x.name)}</button>`).join("")}</div>
+    <div class="md32">${["Transactions", "Masters", "Reports"].filter(g => m.groups[g]?.length).map(g => `<section class="md32-g"><h2>${g}</h2><div class="md32-l">${m.groups[g].map((c, i) => { const n = cardsCount32(c); return `<button type="button" class="md32-c" data-card="${g}|${i}" style="--t:${m.tone}"><span><b>${esc(c[0])}</b><small>${esc(c[3] || "")}</small></span>${n ? `<i class="ap32-n">${n}</i>` : `<span class="md32-a">${icon("chev32")}</span>`}</button>`; }).join("")}</div></section>`).join("")}</div>`;
+  $$("[data-mod]", v).forEach(b => b.onclick = () => go32("module", { mod: b.dataset.mod }));
+  $$("[data-card]", v).forEach(b => b.onclick = () => { const [g, i] = b.dataset.card.split("|"), c = m.groups[g][+i]; go32(c[1], c[2]); });
+};
+
+/* ---- grouped sidebar: Home, then one folding section per module (only pages this login may open) ---- */
+const NAVOPEN32 = (() => { try { return JSON.parse(localStorage.getItem("rqs.nav32") || "{}"); } catch { return {}; } })();
+function nav32() {
+  const nav = $("#nav"); if (!nav) return;
+  const sig = [myRole21?.() || "", ROUTES.length, STATE.route].join("|"); if (nav.dataset.sig32 === sig) return; nav.dataset.sig32 = sig;
+  const lab = r => (ROUTES.find(x => x[0] === r) || [r, r, "grid32"]), a = (r, label, ic) => okRoute32(r) ? `<a href="#${r}" data-r="${r}">${icon(ic || lab(r)[2])}<span>${esc(label || lab(r)[1])}</span></a>` : "";
+  const used = new Set(["apps", "module"]);
+  const M = modsFor32(), cur = M.find(m => Object.values(m.groups).flat().some(c => c[1] === STATE.route))?.id;
+  let html = a("apps", "All modules", "grid32") + a("tasks") + a("dash");
+  ["tasks", "dash"].forEach(r => used.add(r));
+  M.forEach(m => {
+    const rs = [...new Set(Object.values(m.groups).flat().map(c => c[1]))].filter(r => !used.has(r) && okRoute32(r)); if (!rs.length) return;
+    rs.forEach(r => used.add(r));
+    const open = NAVOPEN32[m.id] ?? (m.id === cur || ["sales"].includes(m.id));
+    html += `<div class="nv32 ${open ? "open" : ""}" data-nv="${m.id}"><button type="button" class="nv32-h" aria-expanded="${!!open}">${icon("chev32")}<span>${esc(m.name)}</span></button><div class="nv32-b">${rs.map(r => a(r)).join("")}</div></div>`;
+  });
+  const rest = ROUTES.filter(r => !used.has(r[0]) && okRoute32(r[0]) && !["module"].includes(r[0]));
+  if (rest.length) html += `<div class="nv32 ${NAVOPEN32.more ? "open" : ""}" data-nv="more"><button type="button" class="nv32-h" aria-expanded="${!!NAVOPEN32.more}">${icon("chev32")}<span>More</span></button><div class="nv32-b">${rest.map(r => a(r[0])).join("")}</div></div>`;
+  nav.innerHTML = html;
+  $$(".nv32-h", nav).forEach(h => h.onclick = () => { const s = h.parentElement, o = !s.classList.contains("open"); s.classList.toggle("open", o); h.setAttribute("aria-expanded", o); NAVOPEN32[s.dataset.nv] = o; try { localStorage.setItem("rqs.nav32", JSON.stringify(NAVOPEN32)); } catch { } });
+  markNav();
+}
+
+/* =============== Customers 360 =============== */
+function customers32() {
+  const C = {}, add = (name, k, rec, val) => { const key = norm31(name); if (!key) return; const c = C[key] ||= { name: String(name).trim(), q: [], lead: [], so: [], inv: [], job: [], svc: [], asset: [], amc: [], t: [], last: "" }; c[k].push(rec); const d = String(rec.date || rec.at || rec.received || rec.opened || "").slice(0, 10); if (d > c.last) c.last = d; };
+  (STATE.quotes || []).forEach(q => add(q.customer, "q", q));
+  all28("lead").forEach(x => add(x.company, "lead", x)); all28("so").forEach(x => add(x.customer, "so", x)); all28("inv").forEach(x => add(x.customer, "inv", x));
+  all28("job").forEach(x => add(x.customer, "job", x)); all28("svc").forEach(x => add(x.customer, "svc", x)); all28("asset").forEach(x => add(x.customer, "asset", x)); all28("amc").forEach(x => add(x.customer, "amc", x));
+  (STATE.data.tenders || []).forEach(x => add(x.org, "t", x));
+  return Object.values(C).map(c => ({ ...c, quoted: c.q.reduce((a, q) => a + qINR(q), 0), won: c.q.filter(q => autoSt31({ k: "q", id: q.id })[0] === "Won").length, ordered: c.so.filter(o => o.status !== "cancelled").reduce((a, o) => a + (Number(o.taxable) || 0), 0), billed: c.inv.filter(i => i.status !== "cancelled").reduce((a, i) => a + (Number(i.taxable) || 0), 0), due: c.inv.filter(i => i.status !== "cancelled").reduce((a, i) => a + (Number(i.balance) || 0), 0) }));
+}
+function cust360_32(c) {
+  const sec = (t, L, row) => L.length ? `<section class="dr26-sec"><h3>${t} · ${L.length}</h3>${L.slice(0, 12).map(row).join("")}</section>` : "";
+  const li = (k, i, b, s) => `<button type="button" class="dr26-li" data-c3="${k}:${i}"><b>${b}</b><small>${s}</small></button>`;
+  const D = panel28({
+    title: c.name, chips: `<span class="chip">${c.q.length} quotes</span>${c.won ? `<span class="chip ok">${c.won} won</span>` : ""}${c.due > 0 ? `<span class="chip warn">due ${inr28(c.due)}</span>` : ""}`,
+    body: `<div class="dr26-k"><div><span>Quoted</span><b>${inr28(c.quoted)}</b></div><div><span>Orders</span><b>${inr28(c.ordered)}</b></div><div><span>Invoiced</span><b>${inr28(c.billed)}</b></div><div><span>Outstanding</span><b>${inr28(c.due)}</b></div></div>
+      <div class="dr26-a"><button class="btn" id="c3lead" type="button">${icon("funnel28")}New lead</button><button class="btn" id="c3q" type="button">${icon("sheet")}New quotation</button><button class="btn" id="c3so" type="button">${icon("so31")}Sales order</button><button class="btn" id="c3svc" type="button">${icon("svc29")}Service call</button></div>
+      ${sec("Quotations", c.q.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))), (q, i) => { const [s] = autoSt31({ k: "q", id: q.id }); return li("q", c.q.indexOf(q), `${esc(q.no || "")} · ${s}`, `${dmy(String(q.date).slice(0, 10))} · ${esc(String(q.subject || "").slice(0, 70))} · ${inr28(qINR(q))}`); })}
+      ${sec("Sales orders", c.so, (o, i) => li("so", i, `${esc(o.no || "draft")} · ${soSt31(o.status)[1]}`, `${dmy(o.date)} · PO ${esc(o.poNo || "—")} · ${inr28(o.total)}`))}
+      ${sec("Invoices", c.inv, (x, i) => li("inv", i, `${esc(x.no)} · ${x.balance > 0 ? "due " + inr28(x.balance) : "paid"}`, `${dmy(x.date)} · ${inr28(x.total)}`))}
+      ${sec("Leads", c.lead, (x, i) => li("lead", i, `${esc((LEAD_ST.find(s => s[0] === x.stage) || [])[1] || "")}`, `${esc(x.need || "")} · ${inr28(x.value)}`))}
+      ${sec("Repair jobs", c.job, (x, i) => li("job", i, `${esc(x.no)} · ${esc((JOB_ST.find(s => s[0] === x.stage) || [])[1] || "")}`, `${esc(x.equipment || "")} ${esc(x.rating || "")}`))}
+      ${sec("Service calls", c.svc, (x, i) => li("svc", i, `${esc(x.no)} · ${esc(x.status)}`, esc(x.complaint || "")))}
+      ${sec("Equipment", c.asset, (x, i) => li("asset", i, `${esc(x.type || "")} ${esc(x.rating || "")}`, `#${esc(x.serial || "")}`))}
+      ${sec("AMC", c.amc, (x, i) => li("amc", i, `${esc(x.no)} · ${esc(x.status)}`, `${dmy(x.start)} → ${dmy(x.end)}`))}
+      ${sec("Tenders", c.t, (x, i) => li("t", i, esc(x.bid || ""), `${esc(String(x.items || "").slice(0, 70))} · ${esc((TENDER_ST[x.status] || [x.status])[0] || "")}`))}`
+  });
+  $$("[data-c3]", D).forEach(b => b.onclick = () => { const [k, i] = b.dataset.c3.split(":"), x = c[k][+i]; ({ q: () => { closeDrawer26(); location.hash = "history"; }, so: () => soPanel31(x), inv: () => invPanel29(x), lead: () => leadPanel28(x), job: () => jobPanel28(x), svc: () => svcPanel29(x), asset: () => assetPanel29(x), amc: () => amcPanel29(x), t: () => { closeDrawer26(); location.hash = "tenders"; } })[k]?.(); });
+  const last = c.q.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]?.quote?.to || {}, ld = c.lead[0] || {};
+  $("#c3lead").onclick = () => leadPanel28({ kind: "lead", stage: "new", owner: me28(), source: "Existing customer", next: todayISO(), company: c.name, contact: ld.contact || last.contact || "", phone: ld.phone || last.phone || "", email: ld.email || last.email || "" });
+  $("#c3q").onclick = () => { closeDrawer26(); quickQuote32({ company: c.name, contact: ld.contact || last.contact, phone: ld.phone || last.phone, email: ld.email || last.email, address: last.address, gstin: last.gstin }); };
+  $("#c3so").onclick = () => soPanel31({ kind: "so", status: "draft", date: todayISO(), customer: c.name, email: last.email || ld.email || "", phone: last.phone || ld.phone || "", gstin: last.gstin || "", addr: last.address || "", pos: (last.gstin || "").slice(0, 2) || home29(), lines: [{ qty: 1, unit: "Nos", gst: 18, hsn: "8503" }], owner: me28() });
+  $("#c3svc").onclick = () => svcPanel29({ kind: "svc", status: "open", type: "Breakdown", pri: "normal", opened: todayISO(), customer: c.name, phone: ld.phone || last.phone || "" });
+}
+VIEWS.customers = v => {
+  bizSync28();
+  const all = customers32(), L = qf29(all, x => x.name).sort((a, b) => String(b.last).localeCompare(String(a.last)));
+  v.innerHTML = head29("Sales ▸ Masters", "Customers", "Every customer in one list, built from quotations, leads, orders, invoices, repair jobs, service calls and tenders. Click one for the full 360° view.", "") + `${kpi29([["Customers", all.length], ["Quoted (all time)", inr28(sum29(all, "quoted"))], ["Ordered", inr28(sum29(all, "ordered"))], ["Outstanding", inr28(sum29(all, "due")), "", all.some(c => c.due > 0) ? "warn" : ""]])}
+    <div class="row" style="justify-content:flex-end;margin-bottom:10px"><input class="q28" id="q28" type="search" placeholder="Find customer…" value="${esc(BIZ.ui.q)}" aria-label="Find customer"></div>
+    ${tbl29(["Customer", "Quotes", "Won", "Quoted", "Orders", "Invoiced", "Outstanding", "Last activity"], L.slice(0, 400).map((c, i) => `<tr class="r26" data-cu="${i}" tabindex="0"><td><b>${esc(c.name)}</b><div class="small muted">${[c.job.length ? c.job.length + " jobs" : "", c.svc.length ? c.svc.length + " service" : "", c.t.length ? c.t.length + " tenders" : ""].filter(Boolean).join(" · ")}</div></td><td class="n">${c.q.length}</td><td class="n">${c.won}</td><td class="n">${inr28(c.quoted)}</td><td class="n">${inr28(c.ordered)}</td><td class="n">${inr28(c.billed)}</td><td class="n">${c.due > 0 ? `<b>${inr28(c.due)}</b>` : "—"}</td><td>${c.last ? dmy(c.last) : "—"}</td></tr>`), "No customers yet")}`;
+  wire29(v, { cu: i => cust360_32(L[+i]) });
+};
+
+/* =============== quotation automation =============== */
+/* 1) quick quotation from a lead or customer — opens the Quotation page already filled */
+function quickQuote32(o) {
+  const Q = blankQuote(); Q.to = { ...Q.to, name: o.company || "", contact: o.contact || "", email: o.email || "", phone: o.phone || "", address: o.address || "", gstin: o.gstin || "" };
+  Q.subject = o.need ? `Manufacture & Supply of ${o.need}` : Q.subject; Q.ref = o.ref || (o.source ? `Your enquiry by ${String(o.source).toLowerCase()}` : Q.ref);
+  if (o.need || o.value) Q.lines = [{ desc: o.need || "", qty: 1, unit: "Nos", rate: Number(o.value) || 0 }];
+  Q.leadId = o.leadId || ""; STATE.quote = Q; STATE.work = null; try { saveDrafts(); } catch { }
+  location.hash = "quote"; toast("Quotation started for " + (o.company || "customer") + " — check the rate and save");
+}
+{
+  const _lp = leadPanel28;
+  leadPanel28 = function (src, ...a) {
+    const r = _lp.call(this, src, ...a), q = $("#l28q");
+    if (q && src?.id) { q.insertAdjacentHTML("afterend", `<button class="btn primary" id="l32q" type="button">${icon("bolt")}Quick quotation</button>`); $("#l32q").onclick = () => { closeDrawer26(); quickQuote32({ ...src, leadId: src.id }); }; }
+    return r;
+  };
+}
+/* 2) saving a quotation moves its lead to "Quoted" (or makes a lead), and plans the first follow-up */
+{
+  const _sq = saveQuoteRecord;
+  saveQuoteRecord = async function (...a) {
+    const r = await _sq.apply(this, a);
+    try {
+      const Q = STATE.quote; if (!Q?.regId) return r;
+      const rec = (STATE.quotes || []).find(q => q.id === Q.regId); if (!rec) return r;
+      if (!rec.nextFu && rec.status === "sent") { rec.nextFu = addDays(String(rec.date).slice(0, 10), 3); await Store.saveQuote(clone(rec)); }
+      if (signed26() && BIZ.loaded) {
+        let lead = (Q.leadId && BIZ.rows[Q.leadId]) || all28("lead").find(l => norm31(l.company) === norm31(rec.customer) && !["won", "lost"].includes(l.stage));
+        const val = Math.round(qINR(rec));
+        if (lead) { if (!["quoted", "nego", "won", "lost"].includes(lead.stage) || !lead.quoteNo) { const l2 = { ...lead, stage: ["nego"].includes(lead.stage) ? lead.stage : "quoted", value: val || lead.value, quoteNo: rec.no, next: rec.nextFu || addDays(todayISO(), 3), nextNote: "Follow up quotation " + rec.no }; logAdd28(l2, "Quoted", `${rec.no} · ${inr28(val)}`); await bizPut28(l2); } }
+        else { const l2 = { kind: "lead", stage: "quoted", source: "Quotation", company: rec.customer, contact: Q.to?.contact || "", phone: Q.to?.phone || "", email: Q.to?.email || "", need: rec.subject || "", value: val, owner: me28(), quoteNo: rec.no, next: rec.nextFu || addDays(todayISO(), 3), nextNote: "Follow up quotation " + rec.no }; logAdd28(l2, "Quoted", rec.no); await bizPut28(l2); toast("Lead added to Leads & follow-ups"); }
+      }
+    } catch (e) { console.warn("p32 quote→lead", e); }
+    return r;
+  };
+}
+/* 3) quote follow-ups: every sent quotation without an order gets day 3 → 7 → 15 → 30 reminders */
+const FU_STEPS = [3, 7, 15, 30];
+function qfuList32() {
+  return (STATE.quotes || []).filter(q => q.date && ["sent", "negotiation"].includes(q.status || "sent") && !soOfQuote31(q)).map(q => {
+    const d0 = String(q.date).slice(0, 10), age = -daysTo28(d0), done = (q.fu || []).length, step = FU_STEPS[Math.min(done, FU_STEPS.length - 1)];
+    const due = q.nextFu || addDays(d0, step), valid = Number(q.quote?.ctx?.validityDays) || 30;
+    return { q, age, done, due, expires: addDays(d0, valid), last: (q.fu || []).at(-1) };
+  }).filter(x => x.age <= 120).sort((a, b) => a.due.localeCompare(b.due));
+}
+async function fuSave32(q, patch, msg) { const c = clone(q); Object.assign(c, patch); if (await Store.saveQuote(c)) { toast(msg); render(); } }
+function fuText32(x) { const q = x.q, to = q.quote?.to || {}; return `Dear ${to.contact || "Sir/Madam"},\n\nGreetings from ${SETTINGS.company?.name || "Rivera Coil Manufacturing"}.\n\nWe are following up on our quotation ${q.no}${q.rev ? "R" + q.rev : ""} dated ${dmy(String(q.date).slice(0, 10))} for ${q.subject || "your requirement"}${qINR(q) ? ` (₹${Math.round(qINR(q)).toLocaleString("en-IN")})` : ""}.\n\nPlease let us know if you need any clarification or a revision. We would be glad to receive your purchase order.\n\nRegards,\n${AUTH.user?.name || "Sales"}\n${SETTINGS.company?.name || ""}`; }
+VIEWS.qfu = v => {
+  const L = qfuList32(), t = todayISO(), G = [["Due today or late", x => x.due <= t], ["This week", x => x.due > t && x.due <= addDays(t, 7)], ["Later", x => x.due > addDays(t, 7)]];
+  v.innerHTML = head29("Sales ▸ Transactions", "Quote follow-ups", "Every quotation sent without an order is followed up automatically on day 3, 7, 15 and 30. One tap to WhatsApp or email the customer, then mark it — or book the sales order, or mark it lost.", "") +
+    kpi29([["Waiting for reply", L.length, inr28(L.reduce((a, x) => a + qINR(x.q), 0))], ["Follow up today", L.filter(x => x.due <= t).length, "", L.some(x => x.due < t) ? "bad" : L.some(x => x.due === t) ? "warn" : ""], ["Expiring in 7 days", L.filter(x => x.expires >= t && x.expires <= addDays(t, 7)).length, "quote validity"], ["Won this month", (STATE.quotes || []).filter(q => month29(q.wonAt || "") === month29(t) || (q.status === "won" && month29(String(q.date)) === month29(t))).length]]) +
+    (G.map(([g, f]) => { const R = L.filter(f); return R.length ? `<section class="panel" style="margin-bottom:12px"><header><h2>${g} <span class="chip ${g.startsWith("Due") ? "warn" : ""}">${R.length}</span></h2></header><div class="body stack" style="gap:8px">${R.map(x => { const q = x.q, to = q.quote?.to || {}; return `<div class="fu32"><div class="fu32-m"><b>${esc(q.customer || "")}</b><small>${esc(q.no || "")} · ${esc(String(q.subject || "").slice(0, 80))} · ${inr28(qINR(q))}</small><small>Sent ${x.age} day${x.age === 1 ? "" : "s"} ago · follow-up ${x.done + 1}${x.last ? ` · last: ${esc(x.last.how)} ${dmy(String(x.last.at).slice(0, 10))}${x.last.note ? " — " + esc(x.last.note) : ""}` : ""}${x.expires < t ? ' · <b style="color:var(--bad)">validity over</b>' : ""}</small></div>${dueChip28(x.due)}<div class="fu32-a">${to.phone ? `<button class="btn sm" data-fw="${q.id}" type="button" aria-label="WhatsApp">${icon("wa")}</button>` : ""}<button class="btn sm" data-fe="${q.id}" type="button" aria-label="Email">${icon("mail")}</button><button class="btn sm" data-fd="${q.id}" type="button">Done</button><button class="btn sm" data-fso="${q.id}" type="button">${icon("so31")}Order</button><button class="btn sm ghost" data-fl="${q.id}" type="button">Lost</button></div></div>`; }).join("")}</div></section>` : ""; }).join("") || `<section class="panel"><div class="empty"><b>Nothing waiting</b>Every sent quotation shows here until it becomes an order or is marked lost.</div></section>`);
+  const X = id => L.find(x => x.q.id === id);
+  $$("[data-fw]", v).forEach(b => b.onclick = () => { const x = X(b.dataset.fw); openLink("https://wa.me/" + String(x.q.quote.to.phone).replace(/\D/g, "").replace(/^(\d{10})$/, "91$1") + "?text=" + encodeURIComponent(fuText32(x))); fuSave32(x.q, { fu: [...(x.q.fu || []), { at: new Date().toISOString(), by: me28(), how: "WhatsApp" }], nextFu: addDays(t, FU_STEPS[Math.min((x.q.fu || []).length + 1, 3)] - FU_STEPS[Math.min((x.q.fu || []).length, 3)] || 7) }, "Follow-up logged"); });
+  $$("[data-fe]", v).forEach(b => b.onclick = () => { const x = X(b.dataset.fe); openLink(`mailto:${encodeURIComponent(x.q.quote?.to?.email || "")}?subject=${encodeURIComponent("Follow-up: our quotation " + x.q.no)}&body=${encodeURIComponent(fuText32(x))}`); fuSave32(x.q, { fu: [...(x.q.fu || []), { at: new Date().toISOString(), by: me28(), how: "Email" }], nextFu: addDays(t, 7) }, "Follow-up logged"); });
+  const ask = (title, fields, onOk) => { const D = panel28({ title, body: `<div class="fields">${fields}</div>`, foot: `<span style="flex:1"></span><button class="btn" type="button" onclick="closeDrawer26()">Cancel</button><button class="btn primary" id="fu32ok" type="button">Save</button>` }); $("#fu32ok").onclick = () => { onOk(D); closeDrawer26(); }; };
+  $$("[data-fd]", v).forEach(b => b.onclick = () => { const x = X(b.dataset.fd); ask("Follow-up done — " + x.q.customer, `<label class="f">How<select id="fu32h"><option>Call</option><option>Visit</option><option>WhatsApp</option><option>Email</option></select></label><label class="f">Next follow-up<input type="date" id="fu32n" value="${addDays(t, 7)}"></label><label class="f" style="grid-column:1/-1">What did the customer say?<textarea id="fu32t" rows="2"></textarea></label>`, () => fuSave32(x.q, { fu: [...(x.q.fu || []), { at: new Date().toISOString(), by: me28(), how: $("#fu32h").value, note: $("#fu32t").value.slice(0, 200) }], nextFu: $("#fu32n").value || addDays(t, 7) }, "Follow-up logged")); });
+  $$("[data-fso]", v).forEach(b => b.onclick = () => goSo31(soFromQuote31(X(b.dataset.fso).q)));
+  $$("[data-fl]", v).forEach(b => b.onclick = () => { const x = X(b.dataset.fl); ask("Quotation lost — " + x.q.customer, `<label class="f" style="grid-column:1/-1">Reason<select id="fu32w">${LOST_WHY.map(w => `<option>${w}</option>`).join("")}</select></label><label class="f" style="grid-column:1/-1">Who got it / note<input id="fu32x"></label>`, () => { const why = $("#fu32w").value, note = $("#fu32x").value.trim(); fuSave32(x.q, { status: "lost", lostWhy: why + (note ? " — " + note : ""), lostAt: todayISO() }, "Marked lost"); const lead = all28("lead").find(l => norm31(l.company) === norm31(x.q.customer) && !["won", "lost"].includes(l.stage)); if (lead) { const l2 = { ...lead, stage: "lost", lostWhy: why }; logAdd28(l2, "Stage", "Lost — " + why + (note ? " · " + note : "")); bizPut28(l2).catch(() => { }); } }); });
+};
+{ /* My work shows the quote follow-ups too */
+  const _vt = VIEWS.tasks;
+  VIEWS.tasks = v => { _vt(v); const n = qfuList32().filter(x => x.due <= todayISO()).length, g = $(".wk28-g", v); if (g && okRoute32("qfu")) g.insertAdjacentHTML("afterbegin", `<a class="wk28 ${n ? "warn" : ""}" href="#qfu"><span>Quote follow-ups</span><b>${n}</b><small>quotations to chase</small></a>`); };
+}
+
+/* =============== Tally Prime connection (through the Rivera Windows app on the Tally PC / office network) =============== */
+const TALLY32 = (() => { const d = { host: "localhost", port: 9000, company: "", sales: "Sales", cgst: "Output CGST", sgst: "Output SGST", igst: "Output IGST", round: "Round Off", group: "Sundry Debtors", bank: "Bank", tds: "TDS Receivable", log: [] }; try { return { ...d, ...JSON.parse(localStorage.getItem("rqs.tally32") || "{}") }; } catch { return d; } })();
+const tallySave32 = () => { try { localStorage.setItem("rqs.tally32", JSON.stringify(TALLY32)); } catch { } };
+const inApp32 = () => location.protocol === "rivera:";
+const x32 = s => String(s ?? "").replace(/[<>&"']/g, c => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;", '"': "&quot;", "'": "&apos;" }[c]));
+async function tallyPost32(xml) {
+  if (!inApp32()) throw new Error("Open this page in the Rivera Windows app on the PC where Tally runs");
+  const r = await fetch(`rivera://tally?host=${encodeURIComponent(TALLY32.host)}&port=${TALLY32.port}`, { method: "POST", body: xml }), t = await r.text();
+  if (!r.ok || /^<ERROR>/.test(t)) throw new Error((t.match(/<ERROR>([^<]*)/) || [])[1] || "Tally did not answer — is TallyPrime open with port " + TALLY32.port + " on?");
+  return t;
+}
+const sv32 = () => TALLY32.company ? `<STATICVARIABLES><SVCURRENTCOMPANY>${x32(TALLY32.company)}</SVCURRENTCOMPANY></STATICVARIABLES>` : "";
+const coll32 = (id, type, fetch, filter) => `<ENVELOPE><HEADER><VERSION>1</VERSION><TALLYREQUEST>Export</TALLYREQUEST><TYPE>Collection</TYPE><ID>${id}</ID></HEADER><BODY><DESC><STATICVARIABLES><SVEXPORTFORMAT>$$SysName:XML</SVEXPORTFORMAT>${TALLY32.company ? `<SVCURRENTCOMPANY>${x32(TALLY32.company)}</SVCURRENTCOMPANY>` : ""}</STATICVARIABLES><TDL><TDLMESSAGE><COLLECTION NAME="${id}" ISMODIFY="No"><TYPE>${type}</TYPE><FETCH>${fetch}</FETCH>${filter ? `<CHILDOF>${x32(filter)}</CHILDOF><BELONGSTO>Yes</BELONGSTO>` : ""}</COLLECTION></TDLMESSAGE></TDL></DESC></BODY></ENVELOPE>`;
+const imp32 = (report, body) => `<ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>${report}</REPORTNAME>${sv32()}</REQUESTDESC><REQUESTDATA>${body}</REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>`;
+const res32 = t => ({ created: +(t.match(/<CREATED>(\d+)/) || [0, 0])[1], altered: +(t.match(/<ALTERED>(\d+)/) || [0, 0])[1], errors: +(t.match(/<ERRORS>(\d+)/) || [0, 0])[1], msg: [...t.matchAll(/<LINEERROR>([^<]*)/g)].map(m => m[1]).slice(0, 5).join(" · ") });
+const amt32 = n => (Math.round(n * 100) / 100).toFixed(2);
+function ledgerXml32(name, gstin, pos, addr) { return `<TALLYMESSAGE xmlns:UDF="TallyUDF"><LEDGER NAME="${x32(name)}" ACTION="Create"><NAME.LIST><NAME>${x32(name)}</NAME></NAME.LIST><PARENT>${x32(TALLY32.group)}</PARENT><ISBILLWISEON>Yes</ISBILLWISEON>${gstin ? `<PARTYGSTIN>${x32(gstin)}</PARTYGSTIN><GSTREGISTRATIONTYPE>Regular</GSTREGISTRATIONTYPE>` : "<GSTREGISTRATIONTYPE>Unregistered</GSTREGISTRATIONTYPE>"}${STATES29[pos] ? `<LEDSTATENAME>${x32(STATES29[pos])}</LEDSTATENAME>` : ""}${addr ? `<ADDRESS.LIST><ADDRESS>${x32(String(addr).slice(0, 100))}</ADDRESS></ADDRESS.LIST>` : ""}<COUNTRYOFRESIDENCE>India</COUNTRYOFRESIDENCE></LEDGER></TALLYMESSAGE>`; }
+function salesXml32(i) {
+  const c = invCalc29(i), d = String(i.date).replace(/-/g, ""), e = (led, pos, amt, extra = "") => `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${x32(led)}</LEDGERNAME><ISDEEMEDPOSITIVE>${pos ? "Yes" : "No"}</ISDEEMEDPOSITIVE><AMOUNT>${amt32(amt)}</AMOUNT>${extra}</ALLLEDGERENTRIES.LIST>`;
+  return `<TALLYMESSAGE xmlns:UDF="TallyUDF"><VOUCHER REMOTEID="rivera-${x32(i.id)}" VCHTYPE="Sales" ACTION="Create" OBJVIEW="Accounting Voucher View"><DATE>${d}</DATE><VOUCHERTYPENAME>Sales</VOUCHERTYPENAME><VOUCHERNUMBER>${x32(i.no)}</VOUCHERNUMBER><REFERENCE>${x32(i.poRef || "")}</REFERENCE><PARTYLEDGERNAME>${x32(i.customer)}</PARTYLEDGERNAME><PARTYGSTIN>${x32(i.gstin || "")}</PARTYGSTIN><PLACEOFSUPPLY>${x32(STATES29[i.pos] || "")}</PLACEOFSUPPLY><NARRATION>${x32(`Rivera ${i.no}${i.soNo ? " · SO " + i.soNo : ""}${i.dc ? " · DC " + i.dc : ""}`)}</NARRATION><PERSISTEDVIEW>Accounting Voucher View</PERSISTEDVIEW>
+    ${e(i.customer, true, -c.total, `<BILLALLOCATIONS.LIST><NAME>${x32(i.no)}</NAME><BILLTYPE>New Ref</BILLTYPE><BILLCREDITPERIOD>${Number(i.terms) || 0} Days</BILLCREDITPERIOD><AMOUNT>${amt32(-c.total)}</AMOUNT></BILLALLOCATIONS.LIST>`)}${e(TALLY32.sales, false, c.taxable)}${c.inter ? e(TALLY32.igst, false, c.igst) : e(TALLY32.cgst, false, c.cgst) + e(TALLY32.sgst, false, c.sgst)}${Math.abs(c.round) > .001 ? e(TALLY32.round, false, c.round) : ""}</VOUCHER></TALLYMESSAGE>`;
+}
+function rcptXml32(p) {
+  const d = String(p.date).replace(/-/g, ""), amt = Number(p.amount) || 0, tds = Number(p.tds) || 0, bills = (p.alloc || []).map(a => `<BILLALLOCATIONS.LIST><NAME>${x32(BIZ.rows[a.inv]?.no || "")}</NAME><BILLTYPE>Agst Ref</BILLTYPE><AMOUNT>${amt32(a.amt)}</AMOUNT></BILLALLOCATIONS.LIST>`).join("");
+  return `<TALLYMESSAGE xmlns:UDF="TallyUDF"><VOUCHER REMOTEID="rivera-${x32(p.id)}" VCHTYPE="Receipt" ACTION="Create" OBJVIEW="Accounting Voucher View"><DATE>${d}</DATE><VOUCHERTYPENAME>Receipt</VOUCHERTYPENAME><VOUCHERNUMBER>${x32(p.no)}</VOUCHERNUMBER><NARRATION>${x32(`${p.mode || ""} ${p.ref || ""}`.trim())}</NARRATION><PARTYLEDGERNAME>${x32(p.customer)}</PARTYLEDGERNAME>
+    <ALLLEDGERENTRIES.LIST><LEDGERNAME>${x32(p.customer)}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt32(amt + tds)}</AMOUNT>${bills}</ALLLEDGERENTRIES.LIST><ALLLEDGERENTRIES.LIST><LEDGERNAME>${x32(TALLY32.bank)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>${amt32(-amt)}</AMOUNT></ALLLEDGERENTRIES.LIST>${tds ? `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${x32(TALLY32.tds)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>${amt32(-tds)}</AMOUNT></ALLLEDGERENTRIES.LIST>` : ""}</VOUCHER></TALLYMESSAGE>`;
+}
+async function tallyLedgers32() { const t = await tallyPost32(coll32("RiveraLedgers32", "Ledger", "NAME,PARENT,CLOSINGBALANCE")); return [...t.matchAll(/<LEDGER NAME="([^"]*)"[^>]*>([\s\S]*?)<\/LEDGER>/g)].map(m => ({ name: m[1].replace(/&amp;/g, "&").replace(/&quot;/g, '"').replace(/&apos;/g, "'"), parent: ((m[2].match(/<PARENT[^>]*>([^<]*)/) || [])[1] || "").replace(/&amp;/g, "&"), bal: Number(((m[2].match(/<CLOSINGBALANCE[^>]*>([^<]*)/) || [])[1] || "0").replace(/[^\d.-]/g, "")) || 0 })); }
+function tallyLog32(t) { TALLY32.log = [{ at: new Date().toISOString(), t }, ...(TALLY32.log || [])].slice(0, 30); tallySave32(); }
+async function tallySend32(btn, kind) {
+  const old = btn.textContent; btn.disabled = true; btn.textContent = "Sending…";
+  try {
+    const mm = $("#t32m")?.value || "", list = kind === "inv" ? all28("inv").filter(i => i.status !== "cancelled" && !i.tally && (!mm || month29(i.date) === mm)) : all28("rcpt").filter(p => !p.tally && (!mm || month29(p.date) === mm));
+    if (!list.length) { toast("Nothing new to send for this month"); return; }
+    const have = new Set((await tallyLedgers32()).map(l => l.name.toLowerCase())), parties = {};
+    list.forEach(x => { const inv = kind === "inv" ? x : BIZ.rows[(x.alloc || [])[0]?.inv] || {}; if (!have.has(String(x.customer).toLowerCase())) parties[x.customer] = [inv.gstin || "", inv.pos || home29(), inv.addr || ""]; });
+    const need = [TALLY32.sales, TALLY32.cgst, TALLY32.sgst, TALLY32.igst, TALLY32.round, ...(kind === "rcpt" ? [TALLY32.bank, TALLY32.tds] : [])].filter(n => !have.has(n.toLowerCase()));
+    if (need.length) throw new Error("Create these ledgers in Tally first (or change the names below): " + need.join(", "));
+    let made = 0; if (Object.keys(parties).length) { const r = res32(await tallyPost32(imp32("All Masters", Object.entries(parties).map(([n, [g, p, a]]) => ledgerXml32(n, g, p, a)).join("")))); made = r.created; }
+    const r = res32(await tallyPost32(imp32("Vouchers", list.map(kind === "inv" ? salesXml32 : rcptXml32).join(""))));
+    if (r.created) { const stamp = { at: new Date().toISOString(), by: me28() }; const ok = r.errors ? [] : list; if (ok.length) await bizPut28(ok.map(x => ({ ...x, tally: stamp }))); }
+    const line = `${kind === "inv" ? "Sales invoices" : "Receipts"}: ${r.created} created${made ? `, ${made} new customer ledger${made > 1 ? "s" : ""}` : ""}${r.errors ? `, ${r.errors} error${r.errors > 1 ? "s" : ""} — ${r.msg}` : ""}`;
+    tallyLog32(line); toast(line, r.errors ? "bad" : ""); render();
+  } catch (e) { tallyLog32("Failed: " + e.message); toast(e.message, "bad"); }
+  finally { btn.disabled = false; btn.textContent = old; }
+}
+function tallyView32(v) {
+  const t = todayISO(), invNew = all28("inv").filter(i => i.status !== "cancelled" && !i.tally), rcNew = all28("rcpt").filter(p => !p.tally);
+  const body = `<div class="grid28" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)">
+    <section class="panel"><header><h2>Send to Tally Prime</h2><span class="chip ${inApp32() ? "ok" : "warn"}">${inApp32() ? "Windows app — can connect" : "Browser — use the Windows app"}</span></header><div class="body stack" style="gap:10px">
+      ${inApp32() ? "" : `<div class="note warn small">Tally only answers programs on its own PC or office network. Open <b>Rivera Quote Studio for Windows</b> on the PC where TallyPrime runs and come to Accounts ▸ Tally. From here you can still download the Tally file (GST tab) and import it by hand.</div>`}
+      <div class="row" style="gap:16px;align-items:flex-end;flex-wrap:wrap"><label class="f" style="width:180px">Month<input type="month" id="t32m" value="${month29(t)}"></label><div><div class="small muted">Not yet in Tally</div><b>${invNew.length} invoices · ${rcNew.length} receipts</b></div></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn primary" id="t32inv" type="button" ${inApp32() ? "" : "disabled"}>${icon("tally32")}Send sales invoices</button><button class="btn" id="t32rc" type="button" ${inApp32() ? "" : "disabled"}>Send receipts</button><button class="btn" id="t32test" type="button" ${inApp32() ? "" : "disabled"}>Test connection</button><button class="btn" id="t32out" type="button" ${inApp32() ? "" : "disabled"}>Compare outstanding</button></div>
+      <div id="t32res"></div>
+      <h3 style="font-size:.8rem;margin:6px 0 0">Recent</h3>${(TALLY32.log || []).slice(0, 8).map(l => `<div class="small"><span class="muted">${esc(new Date(l.at).toLocaleString("en-IN", { dateStyle: "short", timeStyle: "short" }))}</span> · ${esc(l.t)}</div>`).join("") || '<p class="small muted">Nothing sent yet.</p>'}
+    </div></section>
+    <section class="panel"><header><h2>Tally settings</h2></header><div class="body"><div class="fields">${[["host", "Tally PC (this PC = localhost)"], ["port", "Port"], ["company", "Company name in Tally (blank = open company)"], ["group", "Customer group"], ["sales", "Sales ledger"], ["cgst", "CGST ledger"], ["sgst", "SGST ledger"], ["igst", "IGST ledger"], ["round", "Round off ledger"], ["bank", "Bank ledger (receipts)"], ["tds", "TDS ledger"]].map(([k, l]) => `<label class="f">${l}<input data-t32="${k}" value="${esc(TALLY32[k])}"></label>`).join("")}</div>
+      <p class="small muted" style="margin-top:8px">In TallyPrime: F1 (Help) ▸ Settings ▸ Connectivity ▸ Client/Server configuration ▸ <b>TallyPrime acts as: Both</b>, port <b>9000</b>. Keep the company open. New customers are created under Sundry Debtors with GSTIN and state; invoices go as Sales vouchers with bill-wise reference, receipts as Receipt vouchers against those bills.</p></div></section></div>`;
+  return body;
+}
+{
+  const _va = VIEWS.accounts;
+  VIEWS.accounts = v => {
+    const U = BIZ.ui;
+    if (U.acc === "tally" && !can29("exp")) U.acc = "inv";
+    if (U.acc !== "tally") { _va(v); const tr = $(".tabs-row", v); if (tr && can29("exp")) { tr.insertAdjacentHTML("beforeend", `<button role="tab" class="tab" data-act="tally">Tally</button>`); $("[data-act=tally]", v).onclick = () => { U.acc = "tally"; render(); }; } return; }
+    U.acc = "inv"; _va(v); U.acc = "tally";
+    const tr = $(".tabs-row", v); if (tr) { $$(".tab", tr).forEach(b => { b.classList.remove("on"); b.setAttribute("aria-selected", "false"); }); tr.insertAdjacentHTML("beforeend", `<button role="tab" class="tab on" aria-selected="true" data-act="tally">Tally</button>`); }
+    const host = $(".tabs-row", v)?.closest(".row"); let n = host?.nextElementSibling; while (n) { const nx = n.nextElementSibling; n.remove(); n = nx; }
+    host?.insertAdjacentHTML("afterend", tallyView32(v));
+    $$("[data-act]", v).forEach(b => { if (b.dataset.act !== "tally") b.onclick = () => { U.acc = b.dataset.act; render(); }; });
+    const hb = $("#n29", v); hb?.remove();
+    $$("[data-t32]", v).forEach(i => i.onchange = () => { TALLY32[i.dataset.t32] = i.dataset.t32 === "port" ? Number(i.value) || 9000 : i.value.trim(); tallySave32(); });
+    $("#t32inv").onclick = e => tallySend32(e.target, "inv"); $("#t32rc").onclick = e => tallySend32(e.target, "rcpt");
+    $("#t32test").onclick = async e => { const b = e.target; b.disabled = true; try { const t = await tallyPost32(coll32("RiveraCos32", "Company", "NAME")), cos = [...t.matchAll(/<COMPANY NAME="([^"]*)"/g)].map(m => m[1]); $("#t32res").innerHTML = `<div class="note ok small">Connected to Tally. Companies open: <b>${esc(cos.join(", ") || "—")}</b></div>`; if (!TALLY32.company && cos.length === 1) { TALLY32.company = cos[0]; tallySave32(); } tallyLog32("Connected: " + (cos.join(", ") || "Tally")); } catch (er) { $("#t32res").innerHTML = `<div class="note bad small">${esc(er.message)}</div>`; } b.disabled = false; };
+    $("#t32out").onclick = async e => { const b = e.target; b.disabled = true; try { const L = (await tallyLedgers32()).filter(l => l.parent.toLowerCase() === TALLY32.group.toLowerCase()), app = {}; all28("inv").filter(i => i.status !== "cancelled").forEach(i => { app[i.customer.toLowerCase()] = (app[i.customer.toLowerCase()] || 0) + (Number(i.balance) || 0); }); const names = [...new Set([...L.map(l => l.name), ...Object.keys(app).map(k => all28("inv").find(i => i.customer.toLowerCase() === k)?.customer || k)])]; $("#t32res").innerHTML = `<div class="tablewrap"><table class="t"><thead><tr><th>Customer</th><th class="n">In Tally</th><th class="n">In Rivera app</th><th class="n">Difference</th></tr></thead><tbody>${names.map(nm => { const tl = Math.abs(L.find(l => l.name.toLowerCase() === nm.toLowerCase())?.bal || 0), ap = app[nm.toLowerCase()] || 0; return `<tr><td>${esc(nm)}</td><td class="n">${inr28(tl)}</td><td class="n">${inr28(ap)}</td><td class="n" style="color:${Math.abs(tl - ap) > 1 ? "var(--bad)" : "var(--ok)"}">${inr28(tl - ap)}</td></tr>`; }).join("")}</tbody></table></div>`; } catch (er) { $("#t32res").innerHTML = `<div class="note bad small">${esc(er.message)}</div>`; } b.disabled = false; };
+  };
+}
+
+/* =============== routes, roles, landing, sign-in screen =============== */
+{
+  const at = (after, row) => { if (ROUTES.some(r => r[0] === row[0])) return; const i = ROUTES.findIndex(r => r[0] === after); ROUTES.splice(i >= 0 ? i + 1 : 0, 0, row); };
+  if (!ROUTES.some(r => r[0] === "apps")) ROUTES.unshift(["apps", "All modules", "grid32"]);
+  at("apps", ["module", "Module", "grid32"]); at("crm", ["qfu", "Quote follow-ups", "fu32"]); at("register", ["customers", "Customers", "cust32"]);
+  if (typeof ROLE_PAGES !== "undefined") Object.keys(ROLE_PAGES).forEach(r => { ["module", "apps"].forEach(x => { if (!ROLE_PAGES[r].includes(x)) ROLE_PAGES[r].unshift(x); }); if (["sales", "finance"].includes(r)) ["customers", "qfu"].forEach(x => { if (!ROLE_PAGES[r].includes(x)) ROLE_PAGES[r].push(x); }); });
+  BIZ_ROUTES.push("customers", "apps", "module");
+  if (!location.hash || location.hash === "#" || location.hash === "#home") history.replaceState(null, "", "#apps");
+  const _rn = renderNav; renderNav = function () { _rn(); try { $("#nav").dataset.sig32 = ""; nav32(); } catch (e) { console.warn("p32 nav", e); } };
+  const _r = render; render = function () { _r(); try { nav32(); if (STATE.route === "module") { const m = modsFor32().find(x => x.id === BIZ.ui.mod); const t = $("#appbar26 .ab26-t b"); if (m && t) t.textContent = m.name; } const tb = $('#tabbar [data-r="home"]'); if (tb) { tb.dataset.r = "apps"; tb.href = "#apps"; tb.innerHTML = icon("grid32") + "<span>Modules</span>"; } } catch (e) { console.warn("p32", e); } };
+}
+/* sign-in screen: brand panel on the left like GrowSmart, form on the right */
+function authSide32() {
+  const on = document.body.classList.contains("locked") && $("#authOv");
+  let s = $("#authSide32");
+  if (!on) { s?.remove(); return; }
+  if (s) return;
+  document.body.insertAdjacentHTML("beforeend", `<aside id="authSide32" class="as32" aria-hidden="true"><div class="as32-in"><div class="as32-brand"><img src="${RIVERA_MARK}" alt=""><div><b>RIVERA<sup>™</sup></b><small>Quote Studio</small></div></div>
+    <h1>Software that helps Rivera grow <em>faster</em> and <em>smarter</em></h1>
+    <div class="as32-mods">${["Sales", "Tenders", "Service", "Purchase", "Stock", "Accounts", "HR"].map(x => `<span>${x}</span>`).join("")}</div>
+    <ul><li>Enquiry → quotation → order → delivery → invoice → payment</li><li>GeM, CPPP & PSU tenders with results and L1</li><li>Connected to Tally Prime</li></ul>
+    <p class="as32-f">Rivera Coil Manufacturing (I) Pvt Ltd · Erode</p></div></aside>`);
+}
+{ const _sl = showLogin; showLogin = function (...a) { const r = _sl.apply(this, a); setTimeout(authSide32, 0); return r; }; new MutationObserver(() => authSide32()).observe(document.body, { attributes: true, attributeFilter: ["class"] }); }
+document.head.insertAdjacentHTML("beforeend", `<style>
+.ap32-hero h1{margin:4px 0 6px;font-family:var(--f-display);font-size:1.9rem}.ap32-hero p{color:var(--muted);max-width:760px;margin:0 0 18px}
+.ap32-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(190px,1fr));gap:14px}
+.ap32-tile{position:relative;display:flex;flex-direction:column;align-items:flex-start;gap:6px;padding:20px 18px;min-height:150px;border:1px solid var(--line);border-radius:16px;background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer;transition:transform .12s,box-shadow .12s,border-color .12s}
+.ap32-tile:hover,.ap32-tile:focus-visible{transform:translateY(-2px);box-shadow:0 10px 28px rgba(2,49,91,.12);border-color:var(--t);outline:none}
+.ap32-tile b{font-family:var(--f-display);font-size:1.12rem;margin-top:6px}.ap32-tile small{color:var(--muted);font-size:.8rem}
+.ap32-ic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;background:color-mix(in srgb,var(--t) 14%,transparent);color:var(--t)}.ap32-ic svg{width:26px;height:26px}.ap32-ic.sm{width:40px;height:40px;border-radius:11px}.ap32-ic.sm svg{width:21px;height:21px}
+.ap32-n{position:absolute;top:12px;right:12px;min-width:24px;height:24px;padding:0 7px;border-radius:12px;background:var(--copper);color:#fff;font:700 .74rem/24px var(--f-body);font-style:normal;text-align:center}
+.md32-c .ap32-n{position:static}
+@media (max-width:600px){.ap32-grid{grid-template-columns:1fr 1fr;gap:10px}.ap32-tile{min-height:118px;padding:14px}.ap32-ic{width:42px;height:42px}.ap32-tile b{font-size:.98rem}.ap32-hero h1{font-size:1.5rem}}
+.ap32-quick{display:flex;flex-wrap:wrap;gap:8px}.ap32-q{padding:8px 14px;border-radius:999px;border:1px solid var(--line);background:var(--surface);color:var(--ink);font:500 .86rem var(--f-body);cursor:pointer}.ap32-q:hover{border-color:var(--t)}
+.ap32-back{color:var(--muted);text-decoration:none}.ap32-back::before{content:"← "}.ap32-mods{gap:6px;flex-wrap:wrap;margin-bottom:16px}
+.md32{display:grid;grid-template-columns:repeat(auto-fit,minmax(280px,1fr));gap:16px;align-items:start}
+.md32-g h2{font-size:.78rem;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);margin:0 0 8px}
+.md32-l{display:flex;flex-direction:column;border:1px solid var(--line);border-radius:14px;overflow:hidden;background:var(--surface)}
+.md32-c{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border:0;border-bottom:1px solid var(--line);background:none;color:inherit;font:inherit;text-align:left;cursor:pointer;border-left:3px solid transparent}.md32-c:last-child{border-bottom:0}
+.md32-c:hover,.md32-c:focus-visible{background:var(--sunk);border-left-color:var(--t);outline:none}.md32-c span{display:flex;flex-direction:column;gap:2px}.md32-c b{font-size:.94rem}.md32-c small{color:var(--muted);font-size:.78rem}.md32-a svg{width:16px;height:16px;color:var(--muted)}
+.nv32{margin-top:4px}.nv32-h{display:flex;align-items:center;gap:8px;width:100%;padding:8px 12px;border:0;background:none;color:inherit;opacity:.7;font:600 .72rem var(--f-body);letter-spacing:.08em;text-transform:uppercase;cursor:pointer;border-radius:8px}.nv32-h:hover{opacity:1}
+.nv32-h svg{width:14px;height:14px;transition:transform .15s}.nv32.open .nv32-h svg{transform:rotate(90deg)}.nv32-b{display:none}.nv32.open .nv32-b{display:block}
+.fu32{display:flex;align-items:center;gap:10px;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);flex-wrap:wrap}.fu32-m{flex:1;min-width:220px;display:flex;flex-direction:column;gap:2px}.fu32-m small{color:var(--muted);font-size:.76rem}.fu32-a{display:flex;gap:6px;flex-wrap:wrap}
+.as32{position:fixed;inset:0 auto 0 0;width:min(46vw,640px);z-index:10001;background:linear-gradient(160deg,#02315B 0%,#0b4a83 60%,#0e5a9c 100%);color:#fff;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.as32::after{content:"";position:absolute;right:-120px;bottom:-120px;width:380px;height:380px;border-radius:50%;background:radial-gradient(circle,rgba(226,106,12,.55),transparent 70%)}
+.as32-in{position:relative;z-index:1;padding:48px;max-width:480px}.as32-brand{display:flex;align-items:center;gap:12px;margin-bottom:40px}.as32-brand img{width:48px;height:48px;border-radius:12px;background:#fff;padding:4px}.as32-brand b{font-family:var(--f-display);font-size:1.3rem;letter-spacing:.12em;display:block}.as32-brand small{color:#ffb36b;letter-spacing:.2em;text-transform:uppercase;font-size:.72rem}
+.as32 h1{font-family:var(--f-display);font-size:2.1rem;line-height:1.2;margin:0 0 22px}.as32 h1 em{font-style:normal;color:#ffb36b}
+.as32-mods{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:24px}.as32-mods span{padding:6px 12px;border-radius:999px;background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);font-size:.82rem}
+.as32 ul{margin:0;padding-left:18px;line-height:1.9;color:rgba(255,255,255,.85);font-size:.92rem}.as32-f{margin-top:40px;font-size:.78rem;color:rgba(255,255,255,.6)}
+body.locked:has(#authSide32) .auth-ov{padding-left:min(46vw,640px)}
+@media (max-width:860px){.as32{display:none}body.locked:has(#authSide32) .auth-ov{padding-left:0}}
+</style>`);
+
 boot();
 
 </script>
