@@ -1,7 +1,7 @@
 // Rivera Quote Studio — Windows desktop app.
 // Serves the bundled web app on a private secure scheme (rivera://) so storage,
 // file pickers and the Synology folder connection work like in Chrome.
-const { app, BrowserWindow, protocol, net, shell, session, Menu } = require("electron");
+const { app, BrowserWindow, protocol, net, shell, session, Menu, Tray, nativeImage } = require("electron");
 const path = require("path");
 const fs = require("fs");
 const { pathToFileURL } = require("url");
@@ -145,20 +145,47 @@ function setupAutoUpdate() {
   let au; try { au = require("electron-updater").autoUpdater; } catch (e) { return; }
   au.autoDownload = true; au.autoInstallOnAppQuit = true;
   au.on("update-downloaded", info => {
+    if (win && !win.isVisible()) { app.isQuitting = true; au.quitAndInstall(true, true); return; } /* running in the tray: update quietly and come back */
     const { dialog } = require("electron");
-    dialog.showMessageBox(win, { type: "info", buttons: ["Restart now", "Later"], defaultId: 0, cancelId: 1, title: "Update ready", message: `Rivera Quote Studio ${info.version} is ready.`, detail: "Restart now to use it, or it will be installed when you close the app." }).then(r => { if (r.response === 0) au.quitAndInstall(); }).catch(() => {});
+    dialog.showMessageBox(win, { type: "info", buttons: ["Restart now", "Later"], defaultId: 0, cancelId: 1, title: "Update ready", message: `Rivera Quote Studio ${info.version} is ready.`, detail: "Restart now to use it, or it will be installed when you close the app." }).then(r => { if (r.response === 0) { app.isQuitting = true; au.quitAndInstall(); } }).catch(() => {});
   });
   au.on("error", () => {});
   const check = () => au.checkForUpdates().catch(() => {});
   setTimeout(check, 8000); setInterval(check, 2 * 3600 * 1000);
+}
+/* ---- always on: starts with Windows (hidden in the tray) and stays running when the window is closed ---- */
+const HIDDEN = process.argv.includes("--hidden");
+let tray = null;
+function prefsFile() { return path.join(app.getPath("userData"), "prefs.json"); }
+function prefs() { try { return JSON.parse(fs.readFileSync(prefsFile(), "utf8")); } catch (e) { return {}; } }
+function savePrefs(p) { try { fs.writeFileSync(prefsFile(), JSON.stringify({ ...prefs(), ...p })); } catch (e) {} }
+function setAutoStart(on) { try { app.setLoginItemSettings({ openAtLogin: !!on, args: ["--hidden"] }); } catch (e) {} savePrefs({ autoStart: !!on }); }
+function showWin() { if (!win) return; if (win.isMinimized()) win.restore(); win.show(); win.focus(); }
+function setupTray() {
+  try {
+    const img = nativeImage.createFromPath(path.join(__dirname, "icon.png")).resize({ width: 16, height: 16 });
+    tray = new Tray(img); tray.setToolTip("Rivera Quote Studio — running");
+    const menu = () => Menu.buildFromTemplate([
+      { label: "Open Rivera Quote Studio", click: showWin },
+      { type: "separator" },
+      { label: "Start with Windows", type: "checkbox", checked: prefs().autoStart !== false, click: m => { setAutoStart(m.checked); tray.setContextMenu(menu()); } },
+      { label: "Check for updates", click: () => { try { require("electron-updater").autoUpdater.checkForUpdates(); } catch (e) {} } },
+      { type: "separator" },
+      { label: "Quit", click: () => { app.isQuitting = true; app.quit(); } }
+    ]);
+    tray.setContextMenu(menu()); tray.on("click", showWin); tray.on("double-click", showWin);
+  } catch (e) {}
+  if (prefs().autoStart === undefined) setAutoStart(true); else setAutoStart(prefs().autoStart);
 }
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 920, minWidth: 900, minHeight: 600,
     title: "Rivera Quote Studio", icon: path.join(__dirname, "icon.png"),
     backgroundColor: "#EEF1F0", autoHideMenuBar: true,
-    webPreferences: { contextIsolation: true, sandbox: true, spellcheck: true }
+    show: !HIDDEN, webPreferences: { contextIsolation: true, sandbox: true, spellcheck: true, backgroundThrottling: false }
   });
+  /* closing the window keeps the app running in the tray, so GeM pulls, Synology filing and alerts keep working */
+  win.on("close", e => { if (!app.isQuitting) { e.preventDefault(); win.hide(); if (!prefs().trayTold) { savePrefs({ trayTold: true }); try { tray && tray.displayBalloon && tray.displayBalloon({ title: "Rivera Quote Studio is still running", content: "It keeps pulling tenders in the background. Right-click the tray icon to open or quit." }); } catch (er) {} } } });
   win.webContents.setWindowOpenHandler(({ url }) => { shell.openExternal(url); return { action: "deny" }; });
   win.webContents.on("will-navigate", (e, url) => { if (!url.startsWith("rivera://")) { e.preventDefault(); shell.openExternal(url); } });
   win.webContents.on("did-finish-load", () => { sendFiles(filesFromArgs(process.argv)); setTimeout(sendPack, 2500); setTimeout(scanDocs, 9000); });
@@ -171,7 +198,7 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on("second-instance", (_e, argv) => {
-    if (win) { if (win.isMinimized()) win.restore(); win.focus(); sendFiles(filesFromArgs(argv)); }
+    if (win) { showWin(); sendFiles(filesFromArgs(argv)); }
   });
   app.whenReady().then(() => {
     protocol.handle("rivera", req => {
@@ -211,7 +238,9 @@ if (!app.requestSingleInstanceLock()) {
     session.defaultSession.setPermissionCheckHandler(() => true);
     Menu.setApplicationMenu(null);
     createWindow();
+    setupTray();
     setupAutoUpdate();
   });
-  app.on("window-all-closed", () => app.quit());
+  app.on("before-quit", () => { app.isQuitting = true; });
+  app.on("window-all-closed", () => { if (app.isQuitting) app.quit(); });
 }
