@@ -3212,6 +3212,7 @@ VIEWS.users = v => {
   const load = async () => {
     try {
       const [u, l, me] = await Promise.all([AUTH.call("users"), AUTH.call("log"), AUTH.call("me")]);
+      if (!$("#uTbl")) return;
       $("#uMail").checked = !!me.settings?.loginMail;
       const L = u.users, cnt = s => L.filter(x => x.status === s).length;
       $("#uKpi").innerHTML = [["Approved", cnt("approved"), "ok"], ["Waiting", cnt("pending"), cnt("pending") ? "warn" : ""], ["Revoked", cnt("revoked"), ""], ["Admins", L.filter(x => x.role === "admin" && x.status === "approved").length, ""]].map(([k, n, c]) => `<div class="panel kpi"><span class="eyebrow">${k}</span><span class="v ${c ? "tone-" + c : ""}">${n}</span></div>`).join("");
@@ -3227,7 +3228,7 @@ VIEWS.users = v => {
       $$("[data-st]").forEach(b => b.onclick = async () => { b.disabled = true; try { await AUTH.call("setUser", { email: b.dataset.u, status: b.dataset.st }); toast(b.dataset.st === "approved" ? "Approved — they've been emailed" : "Access revoked"); load(); } catch (e) { toast(e.message, "bad"); b.disabled = false; } });
       $$("[data-role]").forEach(s => s.onchange = async () => { try { await AUTH.call("setUser", { email: s.dataset.role, role: s.value }); toast("Role updated"); } catch (e) { toast(e.message, "bad"); load(); } });
       $$("[data-del]").forEach(b => b.onclick = async () => { if (!confirm("Delete " + b.dataset.del + "? They'd have to request access again.")) return; try { await AUTH.call("deleteUser", { email: b.dataset.del }); load(); } catch (e) { toast(e.message, "bad"); } });
-    } catch (e) { $("#uTbl").innerHTML = `<div class="note bad" style="margin:16px">${esc(e.message)}</div>`; }
+    } catch (e) { if (!$("#uTbl")) return; $("#uTbl").innerHTML = `<div class="note bad" style="margin:16px">${esc(e.message)}</div>`; }
   };
   load();
   $("#uRef").onclick = load;
@@ -3347,6 +3348,8 @@ const ERRLOG = {
   list: LS.get("errlog", []),
   add(msg, src) {
     msg = String(msg || "").slice(0, 300); if (!msg || /ResizeObserver|Script error\.?$/i.test(msg)) return;
+    /* a page that finished loading after the person had already moved to another page — harmless, not an error */
+    if (/^Cannot (set|read) properties of null/.test(msg) && (src === "promise" || src === "message")) return;
     const hit = this.list.find(x => x.msg === msg);
     if (hit) { hit.n = (hit.n || 1) + 1; hit.t = Date.now(); }
     else this.list.unshift({ t: Date.now(), msg, src: src || "", cat: classifyErr(msg), n: 1 });
@@ -4136,6 +4139,7 @@ VIEWS.users = v => {
   const load = async () => {
     try {
       const [u, s, l] = await Promise.all([AUTH.call("users"), AUTH.call("sessions"), AUTH.call("log")]);
+      if (!$("#uTbl")) return; /* left the page while loading */
       const U = u.users.filter(x => x.status !== "unverified"), S = s.sessions, pend = S.filter(x => x.status === "pending"), act = S.filter(x => x.status === "approved");
       const name = id => U.find(x => x.email === id)?.name || id;
       $("#uKpi").innerHTML = [["Team logins", U.length, ""], ["Waiting to sign in", pend.length, pend.length ? "warn" : ""], ["Signed-in devices", act.length, "ok"], ["Disabled", U.filter(x => x.status === "revoked").length, ""]].map(([k, n, c]) => `<div class="panel kpi"><span class="eyebrow">${k}</span><span class="v ${c ? "tone-" + c : ""}">${n}</span></div>`).join("");
@@ -4156,7 +4160,7 @@ VIEWS.users = v => {
       $$("[data-role]").forEach(s => s.onchange = async () => { try { await AUTH.call("setUser", { email: s.dataset.role, role: s.value }); toast("Role updated"); } catch (e) { toast(e.message, "bad"); load(); } });
       $$("[data-rp]").forEach(b => b.onclick = async () => { const id = b.dataset.rp, np = genPw(); if (!confirm(`Reset the password for ${id}?\n\nNew password: ${np}\n\nIt is copied so you can send it to them.`)) return; try { await AUTH.call("setUser", { email: id, pw: await AUTH.hash(np, id) }); navigator.clipboard?.writeText(`Rivera Quote Studio\n${location.origin + location.pathname}\nUsername: ${id}\nPassword: ${np}`).catch(() => { }); toast("Password reset — details copied"); } catch (e) { toast(e.message, "bad"); } });
       $$("[data-del]").forEach(b => b.onclick = async () => { if (!confirm("Delete the login " + b.dataset.del + "?")) return; try { await AUTH.call("deleteUser", { email: b.dataset.del }); load(); } catch (e) { toast(e.message, "bad"); } });
-    } catch (e) { $("#uTbl").innerHTML = `<div class="note bad" style="margin:16px">${esc(e.message)}</div>`; }
+    } catch (e) { if (!$("#uTbl")) return; $("#uTbl").innerHTML = `<div class="note bad" style="margin:16px">${esc(e.message)}</div>`; }
   };
   load(); $("#uRef").onclick = load;
   $("#nuG").onclick = () => { $("#nuP").value = genPw(); };
@@ -5605,7 +5609,8 @@ async function bindTeam16() {
   const T = $("#team16T"); if (!T) return;
   let U = [];
   const draw = () => { T.innerHTML = `<table class="t"><thead><tr><th>Login</th><th>Role</th><th>Status</th><th>Last sign-in</th></tr></thead><tbody>${TEAM16.map(m => { const u = U.find(x => x.email === m.email); return `<tr><td><b>${esc(m.name)}</b><div class="mono small muted">${esc(m.email)}</div></td><td class="small">${esc(ROLE16[m.role])}</td><td>${!u ? '<span class="chip warn">Not created</span>' : u.status !== "approved" ? '<span class="chip bad">Disabled</span>' : u.mustChange ? '<span class="chip warn">Waiting for first sign-in</span>' : '<span class="chip ok">Active</span>'}</td><td class="small">${u?.lastLogin ? new Date(u.lastLogin).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : "—"}</td></tr>`; }).join("")}</tbody></table>`; };
-  try { U = (await AUTH.call("users")).users; draw(); } catch (e) { T.innerHTML = `<div class="note bad">${esc(e.message)}</div>`; return; }
+  try { U = (await AUTH.call("users")).users; if (!document.body.contains(T)) return; draw(); } catch (e) { if (document.body.contains(T)) T.innerHTML = `<div class="note bad">${esc(e.message)}</div>`; return; }
+  if (!$("#team16Go")) return;
   $("#team16Go").onclick = async () => {
     let todo = TEAM16.filter(m => m.role !== "admin"); const have = todo.filter(m => U.some(x => x.email === m.email));
     if (have.length && !confirm(`${have.map(m => m.email).join(", ")} already exist${have.length > 1 ? "" : "s"}.\n\nOK = give ${have.length > 1 ? "them" : "it"} a new password too (current password stops working).\nCancel = keep ${have.length > 1 ? "their" : "its"} password and only create the missing logins.`)) todo = todo.filter(m => !have.includes(m));
