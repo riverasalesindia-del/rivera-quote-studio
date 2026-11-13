@@ -8294,6 +8294,76 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 @media (max-width:600px){.ln36-ic{gap:2px;padding:8px}.ln36-m{min-width:0;width:calc(25% - 2px);padding:8px 2px}.ln36-m>span{width:44px;height:44px}.ln36-m b{font-size:.7rem}.ln36-g{grid-template-columns:1fr}}
 </style>`);
 
+/* ===================== p37: each department's work queue on the home page (what came to me from the other departments), admin sees each login's temporary password ===================== */
+/* admin-made temporary passwords travel with createUser / setUser so the admin can see them until the person sets their own */
+{
+  const PW37 = {}, _h = AUTH.hash.bind(AUTH), _c = AUTH.call.bind(AUTH);
+  AUTH.hash = async function (pw, email) { const r = await _h(pw, email); if (AUTH.isAdmin && email && String(email).toLowerCase() !== String(AUTH.user?.email || "").toLowerCase()) PW37[String(email).trim().toLowerCase()] = pw; return r; };
+  AUTH.call = function (action, body, ...a) { if ((action === "createUser" || action === "setUser") && body?.pw && body.email) { const k = String(body.email).trim().toLowerCase(); if (PW37[k]) body = { ...body, tempPw: PW37[k] }; } return _c(action, body, ...a); };
+}
+function pwCol37(v) {
+  if (STATE.route !== "users" || !AUTH.isAdmin) return;
+  const tbl = $("#uTbl"); if (!tbl || tbl.dataset.p37 === "1") return; tbl.dataset.p37 = "1";
+  AUTH.call("users").then(d => {
+    if (!document.body.contains(tbl)) return;
+    const head = tbl.querySelector("thead tr"); if (head && !head.querySelector(".pw37h")) head.children[1]?.insertAdjacentHTML("afterend", '<th class="pw37h">Password</th>');
+    $$("tbody tr", tbl).forEach(tr => {
+      const id = tr.querySelector(".mono")?.textContent.split("·")[0].trim(), u = d.users.find(x => x.email === id); if (!u || tr.querySelector(".pw37")) return;
+      tr.children[1]?.insertAdjacentHTML("afterend", `<td class="pw37">${u.tempPw ? `<span class="mono pw37v" data-pw="${esc(u.tempPw)}">••••••••</span> <button type="button" class="btn sm ghost" data-pws aria-label="Show password">Show</button> <button type="button" class="btn sm ghost" data-pwc aria-label="Copy password">Copy</button><div class="small muted">temporary — they change it at first sign-in</div>` : u.email === "crm@rivera.co.in" ? '<span class="small muted">admin</span>' : `<span class="small muted">${u.mustChange ? "reset to see it" : "set by the person"}</span>`}</td>`);
+    });
+    $$("[data-pws]", tbl).forEach(b => b.onclick = () => { const s = b.previousElementSibling, on = s.textContent.startsWith("•"); s.textContent = on ? s.dataset.pw : "••••••••"; b.textContent = on ? "Hide" : "Show"; });
+    $$("[data-pwc]", tbl).forEach(b => b.onclick = async () => { const s = b.parentElement.querySelector(".pw37v"); try { await navigator.clipboard.writeText(s.dataset.pw); toast("Password copied"); } catch { toast(s.dataset.pw); } });
+  }).catch(() => { });
+}
+
+/* ---- department queues: work handed over by the other departments, one tap to act ---- */
+const FR37 = { list: [], at: 0 };
+async function frLoad37() { if (Date.now() - FR37.at < 120000 || !signed26()) return; FR37.at = Date.now(); try { FR37.list = (await AUTH.call("frList")).list || []; if (STATE.route === "apps") render(); } catch { } }
+function queue37() {
+  const t = todayISO(), me = me28(), role = myRole21?.() || "", adm = isAdmin28(), Q = [];
+  const add = (who, label, items, open, tone) => { if (items.length && (adm || who.includes(role))) Q.push({ label, items, open, tone }); };
+  const leads = all28("lead"), sos = all28("so"), dns = all28("dn"), invs = all28("inv").filter(i => i.status !== "cancelled"), pos = all28("po"), jobs = all28("job"), svc = all28("svc");
+  add(["sales"], "Follow-ups due", leads.filter(l => !["won", "lost"].includes(l.stage) && l.next && l.next <= t && (adm || l.owner === me || !l.owner)).map(l => [l.company, l.nextNote || l.need || "", () => leadPanel28(l)]), null, "warn");
+  add(["sales"], "Quotations to chase", qfuList32().filter(x => x.due <= t).map(x => [x.q.customer, `${x.q.no} · ${x.age} days`, () => go32("qfu")]), null, "warn");
+  add(["sales", "finance"], "Orders waiting approval", sos.filter(o => o.status === "exception").map(o => [o.customer, `${o.no} · ${(o.exceptions || [])[0] || ""}`, () => soPanel31(o)]), null, "warn");
+  add(["sales", "operation"], "Deliveries due this week", sos.filter(o => ["confirmed", "part"].includes(o.status) && o.deliveryDate && o.deliveryDate <= addDays(t, 7)).map(o => [o.customer, `${o.no} · ${dmy(o.deliveryDate)}`, () => soPanel31(o)]), null, "");
+  add(["finance"], "Deliveries to invoice", dns.filter(d => !d.inv).map(d => [d.customer, `${d.no} · ${d.soNo || ""}`, () => dnPanel31(d)]), null, "warn");
+  add(["finance"], "Advance to collect", sos.filter(o => o.status === "confirmed" && Number(o.advance) > 0 && !all28("rcpt").some(r => norm31(r.customer) === norm31(o.customer) && String(r.date) >= String(o.date))).map(o => [o.customer, `${o.no} · ${o.advance}% of ${inr28(o.total)}`, () => soPanel31(o)]), null, "");
+  add(["finance", "sales"], "Customer payments overdue", invs.filter(i => i.balance > 0 && i.due < t).map(i => [i.customer, `${i.no} · ${inr28(i.balance)} · ${-daysTo28(i.due)} days`, () => invPanel29(i)]), null, "bad");
+  add(["finance"], "Supplier bills due", all28("bill").map(b => ({ b, bal: b.total - sum29(all28("spay").filter(p => p.bill === b.id), "amount") })).filter(x => x.bal > 0 && x.b.due <= addDays(t, 7)).map(x => [x.b.supplier, `${x.b.billNo} · ${inr28(x.bal)} · ${dmy(x.b.due)}`, () => billPanel29(x.b)]), null, "");
+  add(["finance"], "EMD / PBG / document requests", FR37.list.filter(r => ["requested", "accepted", "in_progress"].includes(r.status)).map(r => [r.byName || r.by, `${r.type} · ${r.bid || ""} ${r.amount ? "· ₹" + Number(r.amount).toLocaleString("en-IN") : ""}`, () => go32("finreq")]), null, "warn");
+  add(["finance"], "Leave to approve", all28("leave").filter(l => l.status === "applied").map(l => [l.empName, `${l.type} · ${dmy(l.from)} → ${dmy(l.to)}`, () => leavePanel29(l)]), null, "");
+  add(["finance", "operation"], "POs to approve", adm ? pos.filter(p => p.status === "pending").map(p => [p.supplier, `${p.no} · ${inr28(p.total)}`, () => poPanel28(p)]) : [], null, "warn");
+  add(["operation", "finance"], "Goods to receive", pos.filter(p => ["approved", "sent", "part"].includes(p.status) && p.needBy && p.needBy <= addDays(t, 3)).map(p => [p.supplier, `${p.no} · due ${dmy(p.needBy)}`, () => poPanel28(p)]), null, "");
+  add(["operation"], "Stock to reorder", all28("item").filter(it => Number(it.min) > 0 && stockOf28(it.id) < Number(it.min)).map(it => [it.name, `${stockOf28(it.id)} / ${it.min} ${it.unit || ""}`, () => itemPanel28(it)]), null, "bad");
+  add(["operation", "sales"], "Repair jobs late", jobs.filter(j => !["dispatched", "invoiced"].includes(j.stage) && j.promised && j.promised < t).map(j => [j.customer, `${j.no} · promised ${dmy(j.promised)}`, () => jobPanel28(j)]), null, "bad");
+  add(["operation"], "Service visits today", svc.filter(s => s.status !== "closed" && s.visit && s.visit <= t).map(s => [s.customer, `${s.no} · ${s.complaint || ""}`, () => svcPanel29(s)]), null, "");
+  add(["sales", "finance", "operation", "viewer"], "My tasks", all28("task").filter(x => x.status !== "done" && x.assignee === me && x.due && x.due <= t).map(x => [x.title, `from ${who28(x.by)}`, () => taskPanel28(x)]), null, "");
+  return Q;
+}
+{
+  const _va = VIEWS.apps;
+  VIEWS.apps = v => {
+    _va(v); frLoad37();
+    if (BIZ.ui.lq) return;
+    const Q = queue37(), host = $(".ln36-co", v); if (!host) return;
+    const total = Q.reduce((a, q) => a + q.items.length, 0);
+    host.insertAdjacentHTML("afterend", `<section class="q37"><header><b>${total ? `Your work today · ${total}` : "You're all caught up"}</b><span class="small muted">${total ? "Things handed to you by the other departments — tap to act" : "New work from sales, finance, stores and service shows up here"}</span></header>${total ? `<div class="q37-g">${Q.map((q, i) => `<div class="q37-c ${q.tone}"><div class="q37-h"><b>${esc(q.label)}</b><i>${q.items.length}</i></div>${q.items.slice(0, 3).map((it, j) => `<button type="button" class="q37-i" data-q="${i}|${j}"><span>${esc(String(it[0]).slice(0, 40))}</span><small>${esc(String(it[1]).slice(0, 70))}</small></button>`).join("")}${q.items.length > 3 ? `<button type="button" class="q37-m" data-qm="${i}">+${q.items.length - 3} more</button>` : ""}</div>`).join("")}</div>` : ""}</section>`);
+    $$("[data-q]", v).forEach(b => b.onclick = () => { const [i, j] = b.dataset.q.split("|").map(Number); Q[i].items[j][2](); });
+    $$("[data-qm]", v).forEach(b => b.onclick = () => { const q = Q[+b.dataset.qm]; const D = panel28({ title: q.label, body: `<div class="stack" style="gap:6px">${q.items.map((it, j) => `<button type="button" class="dr26-li" data-qj="${j}"><b>${esc(it[0])}</b><small>${esc(it[1])}</small></button>`).join("")}</div>` }); $$("[data-qj]", D).forEach(x => x.onclick = () => q.items[+x.dataset.qj][2]()); });
+  };
+  const _r = render; render = function () { _r(); try { pwCol37(); } catch (e) { console.warn("p37", e); } };
+  new MutationObserver(() => { if (STATE.route === "users") pwCol37(); }).observe(document.body, { childList: true, subtree: true });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.q37{margin-bottom:16px;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--surface)}.q37 header{display:flex;align-items:baseline;gap:10px;flex-wrap:wrap;margin-bottom:10px}.q37 header b{font-family:var(--f-display);font-size:1rem}
+.q37-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}
+.q37-c{border:1px solid var(--line);border-radius:12px;padding:10px;background:var(--sunk);border-top:3px solid var(--line-2)}.q37-c.warn{border-top-color:var(--warn)}.q37-c.bad{border-top-color:var(--bad)}
+.q37-h{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}.q37-h b{font-size:.86rem}.q37-h i{font-style:normal;font-weight:700;font-size:.8rem;min-width:24px;height:22px;line-height:22px;text-align:center;border-radius:11px;background:var(--surface);border:1px solid var(--line)}
+.q37-i{display:flex;flex-direction:column;width:100%;gap:1px;padding:7px 8px;border:0;border-radius:8px;background:none;color:inherit;font:inherit;text-align:left;cursor:pointer}.q37-i:hover,.q37-i:focus-visible{background:var(--surface);outline:none}.q37-i span{font-size:.86rem;font-weight:600}.q37-i small{color:var(--muted);font-size:.75rem}
+.q37-m{border:0;background:none;color:var(--copper-ink);font:600 .8rem var(--f-body);cursor:pointer;padding:4px 8px}
+</style>`);
+
 boot();
 
 </script>
