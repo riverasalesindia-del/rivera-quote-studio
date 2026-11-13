@@ -8251,6 +8251,47 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .pm34-c{display:inline-flex;gap:6px;align-items:center;font-size:.86rem;cursor:pointer}.pm34 input{width:17px;height:17px;accent-color:var(--copper)}
 </style>`);
 
+/* ===================== p36: launcher exactly like the GrowSmart home — one page: module icons in a row, search, Transactions | Masters | Reports tabs, cards ===================== */
+VIEWS.apps = v => {
+  bizSync28();
+  const M = modsFor32(), U = BIZ.ui; if (!M.length) { v.innerHTML = '<div class="empty"><b>No modules for this login</b>Ask the admin to tick your pages in Users & access ▸ Permissions.</div>'; return; }
+  const m = M.find(x => x.id === U.mod) || M[0]; U.mod = m.id;
+  const tabs = ["Transactions", "Masters", "Reports"].filter(g => m.groups[g]?.length); if (!tabs.includes(U.mtab)) U.mtab = tabs[0];
+  const q = (U.lq || "").toLowerCase();
+  const cards = q ? M.flatMap(x => Object.values(x.groups).flat().map(c => ({ c, m: x }))).filter(({ c }) => `${c[0]} ${c[3] || ""}`.toLowerCase().includes(q)) : m.groups[U.mtab].map(c => ({ c, m }));
+  const u = AUTH.user || {};
+  v.innerHTML = `<div class="ln36">
+    <div class="ln36-co"><span class="small muted">Current company</span><b>${esc(SETTINGS.company?.name || "Rivera Coil Manufacturing (I) Pvt Ltd")}</b><span class="chip">${esc(u.role === "admin" ? "Admin · full access" : (u.name || u.email || ""))}</span></div>
+    <div class="ln36-ic" role="tablist" aria-label="Modules">${M.map(x => { const n = Object.values(x.groups).flat().reduce((a, c) => a + cardsCount32(c), 0); return `<button type="button" role="tab" aria-selected="${x.id === m.id}" class="ln36-m ${x.id === m.id ? "on" : ""}" data-mod="${x.id}" style="--t:${x.tone}"><span>${icon(x.icon)}${n ? `<i>${n}</i>` : ""}</span><b>${esc(x.name)}</b></button>`; }).join("")}</div>
+    <div class="ln36-s">${icon("search")}<input id="ln36q" type="search" placeholder="Search item here — e.g. invoice, follow-up, stock" value="${esc(U.lq || "")}" aria-label="Search pages"></div>
+    ${q ? `<div class="small muted" style="margin:6px 2px">${cards.length} match${cards.length === 1 ? "" : "es"} in all modules</div>` : `<div class="ln36-t" role="tablist">${tabs.map(g => `<button type="button" role="tab" aria-selected="${g === U.mtab}" class="${g === U.mtab ? "on" : ""}" data-mt="${g}">${g}</button>`).join("")}</div>`}
+    <div class="ln36-g">${cards.map(({ c, m: x }, i) => { const n = cardsCount32(c); return `<button type="button" class="ln36-c" data-ci="${i}" style="--t:${x.tone}"><span class="ln36-ci">${icon(x.icon)}</span><span class="ln36-ct"><b>${esc(c[0])}</b><small>${esc(q ? x.name + " · " + (c[3] || "") : c[3] || "")}</small></span>${n ? `<i class="ap32-n">${n}</i>` : `<span class="md32-a">${icon("chev32")}</span>`}</button>`; }).join("") || '<p class="small muted">Nothing found.</p>'}</div>
+  </div>`;
+  $$("[data-mod]", v).forEach(b => b.onclick = () => { U.mod = b.dataset.mod; U.mtab = "Transactions"; U.lq = ""; render(); });
+  $$("[data-mt]", v).forEach(b => b.onclick = () => { U.mtab = b.dataset.mt; render(); });
+  $$("[data-ci]", v).forEach(b => b.onclick = () => { const { c } = cards[+b.dataset.ci]; U.lq = ""; go32(c[1], c[2]); });
+  const qi = $("#ln36q", v); qi.oninput = () => { U.lq = qi.value; clearTimeout(BIZ.lt); BIZ.lt = setTimeout(() => { render(); const i = $("#ln36q"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 200); };
+};
+VIEWS.module = v => { location.replace("#apps"); VIEWS.apps(v); };
+{ const _g = go32; go32 = function (route, ui) { if (route === "module") { Object.assign(BIZ.ui, ui || {}); route = "apps"; } return _g(route, ui); }; }
+document.head.insertAdjacentHTML("beforeend", `<style>
+.ln36{max-width:1180px}
+.ln36-co{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:16px}.ln36-co b{font-family:var(--f-display);font-size:1.05rem}
+.ln36-ic{display:flex;gap:10px;flex-wrap:wrap;padding:14px;border:1px solid var(--line);border-radius:16px;background:var(--surface)}
+.ln36-m{display:flex;flex-direction:column;align-items:center;gap:6px;min-width:92px;padding:10px 8px;border:0;border-radius:12px;background:none;color:var(--ink);font:inherit;cursor:pointer}
+.ln36-m>span{position:relative;width:54px;height:54px;border-radius:50%;display:grid;place-items:center;background:color-mix(in srgb,var(--t) 14%,transparent);color:var(--t);transition:transform .12s}
+.ln36-m svg{width:26px;height:26px}.ln36-m b{font-size:.8rem;font-weight:600;text-align:center;line-height:1.2}
+.ln36-m:hover>span{transform:translateY(-2px)}.ln36-m.on{background:color-mix(in srgb,var(--t) 10%,transparent)}.ln36-m.on>span{background:var(--t);color:#fff}
+.ln36-m i{position:absolute;top:-4px;right:-6px;min-width:20px;height:20px;padding:0 5px;border-radius:10px;background:var(--copper);color:#fff;font:700 .68rem/20px var(--f-body);font-style:normal;border:2px solid var(--surface)}
+.ln36-s{display:flex;align-items:center;gap:10px;margin:16px 0 12px;padding:0 14px;height:44px;border:1px solid var(--line);border-radius:12px;background:var(--surface)}.ln36-s svg{width:18px;height:18px;color:var(--muted)}.ln36-s input{flex:1;border:0;background:none;color:var(--ink);font:inherit;outline:none}
+.ln36-t{display:flex;gap:4px;border-bottom:1px solid var(--line);margin-bottom:14px}.ln36-t button{padding:10px 16px;border:0;border-bottom:3px solid transparent;background:none;color:var(--muted);font:600 .9rem var(--f-body);cursor:pointer}.ln36-t button.on{color:var(--ink);border-bottom-color:var(--copper)}
+.ln36-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}
+.ln36-c{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:inherit;font:inherit;text-align:left;cursor:pointer;border-left:4px solid var(--t)}.ln36-c:hover,.ln36-c:focus-visible{background:var(--sunk);outline:none}
+.ln36-ci{width:36px;height:36px;flex:none;border-radius:10px;display:grid;place-items:center;background:color-mix(in srgb,var(--t) 12%,transparent);color:var(--t)}.ln36-ci svg{width:18px;height:18px}
+.ln36-ct{flex:1;min-width:0;display:flex;flex-direction:column;gap:2px}.ln36-ct b{font-size:.93rem}.ln36-ct small{color:var(--muted);font-size:.77rem}.ln36-c .ap32-n{position:static}
+@media (max-width:600px){.ln36-ic{gap:2px;padding:8px}.ln36-m{min-width:0;width:calc(25% - 2px);padding:8px 2px}.ln36-m>span{width:44px;height:44px}.ln36-m b{font-size:.7rem}.ln36-g{grid-template-columns:1fr}}
+</style>`);
+
 boot();
 
 </script>
