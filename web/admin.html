@@ -8538,6 +8538,83 @@ async function runPack38(s, quoteNo, btn) {
 }
 document.head.insertAdjacentHTML("beforeend", `<style>.nd38{border:1px solid var(--line);border-left:4px solid var(--copper);border-radius:12px;padding:12px;background:var(--surface)}.nd38-h{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px}.nd38 table td{vertical-align:top}</style>`);
 
+/* ===================== p39: GrowSmart-style flow — every sales page shows where it sits (Enquiry → Quote → Follow-up → Order → Delivery → Invoice → Payment), a Close button on every page, History "Search" button, admin home grouped by department ===================== */
+const FLOW39 = [
+  ["lead", "Enquiry", "crm", {}, () => all28("lead").filter(l => !["won", "lost"].includes(l.stage)).length, "scan"],
+  ["quote", "Quotation", "quote", {}, () => (STATE.quotes || []).filter(q => fyOf(q.date) === fyOf(todayISO())).length, "doc"],
+  ["qfu", "Follow-up", "qfu", {}, () => { try { return qfuList32().filter(x => x.due <= todayISO()).length; } catch { return 0; } }, "clock"],
+  ["so", "Sales order", "purchase", { pur: "so" }, () => all28("so").filter(o => !["closed", "cancelled", "delivered", "invoiced"].includes(o.status)).length, "box"],
+  ["dn", "Delivery", "purchase", { pur: "dn" }, () => all28("dn").filter(d => !d.inv).length, "truck"],
+  ["inv", "Invoice", "accounts", { acc: "inv" }, () => all28("inv").filter(i => i.status !== "cancelled" && i.balance > 0).length, "doc"],
+  ["rcpt", "Payment", "accounts", { acc: "rcpt" }, () => all28("inv").filter(i => i.status !== "cancelled" && i.balance > 0 && i.due < todayISO()).length, "rupee"]
+];
+const FLOW_ROUTES39 = new Set(["crm", "scan", "workings", "quote", "qfu", "purchase", "accounts", "customers", "register", "history"]);
+function flowStep39() {
+  const r = STATE.route;
+  if (r === "crm") return "lead"; if (["scan", "workings", "quote", "register"].includes(r)) return "quote"; if (r === "qfu") return "qfu";
+  if (r === "purchase") return BIZ.ui.pur === "dn" ? "dn" : BIZ.ui.pur === "so" ? "so" : "";
+  if (r === "accounts") return BIZ.ui.acc === "rcpt" || BIZ.ui.acc === "recv" ? "rcpt" : BIZ.ui.acc === "inv" ? "inv" : "";
+  return "";
+}
+function flowBar39() {
+  if (!FLOW_ROUTES39.has(STATE.route) || !signed26?.()) return;
+  const v = $("#view"); if (!v || $("#flow39", v)) return;
+  const ok = FLOW39.filter(s => allowed21(s[2]) && (typeof cardOk32 !== "function" || cardOk32(["", s[2], s[3]])));
+  if (ok.length < 3) return;
+  const cur = flowStep39();
+  let n = []; try { n = ok.map(s => s[4]()); } catch { n = ok.map(() => 0); }
+  v.insertAdjacentHTML("afterbegin", `<nav id="flow39" class="fl39" aria-label="Sales flow">${ok.map((s, i) => `<button type="button" class="fl39-s ${s[0] === cur ? "on" : ""}" data-fl="${i}" ${s[0] === cur ? 'aria-current="step"' : ""}><i>${i + 1}</i><span>${s[1]}</span>${n[i] ? `<em>${n[i]}</em>` : ""}</button>${i < ok.length - 1 ? '<span class="fl39-a" aria-hidden="true">›</span>' : ""}`).join("")}</nav>`);
+  $$("[data-fl]", v).forEach(b => b.onclick = () => { const s = ok[+b.dataset.fl]; go32(s[2], s[3]); });
+}
+/* Close button: every page except the module home goes back to All modules; Esc closes an open panel first */
+function close39() {
+  const bar = $("#appbar26"); if (!bar || $("#ab39x", bar)) return;
+  if (["apps", "home"].includes(STATE.route)) return;
+  bar.querySelector(".ab26-t")?.insertAdjacentHTML("beforebegin", `<button type="button" class="ab39-x" id="ab39x" aria-label="Close this page and go back to All modules" title="Close (back to All modules)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>`);
+  $("#ab39x").onclick = () => { location.hash = "apps"; };
+}
+addEventListener("keydown", e => {
+  if (e.key !== "Escape" || e.defaultPrevented) return;
+  const dr = $(".dr26.on, .dr26:not([hidden])"); if (dr && typeof closeDrawer26 === "function") { closeDrawer26(); return; }
+});
+/* History: an explicit Search button (and Enter) after setting dates and words */
+function histSearch39() {
+  if (STATE.route !== "history") return; const q = $("#hsQ"); if (!q || $("#hs39")) return;
+  const row = q.closest(".fields"); if (!row) return;
+  row.insertAdjacentHTML("afterend", `<div class="row" style="gap:8px;margin-top:10px"><button type="button" class="btn primary" id="hs39">${icon("search")}Search</button><button type="button" class="btn ghost" id="hs39c">Clear</button><span class="small muted">Set the start and end date, type a customer, number or item, then Search.</span></div>`);
+  const h = H12(), go = () => { h.from = $("#hsFrom").value || h.from; h.to = $("#hsTo").value || h.to; if (h.from > h.to) [h.from, h.to] = [h.to, h.from]; h.q = $("#hsQ").value.trim(); render(); setTimeout(() => $("#hsQ")?.closest(".panel")?.nextElementSibling?.scrollIntoView({ behavior: "smooth", block: "start" }), 50); };
+  $("#hs39").onclick = go; q.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); go(); } });
+  $("#hs39c").onclick = () => { const p = histPresets()[0]; Object.assign(h, { q: "", st: "" }); if (p) Object.assign(h, { from: p[1], to: p[2], group: p[3] }); render(); };
+}
+/* admin home: the work queue grouped by department, one row of tabs — tidy instead of a wall of cards */
+const DEPT39 = { "Follow-ups due": "Sales", "Quotations to chase": "Sales", "Orders waiting approval": "Sales", "Deliveries due this week": "Stores", "Deliveries to invoice": "Finance", "Advance to collect": "Finance", "Customer payments overdue": "Finance", "Supplier bills due": "Finance", "EMD / PBG / document requests": "Finance", "Leave to approve": "Finance", "POs to approve": "Stores", "Goods to receive": "Stores", "Stock to reorder": "Stores", "Repair jobs late": "Service", "Service visits today": "Service", "My tasks": "Sales" };
+function adminQueue39() {
+  if (STATE.route !== "apps" || !isAdmin28?.()) return; const q = $(".q37"); if (!q || q.dataset.p39) return; q.dataset.p39 = "1";
+  const cards = $$(".q37-c", q); if (cards.length < 2) return;
+  const by = {}; cards.forEach(c => { const d = DEPT39[c.querySelector(".q37-h b")?.textContent] || "Other"; (by[d] ||= []).push(c); c.dataset.dept = d; });
+  const depts = ["Sales", "Finance", "Stores", "Service", "Other"].filter(d => by[d]);
+  const sel = depts.includes(BIZ.ui.dq39) ? BIZ.ui.dq39 : depts[0];
+  const cnt = d => by[d].reduce((a, c) => a + (+c.querySelector(".q37-h i")?.textContent || 0), 0);
+  q.querySelector("header").insertAdjacentHTML("afterend", `<div class="dq39" role="tablist">${depts.map(d => `<button type="button" role="tab" class="${d === sel ? "on" : ""}" aria-selected="${d === sel}" data-dq="${d}">${d}<i>${cnt(d)}</i></button>`).join("")}</div>`);
+  const show = d => { BIZ.ui.dq39 = d; cards.forEach(c => { c.hidden = c.dataset.dept !== d; }); $$("[data-dq]", q).forEach(b => { b.classList.toggle("on", b.dataset.dq === d); b.setAttribute("aria-selected", b.dataset.dq === d); }); };
+  $$("[data-dq]", q).forEach(b => b.onclick = () => show(b.dataset.dq)); show(sel);
+}
+{
+  const _r = render;
+  render = function () { _r(); try { flowBar39(); close39(); histSearch39(); adminQueue39(); } catch (e) { console.warn("p39", e); } };
+}
+document.head.insertAdjacentHTML("beforeend", `<meta name="robots" content="noindex,nofollow,noarchive"><style>
+.fl39{display:flex;align-items:center;gap:4px;flex-wrap:wrap;margin:0 0 14px;padding:8px;border:1px solid var(--line);border-radius:14px;background:var(--surface)}
+.fl39-s{display:flex;align-items:center;gap:7px;padding:7px 11px;border:0;border-radius:10px;background:none;color:var(--muted);font:600 .84rem var(--f-body);cursor:pointer}
+.fl39-s i{width:22px;height:22px;border-radius:50%;display:grid;place-items:center;font-style:normal;font-size:.72rem;background:var(--sunk);color:var(--ink)}
+.fl39-s em{font-style:normal;font-size:.7rem;min-width:20px;height:20px;line-height:20px;padding:0 5px;border-radius:10px;background:var(--copper);color:#fff;text-align:center}
+.fl39-s:hover,.fl39-s:focus-visible{background:var(--sunk);color:var(--ink);outline:none}.fl39-s.on{background:var(--navy,#02315B);color:#fff}.fl39-s.on i{background:#fff;color:var(--navy,#02315B)}
+.fl39-a{color:var(--line-2);font-size:1.1rem}
+.ab39-x{width:38px;height:38px;flex:none;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);display:grid;place-items:center;cursor:pointer;margin-right:10px;font-size:1rem}.ab39-x:hover{background:var(--sunk)}.ab39-x svg{width:18px;height:18px}
+.dq39{display:flex;gap:6px;flex-wrap:wrap;margin:0 0 10px}.dq39 button{display:flex;gap:6px;align-items:center;padding:6px 12px;border:1px solid var(--line);border-radius:20px;background:var(--sunk);color:var(--ink);font:600 .82rem var(--f-body);cursor:pointer}.dq39 button i{font-style:normal;font-size:.72rem;opacity:.75}.dq39 button.on{background:var(--copper);border-color:var(--copper);color:#fff}
+@media (max-width:600px){.fl39{flex-wrap:nowrap;overflow-x:auto}.fl39-s span{display:none}.fl39-s.on span{display:inline}.ab39-x{width:34px;height:34px;margin-right:6px}}
+</style>`);
+
 boot();
 
 </script>
