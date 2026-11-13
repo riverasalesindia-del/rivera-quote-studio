@@ -12,7 +12,7 @@ function props() { return PropertiesService.getScriptProperties(); }
 function secret() { var p = props(), s = p.getProperty("SECRET"); if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); p.setProperty("SECRET", s); } return s; }
 function ss() { var id = props().getProperty("SHEET"); if (id) return SpreadsheetApp.openById(id); var a = SpreadsheetApp.getActiveSpreadsheet(); if (a) return a; var n = SpreadsheetApp.create("Rivera Quote Studio — users & data"); props().setProperty("SHEET", n.getId()); return n; }
 function sheet(name, head) { var s = ss(), sh = s.getSheetByName(name); if (!sh) { sh = s.insertSheet(name); if (head) sh.appendRow(head); } return sh; }
-var UH = ["email", "name", "salt", "hash", "status", "role", "created", "lastLogin", "code", "codeExp", "fails", "lockUntil", "approvedBy", "contact", "mustChange", "pages", "access"];
+var UH = ["email", "name", "salt", "hash", "status", "role", "created", "lastLogin", "code", "codeExp", "fails", "lockUntil", "approvedBy", "contact", "mustChange", "pages", "access", "tempPw"];
 var SH = ["sid", "user", "device", "status", "created", "decidedAt", "decidedBy", "nonce", "lastSeen"];
 function sessions() { return sheet("Sessions", SH); }
 function findSession(sid) { var sh = sessions(), v = sh.getDataRange().getValues(); for (var i = 1; i < v.length; i++) if (String(v[i][0]) === String(sid)) { var s = { row: i + 1 }; SH.forEach(function (k, j) { s[k] = v[i][j]; }); return s; } return null; }
@@ -991,9 +991,9 @@ function api(d) {
       putBlob("register", cur); return { ok: true, register: cur };
     } finally { lock.releaseLock(); }
   }
-  if (a === "firstPassword") { if (String(me.mustChange || "") !== "1") throw "Use Change password in My account"; if (String(d.pw || "").length < 40) throw "Password not accepted"; me.salt = Utilities.getUuid(); me.hash = hashPw(d.pw, me.salt); me.mustChange = ""; saveUser(me); log(me.email, "password-first-set", ""); return { ok: true, user: pub(me) }; }
+  if (a === "firstPassword") { if (String(me.mustChange || "") !== "1") throw "Use Change password in My account"; if (String(d.pw || "").length < 40) throw "Password not accepted"; me.salt = Utilities.getUuid(); me.hash = hashPw(d.pw, me.salt); me.mustChange = ""; me.tempPw = ""; saveUser(me); log(me.email, "password-first-set", ""); return { ok: true, user: pub(me) }; }
   if (a === "links") return { ok: true, links: LINKS };
-  if (a === "password") { me.mustChange = ""; if (!eq(hashPw(String(d.old || ""), me.salt), me.hash)) throw "Current password is wrong"; if (String(d.pw || "").length < 40) throw "Password not accepted"; me.salt = Utilities.getUuid(); me.hash = hashPw(d.pw, me.salt); saveUser(me); log(me.email, "password-change", ""); return { ok: true }; }
+  if (a === "password") { me.mustChange = ""; me.tempPw = ""; if (!eq(hashPw(String(d.old || ""), me.salt), me.hash)) throw "Current password is wrong"; if (String(d.pw || "").length < 40) throw "Password not accepted"; me.salt = Utilities.getUuid(); me.hash = hashPw(d.pw, me.salt); saveUser(me); log(me.email, "password-change", ""); return { ok: true }; }
   /* ---- tender database (all signed-in users) ---- */
   if (a === "tdbQuery") return tdbQuery(d);
   if (a === "trQuery") return trQuery(d);
@@ -1036,12 +1036,12 @@ function api(d) {
   if (a === "tdbBackfill") { if (d.op === "start") { tdbBackfillStart(); log(me.email, "tdb-backfill-start", ""); } if (d.op === "stop") tdbBackfillStop(); if (d.op === "now") tdbBackfill(); return { ok: true, state: tdbState() }; }
   if (a === "tdbConfig") { if (d.gemDirect !== undefined) props().setProperty("CFG_gemDirect", d.gemDirect ? "1" : "0"); return { ok: true, state: tdbState() }; }
 
-  if (a === "users") { var v = users().getDataRange().getValues(), out = []; for (var i = 1; i < v.length; i++) { var x = {}; UH.forEach(function (k, j) { x[k] = v[i][j]; }); if (x.email) out.push(pub(x)); } return { ok: true, users: out }; }
+  if (a === "users") { var v = users().getDataRange().getValues(), out = []; for (var i = 1; i < v.length; i++) { var x = {}; UH.forEach(function (k, j) { x[k] = v[i][j]; }); if (x.email) { var px = pub(x); px.tempPw = String(x.tempPw || ""); out.push(px); } } return { ok: true, users: out }; }
   if (a === "createUser") {
     var nid = cleanId(d.email), nn = String(d.name || "").trim().slice(0, 80); if (!nn) throw "Enter the person's name"; if (String(d.pw || "").length < 40) throw "Password not accepted";
     if (findUser(nid)) throw "That username already exists";
     var role = ROLES.indexOf(d.role) >= 0 ? d.role : "sales";
-    var nu = { email: nid, name: nn, contact: String(d.contact || "").trim().slice(0, 120), role: role, status: "approved", created: new Date(), fails: 0, approvedBy: me.email, salt: Utilities.getUuid(), mustChange: d.keepPw ? "" : "1" }; nu.hash = hashPw(d.pw, nu.salt); setPerms(nu, d);
+    var nu = { email: nid, name: nn, contact: String(d.contact || "").trim().slice(0, 120), role: role, status: "approved", created: new Date(), fails: 0, approvedBy: me.email, salt: Utilities.getUuid(), mustChange: d.keepPw ? "" : "1" }; nu.hash = hashPw(d.pw, nu.salt); setPerms(nu, d); nu.tempPw = String(d.tempPw || "").slice(0, 40);
     saveUser(nu); log(me.email, "create-user", nid + " " + role); return { ok: true, user: pub(nu) };
   }
   if (a === "setUser") {
@@ -1052,7 +1052,7 @@ function api(d) {
     if (tu.email !== ADMIN) setPerms(tu, d);
     if (d.name) tu.name = String(d.name).trim().slice(0, 80);
     if (d.contact !== undefined) tu.contact = String(d.contact || "").trim().slice(0, 120);
-    if (d.pw) { if (String(d.pw).length < 40) throw "Password not accepted"; tu.salt = Utilities.getUuid(); tu.hash = hashPw(d.pw, tu.salt); tu.fails = 0; tu.lockUntil = ""; tu.mustChange = d.keepPw ? "" : "1"; }
+    if (d.pw) { if (String(d.pw).length < 40) throw "Password not accepted"; tu.salt = Utilities.getUuid(); tu.hash = hashPw(d.pw, tu.salt); tu.fails = 0; tu.lockUntil = ""; tu.mustChange = d.keepPw ? "" : "1"; tu.tempPw = String(d.tempPw || "").slice(0, 40); }
     saveUser(tu); log(me.email, "set-user", tu.email + " " + (d.status || "") + " " + (d.role || "") + (d.pw ? " password-reset" : "")); return { ok: true, user: pub(tu) };
   }
   if (a === "deleteUser") { var du = findUser(cleanEmail(d.email)); if (!du || du.email === ADMIN) throw "Can't delete"; users().deleteRow(du.row); log(me.email, "delete-user", du.email); return { ok: true }; }
