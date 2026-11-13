@@ -8364,6 +8364,180 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .q37-m{border:0;background:none;color:var(--copper-ink);font:600 .8rem var(--f-body);cursor:pointer;padding:4px 8px}
 </style>`);
 
+/* ===================== p38: the customer's enquiry → everything they asked for, ready. Quality certificate = Swarnagiri Wire Insulations only ===================== */
+/* 1. every "quality / ISO / test certificate" requirement is met with Swarnagiri's certificates — never Rivera's old quality letter, never QIC */
+for (const r of REQ_MAP) if (r[0] instanceof RegExp && /iso\|quality/.test(r[0].source)) { r[1] = ["supplier"]; r[2] = "Quality certificate (Swarnagiri Wire Insulations)"; }
+const swarQ38 = (n = 2) => (STATE.data.docs || []).filter(d => d.type === "supplier" && !d.missing && !qicDoc17(d) && !docExpired(d))
+  .sort((a, b) => (stored(b) - stored(a)) || (/\biso\b|9001|quality|test cert|copper cert/i.test(b.title + b.path) - /\biso\b|9001|quality|test cert|copper cert/i.test(a.title + a.path)) || String(b.date || "").localeCompare(String(a.date || ""))).slice(0, n);
+{
+  const _cp38 = completePlan;
+  completePlan = function (...a) {
+    const P = _cp38(...a).filter(p => !(p.k === "letter" && p.src === "quality") && !(p.k === "orig" && /^ISO certificate$/.test(p.label)));
+    P.push({ k: "orig", docs: swarQ38(2), label: "Quality certificate — Swarnagiri Wire Insulations", need: "supplier" });
+    return P;
+  };
+}
+
+/* 2. read what the enquiry asks for: documents, certificates, years and "valid as on" dates */
+const REQ38 = [
+  ["fin", /turnover|financial (capacity|statement|strength)|balance ?sheet|audited (accounts|statement)|profit (and|&) loss|\bITR\b|income[- ]tax return/i, ["turnover", "balance"], "Turnover / audited financials", 3],
+  ["exp", /experience|past (performance|supplies|orders|executed)|similar (work|supply|supplies|orders|jobs)|(purchase|work) orders? (copy|copies)|\bP\.?O\.? copies|completion certificate|performance certificate|client list|reference list|list of (customers|clients)/i, ["experience", "crac", "completion"], "Past orders / experience", 3],
+  ["qual", /quality|\biso\b|9001|test certificate|\bT\.?C\.?s?\b|material (test )?certificate|mill certificate|copper|conductor|raw[- ]material/i, ["supplier"], "Quality certificate — Swarnagiri Wire Insulations"],
+  ["test", /type test|routine test|test report|test result/i, ["test"], "Test report"],
+  ["qap", /\bQAP\b|quality (assurance )?plan|\bITP\b|inspection (and|&) test plan/i, ["qap"], "Quality assurance plan (QAP)"],
+  ["gst", /\bGST(IN)?\b/i, ["gst"], "GST registration"],
+  ["pan", /\bPAN\b/, ["pan"], "Company PAN"],
+  ["msme", /msme|\bmse\b|udyam|\bnsic\b|small (scale|enterprise)/i, ["udyam"], "Udyam / MSE certificate"],
+  ["mii", /make in india|\bmii\b|local content|class[- ]?i local/i, ["mii"], "Make in India certificate"],
+  ["cin", /incorporation|\bCIN\b|company registration|registration certificate/i, ["cin"], "Certificate of incorporation"],
+  ["bank", /cancel+ed cheque|bank (details|mandate|account)|\bNEFT\b|\bRTGS\b|\bIFSC\b/i, ["bank"], "Bank details / cancelled cheque"],
+  ["profile", /company profile|capabilit|credentials|brochure|catalogue|catalog\b/i, ["profile"], "Company profile"],
+  ["mach", /machin(e|ery) list|list of machin|plant (and|&) machinery|infrastructure|manufacturing facilit|works facilit/i, ["machines"], "Machinery / facilities list"],
+  ["dpiit", /dpiit|start-?up recognition/i, ["dpiit"], "DPIIT start-up recognition"],
+  ["warr", /warranty|guarantee (letter|certificate|period)/i, [], "Warranty letter", 0, "letter"],
+  ["auth", /authori[sz]ation letter|letter of authori|power of attorney/i, [], "Authorisation letter", 0, "letter"]
+];
+const ASK38 = /(certificate|copy|copies|document|enclose|submit|attach|furnish|provide|send|along with|proof|list|report|statement|details|plan|registration|required|mandatory|necessary|needed)/i;
+const SECT38 = /documents?\s*(required|to be (submitted|enclosed|furnished|attached))|enclosures?\s*[:\-]|submit the following|(along with|together with) (the|your) (offer|quotation|quote|bid)|following documents/i;
+const NUMW38 = { one: 1, two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, ten: 10 };
+const fy2_38 = s => { const m = String(s || "").match(/(\d{2,4})\s*[-–\/]\s*(\d{2,4})/); return m ? `${m[1].slice(-2)}-${m[2].slice(-2)}` : ""; };
+const docFY38 = d => fy2_38(d.fy) || (d.date ? fyOf(d.date) : "");
+function lastFYs38(n) { const cur = fyOf(todayISO()), s = 2000 + +cur.slice(0, 2); return Array.from({ length: n }, (_, i) => `${String(s - 1 - i).slice(-2)}-${String(s - i).slice(-2)}`); }
+function asOn38(line) { const m = line.match(/(?:as on|valid (?:on|till|up ?to|as on)|validity (?:up ?to|till))\s*[:\-]?\s*(\d{1,2}[.\-\/]\d{1,2}[.\-\/]\d{2,4})/i); return m ? toISODate(m[1].replace(/\./g, "-")) : ""; }
+function enquiryNeeds38(text) {
+  const lines = String(text || "").split(/\n/).map(s => s.replace(/\s+/g, " ").trim()).filter(Boolean);
+  const out = new Map(); let sect = -99;
+  lines.forEach((ln, i) => {
+    if (SECT38.test(ln)) sect = i;
+    if (/\b\d{2}[A-Z]{5}\d{4}[A-Z][1-9A-Z]Z[0-9A-Z]\b/.test(ln) && !ASK38.test(ln)) return;   // the customer's own GSTIN in their letterhead
+    const ctx = ASK38.test(ln) || i - sect <= 25;
+    if (!ctx) return;
+    for (const [k, re, types, label, defYears, kind] of REQ38) {
+      if (!re.test(ln)) continue;
+      if (k === "qual" && !/certif|\biso\b|9001|\bT\.?C\.?s?\b|test|copy|document/i.test(ln)) continue;   // "good quality coils" is not a document request
+      if (k === "test" && /copper|conductor|raw[- ]material|wire/i.test(ln)) continue;   // raw-material test papers = Swarnagiri
+      const ym = ln.match(/(?:last|past|preceding|previous|latest)\s*(\d{1,2}|one|two|three|four|five|six|seven|ten)\s*(?:\(\s*\d+\s*\)\s*)?(?:financial\s*|f\.?y\.?\s*)?years?/i);
+      const fyList = [...ln.matchAll(/(?:FY\s*)?(20\d{2}|\d{2})\s*[-–\/]\s*(\d{2,4})\b/gi)].map(m => fy2_38(m[0])).filter(f => /^\d{2}-\d{2}$/.test(f) && +f.slice(3) === (+f.slice(0, 2) + 1) % 100);
+      const years = ym ? (+ym[1] || NUMW38[ym[1].toLowerCase()] || 0) : 0;
+      const prev = out.get(k) || { k, types, label, kind: kind || "doc", lines: [], years: 0, fys: [], asOn: "" };
+      prev.lines.push(ln.slice(0, 200)); prev.years = Math.max(prev.years, years); prev.fys = [...new Set([...prev.fys, ...fyList])]; prev.asOn = prev.asOn || asOn38(ln);
+      if (!prev.years && !prev.fys.length && defYears && /year|annual|f\.?y/i.test(ln)) prev.years = defYears;
+      out.set(k, prev);
+    }
+  });
+  return [...out.values()];
+}
+function pick38(n) {
+  if (n.kind === "letter") return { ...n, docs: [], status: "letter", note: "Written fresh on the Rivera letterhead with today's date" };
+  if (n.k === "qual") { const d = swarQ38(3); return { ...n, docs: d, status: d.length ? "ready" : "missing", note: d.length ? "Swarnagiri Wire Insulations — Rivera's copper supplier" : "Add Swarnagiri certificates in Company documents" }; }
+  const asOn = n.asOn || todayISO();
+  const all = (STATE.data.docs || []).filter(d => n.types.includes(d.type) && !d.missing && !qicDoc17(d) && (typeof originalOk !== "function" || originalOk(d) || !ORIGINAL_OK.has(d.type)));
+  const live = all.filter(d => !d.expiry || d.expiry >= asOn);
+  const rank = (a, b) => (stored(b) - stored(a)) || String(b.date || "").localeCompare(String(a.date || ""));
+  const fys = n.fys.length ? n.fys : n.years ? lastFYs38(n.years) : [];
+  if (fys.length) {
+    const per = n.k === "exp" ? 2 : 1, docs = [], gap = [];
+    for (const f of fys) { const L = live.filter(d => docFY38(d) === f).sort(rank).slice(0, per); if (L.length) docs.push(...L); else gap.push("FY " + f); }
+    return { ...n, fyWanted: fys, docs, status: !docs.length ? (all.length ? "expired" : "missing") : gap.length ? "part" : "ready", note: gap.length ? "Not found for " + gap.join(", ") : `FY ${fys.join(", ")}` };
+  }
+  const docs = live.sort(rank).slice(0, n.k === "exp" ? 4 : 1);
+  return { ...n, docs, status: docs.length ? "ready" : all.length ? "expired" : "missing", note: docs.length ? (n.asOn ? "Valid as on " + dmy(n.asOn) : docs[0].expiry ? "Valid till " + dmy(docs[0].expiry) : "") : all.length ? "Only expired copies found" + (n.asOn ? " for " + dmy(n.asOn) : "") : "Not in Company documents yet" };
+}
+/* an enquiry that says "submit your offer" is still an enquiry, not a vendor quotation */
+{
+  const _le = localExtract;
+  localExtract = function (docs) {
+    const R = _le(docs), text = (docs || []).map(d => d.text || "").join("\n");
+    if (R.doc_type === "vendor_quotation" && /\b(enquiry|inquiry|rfq|request for (quotation|quote)|kindly (quote|offer|send)|please (quote|offer|send)|submit (your|the) (best )?(offer|quotation|quote))\b/i.test(text) && !/we are pleased to (quote|offer|submit)|our (offer|quotation) (no|number|ref)|offer no\.?\s*[:\-]/i.test(text)) R.doc_type = "customer_enquiry";
+    return R;
+  };
+}
+const scanText38 = s => (s?.docs || []).map(d => d.text || "").join("\n");
+function needsFor38(s) { if (!s?.result) return []; if (!s.needs38) s.needs38 = enquiryNeeds38(scanText38(s)).map(pick38); return s.needs38; }
+
+/* 3. one PDF: covering letter with the list, the fresh letters, then the originals — ready to send with the quotation */
+async function enquiryPack38(s, quoteNo) {
+  const R = s.result, N = needsFor38(s); if (!N.length) return null;
+  const PDFLib = await getPdfLib(), body = await PDFLib.PDFDocument.create(), A = await lhAssets(body), w = await lhWriter(body, A), today = todayISO(), entries = [], gaps = [];
+  const W = (await getPdfLib()).PDFDocument;
+  const cust = R.party?.name || "the customer", ref = R.ref_no ? `your enquiry ${R.ref_no}${R.date ? " dated " + dmy(R.date) : ""}` : "your enquiry";
+  for (const n of N) {
+    if (n.kind === "letter") {
+      const first = body.getPageCount() + 1; w.newPage();
+      if (n.k === "warr") { const m = STATE.quote?.ctx?.warrantyMonths || 12; w.text("WARRANTY CERTIFICATE", { b: true, align: "center", size: 13, after: 14 }); w.text(`To: ${cust}`, { after: 2 }); w.text(`Ref: ${ref}${quoteNo ? " · Our offer " + quoteNo : ""}`, { after: 12 }); w.text(`We hereby guarantee the coils / bars supplied by us against any defect in design, material and workmanship for a period of ${m} months from the date of commissioning or ${m + 6} months from the date of supply, whichever is earlier. Any part found defective within this period will be repaired or replaced free of cost.`, { justify: true, after: 20 }); }
+      else { w.text("AUTHORISATION LETTER", { b: true, align: "center", size: 13, after: 14 }); w.text(`To: ${cust}`, { after: 2 }); w.text(`Ref: ${ref}`, { after: 12 }); w.text(`We authorise ${AUTH.user?.name && AUTH.user.role !== "admin" ? AUTH.user.name : "our sales team"} of ${LEGAL.name} to submit this offer, attend discussions and correspond on our behalf for the above enquiry.`, { justify: true, after: 20 }); }
+      w.signBlock("", today); entries.push([n.label, first]); continue;
+    }
+    if (!n.docs.length) { gaps.push(n.label + (n.note ? " — " + n.note : "")); continue; }
+    const first = body.getPageCount() + 1; let added = 0;
+    for (const d of n.docs) {
+      try {
+        const o = await getOriginal(d); if (!o) { gaps.push(`${n.label} — ${docTitle(d)} (file not on this device)`); continue; }
+        if (/\.pdf$/i.test(o.name || docFile(d)) || o.blob.type === "application/pdf") { const src = await W.load(await o.blob.arrayBuffer(), { ignoreEncryption: true }); (await body.copyPages(src, src.getPageIndices().slice(0, 15))).forEach(p => body.addPage(p)); added++; }
+        else if (/image\//.test(o.blob.type) || /\.(png|jpe?g)$/i.test(o.name)) { const b = new Uint8Array(await o.blob.arrayBuffer()), img = /png/i.test(o.blob.type + o.name) ? await body.embedPng(b) : await body.embedJpg(b); const pg = body.addPage([595.28, 841.89]), sc = Math.min(555 / img.width, 800 / img.height); pg.drawImage(img, { x: (595.28 - img.width * sc) / 2, y: (841.89 - img.height * sc) / 2, width: img.width * sc, height: img.height * sc }); added++; }
+        else gaps.push(`${n.label} — ${docTitle(d)} (not a PDF)`);
+      } catch (e) { gaps.push(`${n.label} — ${docTitle(d)}`); ERRLOG.add(`Enquiry pack ${docTitle(d)}: ${e.message}`, "pdf"); }
+    }
+    const got = [...new Set(n.docs.map(docFY38).filter(Boolean))];
+    if (added) entries.push([n.label + (n.fyWanted && got.length ? ` (FY ${got.join(", ")})` : ""), first]);
+    if (n.status === "part") gaps.push(`${n.label} — ${n.note}`);
+  }
+  const cover = await PDFLib.PDFDocument.create(), A2 = await lhAssets(cover), c = await lhWriter(cover, A2);
+  c.newPage(); c.text(`Date: ${dotDate(today)}`, { align: "right", after: 8 });
+  c.text("To,", { after: 0 }); c.text(cust, { b: true, after: 0 }); if (R.party?.address) c.text(R.party.address, { after: 0 }); c.gap(8);
+  c.text(`Sub: Documents requested with ${ref}`, { b: true, after: 8 });
+  c.text("Dear Sir / Madam,", { after: 6 });
+  c.text(`With reference to ${ref}, we are pleased to submit ${quoteNo ? "our offer " + quoteNo + " along with " : ""}the documents you asked for, listed below. The raw-material quality certificates are those of our copper conductor supplier, Swarnagiri Wire Insulations Pvt Ltd.`, { justify: true, after: 10 });
+  c.table(["#", "Document", "Page"], entries.map((e, i) => [String(i + 1), e[0], String(e[1] + 1)]), [6, 76, 12]);
+  if (gaps.length) c.text("Will follow separately: " + gaps.join("; ") + ".", { size: 9.6, after: 8 });
+  c.text("Thanking you,", { after: 2 }); c.text("Yours faithfully,", { after: 4 }); c.signBlock("", today);
+  const out = await PDFLib.PDFDocument.create();
+  out.setTitle(`Documents for ${cust}`); out.setAuthor(LEGAL.name); out.setCreator("Rivera Quote Studio");
+  (await out.copyPages(cover, [0])).forEach(p => out.addPage(p));
+  if (body.getPageCount()) (await out.copyPages(body, body.getPageIndices())).forEach(p => out.addPage(p));
+  return { blob: new Blob([await out.save()], { type: "application/pdf" }), pages: out.getPageCount(), entries, gaps, name: `RCM documents — ${String(cust).replace(/[\\/:*?"<>|]+/g, " ").slice(0, 50)}${quoteNo ? " — " + quoteNo.replace(/\//g, "-") : ""}.pdf` };
+}
+const dl38 = (blob, name) => saveFile(safeName(name.replace(/\.pdf$/i, "").replace(/—/g, "-")) + ".pdf", blob, "application/pdf");   /* phone app, Windows app and browser all save it */
+
+/* 4. on every scan: "The customer asked for" card with each item, the document picked (right year / still valid) and one button */
+const ST38 = { ready: ["ok", "Ready"], part: ["warn", "Some years missing"], expired: ["bad", "Expired"], missing: ["bad", "Missing"], letter: ["navy", "Made fresh"] };
+function needsCard38(s) {
+  const N = needsFor38(s); if (!N.length) return "";
+  const ok = N.filter(n => ["ready", "letter"].includes(n.status)).length;
+  return `<div class="body" id="nd38" style="padding-bottom:0"><div class="nd38"><div class="nd38-h"><div><b>The customer asked for ${N.length} document${N.length === 1 ? "" : "s"}</b><div class="small muted">${ok} of ${N.length} ready · picked by year and validity · quality certificate is always Swarnagiri's</div></div><button class="btn primary sm" id="nd38go" type="button">${icon("dl")}Ready documents PDF</button></div>
+    <table class="t"><thead><tr><th>Asked for</th><th>We send</th><th>Status</th></tr></thead><tbody>${N.map(n => `<tr><td><b>${esc(n.label)}</b><div class="small muted" title="${esc(n.lines.join(" | "))}">“${esc(n.lines[0].slice(0, 90))}${n.lines[0].length > 90 ? "…" : ""}”</div></td><td class="small">${n.docs.length ? n.docs.map(d => `${esc(docTitle(d).slice(0, 70))}${docFY38(d) ? ` <span class="chip">FY ${esc(docFY38(d))}</span>` : ""}`).join("<br>") : `<span class="muted">${esc(n.note || "—")}</span>`}${n.docs.length && n.note ? `<div class="muted">${esc(n.note)}</div>` : ""}</td><td><span class="chip ${ST38[n.status][0]}">${ST38[n.status][1]}</span></td></tr>`).join("")}</tbody></table>
+    ${N.some(n => ["missing", "expired", "part"].includes(n.status)) ? `<div class="small muted" style="margin-top:6px">Missing ones: add them once in <a href="#library">Company documents</a> — next time they are picked automatically.</div>` : ""}</div></div>`;
+}
+async function runPack38(s, quoteNo, btn) {
+  if (btn) { btn.disabled = true; btn.textContent = "Making the PDF…"; }
+  try { const P = await enquiryPack38(s, quoteNo); if (!P) return; dl38(P.blob, P.name); s.pack38 = { at: Date.now(), pages: P.pages, gaps: P.gaps }; toast(`Documents ready — ${P.pages} pages${P.gaps.length ? ` · ${P.gaps.length} to add by hand` : ""}`, P.gaps.length ? "bad" : ""); return P; }
+  catch (e) { toast("Couldn't make the documents PDF: " + e.message, "bad"); ERRLOG.add("Enquiry pack: " + e.message, "pdf"); }
+  finally { if (btn) { btn.disabled = false; btn.innerHTML = icon("dl") + "Ready documents PDF"; } }
+}
+{
+  const _dr = drawResult;
+  drawResult = function () {
+    _dr();
+    const s = STATE.scans.find(x => x.id === STATE.selScan); if (!s?.result || $("#nd38")) return;
+    const html = needsCard38(s); if (!html) return;
+    const tabs = $("#resultPanel .result-tabs"); if (tabs) tabs.insertAdjacentHTML("beforebegin", html); else $("#resultPanel")?.insertAdjacentHTML("beforeend", html);
+    $("#nd38go").onclick = e => runPack38(s, "", e.currentTarget);
+  };
+}
+/* Auto quote also lists the enclosures in the quotation and makes the documents PDF in the same tap */
+{
+  const _aq = autoQuote;
+  autoQuote = async function (R) {
+    const s = STATE.scans.find(x => x.result === R), N = s ? needsFor38(s) : [], before = STATE.quote?.id;
+    await _aq(R);
+    if (!N.length || !STATE.quote || STATE.quote.id === before) return;   /* auto quote stopped (e.g. no rate card) — leave the draft alone */
+    const enc = N.filter(n => n.docs.length || n.kind === "letter").map(n => n.label + (n.fyWanted ? ` (FY ${n.fyWanted.join(", ")})` : ""));
+    if (enc.length && !/Enclosures:/i.test(STATE.quote.note || "")) { STATE.quote.note = `${STATE.quote.note ? STATE.quote.note + "\n" : ""}Enclosures: ${enc.join("; ")}.`; saveDrafts(); try { await saveQuoteRecord(); } catch { } if (STATE.route === "quote") render(); }
+    setTimeout(() => runPack38(s, STATE.quote?.no || ""), 1600);
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.nd38{border:1px solid var(--line);border-left:4px solid var(--copper);border-radius:12px;padding:12px;background:var(--surface)}.nd38-h{display:flex;gap:10px;align-items:flex-start;justify-content:space-between;flex-wrap:wrap;margin-bottom:8px}.nd38 table td{vertical-align:top}</style>`);
+
 boot();
 
 </script>
