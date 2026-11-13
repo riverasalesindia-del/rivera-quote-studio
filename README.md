@@ -53,6 +53,7 @@ Company costing data (rate card, past jobs, bank details) is **not** in this rep
 - **Tally Prime connection** – Accounts ▸ Tally in the Windows app on the Tally PC: test connection, send sales invoices and receipts (customer ledgers created with GSTIN and state, bill-wise), compare outstanding with Tally.
 - **Windows app updates itself** – it opens the newest pages from the website every time (with an offline copy), and installs new versions of the app from GitHub releases in the background (asks to restart).
 - **Strict roles** – Sales: Sales, Tenders, its invoices / payments / receivables, My work. Finance: Accounts (with Tally), HR & payroll, Purchase & stock, sales orders, customers, projects, finance requests. Admin: everything.
+- **User management like GrowSmart** – the admin can create any number of logins (Users & access ▸ Add login) and press **Permissions** on each one: tick exactly which modules, pages and tabs that person sees (Transactions / Masters / Reports), and choose Full or View-only. The server enforces it.
 - **Work orders**, **Tenders & GeM** (checklist + annexure kit II–X), **Vendors, price book & RFQ**
 - **Export & share** – any format, WhatsApp, email, or any app on the phone
 - **Synology** – connect the SALES folder once; jobs, registers and tender kits are filed automatically

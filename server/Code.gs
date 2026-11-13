@@ -12,7 +12,7 @@ function props() { return PropertiesService.getScriptProperties(); }
 function secret() { var p = props(), s = p.getProperty("SECRET"); if (!s) { s = Utilities.getUuid() + Utilities.getUuid(); p.setProperty("SECRET", s); } return s; }
 function ss() { var id = props().getProperty("SHEET"); if (id) return SpreadsheetApp.openById(id); var a = SpreadsheetApp.getActiveSpreadsheet(); if (a) return a; var n = SpreadsheetApp.create("Rivera Quote Studio — users & data"); props().setProperty("SHEET", n.getId()); return n; }
 function sheet(name, head) { var s = ss(), sh = s.getSheetByName(name); if (!sh) { sh = s.insertSheet(name); if (head) sh.appendRow(head); } return sh; }
-var UH = ["email", "name", "salt", "hash", "status", "role", "created", "lastLogin", "code", "codeExp", "fails", "lockUntil", "approvedBy", "contact", "mustChange"];
+var UH = ["email", "name", "salt", "hash", "status", "role", "created", "lastLogin", "code", "codeExp", "fails", "lockUntil", "approvedBy", "contact", "mustChange", "pages", "access"];
 var SH = ["sid", "user", "device", "status", "created", "decidedAt", "decidedBy", "nonce", "lastSeen"];
 function sessions() { return sheet("Sessions", SH); }
 function findSession(sid) { var sh = sessions(), v = sh.getDataRange().getValues(); for (var i = 1; i < v.length; i++) if (String(v[i][0]) === String(sid)) { var s = { row: i + 1 }; SH.forEach(function (k, j) { s[k] = v[i][j]; }); return s; } return null; }
@@ -20,7 +20,7 @@ function saveSession(s) { var sh = sessions(), row = SH.map(function (k) { retur
 function pubS(s) { return { sid: s.sid, user: s.user, device: s.device, status: s.status, created: s.created ? new Date(s.created).toISOString() : "", decidedAt: s.decidedAt ? new Date(s.decidedAt).toISOString() : "", decidedBy: s.decidedBy || "", lastSeen: s.lastSeen ? new Date(s.lastSeen).toISOString() : "" }; }
 function cleanId(e) { e = String(e || "").trim().toLowerCase(); if (!/^[a-z0-9][a-z0-9._@-]{2,79}$/.test(e)) throw "Enter a valid username"; return e; }
 function adminReady() { var a = findUser(ADMIN); return !!(a && a.status === "approved"); }
-function users() { return sheet("Users", UH); }
+function users() { var sh = sheet("Users", UH); if (sh.getLastColumn() < UH.length) sh.getRange(1, 1, 1, UH.length).setValues([UH]); return sh; }
 function findUser(email) {
   var sh = users(), v = sh.getDataRange().getValues();
   for (var i = 1; i < v.length; i++) if (String(v[i][0]).toLowerCase() === email) { var u = { row: i + 1 }; UH.forEach(function (k, j) { u[k] = v[i][j]; }); return u; }
@@ -46,7 +46,10 @@ function auth(t, needAdmin) {
   if (needAdmin && u.role !== "admin") throw "Admin only";
   return u;
 }
-function pub(u) { return { email: u.email, contact: u.contact || "", name: u.name, status: u.status, role: u.role, created: u.created ? new Date(u.created).toISOString() : "", lastLogin: u.lastLogin ? new Date(u.lastLogin).toISOString() : "", approvedBy: u.approvedBy || "", mustChange: String(u.mustChange || "") === "1" }; }
+function pub(u) { return { email: u.email, contact: u.contact || "", name: u.name, status: u.status, role: u.role, created: u.created ? new Date(u.created).toISOString() : "", lastLogin: u.lastLogin ? new Date(u.lastLogin).toISOString() : "", approvedBy: u.approvedBy || "", mustChange: String(u.mustChange || "") === "1", pages: userPages(u), access: u.access === "view" ? "view" : "full" }; }
+/* per-person page permissions (GrowSmart-style). Empty = the role's default pages. */
+function userPages(u) { try { var p = JSON.parse(u.pages || "[]"); return Array.isArray(p) ? p.filter(function (x) { return /^[a-z0-9]+(\.[a-z0-9]+)?$/.test(x); }).slice(0, 120) : []; } catch (e) { return []; } }
+function setPerms(u, d) { if (d.pages !== undefined) { var L = Array.isArray(d.pages) ? d.pages : []; u.pages = L.length ? JSON.stringify(userPages({ pages: JSON.stringify(L) })) : ""; } if (d.access !== undefined) u.access = d.access === "view" ? "view" : ""; }
 function appUrl() { return ScriptApp.getService().getUrl(); }
 function mail(to, subject, html) { MailApp.sendEmail({ to: to, subject: subject, htmlBody: '<div style="font-family:Arial,sans-serif;font-size:14px;color:#02315B">' + html + '<p style="color:#888;font-size:12px;margin-top:24px">' + APP + ' · Rivera Coil Manufacturing (I) Pvt Ltd</p></div>', name: APP }); }
 function esc(s) { return String(s || "").replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
@@ -1038,7 +1041,7 @@ function api(d) {
     var nid = cleanId(d.email), nn = String(d.name || "").trim().slice(0, 80); if (!nn) throw "Enter the person's name"; if (String(d.pw || "").length < 40) throw "Password not accepted";
     if (findUser(nid)) throw "That username already exists";
     var role = ROLES.indexOf(d.role) >= 0 ? d.role : "sales";
-    var nu = { email: nid, name: nn, contact: String(d.contact || "").trim().slice(0, 120), role: role, status: "approved", created: new Date(), fails: 0, approvedBy: me.email, salt: Utilities.getUuid(), mustChange: d.keepPw ? "" : "1" }; nu.hash = hashPw(d.pw, nu.salt);
+    var nu = { email: nid, name: nn, contact: String(d.contact || "").trim().slice(0, 120), role: role, status: "approved", created: new Date(), fails: 0, approvedBy: me.email, salt: Utilities.getUuid(), mustChange: d.keepPw ? "" : "1" }; nu.hash = hashPw(d.pw, nu.salt); setPerms(nu, d);
     saveUser(nu); log(me.email, "create-user", nid + " " + role); return { ok: true, user: pub(nu) };
   }
   if (a === "setUser") {
@@ -1046,6 +1049,7 @@ function api(d) {
     if (tu.email === ADMIN && (d.status && d.status !== "approved" || d.role && d.role !== "admin")) throw "The main admin account can't be changed";
     if (d.status) { if (["approved", "revoked"].indexOf(d.status) < 0) throw "Bad status"; tu.status = d.status; if (d.status === "approved") tu.approvedBy = me.email; }
     if (d.role) { if (ROLES.indexOf(d.role) < 0) throw "Bad role"; tu.role = d.role; }
+    if (tu.email !== ADMIN) setPerms(tu, d);
     if (d.name) tu.name = String(d.name).trim().slice(0, 80);
     if (d.contact !== undefined) tu.contact = String(d.contact || "").trim().slice(0, 120);
     if (d.pw) { if (String(d.pw).length < 40) throw "Password not accepted"; tu.salt = Utilities.getUuid(); tu.hash = hashPw(d.pw, tu.salt); tu.fails = 0; tu.lockUntil = ""; tu.mustChange = d.keepPw ? "" : "1"; }
@@ -1101,7 +1105,13 @@ var RCH = ["id", "kind", "no", "data", "by", "at", "del"];
 var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN" };
 /* who may see / change each kind (admin always) — salaries and books stay with admin + finance */
 var REC_ACCESS = { emp: ["finance"], att: ["finance"], sal: ["finance"], exp: ["finance"], bill: ["finance"], spay: ["finance"], inv: ["finance", "sales"], rcpt: ["finance", "sales"] };
-function recCan(kind, me) { if (me.role === "admin" || me.email === ADMIN) return true; var a = REC_ACCESS[kind]; return !a || a.indexOf(me.role) >= 0; }
+var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase" };
+function recCan(kind, me) {
+  if (me.role === "admin" || me.email === ADMIN) return true;
+  var P = userPages(me);
+  if (P.length) { var pg = KIND_PAGE[kind]; if (!pg) return true; return P.some(function (x) { return x === pg || x.indexOf(pg + ".") === 0; }) || (kind === "item" || kind === "move") && P.some(function (x) { return /^jobs|^purchase/.test(x); }) || kind === "inv" && P.some(function (x) { return x.indexOf("purchase.so") === 0 || x.indexOf("purchase.dn") === 0; }); }
+  var a = REC_ACCESS[kind]; return !a || a.indexOf(me.role) >= 0;
+}
 var REC_NO = { po: "RCM/PO/", job: "RJ/", inv: "RCM/INV/", svc: "SR/", proj: "PRJ/", sal: "SAL/", so: "RCM/SO/", dn: "RCM/DN/" };
 function recSheet() { var sh = sheet("Records", RCH); tdbFmt(sh, RCH.length); return sh; }
 function recRows() { return fastRead("Records", RCH, recSheet); }
@@ -1113,7 +1123,7 @@ function recList(d, me) {
 }
 function fyShort() { var t = new Date(), y = Number(Utilities.formatDate(t, "Asia/Kolkata", "yyyy")), m = Number(Utilities.formatDate(t, "Asia/Kolkata", "M")); if (m < 4) y--; return String(y).slice(2) + "-" + String(y + 1).slice(2); }
 function recPut(d, me) {
-  if (me.role === "viewer") throw "View-only login";
+  if (me.role === "viewer" || me.access === "view") throw "View-only login";
   var list = d.recs || (d.rec ? [d.rec] : []); if (!list.length) throw "Nothing to save";
   if (list.length > 200) throw "Too many at once";
   var lock = LockService.getScriptLock(), out = [], mails = []; lock.waitLock(25000);
@@ -1148,7 +1158,7 @@ function recPut(d, me) {
   return { ok: true, recs: out };
 }
 function recDel(d, me) {
-  if (me.role === "viewer") throw "View-only login";
+  if (me.role === "viewer" || me.access === "view") throw "View-only login";
   var lock = LockService.getScriptLock(); lock.waitLock(25000);
   try {
     var sh = recSheet(), all = readTableRaw(sh, RCH), r = all.filter(function (x) { return x.id === d.id; })[0]; if (!r) throw "Not found";
