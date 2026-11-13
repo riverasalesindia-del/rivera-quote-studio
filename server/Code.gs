@@ -1102,17 +1102,17 @@ function setup() { secret(); users(); sessions(); sheet("Log", ["time", "email",
 
 /* ================= p28: business records (GrowSmart-style) — leads & follow-ups, repair jobs, purchase orders, stock, tasks ================= */
 var RCH = ["id", "kind", "no", "data", "by", "at", "del"];
-var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN" };
+var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN", cq: "CQ", sr: "RT" };
 /* who may see / change each kind (admin always) — salaries and books stay with admin + finance */
 var REC_ACCESS = { emp: ["finance"], att: ["finance"], sal: ["finance"], exp: ["finance"], bill: ["finance"], spay: ["finance"], inv: ["finance", "sales"], rcpt: ["finance", "sales"] };
-var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase" };
+var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase", cq: "compq", sr: "salesret" };
 function recCan(kind, me) {
   if (me.role === "admin" || me.email === ADMIN) return true;
   var P = userPages(me);
   if (P.length) { var pg = KIND_PAGE[kind]; if (!pg) return true; return P.some(function (x) { return x === pg || x.indexOf(pg + ".") === 0; }) || (kind === "item" || kind === "move") && P.some(function (x) { return /^jobs|^purchase/.test(x); }) || kind === "inv" && P.some(function (x) { return x.indexOf("purchase.so") === 0 || x.indexOf("purchase.dn") === 0; }); }
   var a = REC_ACCESS[kind]; return !a || a.indexOf(me.role) >= 0;
 }
-var REC_NO = { po: "RCM/PO/", job: "RJ/", inv: "RCM/INV/", svc: "SR/", proj: "PRJ/", sal: "SAL/", so: "RCM/SO/", dn: "RCM/DN/" };
+var REC_NO = { po: "RCM/PO/", job: "RJ/", inv: "RCM/INV/", svc: "SR/", proj: "PRJ/", sal: "SAL/", so: "RCM/SO/", dn: "RCM/DN/", sr: "RCM/CN/" };
 function recSheet() { var sh = sheet("Records", RCH); tdbFmt(sh, RCH.length); return sh; }
 function recRows() { return fastRead("Records", RCH, recSheet); }
 function recOut(r) { var o = {}; try { o = JSON.parse(r.data || "{}"); } catch (e) { } o.id = r.id; o.kind = r.kind; o.no = r.no; o.by = r.by; o.at = r.at; return o; }
