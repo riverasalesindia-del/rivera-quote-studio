@@ -8615,6 +8615,50 @@ document.head.insertAdjacentHTML("beforeend", `<meta name="robots" content="noin
 @media (max-width:600px){.fl39{flex-wrap:nowrap;overflow-x:auto}.fl39-s span{display:none}.fl39-s.on span{display:inline}.ab39-x{width:34px;height:34px;margin-right:6px}}
 </style>`);
 
+/* ===================== p40: Tender search — one-tap Rivera product chips + my recent searches, rows closing in 3 days and strong-match rows stand out ===================== */
+const PROD40 = [["Stator coil", "stator coil"], ["Roebel bar", "roebel"], ["Armature", "armature"], ["Pole coil", "pole coil"], ["Rotor coil", "rotor coil"], ["Field coil", "field coil"], ["Rewinding", "rewinding"], ["Insulation", "insulation"], ["Motor repair", "motor repair"]];
+const recent40 = () => { try { const a = LS.get("tdbRecent40", []); return Array.isArray(a) ? a.filter(x => typeof x === "string").slice(0, 6) : []; } catch { return []; } };
+const addRecent40 = q => { q = String(q || "").trim(); if (q.length < 3 || PROD40.some(p => p[1] === q.toLowerCase())) return; try { LS.set("tdbRecent40", [q, ...recent40().filter(x => x.toLowerCase() !== q.toLowerCase())].slice(0, 6)); } catch { } };
+const daysLeft40 = d => Math.round((new Date(d) - new Date(todayISO())) / 864e5);
+function tdbQuick40(B, S) {
+  const f = S.f, panel = $(".fields", B)?.closest(".body"); if (!panel || $(".qk40", panel)) return;
+  const cur = String(f.q || "").trim().toLowerCase(), rec = recent40();
+  const html = `<div class="qk40" role="group" aria-label="Quick product search"><span>Products</span>${PROD40.map(([l, q]) => `<button type="button" class="btn sm ${cur === q ? "primary" : ""}" data-qk40="${esc(q)}" aria-pressed="${cur === q}">${esc(l)}</button>`).join("")}</div>
+  ${rec.length ? `<div class="qk40" role="group" aria-label="My recent searches"><span>Recent</span>${rec.map(q => `<button type="button" class="btn sm ${cur === q.toLowerCase() ? "primary" : "ghost"}" data-qk40="${esc(q)}">${esc(q)}</button>`).join("")}<button type="button" class="btn sm ghost" id="qk40x" title="Forget my recent searches">Clear</button></div>` : ""}`;
+  const qc = $(".qc29", panel); qc ? qc.insertAdjacentHTML("afterend", html) : panel.insertAdjacentHTML("afterbegin", html);
+  $$("[data-qk40]", panel).forEach(b => b.onclick = () => { const q = b.dataset.qk40; f.q = String(f.q || "").trim().toLowerCase() === q.toLowerCase() ? "" : q; S.page = 1; render(); });
+  $("#qk40x")?.addEventListener("click", () => { try { LS.set("tdbRecent40", []); } catch { } render(); });
+  // a search that stays the same for 2.5 s counts as a real search → remember it
+  clearTimeout(S._rec40); const q = String(f.q || "").trim();
+  if (q.length >= 3) S._rec40 = setTimeout(() => { if (String(TDB().f.q || "").trim() === q) addRecent40(q); }, 2500);
+  $("#tq")?.addEventListener("keydown", e => { if (e.key === "Enter") addRecent40(e.target.value); });
+}
+function tdbMark40(B, S) {
+  const body = { ...S.f, page: S.page, size: 50 }, d = S.cache["q:" + JSON.stringify(body)]?.d; if (!d?.rows?.length) return;
+  const trs = $$("table.t tbody tr", B).filter(tr => tr.children.length > 2);
+  let soon = 0, strong = 0;
+  trs.forEach((tr, i) => { const r = d.rows[i]; if (!r) return;
+    if (r.status === "live" && r.closing) { const n = daysLeft40(r.closing); if (n >= 0 && n <= 3) { tr.classList.add("soon40"); soon++; } }
+    if (num(r.fit) >= 75) { tr.classList.add("fit40"); strong++; } });
+  const h = trs[0]?.closest(".panel")?.querySelector("header"); if (!h || $(".lg40", h) || !(soon || strong)) return;
+  h.insertAdjacentHTML("beforeend", `<span class="lg40 small muted">${soon ? `<i class="k40 s"></i>${soon} closing in 3 days` : ""}${soon && strong ? " · " : ""}${strong ? `<i class="k40 f"></i>${strong} strong match` : ""} on this page</span>`);
+}
+{
+  const _tdb40 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb40(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
+    try { tdbQuick40(B, S); tdbMark40(B, S); } catch (e) { console.warn("p40", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.qk40{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px}.qk40>span{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-right:4px;min-width:64px}
+table.t tr.fit40 td{background:color-mix(in srgb,var(--copper) 7%,transparent)}
+table.t tr.soon40 td:first-child{box-shadow:inset 4px 0 0 var(--copper)}
+.lg40{display:inline-flex;align-items:center;gap:5px;flex-wrap:wrap}.k40{display:inline-block;width:10px;height:10px;border-radius:3px;vertical-align:middle}.k40.s{background:var(--copper)}.k40.f{background:color-mix(in srgb,var(--copper) 25%,transparent);border:1px solid var(--copper)}
+@media (max-width:600px){.qk40{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.qk40 .btn{flex:none}}
+</style>`);
+
 boot();
 
 </script>
