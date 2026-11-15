@@ -8659,6 +8659,56 @@ table.t tr.soon40 td:first-child{box-shadow:inset 4px 0 0 var(--copper)}
 @media (max-width:600px){.qk40{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.qk40 .btn{flex:none}}
 </style>`);
 
+/* ===================== p41: Tender search — "Filters on" chips (tap × to drop one filter, Clear all), tap a buyer's name in any row to see only that buyer's tenders ===================== */
+const F41 = () => [
+  ["q", "Search", f => f.q && String(f.q).trim() ? String(f.q).trim() : "", f => { f.q = ""; }],
+  ["status", "Show", f => f.status && f.status !== "live" ? (f.status === "closed" ? "Closed / archive" : "Everything") : "", f => { f.status = "live"; }],
+  ["portal", "Portal", f => f.portal || "", f => { f.portal = ""; }],
+  ["state", "State", f => f.state || "", f => { f.state = ""; }],
+  ["org", "Buyer", f => f.org || "", f => { f.org = ""; }],
+  ["date", "Closing", f => f.from || f.to ? (f.from ? dmy(f.from) : "…") + " → " + (f.to ? dmy(f.to) : "…") : "", f => { f.from = ""; f.to = ""; }],
+  ["value", "Value", f => num(f.vmin) || num(f.vmax) ? (num(f.vmin) ? "₹" + tdbMoney(f.vmin) : "0") + " – " + (num(f.vmax) ? "₹" + tdbMoney(f.vmax) : "any") : "", f => { f.vmin = ""; f.vmax = ""; }],
+  ["fit", "Rivera match", f => num(f.fit) ? num(f.fit) + "%+" : "", f => { f.fit = ""; }],
+  ["hasResult", "Only", f => f.hasResult ? "with results" : "", f => { f.hasResult = false; }],
+  ["exclude", "Leaving out", f => f.exclude && String(f.exclude).trim() ? String(f.exclude).trim() : "", f => { f.exclude = ""; }],
+  ["star", "Only", f => f.star ? "★ shortlisted" : "", f => { f.star = false; }],
+  ["owner", "Only", f => f.owner ? "mine" : "", f => { f.owner = ""; }]
+];
+function tdbChips41(B, S) {
+  const fp = $(".fields", B)?.closest("section.panel"); if (!fp || $(".fc41", B)) return;
+  const on = F41().map(([k, l, g, clr]) => [k, l, g(S.f), clr]).filter(x => x[2]);
+  if (!on.length) return;
+  fp.insertAdjacentHTML("afterend", `<div class="fc41" role="group" aria-label="Filters on"><span>Filters on</span>${on.map(([k, l, val]) => `<button type="button" class="chip fc41-c" data-fc41="${k}" title="Remove this filter">${esc(l)}: <b>${esc(String(val).slice(0, 40))}</b> <i aria-hidden="true">×</i><span class="sr-only"> remove</span></button>`).join("")}${on.length > 1 ? `<button type="button" class="btn sm ghost" id="fc41x">Clear all</button>` : ""}</div>`);
+  $$("[data-fc41]", B).forEach(b => b.onclick = () => { const x = F41().find(y => y[0] === b.dataset.fc41); if (x) { x[3](S.f); S.page = 1; render(); } });
+  $("#fc41x")?.addEventListener("click", () => { F41().forEach(x => x[3](S.f)); S.page = 1; render(); });
+}
+function tdbBuyer41(B, S) {
+  const body = { ...S.f, page: S.page, size: 50 }, d = S.cache["q:" + JSON.stringify(body)]?.d; if (!d?.rows?.length) return;
+  const byBid = {}; d.rows.forEach(r => { byBid[r.bid] = r; });
+  $$("table.t tbody tr", B).forEach(tr => {
+    const tb = tr.children[1], td = tr.children[2]; if (!tb || !td || td.dataset.b41) return;
+    const r = byBid[(tb.querySelector("a")?.textContent || tb.textContent || "").trim()]; if (!r || !r.org) return;
+    td.dataset.b41 = "1";
+    td.innerHTML = `<button type="button" class="b41" title="Show only tenders from this buyer">${esc(r.org)}</button>`;
+    $("button", td).onclick = e => { e.stopPropagation(); S.f.org = r.org; S.page = 1; render(); window.scrollTo?.({ top: 0, behavior: "smooth" }); };
+  });
+}
+{
+  const _tdb41 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb41(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
+    try { tdbChips41(B, S); tdbBuyer41(B, S); } catch (e) { console.warn("p41", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.fc41{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0 0}.fc41>span{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
+.fc41-c{cursor:pointer;font:inherit;font-size:.8rem;border:1px solid var(--line);display:inline-flex;align-items:center;gap:4px}.fc41-c b{font-weight:600}.fc41-c i{font-style:normal;color:var(--muted);margin-left:2px}
+.fc41-c:hover,.fc41-c:focus-visible{border-color:var(--copper);outline:none}.fc41-c:hover i{color:var(--copper)}
+.b41{all:unset;cursor:pointer;color:inherit;text-decoration:underline dotted color-mix(in srgb,var(--copper) 60%,transparent);text-underline-offset:3px}.b41:hover,.b41:focus-visible{color:var(--copper);text-decoration-style:solid}
+@media (max-width:600px){.fc41{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.fc41>*{flex:none}}
+</style>`);
+
 boot();
 
 </script>
