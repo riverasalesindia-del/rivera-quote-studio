@@ -8709,6 +8709,41 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 @media (max-width:600px){.fc41{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.fc41>*{flex:none}}
 </style>`);
 
+/* ===================== p42: Tender search — a WhatsApp button on every row (send one tender to a colleague or customer) and "WhatsApp list" to send the tenders on this page as one message ===================== */
+const left42 = r => r.status === "live" && r.closing ? daysLeft40(r.closing) : null;
+const waText42 = r => { const n = left42(r); return [`*Tender:* ${String(r.item || r.subject || "").slice(0, 200)}`, r.org ? `Buyer: ${r.org}` : "", `Bid no: ${r.bid}`, r.closing ? `Closing: ${dmy(r.closing)}${n != null && n >= 0 ? ` (${n === 0 ? "today" : n + " day" + (n > 1 ? "s" : "") + " left"})` : ""}` : "", num(r.value) ? `Value: ₹${tdbMoney(r.value)}` : "", num(r.emd) ? `EMD: ₹${tdbMoney(r.emd)}` : "", [r.city, r.state].filter(Boolean).join(", "), r.portal ? `Portal: ${r.portal}` : "", r.link || ""].filter(Boolean).join("\n"); };
+const line42 = (r, i) => { const n = left42(r); return `${i + 1}. ${String(r.item || r.subject || "").slice(0, 90)} — ${r.org || "?"}${r.closing ? ` · closes ${dmy(r.closing)}${n != null && n >= 0 && n <= 7 ? (n === 0 ? " (today)" : ` (${n}d)`) : ""}` : ""}${num(r.value) ? ` · ₹${tdbMoney(r.value)}` : ""}\n   ${r.bid}${r.link ? " " + r.link : ""}`; };
+function tdbListShare42(B, S, d) {
+  const h = $("table.t", B)?.closest(".panel")?.querySelector("header"); if (!h || $(".wl42", h)) return;
+  h.insertAdjacentHTML("beforeend", `<button type="button" class="btn sm wl42" title="Send the tenders on this page as one WhatsApp message">${icon("wa")}WhatsApp list</button>`);
+  $(".wl42", h).onclick = () => { const L = d.rows.slice(0, 15), f = S.f;
+    shareText([`*Rivera — ${L.length} tender${L.length > 1 ? "s" : ""}*${f.q ? ` for “${String(f.q).trim()}”` : ""} (${dmy(todayISO())})`, ...L.map(line42), d.total > L.length ? `…and ${(d.total - L.length).toLocaleString("en-IN")} more in the Rivera tender database` : ""].filter(Boolean).join("\n\n"), "whatsapp"); };
+}
+function tdbRowShare42(B, S) {
+  const body = { ...S.f, page: S.page, size: 50 }, d = S.cache["q:" + JSON.stringify(body)]?.d; if (!d?.rows?.length) return;
+  tdbListShare42(B, S, d);
+  const byBid = {}; d.rows.forEach(r => { byBid[r.bid] = r; });
+  $$("table.t tbody tr", B).forEach(tr => {
+    const tb = tr.children[1], last = tr.lastElementChild; if (!tb || !last || tr.children.length < 3 || last.querySelector(".wa42")) return;
+    const r = byBid[(tb.querySelector("a")?.textContent || tb.textContent || "").trim()]; if (!r) return;
+    last.insertAdjacentHTML("beforeend", `<button type="button" class="btn sm ghost wa42" title="Send this tender on WhatsApp" aria-label="Send ${esc(r.bid)} on WhatsApp">${icon("wa")}</button>`);
+    $(".wa42", last).onclick = e => { e.stopPropagation(); shareText(waText42(r), "whatsapp"); };
+  });
+}
+{
+  const _tdb42 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb42(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
+    try { tdbRowShare42(B, S); } catch (e) { console.warn("p42", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+header .wl42{margin-left:auto}.wl42 svg{width:15px;height:15px}
+.wa42{padding:4px 6px;margin-left:4px;vertical-align:middle}.wa42 svg{width:16px;height:16px}.wa42:hover,.wa42:focus-visible{color:#1DA851}
+</style>`);
+
+
 boot();
 
 </script>
