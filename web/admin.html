@@ -8958,6 +8958,104 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 @media (max-width:900px){.cw43-grid{grid-template-columns:1fr}.cw43-out{position:static}}
 </style>`);
 
+/* ===================== p44: GrowSmart-style "press Search to see" on every list page (results stay hidden until Search / Enter, Close hides them again), Quote Workings starts at 0 (no ready-made 72 Nos / 8 kg), coil type change keeps your quantity, tape length from the coil weight calculation ===================== */
+const Q44 = { m: "after", blk: ".row" };
+const G44 = {
+  crm: Q44, jobs: Q44, purchase: Q44, service: Q44, projects: Q44, accounts: Q44, hr: Q44, activity: Q44, customers: Q44,
+  register: { i: "#rq", m: "panel" }, vendors: { i: "#pbq", m: "panel" }, library: { i: "#lbq", m: "panel" },
+  intel: { i: "#inQ", m: "after", blk: "section.panel" }, tdb: { i: "#tq, #rq", m: "after", blk: "section.panel" },
+  history: { i: "#hsQ", m: "after", blk: "section.panel", own: "#hs39" }
+};
+const GS44 = { route: "", open: false };
+const gOpen44 = on => { GS44.open = on; render(); if (on) setTimeout(() => $(".g44-bar")?.scrollIntoView?.({ behavior: "smooth", block: "nearest" }), 60); };
+function gate44() {
+  const r = STATE.route, cfg = G44[r], v = $("#view");
+  if (GS44.route !== r) { GS44.route = r; GS44.open = false; }
+  if (!cfg || !v) return;
+  const inp = $(cfg.i || "#q28", v); if (!inp) return;
+  const blk = cfg.m === "panel" ? inp.closest("section.panel") : inp.closest(cfg.blk) || inp.parentElement; if (!blk) return;
+  // Search / Close buttons beside the find box (History already has its own Search)
+  if (!cfg.own && !blk.querySelector(".g44-btns")) {
+    const html = `<span class="g44-btns"><button type="button" class="btn sm primary g44-go">${icon("search")}Search</button>${GS44.open ? `<button type="button" class="btn sm ghost g44-x" title="Hide the results">${icon("x")}Close</button>` : ""}</span>`;
+    const lab = inp.closest("label.f");
+    if (lab) { const row = [...blk.querySelectorAll(".row")].pop(); row ? row.insertAdjacentHTML("afterbegin", html) : (blk.querySelector(".body") || blk).insertAdjacentHTML("beforeend", `<div class="row" style="margin-top:10px">${html}</div>`); }
+    else inp.insertAdjacentHTML("afterend", html);
+  }
+  if (cfg.own && GS44.open && !blk.querySelector(".g44-x")) $(cfg.own, v)?.insertAdjacentHTML("afterend", `<button type="button" class="btn ghost g44-x">${icon("x")}Close results</button>`);
+  $$(".g44-go", blk).forEach(b => b.onclick = () => gOpen44(true));
+  $$(".g44-x", blk).forEach(b => b.onclick = () => gOpen44(false));
+  if (!inp.dataset.g44) { inp.dataset.g44 = "1"; inp.addEventListener("keydown", e => { if (e.key === "Enter") { e.preventDefault(); if (!GS44.open) gOpen44(true); } }); }
+  if (cfg.own) { const o = $(cfg.own, v); if (o && !o.dataset.g44) { o.dataset.g44 = "1"; o.addEventListener("click", () => { GS44.open = true; }, true); } }
+  // quick chips (products, closing dates, filter chips) count as a search
+  $$(".qk40 button, .qc29 button", blk).forEach(b => { if (!b.dataset.g44) { b.dataset.g44 = "1"; b.addEventListener("click", () => { GS44.open = true; }, true); } });
+  if (GS44.open) {
+    if (!$(".g44-bar", v)) {
+      const bar = `<div class="g44-bar" role="status"><span>${icon("search")}Showing results</span><button type="button" class="btn sm ghost g44-x2">${icon("x")}Close results</button></div>`;
+      cfg.m === "panel" ? blk.querySelector(":scope > header")?.insertAdjacentHTML("afterend", bar) : blk.insertAdjacentHTML("afterend", bar);
+      $(".g44-x2", v)?.addEventListener("click", () => gOpen44(false));
+    }
+    return;
+  }
+  const hide = cfg.m === "panel" ? [...blk.children].filter(x => x.tagName !== "HEADER") : (() => { const a = []; let n = blk.nextElementSibling; while (n) { if (!n.matches("script,style")) a.push(n); n = n.nextElementSibling; } return a; })();
+  hide.forEach(x => x.classList.add("g44h"));
+  const ph = `<div class="g44-ph"><b>Press Search to see the list</b><span>Type a name / number or choose the filters, then press <b>Search</b> (or Enter). Leave it empty and press Search to see everything.</span><button type="button" class="btn primary g44-go2">${icon("search")}Search</button></div>`;
+  cfg.m === "panel" ? blk.insertAdjacentHTML("beforeend", ph) : blk.insertAdjacentHTML("afterend", ph);
+  $(".g44-go2", v)?.addEventListener("click", () => cfg.own ? $(cfg.own, v)?.click() : gOpen44(true));
+}
+{
+  const _render44 = render;
+  render = function () { _render44.apply(this, arguments); try { gate44(); } catch (e) { console.warn("p44", e); } };
+}
+/* Quote Workings: start from 0 — nothing ready-made that you did not type */
+{
+  const _nw44 = newWorkings;
+  newWorkings = function (o = {}) {
+    const w = _nw44.apply(this, arguments);
+    try {
+      if (!num(o.qty)) w.qty = 0;
+      if (!num(o.kg)) w.rows.forEach(r => { if (r.mode === "kg") { r.kg = 0; if (/^copper/i.test(r.desc || "")) r.desc = "Copper 0Kg"; } });
+    } catch (e) { console.warn("p44", e); }
+    return w;
+  };
+  // a draft that is still the untouched sample (72 Nos / 8 kg, no customer) is cleared to 0 once
+  const zero44 = () => { try {
+    const w = STATE.work, d = w && TYPE_DEFAULTS[w.type];
+    if (w && d && !LS.get("p44zero", false)) {
+      LS.set("p44zero", true);
+      const cu = w.rows?.filter(r => r.mode === "kg") || [];
+      if (!w.customer && !w.cw && num(w.qty) === d[1] && cu.length && cu.every(r => num(r.kg) === d[0])) { w.qty = 0; cu.forEach(r => { r.kg = 0; if (/^copper/i.test(r.desc || "")) r.desc = "Copper 0Kg"; }); saveDrafts(); }
+    }
+  } catch (e) { console.warn("p44", e); } };
+  let q44 = null;
+  const _work44 = VIEWS.workings;
+  VIEWS.workings = v => {
+    zero44();
+    if (q44 != null && STATE.work) { STATE.work.qty = q44; } q44 = null;   // changing coil type / method keeps the quantity you typed
+    _work44(v);
+    try {
+      if (!v.dataset.q44) { v.dataset.q44 = "1"; const keep = () => { q44 = num(STATE.work?.qty); }; v.addEventListener("change", e => { if (e.target.id === "typeSel") keep(); }, true); v.addEventListener("click", e => { if (e.target.closest?.("#segMethod button")) keep(); }, true); }
+      // Tape calculation ← coil weight calculation: one tap puts the coil length (D) in the tape length
+      const tp = $("#tapePanel", v), row = tp && $("#tapePreset", tp)?.parentElement;
+      if (row && !$("#tape44", row)) {
+        row.insertAdjacentHTML("afterbegin", `<button class="btn sm" id="tape44" title="Length = D (coil length) from Coil weight calculation">Length from coil weight</button>`);
+        $("#tape44", row).onclick = () => { const w = STATE.work, R = cwCalc43(w.cw, w.qty, w.type); if (!(R.d > 0)) return toast("Fill the Coil weight calculation first"); w.tape ||= {}; w.tape.l = +R.d.toFixed(1); const e = $(`[data-p="tape.l"]`); if (e) e.value = w.tape.l; updateW(); saveDrafts(); toast(`Tape length set to ${cwF43(R.d, 1)} mm`); };
+      }
+      // every number box: tap on a 0 selects it so you just type
+      $$("input[type=number]", v).forEach(i => { if (!i.dataset.z44) { i.dataset.z44 = "1"; i.addEventListener("focus", () => { if (num(i.value) === 0) i.select(); }); } });
+    } catch (e) { console.warn("p44", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.g44h{display:none!important}
+.g44-btns{display:inline-flex;gap:6px;align-items:center;flex:none}
+.g44-ph{display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center;padding:34px 16px;margin:12px 0;border:1.5px dashed var(--line-2);border-radius:14px;color:var(--muted);background:color-mix(in srgb,var(--surface) 70%,transparent)}
+.g44-ph>b{color:var(--ink);font-size:1.02rem}.g44-ph span{max-width:520px;font-size:.86rem}.g44-ph .btn{margin-top:6px}
+.g44-bar{display:flex;justify-content:space-between;align-items:center;gap:10px;margin:12px 0 8px;padding:6px 8px 6px 12px;border-radius:10px;background:var(--navy-soft);color:var(--navy);font-size:.82rem;font-weight:600}
+.g44-bar>span{display:inline-flex;gap:6px;align-items:center}.g44-bar svg{width:15px;height:15px}
+section.panel>.g44-bar{margin:0;border-radius:0}
+</style>`);
+
+
 boot();
 
 </script>
