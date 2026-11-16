@@ -8659,6 +8659,220 @@ table.t tr.soon40 td:first-child{box-shadow:inset 4px 0 0 var(--copper)}
 @media (max-width:600px){.qk40{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.qk40 .btn{flex:none}}
 </style>`);
 
+/* ===================== p41: Tender search — "Filters on" chips (tap × to drop one filter, Clear all), tap a buyer's name in any row to see only that buyer's tenders ===================== */
+const F41 = () => [
+  ["q", "Search", f => f.q && String(f.q).trim() ? String(f.q).trim() : "", f => { f.q = ""; }],
+  ["status", "Show", f => f.status && f.status !== "live" ? (f.status === "closed" ? "Closed / archive" : "Everything") : "", f => { f.status = "live"; }],
+  ["portal", "Portal", f => f.portal || "", f => { f.portal = ""; }],
+  ["state", "State", f => f.state || "", f => { f.state = ""; }],
+  ["org", "Buyer", f => f.org || "", f => { f.org = ""; }],
+  ["date", "Closing", f => f.from || f.to ? (f.from ? dmy(f.from) : "…") + " → " + (f.to ? dmy(f.to) : "…") : "", f => { f.from = ""; f.to = ""; }],
+  ["value", "Value", f => num(f.vmin) || num(f.vmax) ? (num(f.vmin) ? "₹" + tdbMoney(f.vmin) : "0") + " – " + (num(f.vmax) ? "₹" + tdbMoney(f.vmax) : "any") : "", f => { f.vmin = ""; f.vmax = ""; }],
+  ["fit", "Rivera match", f => num(f.fit) ? num(f.fit) + "%+" : "", f => { f.fit = ""; }],
+  ["hasResult", "Only", f => f.hasResult ? "with results" : "", f => { f.hasResult = false; }],
+  ["exclude", "Leaving out", f => f.exclude && String(f.exclude).trim() ? String(f.exclude).trim() : "", f => { f.exclude = ""; }],
+  ["star", "Only", f => f.star ? "★ shortlisted" : "", f => { f.star = false; }],
+  ["owner", "Only", f => f.owner ? "mine" : "", f => { f.owner = ""; }]
+];
+function tdbChips41(B, S) {
+  const fp = $(".fields", B)?.closest("section.panel"); if (!fp || $(".fc41", B)) return;
+  const on = F41().map(([k, l, g, clr]) => [k, l, g(S.f), clr]).filter(x => x[2]);
+  if (!on.length) return;
+  fp.insertAdjacentHTML("afterend", `<div class="fc41" role="group" aria-label="Filters on"><span>Filters on</span>${on.map(([k, l, val]) => `<button type="button" class="chip fc41-c" data-fc41="${k}" title="Remove this filter">${esc(l)}: <b>${esc(String(val).slice(0, 40))}</b> <i aria-hidden="true">×</i><span class="sr-only"> remove</span></button>`).join("")}${on.length > 1 ? `<button type="button" class="btn sm ghost" id="fc41x">Clear all</button>` : ""}</div>`);
+  $$("[data-fc41]", B).forEach(b => b.onclick = () => { const x = F41().find(y => y[0] === b.dataset.fc41); if (x) { x[3](S.f); S.page = 1; render(); } });
+  $("#fc41x")?.addEventListener("click", () => { F41().forEach(x => x[3](S.f)); S.page = 1; render(); });
+}
+function tdbBuyer41(B, S) {
+  const body = { ...S.f, page: S.page, size: 50 }, d = S.cache["q:" + JSON.stringify(body)]?.d; if (!d?.rows?.length) return;
+  const byBid = {}; d.rows.forEach(r => { byBid[r.bid] = r; });
+  $$("table.t tbody tr", B).forEach(tr => {
+    const tb = tr.children[1], td = tr.children[2]; if (!tb || !td || td.dataset.b41) return;
+    const r = byBid[(tb.querySelector("a")?.textContent || tb.textContent || "").trim()]; if (!r || !r.org) return;
+    td.dataset.b41 = "1";
+    td.innerHTML = `<button type="button" class="b41" title="Show only tenders from this buyer">${esc(r.org)}</button>`;
+    $("button", td).onclick = e => { e.stopPropagation(); S.f.org = r.org; S.page = 1; render(); window.scrollTo?.({ top: 0, behavior: "smooth" }); };
+  });
+}
+{
+  const _tdb41 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb41(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
+    try { tdbChips41(B, S); tdbBuyer41(B, S); } catch (e) { console.warn("p41", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.fc41{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:12px 0 0}.fc41>span{font-size:.76rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em;margin-right:4px}
+.fc41-c{cursor:pointer;font:inherit;font-size:.8rem;border:1px solid var(--line);display:inline-flex;align-items:center;gap:4px}.fc41-c b{font-weight:600}.fc41-c i{font-style:normal;color:var(--muted);margin-left:2px}
+.fc41-c:hover,.fc41-c:focus-visible{border-color:var(--copper);outline:none}.fc41-c:hover i{color:var(--copper)}
+.b41{all:unset;cursor:pointer;color:inherit;text-decoration:underline dotted color-mix(in srgb,var(--copper) 60%,transparent);text-underline-offset:3px}.b41:hover,.b41:focus-visible{color:var(--copper);text-decoration-style:solid}
+@media (max-width:600px){.fc41{flex-wrap:nowrap;overflow-x:auto;padding-bottom:4px}.fc41>*{flex:none}}
+</style>`);
+
+/* ===================== p42: Tender search — a WhatsApp button on every row (send one tender to a colleague or customer) and "WhatsApp list" to send the tenders on this page as one message ===================== */
+const left42 = r => r.status === "live" && r.closing ? daysLeft40(r.closing) : null;
+const waText42 = r => { const n = left42(r); return [`*Tender:* ${String(r.item || r.subject || "").slice(0, 200)}`, r.org ? `Buyer: ${r.org}` : "", `Bid no: ${r.bid}`, r.closing ? `Closing: ${dmy(r.closing)}${n != null && n >= 0 ? ` (${n === 0 ? "today" : n + " day" + (n > 1 ? "s" : "") + " left"})` : ""}` : "", num(r.value) ? `Value: ₹${tdbMoney(r.value)}` : "", num(r.emd) ? `EMD: ₹${tdbMoney(r.emd)}` : "", [r.city, r.state].filter(Boolean).join(", "), r.portal ? `Portal: ${r.portal}` : "", r.link || ""].filter(Boolean).join("\n"); };
+const line42 = (r, i) => { const n = left42(r); return `${i + 1}. ${String(r.item || r.subject || "").slice(0, 90)} — ${r.org || "?"}${r.closing ? ` · closes ${dmy(r.closing)}${n != null && n >= 0 && n <= 7 ? (n === 0 ? " (today)" : ` (${n}d)`) : ""}` : ""}${num(r.value) ? ` · ₹${tdbMoney(r.value)}` : ""}\n   ${r.bid}${r.link ? " " + r.link : ""}`; };
+function tdbListShare42(B, S, d) {
+  const h = $("table.t", B)?.closest(".panel")?.querySelector("header"); if (!h || $(".wl42", h)) return;
+  h.insertAdjacentHTML("beforeend", `<button type="button" class="btn sm wl42" title="Send the tenders on this page as one WhatsApp message">${icon("wa")}WhatsApp list</button>`);
+  $(".wl42", h).onclick = () => { const L = d.rows.slice(0, 15), f = S.f;
+    shareText([`*Rivera — ${L.length} tender${L.length > 1 ? "s" : ""}*${f.q ? ` for “${String(f.q).trim()}”` : ""} (${dmy(todayISO())})`, ...L.map(line42), d.total > L.length ? `…and ${(d.total - L.length).toLocaleString("en-IN")} more in the Rivera tender database` : ""].filter(Boolean).join("\n\n"), "whatsapp"); };
+}
+function tdbRowShare42(B, S) {
+  const body = { ...S.f, page: S.page, size: 50 }, d = S.cache["q:" + JSON.stringify(body)]?.d; if (!d?.rows?.length) return;
+  tdbListShare42(B, S, d);
+  const byBid = {}; d.rows.forEach(r => { byBid[r.bid] = r; });
+  $$("table.t tbody tr", B).forEach(tr => {
+    const tb = tr.children[1], last = tr.lastElementChild; if (!tb || !last || tr.children.length < 3 || last.querySelector(".wa42")) return;
+    const r = byBid[(tb.querySelector("a")?.textContent || tb.textContent || "").trim()]; if (!r) return;
+    last.insertAdjacentHTML("beforeend", `<button type="button" class="btn sm ghost wa42" title="Send this tender on WhatsApp" aria-label="Send ${esc(r.bid)} on WhatsApp">${icon("wa")}</button>`);
+    $(".wa42", last).onclick = e => { e.stopPropagation(); shareText(waText42(r), "whatsapp"); };
+  });
+}
+{
+  const _tdb42 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb42(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
+    try { tdbRowShare42(B, S); } catch (e) { console.warn("p42", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+header .wl42{margin-left:auto}.wl42 svg{width:15px;height:15px}
+.wa42{padding:4px 6px;margin-left:4px;vertical-align:middle}.wa42 svg{width:16px;height:16px}.wa42:hover,.wa42:focus-visible{color:#1DA851}
+</style>`);
+
+
+/* ===================== p43: Quote Workings — Coil weight calculation (Rivera's sheet: A1 A2 B1 B2 → C1 → D → E → F, shape, thickness × width × length × density = weight), live, above Tape calculation, fills the copper kg automatically ===================== */
+const CW43_RT2 = 1.41;
+function cwCalc43(c, qtyJob) {
+  c = c || {};
+  const a1 = num(c.a1), a2 = num(c.a2), b1 = num(c.b1), b2 = num(c.b2), e = num(c.turns), shape = c.shape === "round" ? "round" : "rect";
+  const t = num(c.t), wd = num(c.w), r = Math.min(num(c.r), t / 2, wd / 2), par = Math.max(1, num(c.par) || 1), k = num(c.k) || 8.96, waste = num(c.waste);
+  const qty = num(c.qty) || num(qtyJob);
+  const c1 = a1 * CW43_RT2, c2 = a2 * CW43_RT2;
+  // Rivera sheet: D = (C1 × 4) + B1 + B2. If the opposite end (A2) is different, each end counts twice: 2·C1 + 2·C2 + B1 + B2 (same answer when A1 = A2)
+  const twoEnds = a2 > 0 && Math.abs(a2 - a1) > 1e-9;
+  const d = twoEnds ? 2 * c1 + 2 * c2 + b1 + b2 : c1 * 4 + b1 + b2;
+  const f = d * e;                                   // mm of conductor per coil (one strand)
+  const area = shape === "round" ? Math.PI * t * t / 4 : t * wd - (4 - Math.PI) * r * r;   // mm²
+  const kgNet = area * f * par * k / 1e6;            // mm³ × g/cm³ ÷ 1000 → g, ÷ 1000 → kg
+  const kg = kgNet * (1 + waste / 100);
+  return { a1, a2, b1, b2, e, shape, t, wd, r, par, k, waste, qty, c1, c2, twoEnds, d, f, area, kgNet, kg, total: kg * qty, ready: d > 0 && e > 0 && area > 0 };
+}
+const cwF43 = (v, dp = 2) => fmt(v, "INR", dp);
+function cwSvg43(R) {
+  const L = (x, y, t, a = "middle") => `<text x="${x}" y="${y}" text-anchor="${a}">${t}</text>`;
+  return `<svg class="cw43-svg" viewBox="0 0 320 162" role="img" aria-label="Coil sketch: A1 and A2 end extensions, B1 bottom and B2 top straight lengths">
+    <path class="cw43-coil" d="M70 30 H250 L300 75 L250 120 H70 L20 75 Z"/>
+    <path class="cw43-coil in" d="M80 42 H240 L280 75 L240 108 H80 L40 75 Z"/>
+    <line class="cw43-dim" x1="70" y1="16" x2="250" y2="16"/><line class="cw43-dim" x1="74" y1="138" x2="246" y2="138"/>
+    <line class="cw43-dim a" x1="252" y1="138" x2="300" y2="138"/><line class="cw43-dim a" x1="20" y1="138" x2="68" y2="138"/>
+    <g class="cw43-lbl">${L(160, 9, `B2 top ${R.b2 ? cwF43(R.b2, 0) : ""}`)}${L(160, 154, `B1 bottom ${R.b1 ? cwF43(R.b1, 0) : ""}`)}${L(278, 154, `A1 ${R.a1 ? cwF43(R.a1, 0) : ""}`)}${L(42, 154, `A2 ${R.a2 ? cwF43(R.a2, 0) : R.a1 ? cwF43(R.a1, 0) : ""}`)}</g>
+    <g class="cw43-tag">${L(160, 80, R.e ? `${cwF43(R.e, 0)} turns` : "turns")}</g>
+  </svg>`;
+}
+function cwPanel43(w) {
+  const c = w.cw ||= { shape: "rect", k: 8.96, par: 1, auto: true };
+  const fld = (k, l, ph, help) => `<label class="f">${l}<input type="number" step="any" min="0" inputmode="decimal" data-p="cw.${k}" value="${esc(c[k] ?? "")}" placeholder="${esc(ph || "")}"${help ? ` title="${esc(help)}"` : ""}></label>`;
+  return `<section class="panel cw43" id="cwPanel"><header><h2>Coil weight calculation <span class="muted" style="font-weight:500">· copper per coil, automatic</span></h2><span class="chip" id="cwChip">Fill the sizes</span></header><div class="body">
+    <div class="cw43-grid"><div class="stack" style="gap:14px">
+      <div><div class="eyebrow">1 · Coil size (mm)</div><div class="fields">
+        ${fld("a1", "A1 · Connection end extension", "mm")}${fld("a2", "A2 · Opposite end extension", "same as A1")}
+        ${fld("b1", "B1 · Straight length, bottom side", "mm")}${fld("b2", "B2 · Straight length, top side", "mm")}
+        ${fld("turns", "E · Turns per coil", "Nos")}${fld("qty", "H · Qty (coils)", String(num(w.qty) || ""))}</div></div>
+      <div><div class="eyebrow">2 · Conductor</div><div class="fields">
+        <label class="f">G · Shape<select data-p="cw.shape" id="cwShape"><option value="rect" ${c.shape !== "round" ? "selected" : ""}>Rectangular strip</option><option value="round" ${c.shape === "round" ? "selected" : ""}>Round wire</option></select></label>
+        <label class="f"><span id="cwTl">${c.shape === "round" ? "I · Diameter mm" : "I · Thickness mm"}</span><input type="number" step="any" min="0" inputmode="decimal" data-p="cw.t" value="${esc(c.t ?? "")}"></label>
+        <label class="f cw43-rect">J · Width mm<input type="number" step="any" min="0" inputmode="decimal" data-p="cw.w" value="${esc(c.w ?? "")}"></label>
+        <label class="f cw43-rect">Corner radius mm<input type="number" step="any" min="0" inputmode="decimal" data-p="cw.r" value="${esc(c.r ?? "")}" placeholder="0 (sharp)"></label>
+        ${fld("par", "Conductors in parallel", "1")}</div></div>
+      <div><div class="eyebrow">3 · Material</div><div class="fields">
+        ${fld("k", "K · Density g/cm³", "8.96 (copper)")}${fld("waste", "Scrap / wastage %", "0")}
+</div>
+        <label class="chip cw43-auto"><input type="checkbox" id="cwAuto" ${c.auto !== false ? "checked" : ""}> Put this weight in the copper row automatically</label></div>
+    </div>
+    <div class="stack cw43-out" style="gap:12px">
+      <div id="cwSvg"></div>
+      <div class="cw43-big"><div><div class="eyebrow">L · Weight per coil</div><div class="bigfig mono" id="cwKg">—</div></div><div><div class="eyebrow">Whole job</div><div class="bigfig mono sm" id="cwTot">—</div></div></div>
+      <ol class="cw43-steps" id="cwSteps"></ol>
+      <div class="row"><button class="btn sm dark" id="cwUse">${icon("plus")}Use as copper kg</button><button class="btn sm ghost" id="cwClr">Clear</button></div>
+    </div></div></div></section>`;
+}
+function cwDraw43() {
+  const w = STATE.work, P = $("#cwPanel"); if (!w || !P) return null;
+  const R = cwCalc43(w.cw, w.qty), set = (id, h) => { const e = $("#" + id, P); if (e) e.innerHTML = h; };
+  P.classList.toggle("round", R.shape === "round");
+  set("cwSvg", cwSvg43(R));
+  set("cwKg", R.ready ? cwF43(R.kg, 3) + ' <small>kg</small>' : "—");
+  set("cwTot", R.ready && R.qty ? cwF43(R.total, 2) + ` <small>kg · ${cwF43(R.qty, 0)} coils</small>` : "—");
+  const step = (tag, lbl, f, v, u, on) => `<li class="${on ? "on" : ""}"><b>${tag}</b><span>${lbl}<em>${f}</em></span><i class="mono">${v}${u ? " " + u : ""}</i></li>`;
+  set("cwSteps", [
+    step("C1", "End connection dia", `A1 × ${CW43_RT2}${R.twoEnds ? ` · C2 = A2 × ${CW43_RT2} = ${cwF43(R.c2)}` : ""}`, cwF43(R.c1), "mm", R.a1 > 0),
+    step("D", "1st round coil requirement", R.twoEnds ? "2·C1 + 2·C2 + B1 + B2" : "(C1 × 4) + B1 + B2", cwF43(R.d), "mm", R.d > 0),
+    step("F", "Total coil requirement for length", "D × E", R.f ? cwF43(R.f / 1000, 3) : "0", "m", R.f > 0),
+    step("A", "Conductor area", R.shape === "round" ? "π × I² ÷ 4" : `I × J${R.r ? " − corner radius" : ""}`, cwF43(R.area, 3), "mm²", R.area > 0),
+    step("L", "Weight", `I × J × F × K${R.par > 1 ? ` × ${R.par} parallel` : ""}${R.waste ? ` + ${R.waste}% scrap` : ""}`, R.ready ? cwF43(R.kg, 3) : "0", "kg", R.ready)
+  ].join(""));
+  const chip = $("#cwChip", P), cu = w.rows.find(r => r.mode === "kg");
+  if (chip) { const synced = R.ready && cu && Math.abs(num(cu.kg) - +R.kg.toFixed(3)) < 1e-6; chip.className = "chip " + (synced ? "ok" : R.ready ? "warn" : ""); chip.textContent = !R.ready ? "Fill the sizes" : synced ? "Copper row updated" : cu ? "Not in copper row" : "No copper row"; }
+  return R;
+}
+function cwSync43(R, force) {
+  const w = STATE.work; if (!R?.ready || (!force && w.cw?.auto === false)) return false;
+  const kg = +R.kg.toFixed(3); let i = w.rows.findIndex(r => r.mode === "kg");
+  if (i < 0) { if (!force) return false; w.rows.unshift({ kind: "copper", desc: "", mode: "kg", kg: 0, price: SETTINGS.ratecard.copperRate }); i = 0; drawWRows(); }
+  const r = w.rows[i]; if (Math.abs(num(r.kg) - kg) < 1e-6) return false;
+  r.kg = kg; if (!r.desc || /^copper/i.test(r.desc)) r.desc = `Copper ${kg}Kg`;
+  const ki = $(`[data-p="rows.${i}.kg"]`); if (ki && document.activeElement !== ki) ki.value = kg;
+  const di = $(`[data-p="rows.${i}.desc"]`); if (di) di.value = r.desc;
+  return true;
+}
+{
+  const _upd43 = updateW;
+  updateW = function () {
+    _upd43.apply(this, arguments);
+    try { const R = cwDraw43(); if (R && cwSync43(R, false)) { _upd43(); cwDraw43(); saveDrafts(); } } catch (e) { console.warn("p43", e); }
+  };
+  const _work43 = VIEWS.workings;
+  VIEWS.workings = v => {
+    _work43(v);
+    try {
+      const w = STATE.work, tp = $("#tapePanel", v); if (!w || !tp || $("#cwPanel", v)) return;
+      tp.insertAdjacentHTML("beforebegin", cwPanel43(w));
+      const P = $("#cwPanel", v);
+      $("#cwShape", P).addEventListener("change", e => { $("#cwTl", P).textContent = e.target.value === "round" ? "I · Diameter mm" : "I · Thickness mm"; });
+      $("#cwAuto", P).onchange = e => { w.cw.auto = e.target.checked; saveDrafts(); updateW(); };
+      $("#cwUse", P).onclick = () => { const R = cwCalc43(w.cw, w.qty); if (!R.ready) return toast("Enter A1, B1, B2, turns and the conductor size first"); cwSync43(R, true); updateW(); saveDrafts(); toast(`Copper row set to ${cwF43(R.kg, 3)} kg per coil`); };
+      $("#cwClr", P).onclick = () => { w.cw = { shape: "rect", k: 8.96, par: 1, auto: w.cw?.auto !== false }; saveDrafts(); render(); };
+      updateW();
+    } catch (e) { console.warn("p43", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.cw43-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:20px;align-items:start}
+.cw43 .eyebrow{margin-bottom:8px}
+.cw43.round .cw43-rect{display:none}
+.cw43-auto{margin-top:10px;display:inline-flex;gap:6px;align-items:center;cursor:pointer}
+.cw43-out{background:color-mix(in srgb,var(--navy) 5%,transparent);border:1px solid var(--line);border-radius:14px;padding:14px}
+.cw43-svg{width:100%;height:auto;display:block}
+.cw43-coil{fill:none;stroke:var(--copper);stroke-width:7;stroke-linejoin:round}.cw43-coil.in{stroke-width:2;opacity:.45}
+.cw43-dim{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}.cw43-dim.a{stroke:var(--copper);stroke-dasharray:none}
+.cw43-lbl text{font-size:10.5px;fill:var(--ink,currentColor);font-weight:600}.cw43-tag text{font-size:12px;fill:var(--copper-ink);font-weight:700}
+.cw43-big{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;justify-content:space-between}
+.cw43-big .bigfig small{font-size:.9rem;font-weight:600;color:var(--muted)}.cw43-big .bigfig.sm{font-size:1.35rem}
+#cwKg{color:var(--copper-ink)}
+.cw43-steps{list-style:none;margin:0;padding:0;display:grid;gap:6px}
+.cw43-steps li{display:grid;grid-template-columns:30px minmax(0,1fr) auto;gap:8px;align-items:center;padding:7px 9px;border-radius:9px;background:var(--surface,transparent);border:1px solid var(--line);opacity:.55;transition:opacity .2s,border-color .2s}
+.cw43-steps li.on{opacity:1;border-color:color-mix(in srgb,var(--copper) 35%,var(--line))}
+.cw43-steps b{display:inline-grid;place-items:center;width:28px;height:24px;border-radius:7px;background:var(--copper-soft);color:var(--copper-ink);font-size:.78rem}
+.cw43-steps span{font-size:.82rem;display:flex;flex-direction:column}.cw43-steps em{font-style:normal;color:var(--muted);font-size:.74rem}
+.cw43-steps i{font-style:normal;font-weight:600;font-size:.84rem;text-align:right;white-space:nowrap}
+@media (max-width:900px){.cw43-grid{grid-template-columns:1fr}}
+</style>`);
+
+
 boot();
 
 </script>
