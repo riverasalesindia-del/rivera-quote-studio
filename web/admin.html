@@ -8744,77 +8744,111 @@ header .wl42{margin-left:auto}.wl42 svg{width:15px;height:15px}
 </style>`);
 
 
-/* ===================== p43: Quote Workings — Coil weight calculation (Rivera's sheet: A1 A2 B1 B2 → C1 → D → E → F, shape, thickness × width × length × density = weight), live, above Tape calculation, fills the copper kg automatically ===================== */
+/* ===================== p43: Quote Workings — Coil weight calculation for every coil type (stator diamond / armature / equalizer: Rivera's A1 A2 B1 B2 sheet · Roebel bar · main pole / interpole / field pole · round coil · known mean turn), live, above Tape calculation; fills the copper kg automatically, picks the model from the coil type, reads turns + conductor from Smart Scan, and prints in the workings export ===================== */
 const CW43_RT2 = 1.41;
-function cwCalc43(c, qtyJob) {
+const CW43_MODELS = { diamond: "Diamond / stator coil", bar: "Roebel / straight bar", pole: "Pole / field coil (rectangular)", round: "Round coil", mlt: "Known mean turn length" };
+const cwAutoModel43 = type => ({ roebel: "bar", mainpole: "pole", interpole: "pole", pole: "pole", field: "pole" })[type] || "diamond";
+const cwModel43 = (c, type) => c?.model && CW43_MODELS[c.model] ? c.model : cwAutoModel43(type);
+function cwCalc43(c, qtyJob, type) {
   c = c || {};
-  const a1 = num(c.a1), a2 = num(c.a2), b1 = num(c.b1), b2 = num(c.b2), e = num(c.turns), shape = c.shape === "round" ? "round" : "rect";
-  const t = num(c.t), wd = num(c.w), r = Math.min(num(c.r), t / 2, wd / 2), par = Math.max(1, num(c.par) || 1), k = num(c.k) || 8.96, waste = num(c.waste);
-  const qty = num(c.qty) || num(qtyJob);
-  const c1 = a1 * CW43_RT2, c2 = a2 * CW43_RT2;
-  // Rivera sheet: D = (C1 × 4) + B1 + B2. If the opposite end (A2) is different, each end counts twice: 2·C1 + 2·C2 + B1 + B2 (same answer when A1 = A2)
-  const twoEnds = a2 > 0 && Math.abs(a2 - a1) > 1e-9;
-  const d = twoEnds ? 2 * c1 + 2 * c2 + b1 + b2 : c1 * 4 + b1 + b2;
-  const f = d * e;                                   // mm of conductor per coil (one strand)
-  const area = shape === "round" ? Math.PI * t * t / 4 : t * wd - (4 - Math.PI) * r * r;   // mm²
-  const kgNet = area * f * par * k / 1e6;            // mm³ × g/cm³ ÷ 1000 → g, ÷ 1000 → kg
+  const m = cwModel43(c, type), shape = ["round", "hollow"].includes(c.shape) ? c.shape : "rect";
+  const a1 = num(c.a1), a2 = num(c.a2), b1 = num(c.b1), b2 = num(c.b2);
+  const lp = num(c.lp), wp = num(c.wp), build = num(c.build), id = num(c.id), mlt = num(c.mlt);
+  const rcIn = Math.min(num(c.rc), Math.min(lp || 0, wp || 0) / 2);
+  const e = m === "bar" ? 1 : num(c.turns);
+  const t = num(c.t), wd = num(c.w), r = Math.min(num(c.r), t / 2, wd / 2), ti = num(c.ti), wi = num(c.wi);
+  const par = Math.max(1, num(c.par) || 1), k = num(c.k) || 8.96, waste = num(c.waste), qty = num(c.qty) || num(qtyJob);
+  const c1 = a1 * CW43_RT2, c2 = (a2 || a1) * CW43_RT2, twoEnds = a2 > 0 && Math.abs(a2 - a1) > 1e-9;
+  let d = 0;
+  if (m === "diamond") d = twoEnds ? 2 * c1 + 2 * c2 + b1 + b2 : c1 * 4 + b1 + b2;      // Rivera sheet: D = (C1 × 4) + B1 + B2
+  else if (m === "bar") d = b1 > 0 ? b1 + c1 + c2 : 0;                                 // bar length = slot length + both end extensions × 1.41
+  else if (m === "pole") d = lp > 0 && wp > 0 ? 2 * (lp + wp) - 8 * rcIn + 2 * Math.PI * (rcIn + build / 2) : 0;   // mean turn round the pole
+  else if (m === "round") d = id > 0 ? Math.PI * (id + build) : 0;
+  else d = mlt;
+  const f = d * e;                                                                     // mm of one conductor per coil
+  const area = Math.max(0, shape === "round" ? Math.PI * t * t / 4 : t * wd - (4 - Math.PI) * r * r - (shape === "hollow" ? ti * wi : 0));
+  const kgNet = area * f * par * k / 1e6;                                              // mm³ × g/cm³ → kg
   const kg = kgNet * (1 + waste / 100);
-  return { a1, a2, b1, b2, e, shape, t, wd, r, par, k, waste, qty, c1, c2, twoEnds, d, f, area, kgNet, kg, total: kg * qty, ready: d > 0 && e > 0 && area > 0 };
+  return { m, shape, a1, a2, b1, b2, lp, wp, build, rcIn, id, mlt, e, t, wd, r, ti, wi, par, k, waste, qty, c1, c2, twoEnds, d, f, area, kgNet, kg, total: kg * qty, unit: m === "bar" ? "bar" : "coil", ready: d > 0 && e > 0 && area > 0 };
 }
 const cwF43 = (v, dp = 2) => fmt(v, "INR", dp);
+function cwSteps43(R) {
+  const S = [], add = (tag, lbl, f, v, u, on) => S.push({ tag, lbl, f, v, u, on });
+  const ar = R.shape === "round" ? "π × I² ÷ 4" : R.shape === "hollow" ? "I × J − hole" : `I × J${R.r ? " − corner radius" : ""}`;
+  if (R.m === "diamond") {
+    add("C1", "End connection dia", `A1 × ${CW43_RT2}`, cwF43(R.c1), "mm", R.a1 > 0);
+    if (R.twoEnds) add("C2", "Opposite end", `A2 × ${CW43_RT2}`, cwF43(R.c2), "mm", true);
+    add("D", "1st round coil requirement", R.twoEnds ? "2·C1 + 2·C2 + B1 + B2" : "(C1 × 4) + B1 + B2", cwF43(R.d), "mm", R.d > 0);
+  } else if (R.m === "bar") {
+    add("C1", "Connection end", `A1 × ${CW43_RT2}`, cwF43(R.c1), "mm", R.a1 > 0);
+    add("C2", "Opposite end", `${R.a2 ? "A2" : "A1"} × ${CW43_RT2}`, cwF43(R.c2), "mm", R.a1 > 0 || R.a2 > 0);
+    add("D", "Bar length", "B + C1 + C2", cwF43(R.d), "mm", R.d > 0);
+  } else if (R.m === "pole") add("D", "Mean turn length", R.rcIn ? "2(L + W) − 8r + 2π(r + build÷2)" : "2(L + W) + π × build", cwF43(R.d), "mm", R.d > 0);
+  else if (R.m === "round") add("D", "Mean turn length", "π × (ID + build)", cwF43(R.d), "mm", R.d > 0);
+  else add("D", "Mean turn length", "as entered", cwF43(R.d), "mm", R.d > 0);
+  if (R.m !== "bar") add("F", "Total coil requirement for length", "D × E", R.f ? cwF43(R.f / 1000, 3) : "0", "m", R.f > 0);
+  add("A", "Conductor area", ar, cwF43(R.area, 3), "mm²", R.area > 0);
+  add("L", "Weight per " + R.unit, `A × ${R.m === "bar" ? "D" : "F"} × K${R.par > 1 ? ` × ${R.par} ${R.m === "bar" ? "strands" : "parallel"}` : ""}${R.waste ? ` + ${R.waste}% scrap` : ""}`, R.ready ? cwF43(R.kg, 3) : "0", "kg", R.ready);
+  return S;
+}
 function cwSvg43(R) {
-  const L = (x, y, t, a = "middle") => `<text x="${x}" y="${y}" text-anchor="${a}">${t}</text>`;
-  return `<svg class="cw43-svg" viewBox="0 0 320 162" role="img" aria-label="Coil sketch: A1 and A2 end extensions, B1 bottom and B2 top straight lengths">
-    <path class="cw43-coil" d="M70 30 H250 L300 75 L250 120 H70 L20 75 Z"/>
-    <path class="cw43-coil in" d="M80 42 H240 L280 75 L240 108 H80 L40 75 Z"/>
-    <line class="cw43-dim" x1="70" y1="16" x2="250" y2="16"/><line class="cw43-dim" x1="74" y1="138" x2="246" y2="138"/>
-    <line class="cw43-dim a" x1="252" y1="138" x2="300" y2="138"/><line class="cw43-dim a" x1="20" y1="138" x2="68" y2="138"/>
-    <g class="cw43-lbl">${L(160, 9, `B2 top ${R.b2 ? cwF43(R.b2, 0) : ""}`)}${L(160, 154, `B1 bottom ${R.b1 ? cwF43(R.b1, 0) : ""}`)}${L(278, 154, `A1 ${R.a1 ? cwF43(R.a1, 0) : ""}`)}${L(42, 154, `A2 ${R.a2 ? cwF43(R.a2, 0) : R.a1 ? cwF43(R.a1, 0) : ""}`)}</g>
-    <g class="cw43-tag">${L(160, 80, R.e ? `${cwF43(R.e, 0)} turns` : "turns")}</g>
-  </svg>`;
+  const L = (x, y, t, a = "middle") => `<text x="${x}" y="${y}" text-anchor="${a}">${t}</text>`, v = x => x ? cwF43(x, 0) : "";
+  const tag = R.m === "bar" ? `${R.par > 1 ? cwF43(R.par, 0) + " strands" : "bar"}` : R.e ? `${cwF43(R.e, 0)} turns` : "turns";
+  let g = "";
+  if (R.m === "diamond") g = `<path class="cw43-coil" d="M70 30 H250 L300 75 L250 120 H70 L20 75 Z"/><path class="cw43-coil in" d="M80 42 H240 L280 75 L240 108 H80 L40 75 Z"/>
+    <line class="cw43-dim" x1="70" y1="16" x2="250" y2="16"/><line class="cw43-dim" x1="74" y1="138" x2="246" y2="138"/><line class="cw43-dim a" x1="252" y1="138" x2="300" y2="138"/><line class="cw43-dim a" x1="20" y1="138" x2="68" y2="138"/>
+    <g class="cw43-lbl">${L(160, 11, `B2 top ${v(R.b2)}`)}${L(160, 154, `B1 bottom ${v(R.b1)}`)}${L(278, 154, `A1 ${v(R.a1)}`)}${L(42, 154, `A2 ${v(R.a2 || R.a1)}`)}</g>`;
+  else if (R.m === "bar") g = `<path class="cw43-coil" d="M20 95 L60 70 H260 L300 45"/><path class="cw43-coil in" d="M22 103 L62 78 H258 L298 53"/>
+    <line class="cw43-dim" x1="60" y1="138" x2="260" y2="138"/><line class="cw43-dim a" x1="262" y1="138" x2="300" y2="138"/><line class="cw43-dim a" x1="20" y1="138" x2="58" y2="138"/>
+    <g class="cw43-lbl">${L(160, 154, `B slot length ${v(R.b1)}`)}${L(282, 154, `A1 ${v(R.a1)}`)}${L(38, 154, `A2 ${v(R.a2 || R.a1)}`)}</g>`;
+  else if (R.m === "pole") g = `<rect class="cw43-coil" x="40" y="22" width="240" height="106" rx="22"/><rect class="cw43-pole" x="70" y="44" width="180" height="62" rx="${Math.min(30, 4 + R.rcIn / 4)}"/>
+    <g class="cw43-lbl">${L(160, 14, `L pole ${v(R.lp)}`)}${L(300, 79, `W ${v(R.wp)}`, "start")}${L(160, 148, `build ${v(R.build)}`)}</g>`;
+  else if (R.m === "round") g = `<circle class="cw43-coil" cx="160" cy="75" r="58"/><circle class="cw43-coil in" cx="160" cy="75" r="40"/><line class="cw43-dim a" x1="120" y1="148" x2="200" y2="148"/>
+    <g class="cw43-lbl">${L(160, 160, `ID ${v(R.id)} · build ${v(R.build)}`)}</g>`;
+  else g = `<ellipse class="cw43-coil" cx="160" cy="75" rx="130" ry="50"/><g class="cw43-lbl">${L(160, 150, `mean turn ${v(R.mlt)} mm`)}</g>`;
+  return `<svg class="cw43-svg" viewBox="0 0 320 162" role="img" aria-label="${esc(CW43_MODELS[R.m])} sketch">${g}<g class="cw43-tag">${L(160, R.m === "bar" ? 62 : 80, tag)}</g></svg>`;
 }
 function cwPanel43(w) {
   const c = w.cw ||= { shape: "rect", k: 8.96, par: 1, auto: true };
-  const fld = (k, l, ph, help) => `<label class="f">${l}<input type="number" step="any" min="0" inputmode="decimal" data-p="cw.${k}" value="${esc(c[k] ?? "")}" placeholder="${esc(ph || "")}"${help ? ` title="${esc(help)}"` : ""}></label>`;
-  return `<section class="panel cw43" id="cwPanel"><header><h2>Coil weight calculation <span class="muted" style="font-weight:500">· copper per coil, automatic</span></h2><span class="chip" id="cwChip">Fill the sizes</span></header><div class="body">
+  const m = cwModel43(c, w.type), sh = ["round", "hollow"].includes(c.shape) ? c.shape : "rect";
+  const dflt = { par: 1, k: 8.96, qty: num(w.qty) }, val = k => { const x = c[k]; return x === "" || x == null ? (dflt[k] ?? 0) : x; };   // every box shows a number (0 to start) — type over it
+  const fld = (k, l, ph) => `<label class="f">${l}<input type="number" step="any" min="0" inputmode="decimal" data-p="cw.${k}" value="${esc(val(k))}" title="${esc(ph || "")}"></label>`;
+  const size = {
+    diamond: fld("a1", "A1 · Connection end extension", "mm") + fld("a2", "A2 · Opposite end extension (0 = same as A1)", "0 = same as A1") + fld("b1", "B1 · Straight length, bottom side", "mm") + fld("b2", "B2 · Straight length, top side", "mm") + fld("turns", "E · Turns per coil", "Nos"),
+    bar: fld("b1", "B · Straight (slot) length", "mm") + fld("a1", "A1 · End extension, connection side", "mm") + fld("a2", "A2 · End extension, opposite side (0 = same as A1)", "0 = same as A1"),
+    pole: fld("lp", "L · Pole length (inside the coil)", "mm") + fld("wp", "W · Pole width (inside the coil)", "mm") + fld("build", "Coil build / depth", "mm") + fld("rc", "Inside corner radius", "0 (square)") + fld("turns", "E · Turns per coil", "Nos"),
+    round: fld("id", "ID · Inside diameter", "mm") + fld("build", "Coil build / depth", "mm") + fld("turns", "E · Turns per coil", "Nos"),
+    mlt: fld("mlt", "D · Mean turn length", "mm") + fld("turns", "E · Turns per coil", "Nos")
+  }[m];
+  return `<section class="panel cw43" id="cwPanel"><header><h2>Coil weight calculation <span class="muted" style="font-weight:500">· copper per ${m === "bar" ? "bar" : "coil"}, automatic</span></h2><span class="chip" id="cwChip">Fill the sizes</span></header><div class="body">
+    ${c.src ? `<div class="note ok" style="margin-bottom:12px">${esc(c.src)}</div>` : ""}
     <div class="cw43-grid"><div class="stack" style="gap:14px">
       <div><div class="eyebrow">1 · Coil size (mm)</div><div class="fields">
-        ${fld("a1", "A1 · Connection end extension", "mm")}${fld("a2", "A2 · Opposite end extension", "same as A1")}
-        ${fld("b1", "B1 · Straight length, bottom side", "mm")}${fld("b2", "B2 · Straight length, top side", "mm")}
-        ${fld("turns", "E · Turns per coil", "Nos")}${fld("qty", "H · Qty (coils)", String(num(w.qty) || ""))}</div></div>
+        <label class="f" style="grid-column:1/-1">Coil shape<select data-p="cw.model" id="cwModel"><option value="">Auto · ${esc(CW43_MODELS[cwAutoModel43(w.type)])} (from ${esc(typeLabel(w.type))})</option>${Object.entries(CW43_MODELS).map(([k, l]) => `<option value="${k}" ${c.model === k ? "selected" : ""}>${esc(l)}</option>`).join("")}</select></label>
+        ${size}${fld("qty", `H · Qty (${m === "bar" ? "bars" : "coils"})`, String(num(w.qty) || ""))}</div></div>
       <div><div class="eyebrow">2 · Conductor</div><div class="fields">
-        <label class="f">G · Shape<select data-p="cw.shape" id="cwShape"><option value="rect" ${c.shape !== "round" ? "selected" : ""}>Rectangular strip</option><option value="round" ${c.shape === "round" ? "selected" : ""}>Round wire</option></select></label>
-        <label class="f"><span id="cwTl">${c.shape === "round" ? "I · Diameter mm" : "I · Thickness mm"}</span><input type="number" step="any" min="0" inputmode="decimal" data-p="cw.t" value="${esc(c.t ?? "")}"></label>
-        <label class="f cw43-rect">J · Width mm<input type="number" step="any" min="0" inputmode="decimal" data-p="cw.w" value="${esc(c.w ?? "")}"></label>
-        <label class="f cw43-rect">Corner radius mm<input type="number" step="any" min="0" inputmode="decimal" data-p="cw.r" value="${esc(c.r ?? "")}" placeholder="0 (sharp)"></label>
-        ${fld("par", "Conductors in parallel", "1")}</div></div>
-      <div><div class="eyebrow">3 · Material</div><div class="fields">
-        ${fld("k", "K · Density g/cm³", "8.96 (copper)")}${fld("waste", "Scrap / wastage %", "0")}
-</div>
+        <label class="f">G · Shape<select data-p="cw.shape" id="cwShape"><option value="rect" ${sh === "rect" ? "selected" : ""}>Rectangular strip</option><option value="round" ${sh === "round" ? "selected" : ""}>Round wire</option><option value="hollow" ${sh === "hollow" ? "selected" : ""}>Hollow (water-cooled)</option></select></label>
+        ${fld("t", sh === "round" ? "I · Diameter mm" : "I · Thickness mm")}
+        ${sh !== "round" ? fld("w", "J · Width mm") + fld("r", "Corner radius mm", "0 (sharp)") : ""}
+        ${sh === "hollow" ? fld("ti", "Hole thickness mm") + fld("wi", "Hole width mm") : ""}
+        ${fld("par", m === "bar" ? "Strands per bar" : "Conductors in parallel", "1")}</div></div>
+      <div><div class="eyebrow">3 · Material</div><div class="fields">${fld("k", "K · Density g/cm³", "8.96 (copper)")}${fld("waste", "Scrap / wastage %", "0")}</div>
         <label class="chip cw43-auto"><input type="checkbox" id="cwAuto" ${c.auto !== false ? "checked" : ""}> Put this weight in the copper row automatically</label></div>
     </div>
     <div class="stack cw43-out" style="gap:12px">
       <div id="cwSvg"></div>
-      <div class="cw43-big"><div><div class="eyebrow">L · Weight per coil</div><div class="bigfig mono" id="cwKg">—</div></div><div><div class="eyebrow">Whole job</div><div class="bigfig mono sm" id="cwTot">—</div></div></div>
+      <div class="cw43-big"><div><div class="eyebrow" id="cwKgL">L · Weight per ${m === "bar" ? "bar" : "coil"}</div><div class="bigfig mono" id="cwKg">—</div></div><div><div class="eyebrow">Whole job</div><div class="bigfig mono sm" id="cwTot">—</div></div></div>
       <ol class="cw43-steps" id="cwSteps"></ol>
       <div class="row"><button class="btn sm dark" id="cwUse">${icon("plus")}Use as copper kg</button><button class="btn sm ghost" id="cwClr">Clear</button></div>
     </div></div></div></section>`;
 }
 function cwDraw43() {
   const w = STATE.work, P = $("#cwPanel"); if (!w || !P) return null;
-  const R = cwCalc43(w.cw, w.qty), set = (id, h) => { const e = $("#" + id, P); if (e) e.innerHTML = h; };
-  P.classList.toggle("round", R.shape === "round");
+  const R = cwCalc43(w.cw, w.qty, w.type), set = (id, h) => { const e = $("#" + id, P); if (e) e.innerHTML = h; };
   set("cwSvg", cwSvg43(R));
   set("cwKg", R.ready ? cwF43(R.kg, 3) + ' <small>kg</small>' : "—");
-  set("cwTot", R.ready && R.qty ? cwF43(R.total, 2) + ` <small>kg · ${cwF43(R.qty, 0)} coils</small>` : "—");
-  const step = (tag, lbl, f, v, u, on) => `<li class="${on ? "on" : ""}"><b>${tag}</b><span>${lbl}<em>${f}</em></span><i class="mono">${v}${u ? " " + u : ""}</i></li>`;
-  set("cwSteps", [
-    step("C1", "End connection dia", `A1 × ${CW43_RT2}${R.twoEnds ? ` · C2 = A2 × ${CW43_RT2} = ${cwF43(R.c2)}` : ""}`, cwF43(R.c1), "mm", R.a1 > 0),
-    step("D", "1st round coil requirement", R.twoEnds ? "2·C1 + 2·C2 + B1 + B2" : "(C1 × 4) + B1 + B2", cwF43(R.d), "mm", R.d > 0),
-    step("F", "Total coil requirement for length", "D × E", R.f ? cwF43(R.f / 1000, 3) : "0", "m", R.f > 0),
-    step("A", "Conductor area", R.shape === "round" ? "π × I² ÷ 4" : `I × J${R.r ? " − corner radius" : ""}`, cwF43(R.area, 3), "mm²", R.area > 0),
-    step("L", "Weight", `I × J × F × K${R.par > 1 ? ` × ${R.par} parallel` : ""}${R.waste ? ` + ${R.waste}% scrap` : ""}`, R.ready ? cwF43(R.kg, 3) : "0", "kg", R.ready)
-  ].join(""));
+  set("cwTot", R.ready && R.qty ? cwF43(R.total, 2) + ` <small>kg · ${cwF43(R.qty, 0)} ${R.unit}s</small>` : "—");
+  set("cwSteps", cwSteps43(R).map(s => `<li class="${s.on ? "on" : ""}"><b>${s.tag}</b><span>${esc(s.lbl)}<em>${esc(s.f)}</em></span><i class="mono">${s.v} ${s.u}</i></li>`).join(""));
   const chip = $("#cwChip", P), cu = w.rows.find(r => r.mode === "kg");
   if (chip) { const synced = R.ready && cu && Math.abs(num(cu.kg) - +R.kg.toFixed(3)) < 1e-6; chip.className = "chip " + (synced ? "ok" : R.ready ? "warn" : ""); chip.textContent = !R.ready ? "Fill the sizes" : synced ? "Copper row updated" : cu ? "Not in copper row" : "No copper row"; }
   return R;
@@ -8829,35 +8863,87 @@ function cwSync43(R, force) {
   const di = $(`[data-p="rows.${i}.desc"]`); if (di) di.value = r.desc;
   return true;
 }
+/* read turns and conductor size from a Smart Scan result ("2 x 2.5 x 10", "2.24X8.0 mm", "dia 3.15") */
+function cwFromScan43(coil) {
+  if (!coil) return null;
+  const turns = num(coil.turns_per_coil), s = String(coil.conductor_size || ""), n = (s.match(/\d+(?:\.\d+)?/g) || []).map(Number).filter(x => x > 0);
+  const c = { shape: "rect", k: 8.96, par: 1, auto: true };
+  if (turns) c.turns = turns;
+  if (/dia|ø|Ø|round|swg|φ/i.test(s) && n.length) { c.shape = "round"; c.t = n[0]; }
+  else if (n.length >= 3 && Number.isInteger(n[0]) && n[0] <= 40) { c.par = n[0]; c.t = Math.min(n[1], n[2]); c.w = Math.max(n[1], n[2]); }
+  else if (n.length >= 2) { c.t = Math.min(n[0], n[1]); c.w = Math.max(n[0], n[1]); }
+  if (!c.turns && !c.t) return null;
+  c.src = `From Smart Scan: ${[c.turns && c.turns + " turns", c.t && "conductor " + (c.shape === "round" ? "Ø" + c.t : (c.par > 1 ? c.par + " × " : "") + c.t + " × " + c.w) + " mm"].filter(Boolean).join(", ")} — add the coil sizes to get the weight.`;
+  return c;
+}
 {
   const _upd43 = updateW;
   updateW = function () {
     _upd43.apply(this, arguments);
     try { const R = cwDraw43(); if (R && cwSync43(R, false)) { _upd43(); cwDraw43(); saveDrafts(); } } catch (e) { console.warn("p43", e); }
   };
+  const _scan43 = workingsFromScan;
+  workingsFromScan = function (R, i) { const w = _scan43.apply(this, arguments); try { if (w && !w.cw) { const c = cwFromScan43(R?.coil); if (c) w.cw = c; } } catch (e) { console.warn("p43", e); } return w; };
+  const _sheet43 = workingsSheet;
+  workingsSheet = function (w) {
+    const sh = _sheet43.apply(this, arguments);
+    try {
+      const R = cwCalc43(w.cw, w.qty, w.type); if (!R.ready) return sh;
+      let rr = 3; sh.cells.forEach((row, i) => { if (row && row.slice(7).some(x => x != null)) rr = Math.max(rr, i + 2); });
+      const put = (r, col, v) => { (sh.cells[r] ||= [])[col] = v; };
+      put(rr, 7, { v: "Coil Weight Calculation", s: 1 }); put(rr, 8, { v: "", s: 1 }); put(rr, 9, { v: "", s: 1 }); (sh.merges ||= []).push(`H${rr + 1}:J${rr + 1}`); rr++;
+      put(rr, 7, { v: CW43_MODELS[R.m], s: 3 }); put(rr, 8, { v: R.shape === "round" ? "Ø" + R.t : R.t + " × " + R.wd, s: 3 }); put(rr, 9, { v: "mm", s: 3 }); rr++;
+      cwSteps43(R).forEach(s => { put(rr, 7, { v: `${s.tag} · ${s.lbl} (${s.f})`, s: 3 }); put(rr, 8, { v: +String(s.v).replace(/,/g, "") || 0, s: 4 }); put(rr, 9, { v: s.u, s: 3 }); rr++; });
+      if (R.qty) { put(rr, 7, { v: `Whole job (${R.qty} ${R.unit}s)`, s: 5 }); put(rr, 8, { v: +R.total.toFixed(2), s: 6 }); put(rr, 9, { v: "kg", s: 5 }); }
+    } catch (e) { console.warn("p43", e); }
+    return sh;
+  };
+  const _pdf43 = workingsPdf;
+  workingsPdf = async function (w) {   // the PDF button also prints the coil weight working
+    const R = cwCalc43(w?.cw, w?.qty, w?.type); if (!R.ready) return _pdf43.apply(this, arguments);
+    const _b = buildPdf, A = x => String(x).replace(/π/g, "pi").replace(/[−–]/g, "-").replace(/₹/g, "Rs.");
+    buildPdf = draw => _b(async P => {
+      await draw(P);
+      P.text(A(`Coil weight calculation — ${CW43_MODELS[R.m]} · conductor ${R.shape === "round" ? "dia " + R.t : R.t + " x " + R.wd}${R.shape === "hollow" ? " (hole " + R.ti + " x " + R.wi + ")" : ""} mm${R.par > 1 ? " x " + R.par : ""} · density ${R.k} g/cm3`), { bold: true, size: 10, color: P.NAVY, after: 4 });
+      P.table([{ h: "Step", w: 40 }, { h: "Item", w: 170 }, { h: "Formula", w: 193.28 }, { h: "Value", w: 100, align: "right" }],
+        [...cwSteps43(R).map(x => [x.tag, A(x.lbl), A(x.f), A(x.v + " " + x.u).replace("mm²", "sq.mm")]), ...(R.qty ? [{ cells: ["", `Whole job (${R.qty} ${R.unit}s)`, "", cwF43(R.total, 2) + " kg"], opts: { bold: true } }] : [])]);
+    });
+    try { return await _pdf43.apply(this, arguments); } finally { buildPdf = _b; }
+  };
+  let stash43 = null;
   const _work43 = VIEWS.workings;
   VIEWS.workings = v => {
     _work43(v);
     try {
-      const w = STATE.work, tp = $("#tapePanel", v); if (!w || !tp || $("#cwPanel", v)) return;
-      tp.insertAdjacentHTML("beforebegin", cwPanel43(w));
-      const P = $("#cwPanel", v);
-      $("#cwShape", P).addEventListener("change", e => { $("#cwTl", P).textContent = e.target.value === "round" ? "I · Diameter mm" : "I · Thickness mm"; });
-      $("#cwAuto", P).onchange = e => { w.cw.auto = e.target.checked; saveDrafts(); updateW(); };
-      $("#cwUse", P).onclick = () => { const R = cwCalc43(w.cw, w.qty); if (!R.ready) return toast("Enter A1, B1, B2, turns and the conductor size first"); cwSync43(R, true); updateW(); saveDrafts(); toast(`Copper row set to ${cwF43(R.kg, 3)} kg per coil`); };
-      $("#cwClr", P).onclick = () => { w.cw = { shape: "rect", k: 8.96, par: 1, auto: w.cw?.auto !== false }; saveDrafts(); render(); };
-      updateW();
+      const w = STATE.work, tp = $("#tapePanel", v); if (!w || !tp) return;
+      if (stash43 && (!w.cw || !w.cw.shape)) { w.cw = { ...stash43, ...(w.cw || {}) }; saveDrafts(); } stash43 = null;
+      if (!v.dataset.cw43) {   // a coil-type / method change rebuilds the workings: keep the calculator sizes
+        v.dataset.cw43 = "1";
+        v.addEventListener("change", e => { if (e.target.id === "typeSel") stash43 = STATE.work?.cw || null; }, true);
+        v.addEventListener("click", e => { if (e.target.closest?.("#segMethod button")) stash43 = STATE.work?.cw || null; }, true);
+      }
+      const mount = () => {
+        const old = $("#cwPanel", v), html = cwPanel43(w);
+        if (old) old.outerHTML = html; else tp.insertAdjacentHTML("beforebegin", html);
+        const P = $("#cwPanel", v);
+        $$("input[type=number]", P).forEach(i => i.addEventListener("focus", () => { if (num(i.value) === 0) i.select(); }));
+        ["#cwModel", "#cwShape"].forEach(s => $(s, P).addEventListener("change", () => setTimeout(() => { mount(); updateW(); })));
+        $("#cwAuto", P).onchange = e => { w.cw.auto = e.target.checked; saveDrafts(); updateW(); };
+        $("#cwUse", P).onclick = () => { const R = cwCalc43(w.cw, w.qty, w.type); if (!R.ready) return toast("Enter the coil sizes, turns and the conductor size first"); cwSync43(R, true); updateW(); saveDrafts(); toast(`Copper row set to ${cwF43(R.kg, 3)} kg per ${R.unit}`); };
+        $("#cwClr", P).onclick = () => { w.cw = { shape: "rect", k: 8.96, par: 1, auto: w.cw?.auto !== false }; saveDrafts(); mount(); updateW(); };
+      };
+      mount(); updateW();
     } catch (e) { console.warn("p43", e); }
   };
 }
 document.head.insertAdjacentHTML("beforeend", `<style>
 .cw43-grid{display:grid;grid-template-columns:minmax(0,1.25fr) minmax(0,1fr);gap:20px;align-items:start}
 .cw43 .eyebrow{margin-bottom:8px}
-.cw43.round .cw43-rect{display:none}
 .cw43-auto{margin-top:10px;display:inline-flex;gap:6px;align-items:center;cursor:pointer}
-.cw43-out{background:color-mix(in srgb,var(--navy) 5%,transparent);border:1px solid var(--line);border-radius:14px;padding:14px}
+.cw43-out{background:color-mix(in srgb,var(--navy) 5%,transparent);border:1px solid var(--line);border-radius:14px;padding:14px;position:sticky;top:12px}
 .cw43-svg{width:100%;height:auto;display:block}
-.cw43-coil{fill:none;stroke:var(--copper);stroke-width:7;stroke-linejoin:round}.cw43-coil.in{stroke-width:2;opacity:.45}
+.cw43-coil{fill:none;stroke:var(--copper);stroke-width:7;stroke-linejoin:round;stroke-linecap:round}.cw43-coil.in{stroke-width:2;opacity:.45}
+.cw43-pole{fill:color-mix(in srgb,var(--navy) 18%,transparent);stroke:var(--navy);stroke-width:1.5}
 .cw43-dim{stroke:var(--muted);stroke-width:1;stroke-dasharray:3 3}.cw43-dim.a{stroke:var(--copper);stroke-dasharray:none}
 .cw43-lbl text{font-size:10.5px;fill:var(--ink,currentColor);font-weight:600}.cw43-tag text{font-size:12px;fill:var(--copper-ink);font-weight:700}
 .cw43-big{display:flex;gap:18px;flex-wrap:wrap;align-items:flex-end;justify-content:space-between}
@@ -8869,9 +8955,8 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .cw43-steps b{display:inline-grid;place-items:center;width:28px;height:24px;border-radius:7px;background:var(--copper-soft);color:var(--copper-ink);font-size:.78rem}
 .cw43-steps span{font-size:.82rem;display:flex;flex-direction:column}.cw43-steps em{font-style:normal;color:var(--muted);font-size:.74rem}
 .cw43-steps i{font-style:normal;font-weight:600;font-size:.84rem;text-align:right;white-space:nowrap}
-@media (max-width:900px){.cw43-grid{grid-template-columns:1fr}}
+@media (max-width:900px){.cw43-grid{grid-template-columns:1fr}.cw43-out{position:static}}
 </style>`);
-
 
 boot();
 
