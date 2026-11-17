@@ -9442,6 +9442,73 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 </style>`);
 
 
+/* ===================== p48: Purchase — supplier rate compare on every PO line (each supplier's last rate for that item, lowest marked, one tap to use it) and "Share PDF" for a purchase order (PDF / Word on WhatsApp, mail or download) ===================== */
+const norm48 = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function rates48(item, desc, skipId) {
+  const key = norm48(desc), out = {};
+  all28("po").filter(p => p.id !== skipId && !["indent", "draft", "cancelled"].includes(p.status) && p.supplier).forEach(p => (p.lines || []).forEach(l => {
+    const same = item ? l.item === item : key.length > 3 && norm48(l.desc) === key; if (!same || !(Number(l.rate) > 0)) return;
+    const d = String(p.date || p.at || ""), o = out[p.supplier]; if (!o || d > o.d) out[p.supplier] = { s: p.supplier, r: Number(l.rate), d, no: p.no };
+  }));
+  return Object.values(out).sort((a, b) => a.r - b.r);
+}
+function rateHints48() {
+  const D = $("#dr26"); if (!D || !$(".po28", D)) return;
+  const curNo = $(".dr26 h2", D)?.textContent || "", cur = all28("po").find(p => p.no && p.no === curNo);
+  $$(".pl28[data-ln]", D).forEach(row => {
+    const item = $("select[data-l=item]", row)?.value || "", desc = $("input[data-l=desc]", row)?.value || "", key = item + "|" + norm48(desc);
+    if (row.dataset.rc48 === key) return; row.dataset.rc48 = key; $(".rc48", row)?.remove();
+    const R = rates48(item, desc, cur?.id); if (!R.length) return;
+    row.insertAdjacentHTML("beforeend", `<div class="rc48"><span>Supplier rates</span>${R.slice(0, 5).map((x, i) => `<button type="button" class="${i === 0 && R.length > 1 ? "best" : ""}" data-s="${esc(x.s)}" data-r="${x.r}" title="${esc(x.no || "")} · ${dmy(x.d.slice(0, 10))} — tap to use this supplier and rate">${i === 0 && R.length > 1 ? "★ " : ""}${esc(x.s)} <b>${inr28(x.r)}</b> <small>${dmy(x.d.slice(0, 10))}</small></button>`).join("")}</div>`);
+    $$(".rc48 button", row).forEach(b => b.onclick = () => {
+      const ri = $("input[data-l=rate]", row); if (ri) { ri.value = b.dataset.r; ri.dispatchEvent(new Event("input", { bubbles: true })); }
+      const sf = $("#f28_supplier"); if (sf && sf.value.trim() !== b.dataset.s && (!sf.value.trim() || confirm(`Change the supplier to ${b.dataset.s}?`))) { sf.value = b.dataset.s; sf.dispatchEvent(new Event("input", { bubbles: true })); }
+      toast(`${b.dataset.s} · ${inr28(b.dataset.r)} used`);
+    });
+  });
+}
+{ let t48 = 0; new MutationObserver(() => { if (!$("#dr26 .po28")) return; clearTimeout(t48); t48 = setTimeout(() => { try { rateHints48(); } catch (e) { console.warn("p48", e); } }, 60); }).observe(document.body, { childList: true, subtree: true }); }
+/* ---- PO as a PDF / Word file to send ---- */
+function poBlocks48(p) {
+  const C = SETTINGS.company || {}, tot = poTotal28(p), tx = sum29(p.lines || [], l => (Number(l.qty) || 0) * (Number(l.rate) || 0));
+  return [
+    { t: "PURCHASE ORDER", b: true, sz: 15, color: "02315B", after: 60 },
+    { t: `PO No: ${p.no || ""}    Date: ${dmy(p.date)}${p.needBy ? "    Needed by: " + dmy(p.needBy) : ""}${p.quoteRef ? "    Your ref: " + p.quoteRef : ""}`, b: true, sz: 10, after: 60 },
+    { t: `To: ${p.supplier || ""}${p.supplierPhone ? " · " + p.supplierPhone : ""}${p.supplierEmail ? " · " + p.supplierEmail : ""}`, sz: 10, after: 120 },
+    { widths: [500, 3200, 900, 700, 1100, 700, 1300], table: [["#", "Description", "Qty", "Unit", "Rate ₹", "GST %", "Amount ₹"].map(t => ({ t })), ...(p.lines || []).map((l, i) => [String(i + 1), [BIZ.rows[l.item]?.name, l.desc].filter((x, j, a) => x && a.indexOf(x) === j).join(" — "), String(l.qty ?? ""), l.unit || "", fmt(Number(l.rate) || 0, "INR", 2), String(l.gst ?? 18), fmt((Number(l.qty) || 0) * (Number(l.rate) || 0), "INR", 2)].map(t => ({ t })))] },
+    { t: `Taxable ₹${fmt(tx, "INR", 2)}    GST ₹${fmt(tot - tx, "INR", 2)}    Total ₹${fmt(tot, "INR", 2)}`, b: true, sz: 10.5, before: 120, after: 120 },
+    { t: `Payment terms: ${p.terms || "—"}`, sz: 9.5 }, { t: `Deliver to: ${p.deliverTo || C.name || ""}`, sz: 9.5 },
+    ...(p.jobNo ? [{ t: `For job / tender: ${p.jobNo}`, sz: 9.5 }] : []), ...(p.notes ? [{ t: `Notes: ${p.notes}`, sz: 9.5, before: 60 }] : []),
+    { t: "Please quote our PO number on your invoice and delivery challan, and send test certificates with the material.", sz: 9, before: 120 },
+    { t: `For ${C.name || "Rivera Coil Manufacturing (I) Pvt Ltd"}`, b: true, sz: 10, before: 360 }, { t: "Authorised signatory", sz: 9 }
+  ];
+}
+function sharePo48(p) {
+  const text = `Purchase order ${p.no} from ${SETTINGS.company?.name || "Rivera Coil Manufacturing (I) Pvt Ltd"} — total ${inr28(poTotal28(p))}${p.needBy ? ", needed by " + dmy(p.needBy) : ""}. Please confirm the delivery date.`;
+  closeDrawer26();
+  openShare({ title: "Purchase order " + p.no, base: "PO_" + String(p.no || "").replace(/\//g, "_") + "_" + (p.supplier || ""), text, formats: [F.pdf("Purchase order (PDF)", () => blocksPdf(poBlocks48(p))), F.docx("Purchase order (Word)", () => buildDocx(poBlocks48(p), brandLogo()))] });
+  if (p.status === "approved") { p.status = "sent"; logAdd28(p, "Sent to supplier", "PO file shared"); save28(null, p, "Marked as sent to supplier").then(() => render()); }
+}
+{
+  const _po48 = poPanel28;
+  poPanel28 = function (src) {
+    const out = _po48.apply(this, arguments);
+    try {
+      if (src?.id && ["approved", "sent", "part", "received", "closed"].includes(src.status)) {
+        const f = $("#dr26 .dr28-f"); if (f && !$("#sh48", f)) { f.insertAdjacentHTML("afterbegin", `<button class="btn" id="sh48" type="button">${icon("share")}Share PDF</button>`); $("#sh48", f).onclick = () => sharePo48(BIZ.rows[src.id] || src); }
+      }
+      setTimeout(() => { try { rateHints48(); } catch { } }, 30);
+    } catch (e) { console.warn("p48", e); }
+    return out;
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.rc48{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-top:6px}.rc48>span{font-size:.7rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin-right:2px}
+.rc48 button{border:1px solid var(--line);background:var(--surface);color:var(--ink);border-radius:999px;padding:3px 10px;font:inherit;font-size:.78rem;cursor:pointer}.rc48 button small{color:var(--muted)}
+.rc48 button:hover,.rc48 button:focus-visible{border-color:#2f8f5b;outline:none}.rc48 button.best{border-color:#2f8f5b;background:color-mix(in srgb,#2f8f5b 10%,var(--surface))}
+</style>`);
+
+
 boot();
 
 </script>
