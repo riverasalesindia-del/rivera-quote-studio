@@ -9901,6 +9901,61 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 </style>`);
 
 
+/* ===================== p52: Buyers & Competitors (Tender247-style analysis) — tap any column heading to sort (most tenders, biggest value, most live, latest; competitors by times L1, awarded, beat Rivera, price gap…), tap again to flip, choice remembered; "Only buyers with live tenders" switch ===================== */
+const SORT52 = {
+  buyers: { list: "buyers", cols: { 0: ["org", "a"], 1: ["n"], 2: ["live"], 3: ["value"], 6: ["last", "d"], 7: ["tracked"] } },
+  comp: { list: "competitors", cols: { 0: ["name", "a"], 1: ["bids"], 2: ["l1"], 3: ["won"], 4: ["avgPrice"], 5: ["vsRivera"], 6: ["beatRivera"], 7: ["avgGap"], 10: ["last", "d"] } }
+};
+const st52 = () => { try { const o = LS.get("tdbSort52", {}); return o && typeof o === "object" ? o : {}; } catch { return {}; } };
+const save52 = o => { try { LS.set("tdbSort52", o); } catch { } };
+function prep52(S, tab) {
+  const cfg = SORT52[tab], d = S.cache.stats?.d; if (!d || !Array.isArray(d[cfg.list])) return;
+  const k0 = "_o52" + cfg.list; if (!d[k0]) d[k0] = d[cfg.list].slice();
+  let L = d[k0];
+  if (tab === "buyers" && S.live52) L = L.filter(b => num(b.live) > 0);
+  const s = st52()[tab];
+  if (s && s.k) {
+    const kind = Object.values(cfg.cols).find(c => c[0] === s.k)?.[1], dir = s.dir === "asc" ? 1 : -1;
+    const val = x => { const v = x?.[s.k]; return kind === "a" ? String(v || "").toLowerCase() : kind === "d" ? String(v || "") : v == null || v === "" ? null : num(v); };
+    L = L.map((x, i) => [x, i]).sort((A, Bx) => { const a = val(A[0]), b = val(Bx[0]);
+      if (a === b) return A[1] - Bx[1]; if (a == null || a === "") return 1; if (b == null || b === "") return -1;
+      return (a < b ? -1 : 1) * dir; }).map(p => p[0]);
+  }
+  d[cfg.list] = L;
+}
+function heads52(B, S, tab) {
+  const cfg = SORT52[tab], s = st52()[tab] || {}, ths = $$("table.t thead th", B); if (!ths.length) return;
+  ths.forEach((th, i) => { const c = cfg.cols[i]; if (!c || th.dataset.s52) return; th.dataset.s52 = "1";
+    const on = s.k === c[0], arrow = on ? (s.dir === "asc" ? "▲" : "▼") : "↕";
+    th.setAttribute("aria-sort", on ? (s.dir === "asc" ? "ascending" : "descending") : "none");
+    th.innerHTML = `<button type="button" class="s52${on ? " on" : ""}" title="Sort by ${esc(th.textContent)}">${th.innerHTML}<i aria-hidden="true">${arrow}</i></button>`;
+    $("button", th).onclick = () => { const all = st52(), cur = all[tab] || {};
+      const first = c[1] === "a" ? "asc" : "desc";
+      all[tab] = cur.k === c[0] ? (cur.dir === first ? { k: c[0], dir: first === "asc" ? "desc" : "asc" } : {}) : { k: c[0], dir: first };
+      save52(all); render(); };
+  });
+  const h = $("table.t", B)?.closest(".panel")?.querySelector("header");
+  if (h && s.k && !$(".r52", h)) { h.insertAdjacentHTML("beforeend", `<button type="button" class="btn sm ghost r52" title="Back to the normal order">Reset sort</button>`); $(".r52", h).onclick = () => { const all = st52(); delete all[tab]; save52(all); render(); }; }
+}
+function live52(B, S) {
+  const body = $("#bq")?.closest(".body"); if (!body || $(".lv52", body)) return;
+  body.insertAdjacentHTML("beforeend", `<label class="lv52"><input type="checkbox" id="lv52" ${S.live52 ? "checked" : ""}> Only buyers with live tenders now</label>`);
+  $("#lv52").onchange = e => { S.live52 = e.target.checked; render(); };
+}
+{
+  const _b52 = tdbBuyers, _c52 = tdbComp;
+  tdbBuyers = function (B, S) { try { prep52(S, "buyers"); } catch (e) { console.warn("p52", e); } _b52(B, S); try { live52(B, S); heads52(B, S, "buyers"); } catch (e) { console.warn("p52", e); } };
+  tdbComp = function (B, S) { try { prep52(S, "comp"); } catch (e) { console.warn("p52", e); } _c52(B, S); try { heads52(B, S, "comp"); } catch (e) { console.warn("p52", e); } };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.s52{all:unset;cursor:pointer;display:inline-flex;align-items:center;gap:4px;white-space:nowrap}.s52 i{font-style:normal;font-size:.7rem;color:var(--muted);opacity:.7}
+.s52.on{color:var(--copper)}.s52.on i{color:var(--copper);opacity:1}.s52:hover i,.s52:focus-visible i{opacity:1;color:var(--copper)}.s52:focus-visible{outline:2px solid var(--copper);outline-offset:2px;border-radius:3px}
+th.n .s52{justify-content:flex-end}
+header .r52{margin-left:auto}
+.lv52{display:inline-flex;align-items:center;gap:8px;margin-top:10px;font-size:.88rem;cursor:pointer}.lv52 input{width:auto;margin:0}
+</style>`);
+
+
 boot();
 
 </script>
