@@ -9058,7 +9058,7 @@ section.panel>.g44-bar{margin:0;border-radius:0}
 
 /* ===================== p45: GrowSmart-style Purchase — Indent → Approval → PO → GRN → Supplier bill → Payment flow bar, Purchase indent (with one-tap reorder indent), PO list filtered by step, Purchase reports, and a "Purchase only" login template (admin sees everything, the purchase person sees only Purchase) ===================== */
 PO_ST.splice(1, 0, ["indent", "Indent (request)", "navy"]);
-const PUR_TABS45 = [["ind", "Purchase indent"], ["po", "Purchase orders"], ["stock", "Stock"], ["moves", "Movements"], ["prep", "Purchase reports"]];
+const PUR_TABS45 = [["dash", "Dashboard"], ["ind", "Purchase indent"], ["po", "Purchase orders"], ["stock", "Stock"], ["moves", "Movements"], ["prep", "Purchase reports"]];
 const PUR_KEYS45 = PUR_TABS45.map(t => t[0]);
 const PO_GRP45 = { pending: ["pending"], approved: ["approved"], open: ["sent", "part"], received: ["received"], draft: ["draft"] };
 const PO_GRP_L45 = { pending: "Waiting approval", approved: "Approved — send to supplier", open: "With supplier — to receive (GRN)", received: "Received", draft: "Draft" };
@@ -9074,7 +9074,7 @@ const FLOW45 = [
   ["pay", "Payment", "accounts", { acc: "bill" }, () => all28("bill").filter(b => billDue45(b) > 0).length]
 ];
 const purRule45 = () => (typeof tabsAllowed34 === "function" ? tabsAllowed34("purchase") : null);
-const purTabsFor45 = () => { const r = purRule45(); return PUR_TABS45.filter(([k]) => !r || r.includes(k) || (k === "ind" && r.includes("po")) || (k === "prep" && r.includes("po"))); };
+const purTabsFor45 = () => { const r = purRule45(); return PUR_TABS45.filter(([k]) => !r || r.includes(k) || (["ind", "prep", "dash"].includes(k) && (r.includes("po") || r.includes("stock")))); };
 const purOnly45 = () => { const r = purRule45(); return !!r && !r.some(k => k === "so" || k === "dn"); };
 
 /* ---- indent (material request) ---- */
@@ -9111,11 +9111,11 @@ const _poPanel45 = poPanel28;
 poPanel28 = function (src) { if (src?.status === "indent") return indentPanel45(src); return _poPanel45.apply(this, arguments); };
 
 /* ---- pages: indent list and purchase reports ---- */
-function purShell45(v, body, btn) {
+function purShell45(v, body, btn, dash) {
   const U = BIZ.ui, pos = all28("po"), openPo = pos.filter(p => ["approved", "sent", "part"].includes(p.status));
   v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Purchase</div><h1>Purchase & stock</h1><p>Indent → approval → purchase order → goods received (GRN) → supplier bill → payment. Every step in one place.</p></div>
     <div class="row">${btn || ""}<button class="btn" id="biz28r">${icon("spark")}${BIZ.busy ? "Syncing…" : "Refresh"}</button></div></div>
-    ${loadNote28() || `<div class="hero-strip"><div><span>Indents to order</span><b>${indents45().length}</b></div><div><span>Waiting approval</span><b>${pos.filter(p => p.status === "pending").length}</b></div><div><span>Open POs (to receive)</span><b>${openPo.length} · ${inr28(sum29(openPo, "total"))}</b></div><div><span>Stock to reorder</span><b>${reorder45().length}</b></div></div>
+    ${loadNote28() || (dash ? `<div class="row" style="gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:12px">${tabs28(U.pur, purTabsFor45(), "pt")}</div>${body}` : "") || `<div class="hero-strip"><div><span>Indents to order</span><b>${indents45().length}</b></div><div><span>Waiting approval</span><b>${pos.filter(p => p.status === "pending").length}</b></div><div><span>Open POs (to receive)</span><b>${openPo.length} · ${inr28(sum29(openPo, "total"))}</b></div><div><span>Stock to reorder</span><b>${reorder45().length}</b></div></div>
     <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">${tabs28(U.pur, purTabsFor45(), "pt")}<input class="q28" id="q28" type="search" placeholder="Find…" value="${esc(U.q)}" aria-label="Find"></div>${body}`}`;
   $("#biz28r").onclick = () => bizSync28(true);
   $("#q28") && ($("#q28").oninput = e => { U.q = e.target.value; clearTimeout(BIZ.qt); BIZ.qt = setTimeout(() => { render(); const i = $("#q28"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 250); });
@@ -9159,9 +9159,9 @@ function purFlow45(v) {
     const U = BIZ.ui, rule = purRule45();
     if (U.pur === "ind" && rule && !rule.includes("po") && !rule.includes("ind")) U.pur = rule[0];
     if (U.pur === "prep" && rule && !rule.includes("po") && !rule.includes("prep")) U.pur = rule[0];
-    if (purOnly45() && !PUR_KEYS45.includes(U.pur)) U.pur = "po";
+    if (purOnly45() && !PUR_KEYS45.includes(U.pur)) U.pur = "dash";
     if (U.pur !== "po") U.st45 = "";
-    if (U.pur === "ind" || U.pur === "prep") { bizSync28(); U.pur === "ind" ? purIndent45(v) : purReports45(v); }
+    if (["ind", "prep", "dash"].includes(U.pur)) { bizSync28(); U.pur === "ind" ? purIndent45(v) : U.pur === "dash" ? purDash46(v) : purReports45(v); }
     else _vp45(v);
     try {
       if (!PUR_KEYS45.includes(U.pur)) return;   // sales order / delivery tabs stay as they are
@@ -9193,10 +9193,10 @@ function purFlow45(v) {
 /* module cards: Purchase indent + Purchase reports */
 {
   const m = MODS32.find(x => x.id === "purchase");
-  if (m) { m.groups.Transactions.unshift(["Purchase indent", "purchase", { pur: "ind" }, "Material request from workshop / stores"]); m.groups.Reports.unshift(["Purchase reports", "purchase", { pur: "prep" }, "Pending to receive, supplier & item-wise"]); }
+  if (m) { m.groups.Transactions.unshift(["Purchase dashboard", "purchase", { pur: "dash" }, "Today's purchase work at a glance"], ["Purchase indent", "purchase", { pur: "ind" }, "Material request from workshop / stores"]); m.groups.Reports.unshift(["Purchase reports", "purchase", { pur: "prep" }, "Pending to receive, supplier & item-wise"]); }
 }
 /* ---- "Purchase only" login: one tap in Permissions ticks only the Purchase pages ---- */
-const PUR_ONLY45 = ["purchase.ind", "purchase.po", "purchase.stock", "purchase.moves", "purchase.prep", "vendors", "tasks"];
+const PUR_ONLY45 = ["purchase.dash", "purchase.ind", "purchase.po", "purchase.stock", "purchase.moves", "purchase.prep", "vendors", "tasks"];
 {
   const _pp45 = permPanel34;
   permPanel34 = async function (email) {
@@ -9216,6 +9216,129 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .h45{margin:18px 0 8px;font-size:.98rem}
 .mb45{display:flex;gap:10px;align-items:flex-end;overflow-x:auto;padding-bottom:4px}.mb45>div{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:44px}
 .mb45 i{display:block;width:30px;background:var(--copper);border-radius:4px 4px 0 0}.mb45 b{font-size:.68rem;font-weight:600}.mb45 span{font-size:.72rem;color:var(--muted)}
+</style>`);
+
+
+/* ===================== p46: Purchase dashboard (GrowSmart-style, neat): quick-action buttons, clickable counts, today's purchase work with one-tap actions, 6-month chart, top suppliers, recent GRNs; Receive-goods picker; PO → supplier bill; purchase login lands on its dashboard; one-tap "Purchase login" in Users & access ===================== */
+const canBill46 = () => allowed21("accounts") && (typeof cardOk32 !== "function" || cardOk32(["", "accounts", { acc: "bill" }]));
+const openPo46 = () => all28("po").filter(p => ["approved", "sent", "part"].includes(p.status));
+function grnPick46() {
+  const L = all28("po").filter(p => ["sent", "part", "approved"].includes(p.status)).sort((a, b) => String(a.needBy || "9").localeCompare(String(b.needBy || "9")));
+  panel28({ title: "Receive goods (GRN)", chips: `<span class="chip">${L.length} open PO${L.length === 1 ? "" : "s"}</span>`,
+    body: L.length ? `<p class="small muted" style="margin-top:0">Pick the purchase order the goods came against. The received quantity goes straight into stock.</p><div class="stack" style="gap:8px">${L.map(p => { const left = sum29(p.lines || [], l => Math.max(0, (Number(l.qty) || 0) - (Number(l.recd) || 0))); return `<button type="button" class="pk46" data-pk="${p.id}"><span><b>${esc(p.supplier || "—")}</b><small>${esc(p.no || "")} · ${(p.lines || []).map(l => esc(l.desc || BIZ.rows[l.item]?.name || "")).join(", ").slice(0, 90)}</small></span><span class="pk46-r">${p.needBy ? dueChip(p.needBy) : ""}<small>${fmt(left, "INR", 0)} pending</small></span></button>`; }).join("")}</div>` : `<div class="empty"><b>Nothing to receive</b>Every purchase order is fully received.</div>` });
+  $$("[data-pk]").forEach(b => b.onclick = () => { const p = BIZ.rows[b.dataset.pk]; closeDrawer26(); poPanel28(p); });
+}
+function purDash46(v) {
+  const t = todayISO(), m0 = t.slice(0, 7), pos = all28("po"), live = pos.filter(p => !["indent", "cancelled", "draft"].includes(p.status));
+  const ind = indents45(), pend = pos.filter(p => p.status === "pending"), toSend = pos.filter(p => p.status === "approved"), open = pos.filter(p => ["sent", "part"].includes(p.status));
+  const late = openPo46().filter(p => p.needBy && p.needBy < t), low = reorder45(), items = all28("item");
+  const monthVal = sum29(live.filter(p => String(p.date || "").slice(0, 7) === m0), "total"), stockVal = items.reduce((a, it) => a + Math.max(0, stockOf28(it.id)) * lastRate28(it.id), 0);
+  const noBill = canBill46() ? pos.filter(p => ["received", "part", "closed"].includes(p.status) && !billsOf45(p.id).length) : [];
+  const billDue = canBill46() ? all28("bill").filter(b => billDue45(b) > 0) : [];
+  const kpi = (label, val, sub, go, tone) => `<button type="button" class="k46 ${tone || ""}" data-k46='${JSON.stringify(go || null)}'><span>${label}</span><b>${val}</b>${sub ? `<small>${sub}</small>` : ""}</button>`;
+  const act = (id, ic, label, show = true) => show ? `<button type="button" class="a46" id="${id}">${icon(ic)}<span>${label}</span></button>` : "";
+  const todo = [
+    ...late.map(p => [`<b>${esc(p.supplier)}</b> — delivery late`, `${esc(p.no)} · was due ${dmy(p.needBy)}`, "Receive", "po", p.id, "bad"]),
+    ...open.filter(p => !p.needBy || p.needBy >= t).filter(p => !p.needBy || p.needBy <= addDays46(7)).map(p => [`<b>${esc(p.supplier)}</b> — goods due`, `${esc(p.no)}${p.needBy ? " · " + dmy(p.needBy) : ""}`, "Receive", "po", p.id, "warn"]),
+    ...(isAdmin28() ? pend : []).map(p => [`<b>${esc(p.supplier)}</b> — PO waiting for your approval`, `${esc(p.no)} · ${inr28(p.total)}`, "Approve", "po", p.id, "warn"]),
+    ...toSend.map(p => [`<b>${esc(p.supplier)}</b> — approved, send to supplier`, `${esc(p.no)} · ${inr28(p.total)}`, "Send", "po", p.id, ""]),
+    ...ind.map(p => [`Indent from <b>${esc(p.dept || who28(p.reqBy || p.by))}</b>`, `${(p.lines || []).map(l => esc(l.desc || "")).join(", ").slice(0, 70)}${p.needBy ? " · need by " + dmy(p.needBy) : ""}`, "Make PO", "ind", p.id, ""]),
+    ...low.slice(0, 6).map(x => [`<b>${esc(x.desc)}</b> below minimum`, `${stockOf28(x.item)} in stock · order about ${x.qty} ${esc(x.unit)}`, "Indent", "low", x.item, "bad"]),
+    ...noBill.slice(0, 5).map(p => [`<b>${esc(p.supplier)}</b> — goods received, no bill yet`, `${esc(p.no)} · ${inr28(p.total)}`, "Add bill", "bill", p.id, ""])
+  ];
+  const months = []; for (let i = 5; i >= 0; i--) { const d = new Date(t + "T00:00:00"); d.setDate(1); d.setMonth(d.getMonth() - i); months.push(d.toISOString().slice(0, 7)); }
+  const mv = months.map(k => sum29(live.filter(p => String(p.date || "").slice(0, 7) === k), "total")), mx = Math.max(1, ...mv);
+  const fy = fyOf(t), sup = {}; live.filter(p => fyOf(p.date) === fy).forEach(p => { sup[p.supplier || "—"] = (sup[p.supplier || "—"] || 0) + (Number(p.total) || 0); });
+  const top = Object.entries(sup).sort((a, b) => b[1] - a[1]).slice(0, 5), tmx = Math.max(1, ...top.map(x => x[1]));
+  const grn = all28("move").filter(x => x.type === "grn").sort((a, b) => String(b.date || b.at).localeCompare(String(a.date || a.at))).slice(0, 5);
+  purShell45(v, `
+    <div class="a46-row" role="group" aria-label="Quick actions">${act("a46i", "plus", "New indent")}${act("a46p", "doc", "New PO")}${act("a46g", "box28", "Receive goods")}${act("a46m", "orders", "Issue material")}${act("a46n", "db", "Stock item")}${act("a46v", "vendor", "Vendors & RFQ", allowed21("vendors"))}${act("a46b", "wallet", "Supplier bill", canBill46())}</div>
+    <div class="k46-g">
+      ${kpi("Indents to order", ind.length, "requests from workshop", { pur: "ind" }, ind.length ? "warn" : "")}
+      ${kpi("Waiting approval", pend.length, isAdmin28() ? "tap to approve" : "with the admin", { pur: "po", st45: "pending" }, pend.length ? "warn" : "")}
+      ${kpi("To send", toSend.length, "approved POs", { pur: "po", st45: "approved" })}
+      ${kpi("To receive", open.length, late.length ? `<b class="bad46">${late.length} late</b>` : inr28(sum29(open, "total")), { pur: "po", st45: "open" }, late.length ? "bad" : "")}
+      ${kpi("Purchase this month", inr28(monthVal), `${live.filter(p => String(p.date || "").slice(0, 7) === m0).length} POs`, { pur: "prep" })}
+      ${kpi("Stock value", inr28(stockVal), `${items.length} items`, { pur: "stock" })}
+      ${kpi("Below minimum", low.length, low.length ? "reorder now" : "all good", { pur: "ind" }, low.length ? "bad" : "")}
+      ${canBill46() ? kpi("Bills to pay", billDue.length, inr28(sum29(billDue, billDue45)), { route: "accounts", acc: "bill" }, billDue.length ? "warn" : "") : ""}
+    </div>
+    <div class="d46-g">
+      <section class="panel"><header><h2>Today's purchase work</h2><span class="chip ${todo.length ? "warn" : "ok"}">${todo.length || "All clear"}</span></header><div class="body">${todo.length ? `<div class="t46">${todo.slice(0, 12).map(([a, b, btn, kind, id, tone]) => `<div class="t46-r ${tone}"><div><div>${a}</div><small>${b}</small></div><button type="button" class="btn sm ${tone === "bad" ? "primary" : ""}" data-t46="${kind}" data-id="${esc(id)}">${btn}</button></div>`).join("")}${todo.length > 12 ? `<p class="small muted" style="margin:8px 0 0">+ ${todo.length - 12} more in the tabs above</p>` : ""}</div>` : `<div class="empty"><b>Nothing waiting</b>No indents, approvals, deliveries or reorders right now.</div>`}</div></section>
+      <div class="stack" style="gap:16px">
+        <section class="panel"><header><h2>Purchase — last 6 months</h2></header><div class="body"><div class="mb45">${months.map((k, i) => `<div title="${inr28(mv[i])}"><i style="height:${Math.max(3, mv[i] / mx * 96)}px;${k === m0 ? "" : "opacity:.55"}"></i><b>${mv[i] ? inr28(mv[i]).replace("₹", "") : "0"}</b><span>${new Date(k + "-01").toLocaleString("en-IN", { month: "short" })}</span></div>`).join("")}</div></div></section>
+        <section class="panel"><header><h2>Top suppliers · FY ${esc(fy)}</h2></header><div class="body">${top.length ? top.map(([k, val]) => `<div class="s46"><span>${esc(k)}</span><i><em style="width:${val / tmx * 100}%"></em></i><b>${inr28(val)}</b></div>`).join("") : '<p class="small muted" style="margin:0">No purchase orders this year yet.</p>'}</div></section>
+        <section class="panel"><header><h2>Recent goods received</h2></header><div class="body">${grn.length ? grn.map(x => `<div class="s46"><span>${esc(BIZ.rows[x.item]?.name || "?")}<small class="muted"> · ${esc(x.ref || "")}</small></span><b>+${fmt(x.qty, "INR", 2).replace(/\.00$/, "")} ${esc(BIZ.rows[x.item]?.unit || "")}</b><small class="muted">${dmy(x.date || String(x.at).slice(0, 10))}</small></div>`).join("") : '<p class="small muted" style="margin:0">No goods received yet.</p>'}</div></section>
+      </div>
+    </div>`, "", true);
+  const U = BIZ.ui;
+  $$("[data-pt]", v).forEach(b => b.onclick = () => { U.pur = b.dataset.pt; U.st45 = ""; render(); });
+  $$("[data-k46]", v).forEach(b => b.onclick = () => { let g = null; try { g = JSON.parse(b.dataset.k46); } catch { } if (!g) return; if (typeof GS44 !== "undefined") GS44.open = true; if (g.route) return go32(g.route, { acc: g.acc }); U.pur = g.pur; U.st45 = g.st45 || ""; U.q = ""; render(); window.scrollTo?.({ top: 0 }); });
+  $("#a46i", v)?.addEventListener("click", () => indentPanel45());
+  $("#a46p", v)?.addEventListener("click", () => poPanel28());
+  $("#a46g", v)?.addEventListener("click", grnPick46);
+  $("#a46m", v)?.addEventListener("click", () => movePanel28({ type: "issue" }));
+  $("#a46n", v)?.addEventListener("click", () => itemPanel28());
+  $("#a46v", v)?.addEventListener("click", () => { location.hash = "vendors"; });
+  $("#a46b", v)?.addEventListener("click", () => billPanel29());
+  $$("[data-t46]", v).forEach(b => b.onclick = () => { const k = b.dataset.t46, id = b.dataset.id;
+    if (k === "po") poPanel28(BIZ.rows[id]); else if (k === "ind") { indentPanel45(BIZ.rows[id]); setTimeout(() => $("#in45po")?.click(), 0); }
+    else if (k === "low") { const x = reorder45().find(y => y.item === id); indentPanel45(null, { lines: x ? [x] : [], notes: "Reorder — stock below minimum" }); }
+    else if (k === "bill") billFromPo46(BIZ.rows[id]); });
+}
+function addDays46(n) { const d = new Date(todayISO() + "T00:00:00"); d.setDate(d.getDate() + n); return d.toISOString().slice(0, 10); }
+function billFromPo46(p) {
+  if (!p) return; billPanel29();
+  const s = $("#f28_po"); if (s) { s.value = p.id; s.dispatchEvent(new Event("change")); }
+}
+/* PO panel: received POs get "Supplier bill"; open POs get a clear "Receive goods" jump */
+{
+  const _po46 = poPanel28;
+  poPanel28 = function (src) {
+    const out = _po46.apply(this, arguments);
+    try {
+      if (!src?.id) return out; const f = $("#dr26 .dr28-f"); if (!f) return out;
+      if (["received", "part", "closed"].includes(src.status) && canBill46() && !billsOf45(src.id).length && !$("#b46", f)) { f.insertAdjacentHTML("afterbegin", `<button class="btn" id="b46" type="button">${icon("wallet")}Supplier bill</button>`); $("#b46", f).onclick = () => { closeDrawer26(); billFromPo46(src); }; }
+      if (["approved", "sent", "part"].includes(src.status) && !$("#g46", f) && $("#g28go")) { f.insertAdjacentHTML("afterbegin", `<button class="btn" id="g46" type="button">${icon("box28")}Receive goods</button>`); $("#g46", f).onclick = () => $("#g28go")?.closest(".dr26-sec")?.scrollIntoView({ behavior: "smooth" }); }
+    } catch (e) { console.warn("p46", e); }
+    return out;
+  };
+}
+/* a purchase-only login opens straight on its dashboard */
+try { const u = AUTH.user, P = Array.isArray(u?.pages) ? u.pages : []; if (u && u.role !== "admin" && P.length && P.every(x => /^(purchase|vendors|tasks)\b/.test(x))) { const i = ROUTES.findIndex(r => r[0] === "purchase"); if (i >= 0) ROUTES[i] = ["purchase", "Purchase & stock", "box28"]; if (location.hash === "#apps" || !location.hash) { BIZ.ui.pur = "dash"; history.replaceState(null, "", "#purchase"); } } } catch (e) { console.warn("p46", e); }
+/* Users & access: one tap fills a Purchase login (purchase@rivera.co.in, Workshop / stores role, Purchase pages only) */
+{
+  let pur46 = "";
+  const _c46 = AUTH.call;
+  AUTH.call = function (action, body, ...a) { if (action === "createUser" && pur46 && body?.email && String(body.email).toLowerCase() === pur46) body = { ...body, role: "operation", pages: PUR_ONLY45, access: "" }; return _c46.call(this, action, body, ...a); };
+  const _r46 = render;
+  render = function () {
+    _r46.apply(this, arguments);
+    try { document.body.classList.toggle("pur46", STATE.route === "purchase"); } catch { }
+    try {
+      if (STATE.route !== "users" || !AUTH.isAdmin) return; const n = $("#nuN"); if (!n || $("#nu46")) return;
+      n.closest(".fields")?.insertAdjacentHTML("beforebegin", `<div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px"><span class="small muted">Quick:</span><button type="button" class="btn sm primary" id="nu46">${icon("box28")}Purchase login</button><span class="small muted">fills purchase@rivera.co.in with Purchase pages only — type or generate the password, then Create login</span></div>`);
+      $("#nu46").onclick = () => { $("#nuN").value = "Purchase"; $("#nuU").value = "purchase@rivera.co.in"; const r = $("#nuR"); if (r) { if (![...r.options].some(o => o.value === "operation")) r.add(new Option("Workshop / stores", "operation")); r.value = "operation"; } pur46 = "purchase@rivera.co.in"; if (!$("#nuP").value) $("#nuG")?.click(); toast("Purchase login filled — check the password and press Create login"); $("#nuP")?.focus(); };
+    } catch (e) { console.warn("p46", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.a46-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(128px,1fr));gap:10px;margin-bottom:14px}
+.a46{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;padding:14px 8px;border:1px solid var(--line);border-radius:14px;background:var(--surface);color:var(--ink);font:inherit;font-size:.84rem;font-weight:600;cursor:pointer;transition:border-color .15s,transform .15s}
+.a46 svg{width:24px;height:24px;color:#2f8f5b}.a46:hover,.a46:focus-visible{border-color:#2f8f5b;transform:translateY(-1px);outline:none}
+.k46-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px;margin-bottom:16px}
+.k46{text-align:left;display:flex;flex-direction:column;gap:2px;padding:12px 14px;border:1px solid var(--line);border-left:4px solid #2f8f5b;border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer}
+.k46 span{font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}.k46 b{font-family:var(--f-display);font-size:1.45rem;line-height:1.15}.k46 small{font-size:.76rem;color:var(--muted)}
+.k46.warn{border-left-color:var(--copper)}.k46.bad{border-left-color:#c0392b}.bad46{color:#c0392b}.k46:hover{border-color:#2f8f5b}
+.d46-g{display:grid;grid-template-columns:minmax(0,1.35fr) minmax(0,1fr);gap:16px;align-items:start}
+.t46{display:flex;flex-direction:column}.t46-r{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:9px 0 9px 10px;border-bottom:1px solid var(--line);border-left:3px solid transparent}
+.t46-r:last-child{border-bottom:0}.t46-r small{color:var(--muted);font-size:.78rem}.t46-r.bad{border-left-color:#c0392b}.t46-r.warn{border-left-color:var(--copper)}.t46-r .btn{flex:none}
+.s46{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:2px 10px;align-items:center;padding:6px 0;font-size:.85rem}.s46 i{grid-column:1/-1;height:6px;border-radius:4px;background:var(--line);order:3}.s46 em{display:block;height:100%;border-radius:4px;background:#2f8f5b}
+.pk46{display:flex;justify-content:space-between;gap:10px;text-align:left;width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;cursor:pointer}.pk46:hover{border-color:#2f8f5b}
+.pk46 span{display:flex;flex-direction:column;gap:2px;min-width:0}.pk46 small{color:var(--muted);font-size:.76rem}.pk46-r{align-items:flex-end;flex:none}
+@media (max-width:900px){.d46-g{grid-template-columns:1fr}}
+@media (max-width:640px){body.pur46 .tabs-row{flex-wrap:nowrap}body.pur46 .tabs-row .tab{flex:none}}
+@media (max-width:520px){.a46-row{grid-template-columns:repeat(3,1fr)}.k46-g{grid-template-columns:repeat(2,1fr)}}
 </style>`);
 
 
