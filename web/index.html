@@ -9509,6 +9509,253 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 </style>`);
 
 
+/* ===================== p50: Sales — fresh GrowSmart-style workspace (like the GrowSmartSMB demo): one dark menu bar (Dashboard · Transactions · Tools · Reports · Masters), dashboard with Alerts / Approvals / Tasks / People, grid lists with a filter row under every column, Delivery planner, Sales invoice tool, Accounts receivable with ageing, Collection status with customer statement, sales reports — every row opens the same lead / quotation / order / delivery / invoice forms, so the whole flow stays connected ===================== */
+const GS = () => (BIZ.ui.gs50 ||= { tab: "dash", dash: "alerts", grp: "Sales", x: "", f: {} });
+const can50 = (route, ui) => { try { return allowed21(route) && (typeof cardOk32 !== "function" || cardOk32(["", route, ui || {}])); } catch { return false; } };
+const GS_TABS = {
+  dash: ["Dashboard", () => true],
+  lead: ["Leads", () => can50("crm")], quote: ["Quotations", () => can50("quote") || can50("register")], so: ["Sales orders", () => can50("purchase", { pur: "so" })],
+  dn: ["Delivery notes", () => can50("purchase", { pur: "dn" })], inv: ["Sales invoices", () => can50("accounts", { acc: "inv" })], rcpt: ["Receipts", () => can50("accounts", { acc: "rcpt" })],
+  plan: ["Delivery planner", () => can50("purchase", { pur: "dn" })], tool: ["Sales invoice tool", () => can50("accounts", { acc: "inv" })], fu: ["Quote follow-ups", () => can50("qfu") || can50("quote")],
+  ar: ["Accounts receivable", () => can50("accounts", { acc: "recv" }) || can50("accounts", { acc: "inv" })], coll: ["Collection status", () => can50("accounts", { acc: "recv" }) || can50("accounts", { acc: "inv" })],
+  sreg: ["Sales register", () => can50("accounts", { acc: "inv" })], qrep: ["Quotation status", () => can50("quote") || can50("register")], lrep: ["Lead analysis", () => can50("crm")]
+};
+const GS_MENU = [["Transactions", ["lead", "quote", "so", "dn", "inv", "rcpt"]], ["Tools", ["plan", "tool", "fu"]], ["Reports", ["ar", "coll", "sreg", "qrep", "lrep"]]];
+const tabOk50 = k => GS_TABS[k] && GS_TABS[k][1]();
+const quotes50 = () => (STATE.quotes || []).filter(q => q && q.no);
+const qSt50 = q => q.status || "sent";
+const openQuote50 = q => { if (!q) return; STATE.quote = { ...clone(q.quote || {}), regId: q.id }; if (!STATE.quote.no) { STATE.quote = blankQuote(); Object.assign(STATE.quote, { no: q.no, date: q.date, subject: q.subject || "", to: { ...STATE.quote.to, name: q.customer || "" } }); } saveDrafts(); location.hash = "quote"; };
+const openLead50 = l => quickQuote32({ company: l.company, contact: l.contact, email: l.email, phone: l.phone, need: l.need, value: l.value, source: l.source, leadId: l.id });
+const age50 = d => d ? -daysTo28(String(d).slice(0, 10)) : 0;
+const chip50 = (t, tone) => `<span class="chip ${tone || ""}">${esc(t)}</span>`;
+/* ---- alerts / approvals: [id, group, label, tab, filter, why] ---- */
+function alerts50() {
+  const t = todayISO(), wk = addDays(t, 7), open = l => !["won", "lost"].includes(l.stage);
+  const fu = (() => { try { return qfuList32(); } catch { return []; } })();
+  return [
+    ["leadNoFu", "Sales", "Leads not followed up", "lead", l => open(l) && l.next && l.next < t, "next follow-up date passed"],
+    ["leadDue", "Sales", "Leads due for closure", "lead", l => ["quoted", "nego"].includes(l.stage), "quoted / in negotiation"],
+    ["qSend", "Sales", "Quotations to be sent", "quote", q => qSt50(q) === "draft", "made, not sent"],
+    ["qNoFu", "Sales", "Quotations not followed up", "quote", q => fu.some(x => x.q.id === q.id && x.due <= t), "follow-up due"],
+    ["qOpen", "Sales", "Quotations not closed", "quote", q => ["sent", "negotiation"].includes(qSt50(q)) && age50(q.date) > 30 && !soOfQuote31(q), "older than 30 days"],
+    ["soDel", "Sales", "Orders to deliver", "so", o => ["confirmed", "part"].includes(o.status), "confirmed, not fully delivered"],
+    ["soLate", "Sales", "Orders late", "so", o => ["confirmed", "part"].includes(o.status) && o.deliveryDate && o.deliveryDate < t, "promised date passed"],
+    ["dnInv", "Accounts", "Deliveries not invoiced", "dn", d => !d.inv, "goods gone, no invoice"],
+    ["invOver", "Accounts", "Invoices overdue", "inv", i => i.status !== "cancelled" && i.balance > 0 && i.due < t, "payment late"],
+    ["invWeek", "Accounts", "Payments due this week", "inv", i => i.status !== "cancelled" && i.balance > 0 && i.due >= t && i.due <= wk, "due in 7 days"]
+  ].filter(a => tabOk50(a[3]));
+}
+const approvals50 = () => [
+  ["soExc", "Sales", "Sales orders for approval", "so", o => o.status === "exception", "credit / stock / price exception"],
+  ...(can50("purchase", { pur: "po" }) ? [["poApp", "Purchase", "Purchase orders for approval", "po", p => p.status === "pending", "waiting for the admin"]] : [])
+].filter(a => a[3] === "po" || tabOk50(a[3]));
+const src50 = tab => tab === "quote" ? quotes50() : tab === "po" ? all28("po") : all28(tab);
+const cnt50 = a => src50(a[3]).filter(a[4]).length;
+
+/* ---- generic GrowSmart grid: header row, a filter box under every column, colour status ---- */
+function grid50(id, cols, rows, open) {
+  const G = GS(), F = G.f[id] ||= {};
+  const html = `<div class="g50-wrap"><table class="g50" data-g50="${id}"><thead><tr>${cols.map(c => `<th class="${c[2] || ""}">${esc(c[0])}</th>`).join("")}</tr>
+    <tr class="g50-f">${cols.map((c, i) => `<th>${c[3] === false ? "" : `<input data-gf="${i}" value="${esc(F[i] || "")}" placeholder="Filter" aria-label="Filter ${esc(c[0])}">`}</th>`).join("")}</tr></thead>
+    <tbody>${rows.map((r, ri) => `<tr data-gr="${ri}" tabindex="0">${cols.map(c => { const v = c[1](r); return `<td class="${c[2] || ""}" data-t="${esc(String(v?.t ?? v ?? "").toLowerCase())}">${v?.h ?? esc(String(v ?? ""))}</td>`; }).join("")}</tr>`).join("") || `<tr><td colspan="${cols.length}" class="g50-empty">No records</td></tr>`}</tbody></table></div>
+    <div class="g50-foot small muted" data-g50n="${id}">${rows.length} record${rows.length === 1 ? "" : "s"}</div>`;
+  return { html, wire: v => {
+    const T = $(`[data-g50="${id}"]`, v); if (!T) return;
+    const apply = () => { const fs = $$("[data-gf]", T).map(i => [+i.dataset.gf, i.value.trim().toLowerCase()]).filter(x => x[1]); let n = 0;
+      $$("tbody tr[data-gr]", T).forEach(tr => { const ok = fs.every(([i, q]) => (tr.children[i]?.dataset.t || "").includes(q)); tr.hidden = !ok; if (ok) n++; });
+      const f = $(`[data-g50n="${id}"]`, v); if (f) f.textContent = `${n} of ${rows.length} record${rows.length === 1 ? "" : "s"}`; };
+    $$("[data-gf]", T).forEach(i => i.oninput = () => { F[i.dataset.gf] = i.value; apply(); }); apply();
+    $$("tbody tr[data-gr]", T).forEach(tr => { const go = () => open(rows[+tr.dataset.gr]); tr.onclick = e => { if (!e.target.closest("button,a,input")) go(); }; tr.onkeydown = e => { if (e.key === "Enter") go(); }; });
+  } };
+}
+const st50 = (lab, tone) => ({ t: lab, h: `<span class="s50 ${tone || ""}">${esc(lab)}</span>` });
+const money50 = v => ({ t: String(Math.round(Number(v) || 0)), h: inr28(v) });
+const date50 = d => ({ t: d ? dmy(d) : "", h: d ? dmy(d) : "—" });
+
+/* ---- pages ---- */
+function dash50(G) {
+  const A = alerts50(), P = approvals50(), me = me28(), t = todayISO();
+  const tasks = all28("task").filter(x => x.status !== "done" && (x.assignee === me || x.by === me)).sort((a, b) => String(a.due || "9").localeCompare(String(b.due || "9")));
+  const team = TEAM28.map(([e, n]) => ({ e, n, leads: all28("lead").filter(l => l.owner === e && !["won", "lost"].includes(l.stage)).length, so: all28("so").filter(o => o.owner === e && String(o.date || "").slice(0, 7) === t.slice(0, 7) && o.status !== "cancelled"), fu: all28("lead").filter(l => l.owner === e && l.next && l.next <= t && !["won", "lost"].includes(l.stage)).length }));
+  const nA = A.reduce((s, a) => s + cnt50(a), 0), nP = P.reduce((s, a) => s + cnt50(a), 0);
+  const big = (k, lab, n, ic, tone) => `<button type="button" class="d50-big ${G.dash === k ? "on" : ""}" data-d50="${k}" style="--c:${tone}"><span class="d50-ic">${icon(ic)}</span><span><b>${lab}</b><small>${n}</small></span></button>`;
+  let body = "";
+  if (G.dash === "alerts" || G.dash === "approvals") {
+    const L = G.dash === "alerts" ? A : P, groups = [...new Set(L.map(a => a[1]))]; if (!groups.includes(G.grp)) G.grp = groups[0];
+    body = `<div class="d50-grp">${groups.map(g => `<button type="button" class="${g === G.grp ? "on" : ""}" data-g50g="${g}">${esc(g)} <i>${L.filter(a => a[1] === g).reduce((s, a) => s + cnt50(a), 0)}</i></button>`).join("")}</div>
+      <div class="d50-cards">${L.filter(a => a[1] === G.grp).map(a => { const n = cnt50(a); return `<button type="button" class="d50-c ${n ? "has" : ""}" data-a50="${a[0]}"><span><b>${esc(a[2])}</b><small>${esc(a[5])}</small></span><i>${n}</i></button>`; }).join("") || '<p class="small muted">Nothing here.</p>'}</div>`;
+  } else if (G.dash === "tasks") {
+    body = `<div class="d50-list">${tasks.slice(0, 30).map(x => `<button type="button" class="d50-c ${x.due && x.due <= t ? "has" : ""}" data-t50="${x.id}"><span><b>${esc(x.title)}</b><small>${esc(who28(x.by))} → ${esc(who28(x.assignee))}${x.link ? " · " + esc(x.link) : ""}</small></span>${x.due ? dueChip28(x.due) : ""}</button>`).join("") || '<p class="small muted">No open tasks. Use + New ▸ Task to give one.</p>'}</div>`;
+  } else {
+    body = `<div class="d50-cards">${team.map(p => `<div class="d50-p"><span class="av">${esc(p.n[0])}</span><div><b>${esc(p.n)}</b><small>${esc(p.e)}</small><div class="d50-pn"><span><i>${p.leads}</i>open leads</span><span><i class="${p.fu ? "bad" : ""}">${p.fu}</i>follow-ups due</span><span><i>${p.so.length}</i>orders · ${inr28(sum29(p.so, "taxable"))}</span></div></div></div>`).join("")}</div>`;
+  }
+  return `<div class="d50-top">${big("alerts", "Alerts", nA, "bell26", "#2a7fd4")}${big("approvals", "Approvals", nP, "check28", "#17a2b8")}${big("tasks", "Tasks", tasks.length, "orders", "#d9534f")}${big("people", "People", TEAM28.length, "users", "#f0ad4e")}</div>${body}`;
+}
+function list50(G) {
+  const x = [...alerts50(), ...approvals50()].find(a => a[0] === G.x && a[3] === G.tab), filt = x ? x[4] : () => true, t = todayISO();
+  const bar = x ? `<div class="x50">Showing: <b>${esc(x[2])}</b><button type="button" id="x50c" aria-label="Show all">${icon("x")} Show all</button></div>` : "";
+  let g, newBtn = "", extra = "";
+  if (G.tab === "lead") {
+    const R = all28("lead").filter(filt).sort((a, b) => String(b.no || "").localeCompare(String(a.no || "")));
+    g = grid50("lead", [["Lead", r => r.no || ""], ["Customer", r => ({ t: r.company, h: `<b>${esc(r.company || "")}</b>` })], ["Need", r => r.need || "", "w"], ["Source", r => r.source || ""], ["Owner", r => who28(r.owner)], ["Value", r => money50(r.value), "n"], ["Next follow-up", r => ({ t: r.next ? dmy(r.next) : "", h: r.next && !["won", "lost"].includes(r.stage) ? dueChip28(r.next) : "—" })], ["Status", r => { const s = LEAD_ST.find(y => y[0] === r.stage) || ["", r.stage || "New"]; return st50(s[1], r.stage === "won" ? "ok" : r.stage === "lost" ? "bad" : r.next && r.next < t ? "warn" : ""); }], ["", r => ({ t: "", h: !["won", "lost"].includes(r.stage) ? `<button type="button" class="btn sm" data-lq="${r.id}">Quotation</button>` : "" }), "", false]], R, r => leadPanel28(r));
+    newBtn = `<button class="btn primary" id="n50" type="button">${icon("plus")}New lead</button>`;
+    extra = v => $$("[data-lq]", v).forEach(b => b.onclick = e => { e.stopPropagation(); openLead50(BIZ.rows[b.dataset.lq]); });
+  } else if (G.tab === "quote") {
+    const R = quotes50().filter(filt).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.no).localeCompare(String(a.no)));
+    g = grid50("quote", [["Quotation", r => ({ t: r.no, h: `<span class="mono">${esc(r.no)}${r.rev ? "R" + r.rev : ""}</span>` })], ["Date", r => date50(r.date)], ["Customer", r => ({ t: r.customer, h: `<b>${esc(r.customer || "")}</b>` })], ["Subject", r => String(r.subject || "").slice(0, 70), "w"], ["Value ₹", r => money50(qINR(r)), "n"], ["Follow-up", r => { const f = (() => { try { return qfuList32().find(y => y.q.id === r.id); } catch { return null; } })(); return f ? { t: dmy(f.due), h: dueChip28(f.due) } : "—"; }], ["Status", r => { const s = STATUS[qSt50(r)] || [qSt50(r), ""], so = soOfQuote31(r); return so ? st50("Ordered " + (so.no || ""), "ok") : st50(s[0], s[1] === "navy" ? "" : s[1]); }], ["", r => ({ t: "", h: ["sent", "negotiation", "won"].includes(qSt50(r)) && !soOfQuote31(r) && can50("purchase", { pur: "so" }) ? `<button type="button" class="btn sm" data-qo="${r.id}">Order</button>` : "" }), "", false]], R, r => openQuote50(r));
+    newBtn = `<button class="btn primary" id="n50" type="button">${icon("plus")}New quotation</button>`;
+    extra = v => $$("[data-qo]", v).forEach(b => b.onclick = e => { e.stopPropagation(); soPanel31(soFromQuote31(quotes50().find(q => q.id === b.dataset.qo))); });
+  } else if (G.tab === "so") {
+    const R = all28("so").filter(filt).sort((a, b) => String(b.no || "").localeCompare(String(a.no || "")));
+    g = grid50("so", [["Order", r => ({ t: r.no, h: `<span class="mono">${esc(r.no || "")}</span>` })], ["Date", r => date50(r.date)], ["Customer", r => ({ t: r.customer, h: `<b>${esc(r.customer || "")}</b>` })], ["Customer PO", r => r.poNo || ""], ["Quotation", r => r.quoteNo || ""], ["Delivery", r => ({ t: r.deliveryDate ? dmy(r.deliveryDate) : "", h: r.deliveryDate && ["confirmed", "part"].includes(r.status) ? dueChip28(r.deliveryDate) : r.deliveryDate ? dmy(r.deliveryDate) : "—" })], ["Total ₹", r => money50(r.total || soTotal31(r)), "n"], ["Status", r => { const s = soSt31(r.status); return st50(s[1], s[2]); }]], R, r => soPanel31(r));
+    newBtn = `<button class="btn primary" id="n50" type="button">${icon("plus")}New sales order</button>`;
+  } else if (G.tab === "dn") {
+    const R = all28("dn").filter(filt).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    g = grid50("dn", [["Delivery note", r => ({ t: r.no, h: `<span class="mono">${esc(r.no || "")}</span>` })], ["Date", r => date50(r.date)], ["Customer", r => ({ t: r.customer, h: `<b>${esc(r.customer || "")}</b>` })], ["Order", r => r.soNo || BIZ.rows[r.so]?.no || ""], ["Items", r => (r.lines || []).map(l => `${l.desc} × ${l.qty}`).join(", ").slice(0, 80), "w"], ["Vehicle / LR", r => r.vehicle || ""], ["Status", r => r.inv ? st50("Invoiced " + (BIZ.rows[r.inv]?.no || ""), "ok") : st50("Not invoiced", "warn")]], R, r => dnPanel31(r));
+  } else if (G.tab === "inv") {
+    const R = all28("inv").filter(filt).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.no).localeCompare(String(a.no)));
+    g = grid50("inv", [["Invoice", r => ({ t: r.no, h: `<span class="mono">${esc(r.no || "")}</span>` })], ["Date", r => date50(r.date)], ["Customer", r => ({ t: r.customer, h: `<b>${esc(r.customer || "")}</b>` })], ["Order / DC", r => [r.soNo, r.dc].filter(Boolean).join(" · ")], ["Total ₹", r => money50(r.total), "n"], ["Outstanding ₹", r => money50(r.status === "cancelled" ? 0 : r.balance), "n"], ["Due", r => ({ t: r.due ? dmy(r.due) : "", h: r.balance > 0 && r.status !== "cancelled" ? dueChip28(r.due) : r.due ? dmy(r.due) : "—" })], ["Status", r => r.status === "cancelled" ? st50("Cancelled", "bad") : r.balance > 0 ? st50(r.due < t ? "Overdue" : "Approved", r.due < t ? "bad" : "") : st50("Paid", "ok")]], R, r => invPanel29(r));
+    newBtn = `<button class="btn primary" id="n50" type="button">${icon("plus")}New invoice</button>`;
+  } else {
+    const R = all28("rcpt").sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    g = grid50("rcpt", [["Receipt", r => ({ t: r.no, h: `<span class="mono">${esc(r.no || "")}</span>` })], ["Date", r => date50(r.date)], ["Customer", r => ({ t: r.customer, h: `<b>${esc(r.customer || "")}</b>` })], ["Mode", r => r.mode || ""], ["Ref", r => r.ref || ""], ["Amount ₹", r => money50(r.amount), "n"], ["Against", r => (r.alloc || []).map(a => BIZ.rows[a.inv]?.no || "").filter(Boolean).join(", ")]], R, r => rcptPanel29(r));
+    newBtn = `<button class="btn primary" id="n50" type="button">${icon("plus")}Record payment</button>`;
+  }
+  return { html: `<div class="l50-h"><h2>${esc(GS_TABS[G.tab][0])}</h2>${newBtn}</div>${bar}${g.html}`, wire: v => { g.wire(v); extra && extra(v); $("#x50c", v)?.addEventListener("click", () => { G.x = ""; render(); }); $("#n50", v)?.addEventListener("click", () => ({ lead: () => leadPanel28(), quote: () => { STATE.quote = blankQuote(); saveDrafts(); location.hash = "quote"; }, so: () => soPanel31(), inv: () => invPanel29(), rcpt: () => rcptPanel29() })[G.tab]?.()); } };
+}
+function plan50(G) {
+  const P = G.plan ||= { cust: "", to: "" }, q = norm31(P.cust);
+  const L = all28("so").filter(o => ["confirmed", "part"].includes(o.status) && (!q || norm31(o.customer).includes(q)) && (!P.to || !o.deliveryDate || o.deliveryDate <= P.to)).sort((a, b) => String(a.deliveryDate || "9").localeCompare(String(b.deliveryDate || "9")));
+  return { html: `<div class="l50-h"><h2>Delivery planner</h2></div>
+    <div class="f50"><label>Customer<input id="pl50c" value="${esc(P.cust)}" placeholder="all customers"></label><label>Delivery up to<input type="date" id="pl50d" value="${esc(P.to)}"></label><button class="btn primary" id="pl50g" type="button">${icon("search")}Go</button>${P.cust || P.to ? `<button class="btn ghost" id="pl50x" type="button">Clear</button>` : ""}</div>
+    ${L.map(o => { const rows = (o.lines || []).map(l => ({ l, left: Math.max(0, (Number(l.qty) || 0) - (Number(l.delivered) || 0)) })).filter(x => x.left > 0); return `<section class="o50"><header><span><b class="mono">${esc(o.no || "")}</b> · ${esc(o.customer || "")} · order ${dmy(o.date)}${o.poNo ? " · PO " + esc(o.poNo) : ""}</span><span>${o.deliveryDate ? dueChip28(o.deliveryDate) : ""}<button class="btn sm primary" data-pl50="${o.id}" type="button">${icon("box28")}Delivery note</button></span></header>
+      <table class="g50"><thead><tr><th>Item</th><th class="n">Ordered</th><th class="n">Delivered</th><th class="n">To deliver</th><th class="n">In stock</th></tr></thead><tbody>${rows.map(({ l, left }) => `<tr><td>${esc(l.desc || "")}</td><td class="n">${l.qty} ${esc(l.unit || "")}</td><td class="n">${Number(l.delivered) || 0}</td><td class="n"><b>${left}</b></td><td class="n">${l.item ? `<span class="${stockOf28(l.item) < left ? "bad50" : ""}">${stockOf28(l.item)}</span>` : "made to order"}</td></tr>`).join("")}</tbody></table></section>`; }).join("") || '<div class="empty"><b>Nothing to deliver</b>Every confirmed order is delivered.</div>'}`,
+    wire: v => { $("#pl50g", v).onclick = () => { P.cust = $("#pl50c").value.trim(); P.to = $("#pl50d").value; render(); }; $("#pl50c", v).onkeydown = e => { if (e.key === "Enter") $("#pl50g").click(); }; $("#pl50x", v)?.addEventListener("click", () => { P.cust = ""; P.to = ""; render(); }); $$("[data-pl50]", v).forEach(b => b.onclick = () => dnPanel31(null, BIZ.rows[b.dataset.pl50])); } };
+}
+function tool50(G) {
+  const T = G.tool ||= { cust: "", by: "dn" }, q = norm31(T.cust), okC = c => !q || norm31(c).includes(q);
+  const dns = all28("dn").filter(d => !d.inv && okC(d.customer)).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+  const sos = all28("so").filter(o => ["confirmed", "part", "delivered"].includes(o.status) && okC(o.customer) && !all28("dn").some(d => d.so === o.id) && !all28("inv").some(i => i.so === o.id && i.status !== "cancelled"));
+  const L = T.by === "dn" ? dns : sos;
+  return { html: `<div class="l50-h"><h2>Sales invoice tool</h2></div>
+    <div class="f50"><label>Customer<input id="tl50c" value="${esc(T.cust)}" placeholder="all customers"></label><button class="btn primary" id="tl50g" type="button">${icon("search")}Go</button></div>
+    <div class="d50-grp"><button type="button" class="${T.by === "dn" ? "on" : ""}" data-tl50="dn">Delivery notes <i>${dns.length}</i></button><button type="button" class="${T.by === "so" ? "on" : ""}" data-tl50="so">Orders without delivery note <i>${sos.length}</i></button></div>
+    ${L.map(d => { const so = T.by === "dn" ? BIZ.rows[d.so] || {} : d; return `<section class="o50"><header><span><b class="mono">${esc(d.no || "")}</b> · ${esc(d.customer || "")} · ${dmy(d.date)}${T.by === "dn" && so.no ? " · order " + esc(so.no) : ""}</span><button class="btn sm primary" data-ti50="${d.id}" type="button">${icon("acc29")}Invoice</button></header>
+      <table class="g50"><thead><tr><th>Item</th><th class="n">${T.by === "dn" ? "Delivered" : "Ordered"}</th><th class="n">Rate ₹</th><th class="n">To invoice ₹</th></tr></thead><tbody>${(d.lines || []).map(l => `<tr><td>${esc(l.desc || "")}</td><td class="n">${l.qty} ${esc(l.unit || "")}</td><td class="n">${inr28(l.rate)}</td><td class="n">${inr28((Number(l.qty) || 0) * (Number(l.rate) || 0))}</td></tr>`).join("")}</tbody></table></section>`; }).join("") || '<div class="empty"><b>Nothing to invoice</b>Every delivery is invoiced.</div>'}`,
+    wire: v => { $("#tl50g", v).onclick = () => { T.cust = $("#tl50c").value.trim(); render(); }; $("#tl50c", v).onkeydown = e => { if (e.key === "Enter") $("#tl50g").click(); }; $$("[data-tl50]", v).forEach(b => b.onclick = () => { T.by = b.dataset.tl50; render(); }); $$("[data-ti50]", v).forEach(b => b.onclick = () => { const r = BIZ.rows[b.dataset.ti50]; T.by === "dn" ? invFromSo31(BIZ.rows[r.so] || { customer: r.customer, lines: [] }, r) : invFromSo31(r); }); } };
+}
+const openInv50 = () => all28("inv").filter(i => i.status !== "cancelled" && i.balance > 0);
+const bucket50 = i => { const d = -daysTo28(i.due || i.date); return d <= 0 ? 0 : d <= 30 ? 1 : d <= 60 ? 2 : d <= 90 ? 3 : 4; };
+function ar50(G) {
+  const R = openInv50().sort((a, b) => String(a.due).localeCompare(String(b.due))), B = [0, 0, 0, 0, 0]; R.forEach(i => { B[bucket50(i)] += i.balance; });
+  const b = (i, k) => ({ t: String(bucket50(i) === k ? Math.round(i.balance) : 0), h: bucket50(i) === k ? inr28(i.balance) : "" });
+  const g = grid50("ar", [["Invoice", r => ({ t: r.no, h: `<span class="mono">${esc(r.no)}</span>` })], ["Date", r => date50(r.date)], ["Due", r => date50(r.due)], ["Customer", r => ({ t: r.customer, h: `<b>${esc(r.customer)}</b>` })], ["Outstanding", r => money50(r.balance), "n"], ["Not due", r => b(r, 0), "n"], ["1–30", r => b(r, 1), "n"], ["31–60", r => b(r, 2), "n"], ["61–90", r => b(r, 3), "n"], ["90+", r => b(r, 4), "n"]], R, r => invPanel29(r));
+  return { html: `<div class="l50-h"><h2>Accounts receivable</h2></div><div class="ag50">${["Not due", "1–30 days", "31–60 days", "61–90 days", "Over 90 days"].map((l, i) => `<div class="${i > 1 && B[i] ? "bad" : ""}"><span>${l}</span><b>${inr28(B[i])}</b></div>`).join("")}<div class="tot"><span>Total outstanding</span><b>${inr28(B.reduce((a, x) => a + x, 0))}</b></div></div>${g.html}`, wire: g.wire };
+}
+function statement50(cust) {
+  const L = openInv50().filter(i => norm31(i.customer) === norm31(cust)).sort((a, b) => String(a.date).localeCompare(String(b.date))), tot = sum29(L, "balance");
+  printHtml28("Statement " + cust, `<h1>CUSTOMER STATEMENT — OUTSTANDING</h1><p>Customer: <b>${esc(cust)}</b> · Date: ${dmy(todayISO())}</p><table><thead><tr><th>#</th><th>Invoice no</th><th>Invoice date</th><th class="n">Invoice amount ₹</th><th>Due date</th><th class="n">Days overdue</th><th class="n">Outstanding ₹</th></tr></thead><tbody>${L.map((i, k) => `<tr><td>${k + 1}</td><td>${esc(i.no)}</td><td>${dmy(i.date)}</td><td class="n">${fmt(i.total, "INR", 2)}</td><td>${dmy(i.due)}</td><td class="n">${Math.max(0, -daysTo28(i.due))}</td><td class="n">${fmt(i.balance, "INR", 2)}</td></tr>`).join("")}</tbody></table><p style="text-align:right"><b>Total outstanding: ₹${fmt(tot, "INR", 2)}</b></p><p>Kindly arrange the payment at the earliest. Please ignore if already paid.</p>`);
+}
+function coll50(G) {
+  const C = {}; openInv50().forEach(i => { const k = norm31(i.customer), c = C[k] ||= { name: i.customer, due: 0, over: 0, n: 0, oldest: "", phone: "" }; c.due += i.balance; c.n++; if (i.due < todayISO()) c.over += i.balance; if (!c.oldest || i.due < c.oldest) c.oldest = i.due; });
+  all28("lead").forEach(l => { const c = C[norm31(l.company)]; if (c && !c.phone) c.phone = l.phone || ""; }); all28("so").forEach(o => { const c = C[norm31(o.customer)]; if (c && !c.phone) c.phone = o.phone || ""; });
+  const R = Object.values(C).sort((a, b) => b.over - a.over || b.due - a.due);
+  const lastPay = n => all28("rcpt").filter(r => norm31(r.customer) === norm31(n)).map(r => r.date).sort().pop() || "";
+  const g = grid50("coll", [["Customer", r => ({ t: r.name, h: `<b>${esc(r.name)}</b>` })], ["Invoices", r => String(r.n), "n"], ["Outstanding", r => money50(r.due), "n"], ["Overdue", r => ({ t: String(Math.round(r.over)), h: r.over ? `<span class="bad50">${inr28(r.over)}</span>` : "—" }), "n"], ["Oldest due", r => date50(r.oldest)], ["Last payment", r => date50(lastPay(r.name))], ["", r => ({ t: "", h: `<span class="row" style="gap:6px;flex-wrap:nowrap"><button type="button" class="btn sm" data-cs="${esc(r.name)}">Statement</button>${r.phone ? `<button type="button" class="btn sm" data-cw="${esc(r.name)}" data-ph="${esc(r.phone)}">${icon("wa")}Remind</button>` : ""}<button type="button" class="btn sm primary" data-cr="${esc(r.name)}">Receipt</button></span>` }), "", false]], R, r => statement50(r.name));
+  return { html: `<div class="l50-h"><h2>Collection status</h2></div>${g.html}`, wire: v => { g.wire(v);
+    $$("[data-cs]", v).forEach(b => b.onclick = e => { e.stopPropagation(); statement50(b.dataset.cs); });
+    $$("[data-cr]", v).forEach(b => b.onclick = e => { e.stopPropagation(); rcptPanel29(null, { customer: b.dataset.cr }); });
+    $$("[data-cw]", v).forEach(b => b.onclick = e => { e.stopPropagation(); const c = R.find(x => x.name === b.dataset.cw); openLink("https://wa.me/" + String(b.dataset.ph).replace(/\D/g, "").replace(/^(\d{10})$/, "91$1") + "?text=" + encodeURIComponent(`Dear Sir/Madam,\n\nAs per our records ₹${fmt(c.due, "INR", 0)} is outstanding on ${c.n} invoice${c.n > 1 ? "s" : ""}${c.over ? ` (₹${fmt(c.over, "INR", 0)} overdue)` : ""}. Kindly arrange the payment. Please ignore if already paid.\n\nRegards,\n${SETTINGS.company?.name || "Rivera Coil Manufacturing (I) Pvt Ltd"}`)); });
+  } };
+}
+function reports50(G) {
+  const fy = fyOf(todayISO());
+  if (G.tab === "sreg") {
+    const M = G.month ||= todayISO().slice(0, 7), R = all28("inv").filter(i => i.status !== "cancelled" && String(i.date || "").slice(0, 7) === M).sort((a, b) => String(a.date).localeCompare(String(b.date)));
+    const g = grid50("sreg", [["Invoice", r => r.no || ""], ["Date", r => date50(r.date)], ["Customer", r => r.customer || ""], ["GSTIN", r => r.gstin || ""], ["Taxable ₹", r => money50(r.taxable), "n"], ["GST ₹", r => money50((Number(r.total) || 0) - (Number(r.taxable) || 0)), "n"], ["Total ₹", r => money50(r.total), "n"]], R, r => invPanel29(r));
+    return { html: `<div class="l50-h"><h2>Sales register</h2><label class="f" style="width:170px">Month<input type="month" id="sr50m" value="${esc(M)}"></label></div><div class="ag50"><div><span>Invoices</span><b>${R.length}</b></div><div><span>Taxable</span><b>${inr28(sum29(R, "taxable"))}</b></div><div><span>GST</span><b>${inr28(sum29(R, "total") - sum29(R, "taxable"))}</b></div><div class="tot"><span>Total</span><b>${inr28(sum29(R, "total"))}</b></div></div>${g.html}`, wire: v => { g.wire(v); $("#sr50m", v).onchange = e => { G.month = e.target.value; render(); }; } };
+  }
+  if (G.tab === "qrep") {
+    const Q = quotes50().filter(q => fyOf(q.date) === fy), by = {}; Q.forEach(q => { const s = soOfQuote31(q) ? "ordered" : qSt50(q); (by[s] ||= []).push(q); });
+    const lab = s => s === "ordered" ? "Ordered" : (STATUS[s] || [s])[0];
+    const g = grid50("qrep", [["Status", r => lab(r[0])], ["Quotations", r => String(r[1].length), "n"], ["Value ₹", r => money50(sum29(r[1], qINR)), "n"], ["Share", r => `${Q.length ? Math.round(100 * r[1].length / Q.length) : 0}%`, "n"]], Object.entries(by).sort((a, b) => b[1].length - a[1].length), r => { G.tab = "quote"; render(); });
+    return { html: `<div class="l50-h"><h2>Quotation status · FY ${esc(fy)}</h2></div><div class="ag50"><div><span>Quotations</span><b>${Q.length}</b></div><div><span>Quoted value</span><b>${inr28(sum29(Q, qINR))}</b></div><div class="tot"><span>Conversion</span><b>${Q.length ? Math.round(100 * (by.ordered || []).length / Q.length) : 0}%</b></div></div>${g.html}`, wire: g.wire };
+  }
+  const Ls = all28("lead"), src = {}; Ls.forEach(l => { const s = src[l.source || "Other"] ||= { n: 0, won: 0, lost: 0, open: 0, v: 0 }; s.n++; s.v += Number(l.value) || 0; l.stage === "won" ? s.won++ : l.stage === "lost" ? s.lost++ : s.open++; });
+  const g = grid50("lrep", [["Source", r => r[0]], ["Leads", r => String(r[1].n), "n"], ["Open", r => String(r[1].open), "n"], ["Won", r => String(r[1].won), "n"], ["Lost", r => String(r[1].lost), "n"], ["Win rate", r => `${r[1].won + r[1].lost ? Math.round(100 * r[1].won / (r[1].won + r[1].lost)) : 0}%`, "n"], ["Expected value ₹", r => money50(r[1].v), "n"]], Object.entries(src).sort((a, b) => b[1].n - a[1].n), () => { G.tab = "lead"; render(); });
+  return { html: `<div class="l50-h"><h2>Lead analysis</h2></div>${g.html}`, wire: g.wire };
+}
+VIEWS.gs = v => {
+  bizSync28();
+  const G = GS(); if (!tabOk50(G.tab)) G.tab = "dash";
+  const menu = GS_MENU.map(([m, L]) => [m, L.filter(tabOk50)]).filter(x => x[1].length);
+  const page = G.tab === "dash" ? { html: dash50(G), wire: null } : ["lead", "quote", "so", "dn", "inv", "rcpt"].includes(G.tab) ? list50(G) : G.tab === "plan" ? plan50(G) : G.tab === "tool" ? tool50(G) : G.tab === "ar" ? ar50(G) : G.tab === "coll" ? coll50(G) : G.tab === "fu" ? { html: "", wire: null } : reports50(G);
+  if (G.tab === "fu") { location.hash = "qfu"; return; }
+  v.innerHTML = `<div class="m50" role="menubar" aria-label="Sales menu">
+      <button type="button" class="m50-i ${G.tab === "dash" ? "on" : ""}" data-m50="dash">${icon("grid32")}Dashboard</button>
+      ${menu.map(([m, L]) => `<div class="m50-d"><button type="button" class="m50-i ${L.includes(G.tab) ? "on" : ""}" aria-haspopup="true">${esc(m)} <span aria-hidden="true">▾</span></button><div class="m50-p" role="menu">${L.map(k => `<button type="button" role="menuitem" data-m50="${k}" class="${k === G.tab ? "on" : ""}">${esc(GS_TABS[k][0])}</button>`).join("")}</div></div>`).join("")}
+      <div class="m50-d"><button type="button" class="m50-i" aria-haspopup="true">Masters <span aria-hidden="true">▾</span></button><div class="m50-p" role="menu">${[["customers", "Customers"], ["register", "Quotation register"], ["ratecard", "Rate card / price list"], ["workings", "Quote workings"]].filter(([r]) => can50(r)).map(([r, l]) => `<button type="button" role="menuitem" data-m50r="${r}">${l}</button>`).join("")}</div></div>
+      <span class="m50-sp"></span>${loadNote28() ? "" : `<span class="m50-sync">${BIZ.busy ? "Syncing…" : "Up to date"}</span>`}
+    </div>
+    ${loadNote28() || `<div class="p50">${page.html}</div>`}`;
+  $$("[data-m50]", v).forEach(b => b.onclick = () => { G.tab = b.dataset.m50; G.x = ""; render(); window.scrollTo?.({ top: 0 }); });
+  $$("[data-m50r]", v).forEach(b => b.onclick = () => { location.hash = b.dataset.m50r; });
+  $$(".m50-d > .m50-i", v).forEach(b => b.onclick = e => { e.stopPropagation(); const d = b.parentElement, o = !d.classList.contains("open"); $$(".m50-d.open", v).forEach(x => x.classList.remove("open")); d.classList.toggle("open", o); });
+  if (!loadNote28()) {
+    $$("[data-d50]", v).forEach(b => b.onclick = () => { G.dash = b.dataset.d50; render(); });
+    $$("[data-g50g]", v).forEach(b => b.onclick = () => { G.grp = b.dataset.g50g; render(); });
+    $$("[data-a50]", v).forEach(b => b.onclick = () => { const a = [...alerts50(), ...approvals50()].find(x => x[0] === b.dataset.a50); if (!a) return; if (a[3] === "po") { BIZ.ui.pur = "po"; BIZ.ui.st45 = "pending"; if (typeof GS44 !== "undefined") GS44.open = true; location.hash = "purchase"; return; } G.tab = a[3]; G.x = a[0]; render(); });
+    $$("[data-t50]", v).forEach(b => b.onclick = () => taskPanel28(BIZ.rows[b.dataset.t50]));
+    page.wire && page.wire(v);
+  }
+};
+addEventListener("click", e => { if (!e.target.closest?.(".m50-d")) $$(".m50-d.open").forEach(x => x.classList.remove("open")); });
+/* route, menu entry, permissions: Sales opens this workspace */
+{
+  if (!ROUTES.some(r => r[0] === "gs")) ROUTES.splice(Math.max(0, ROUTES.findIndex(r => r[0] === "apps") + 1), 0, ["gs", "Sales workspace", "funnel28"]);
+  if (typeof BIZ_ROUTES !== "undefined" && !BIZ_ROUTES.includes("gs")) BIZ_ROUTES.push("gs");
+  const _al50 = allowed21; allowed21 = function (route) { if (route === "gs") return myRole21?.() !== "viewer" && Object.keys(GS_TABS).some(k => k !== "dash" && k !== "fu" && tabOk50(k)); return _al50.apply(this, arguments); };
+  const m = MODS32.find(x => x.id === "sales"); if (m && !Object.values(m.groups).flat().some(c => c[1] === "gs")) m.groups.Transactions.unshift(["Sales workspace", "gs", {}, "Dashboard, leads → quotation → order → delivery → invoice → collection"]);
+  const _apps50 = VIEWS.apps;
+  VIEWS.apps = v => { _apps50(v); try { if (!allowed21("gs")) return; const b = $('[data-mod="sales"]', v); if (b) { b.onclick = () => { BIZ.ui.mod = "sales"; location.hash = "gs"; }; b.title = "Open the Sales workspace"; } } catch (e) { console.warn("p50", e); } };
+  const _r50 = render; render = function () { _r50.apply(this, arguments); try { document.body.classList.toggle("gs50", STATE.route === "gs"); if (STATE.route === "gs") { const t = $("#appbar26 .ab26-t b"); if (t) t.textContent = "Sales"; } } catch { } };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.m50{display:flex;align-items:center;gap:2px;flex-wrap:wrap;background:#24303d;color:#e8edf2;border-radius:10px;padding:4px 6px;margin-bottom:16px;position:relative;z-index:30}
+.m50-i{display:inline-flex;align-items:center;gap:6px;border:0;background:transparent;color:inherit;font:inherit;font-size:.86rem;font-weight:600;padding:9px 12px;border-radius:7px;cursor:pointer}.m50-i svg{width:16px;height:16px}
+.m50-i:hover,.m50-i:focus-visible,.m50-d.open>.m50-i{background:rgba(255,255,255,.1);outline:none}.m50-i.on{background:var(--copper);color:#fff}
+.m50-d{position:relative}.m50-p{display:none;position:absolute;top:calc(100% + 4px);left:0;min-width:220px;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:10px;box-shadow:0 14px 34px rgba(0,0,0,.18);padding:6px;z-index:50}
+.m50-d.open .m50-p{display:block}.m50-p button{display:block;width:100%;text-align:left;border:0;background:none;color:inherit;font:inherit;font-size:.88rem;padding:8px 10px;border-radius:7px;cursor:pointer}.m50-p button:hover,.m50-p button.on{background:var(--copper-soft);color:var(--copper-ink)}
+.m50-sp{flex:1}.m50-sync{font-size:.74rem;opacity:.7;padding-right:8px}
+.d50-top{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-bottom:16px}
+.d50-big{display:flex;align-items:center;gap:12px;padding:14px;border:1px solid var(--line);border-radius:12px;background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.d50-big.on{background:var(--c);border-color:var(--c);color:#fff}.d50-ic{display:grid;place-items:center;width:42px;height:42px;border-radius:50%;background:color-mix(in srgb,var(--c) 15%,transparent);color:var(--c);flex:none}.d50-big.on .d50-ic{background:rgba(255,255,255,.2);color:#fff}
+.d50-big b{display:block;font-size:1rem}.d50-big small{font-size:1.25rem;font-weight:800;font-family:var(--f-display)}
+.d50-grp{display:flex;gap:6px;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:12px}.d50-grp button{border:0;background:none;color:var(--muted);font:inherit;font-weight:600;font-size:.88rem;padding:8px 12px;border-bottom:2px solid transparent;cursor:pointer}
+.d50-grp button.on{color:var(--copper-ink);border-bottom-color:var(--copper)}.d50-grp i{font-style:normal;display:inline-block;min-width:20px;padding:0 6px;border-radius:9px;background:var(--line);color:var(--ink);font-size:.74rem;margin-left:4px}
+.d50-cards{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:10px}.d50-list{display:grid;gap:8px}
+.d50-c{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:12px 14px;border:1px solid var(--line);border-radius:10px;background:var(--surface);color:var(--ink);font:inherit;text-align:left;cursor:pointer}
+.d50-c span{display:flex;flex-direction:column;gap:2px}.d50-c small{color:var(--muted);font-size:.76rem}.d50-c>i{font-style:normal;font-weight:800;min-width:30px;height:30px;display:grid;place-items:center;border-radius:50%;background:var(--line)}
+.d50-c.has{border-left:4px solid var(--copper)}.d50-c.has>i{background:var(--copper);color:#fff}.d50-c:hover{border-color:var(--copper)}
+.d50-p{display:flex;gap:12px;padding:14px;border:1px solid var(--line);border-radius:10px;background:var(--surface)}.d50-p small{display:block;color:var(--muted);font-size:.76rem}.d50-pn{display:flex;gap:12px;flex-wrap:wrap;margin-top:8px;font-size:.78rem;color:var(--muted)}.d50-pn i{font-style:normal;font-weight:800;color:var(--ink);margin-right:4px}.d50-pn i.bad{color:#c0392b}
+.l50-h{display:flex;align-items:flex-end;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:10px}.l50-h h2{margin:0;font-size:1.2rem}
+.x50{display:flex;align-items:center;gap:10px;background:var(--navy-soft);color:var(--navy);padding:6px 10px;border-radius:8px;margin-bottom:10px;font-size:.86rem}.x50 button{margin-left:auto;border:0;background:none;color:inherit;font:inherit;font-weight:600;display:inline-flex;gap:4px;align-items:center;cursor:pointer}.x50 svg{width:14px;height:14px}
+.g50-wrap{overflow:auto;border:1px solid var(--line);border-radius:10px;background:var(--surface)}
+table.g50{width:100%;border-collapse:collapse;font-size:.86rem}.g50 th{background:var(--sunk);text-align:left;font-size:.74rem;text-transform:uppercase;letter-spacing:.04em;color:var(--muted);padding:8px 10px;border-bottom:1px solid var(--line);white-space:nowrap}
+.g50 tr.g50-f th{padding:4px 6px;background:var(--surface)}.g50-f input{width:100%;min-width:60px;border:1px solid var(--line);border-radius:5px;padding:4px 6px;font:inherit;font-size:.78rem;background:var(--surface);color:var(--ink)}
+.g50 td{padding:8px 10px;border-bottom:1px solid var(--line);vertical-align:middle;white-space:nowrap}.g50 td.w{white-space:normal;min-width:180px}.g50 .n{text-align:right;white-space:nowrap}.g50 tbody tr[data-gr]{cursor:pointer}.g50 tbody tr[data-gr]:hover td{background:color-mix(in srgb,var(--copper) 6%,transparent)}
+.g50-empty{text-align:center;color:var(--muted);padding:24px!important}.g50-foot{margin:6px 2px 0}
+.s50{display:inline-block;padding:2px 8px;border-radius:5px;font-size:.74rem;font-weight:600;background:#e7eef5;color:#24303d;white-space:nowrap}.s50.ok{background:#e3f4ea;color:#1d7a46}.s50.warn{background:#fff0e0;color:#b25300}.s50.bad{background:#fde8e6;color:#b42318}
+.f50{display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px}.f50 label{display:flex;flex-direction:column;gap:4px;font-size:.78rem;color:var(--muted)}.f50 input{border:1px solid var(--line-2);border-radius:6px;padding:7px 9px;font:inherit;background:var(--surface);color:var(--ink)}
+.o50{border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-bottom:12px;background:var(--surface)}.o50>header{display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;padding:8px 12px;background:#e8f1fb;color:#24303d;font-size:.86rem}.o50>header>span{display:inline-flex;gap:8px;align-items:center}
+.bad50{color:#c0392b;font-weight:700}
+.ag50{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px;margin-bottom:12px}.ag50>div{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--surface)}.ag50 span{display:block;font-size:.72rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}.ag50 b{font-size:1.1rem}.ag50 .bad b{color:#c0392b}.ag50 .tot{background:#24303d;color:#fff;border-color:#24303d}.ag50 .tot span{color:#c9d3dc}
+body.gs50 .dr26{width:min(1040px,100vw)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .o50>header{background:#1d2b3a;color:#dbe6f0}:root:not([data-theme="light"]) .s50{background:#2a3644;color:#dbe6f0}}
+@media (max-width:860px){.d50-top{grid-template-columns:repeat(2,1fr)}.m50{flex-wrap:nowrap;overflow-x:auto}.m50-p{position:fixed;left:12px;right:12px;top:auto}}
+</style>`);
+
+
 boot();
 
 </script>
