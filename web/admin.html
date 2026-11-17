@@ -9056,6 +9056,169 @@ section.panel>.g44-bar{margin:0;border-radius:0}
 </style>`);
 
 
+/* ===================== p45: GrowSmart-style Purchase — Indent → Approval → PO → GRN → Supplier bill → Payment flow bar, Purchase indent (with one-tap reorder indent), PO list filtered by step, Purchase reports, and a "Purchase only" login template (admin sees everything, the purchase person sees only Purchase) ===================== */
+PO_ST.splice(1, 0, ["indent", "Indent (request)", "navy"]);
+const PUR_TABS45 = [["ind", "Purchase indent"], ["po", "Purchase orders"], ["stock", "Stock"], ["moves", "Movements"], ["prep", "Purchase reports"]];
+const PUR_KEYS45 = PUR_TABS45.map(t => t[0]);
+const PO_GRP45 = { pending: ["pending"], approved: ["approved"], open: ["sent", "part"], received: ["received"], draft: ["draft"] };
+const PO_GRP_L45 = { pending: "Waiting approval", approved: "Approved — send to supplier", open: "With supplier — to receive (GRN)", received: "Received", draft: "Draft" };
+const indents45 = () => all28("po").filter(p => p.status === "indent");
+const billsOf45 = id => all28("bill").filter(b => b.po === id);
+const billDue45 = b => (Number(b.total) || 0) - sum29(all28("spay").filter(p => p.bill === b.id), "amount");
+const FLOW45 = [
+  ["ind", "Indent", "purchase", { pur: "ind" }, () => indents45().length],
+  ["pending", "Approval", "purchase", { pur: "po", st45: "pending" }, () => all28("po").filter(p => p.status === "pending").length],
+  ["approved", "Send PO", "purchase", { pur: "po", st45: "approved" }, () => all28("po").filter(p => p.status === "approved").length],
+  ["open", "Receive (GRN)", "purchase", { pur: "po", st45: "open" }, () => all28("po").filter(p => ["sent", "part"].includes(p.status)).length],
+  ["bill", "Supplier bill", "accounts", { acc: "bill" }, () => all28("po").filter(p => ["received", "part", "closed"].includes(p.status) && !billsOf45(p.id).length).length],
+  ["pay", "Payment", "accounts", { acc: "bill" }, () => all28("bill").filter(b => billDue45(b) > 0).length]
+];
+const purRule45 = () => (typeof tabsAllowed34 === "function" ? tabsAllowed34("purchase") : null);
+const purTabsFor45 = () => { const r = purRule45(); return PUR_TABS45.filter(([k]) => !r || r.includes(k) || (k === "ind" && r.includes("po")) || (k === "prep" && r.includes("po"))); };
+const purOnly45 = () => { const r = purRule45(); return !!r && !r.some(k => k === "so" || k === "dn"); };
+
+/* ---- indent (material request) ---- */
+function indentPanel45(src, preset) {
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "po", status: "indent", date: todayISO(), reqBy: me28(), lines: preset?.lines || [{ qty: "", unit: "kg" }], needBy: "", jobNo: "", dept: "Workshop", notes: preset?.notes || "" };
+  const items = all28("item").sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const line = (l, i) => `<div class="in45" data-ln="${i}"><select data-l="item" aria-label="Stock item"><option value="">— not a stock item —</option>${items.map(it => `<option value="${it.id}" ${l.item === it.id ? "selected" : ""}>${esc(it.name)} (${stockOf28(it.id)} ${esc(it.unit || "")} in stock)</option>`).join("")}</select>
+    <input data-l="desc" placeholder="Description / size / grade" value="${esc(l.desc || "")}"><input data-l="qty" type="number" min="0" step="any" placeholder="Qty" value="${esc(l.qty ?? "")}"><select data-l="unit">${UNITS.map(u => `<option ${l.unit === u ? "selected" : ""}>${u}</option>`).join("")}</select><button class="btn sm ghost" data-rm="${i}" type="button" aria-label="Remove line">${icon("x")}</button></div>`;
+  const draw = () => {
+    const D = panel28({
+      title: src ? `Indent ${r.no || ""}` : "New purchase indent",
+      chips: `<span class="chip navy">Indent</span>${src ? `<span class="chip">by ${esc(who28(r.reqBy || r.by))}</span>` : ""}`,
+      body: `<p class="small muted" style="margin-top:0">An indent is a request for material. Purchase turns it into a purchase order, the admin approves the PO, and stores receive it (GRN).</p>
+        <div class="fields">${field28(["date", "Indent date", "date"], r)}${field28(["needBy", "Needed by", "date"], r)}${field28(["dept", "Department", "select", ["Workshop", "Stores", "Winding", "Insulation", "Testing", "Office", "Site / service"]], r)}${field28(["jobNo", "For job / order (optional)", "text"], r)}</div>
+        <h3 style="margin:14px 0 6px;font-size:.95rem">Material needed</h3><div id="in45L">${r.lines.map(line).join("")}</div>
+        <button class="btn sm" id="in45add" type="button" style="margin-top:6px">${icon("plus")}Add line</button>
+        ${field28(["notes", "Reason / notes", "textarea"], r)}
+        ${src ? `<section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>` : ""}`,
+      foot: `${src ? `<button class="btn ghost" id="in45x" type="button">Cancel indent</button>` : ""}<span style="flex:1"></span><button class="btn" id="in45s" type="button">${icon("save")}Save indent</button>${src ? `<button class="btn primary" id="in45po" type="button">${icon("plus")}Make purchase order</button>` : ""}`
+    });
+    const sync = () => { readForm28(D, r); $$(".in45", D).forEach(row => { const l = r.lines[+row.dataset.ln]; $$("[data-l]", row).forEach(el => { l[el.dataset.l] = el.type === "number" ? (el.value === "" ? "" : Number(el.value)) : el.value; }); const it = BIZ.rows[l.item]; if (it && !l.desc) l.desc = it.name; }); };
+    $$(".in45 select[data-l=item]", D).forEach(s => s.onchange = () => { sync(); const l = r.lines[+s.closest(".in45").dataset.ln], it = BIZ.rows[l.item]; if (it) { l.unit = it.unit || l.unit; l.desc = it.name; } draw(); });
+    $("#in45add").onclick = () => { sync(); r.lines.push({ qty: "", unit: "kg" }); draw(); };
+    $$("[data-rm]", D).forEach(b => b.onclick = () => { sync(); r.lines.splice(+b.dataset.rm, 1); if (!r.lines.length) r.lines.push({ qty: "", unit: "kg" }); draw(); });
+    const ok = () => { sync(); r.lines = r.lines.filter(l => Number(l.qty) > 0 && (l.item || l.desc)); if (!r.lines.length) { r.lines.push({ qty: "", unit: "kg" }); toast("Add at least one item with a quantity", "bad"); return false; } return true; };
+    $("#in45s").onclick = async e => { if (!ok()) return; if (!src) logAdd28(r, "Indent raised", r.dept || ""); if (await save28(e.target, r, "Indent saved — purchase can now make the PO")) { closeDrawer26(); render(); } };
+    $("#in45x") && ($("#in45x").onclick = async e => { if (!confirm("Cancel this indent?")) return; sync(); r.status = "cancelled"; logAdd28(r, "Indent cancelled", ""); if (await save28(e.target, r, "Indent cancelled")) { closeDrawer26(); render(); } });
+    $("#in45po") && ($("#in45po").onclick = () => { if (!ok()) return; const p = { ...r, status: "draft", indentNo: r.no, indentBy: r.reqBy || r.by, terms: r.terms || "100% within 30 days of delivery", deliverTo: r.deliverTo || "Rivera Coil Manufacturing (I) Pvt Ltd, factory", lines: r.lines.map(l => ({ ...l, rate: l.rate || (l.item ? lastRate28(l.item) || "" : ""), gst: l.gst ?? 18 })) }; logAdd28(p, "Indent → purchase order", "add supplier and rates, then send for approval"); closeDrawer26(); _poPanel45(p); });
+  };
+  draw();
+}
+const reorder45 = () => all28("item").filter(it => Number(it.min) > 0 && stockOf28(it.id) < Number(it.min)).map(it => ({ item: it.id, desc: it.name, unit: it.unit || "kg", qty: Math.max(1, Math.round(Number(it.min) * 2 - stockOf28(it.id))) }));
+const _poPanel45 = poPanel28;
+poPanel28 = function (src) { if (src?.status === "indent") return indentPanel45(src); return _poPanel45.apply(this, arguments); };
+
+/* ---- pages: indent list and purchase reports ---- */
+function purShell45(v, body, btn) {
+  const U = BIZ.ui, pos = all28("po"), openPo = pos.filter(p => ["approved", "sent", "part"].includes(p.status));
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Purchase</div><h1>Purchase & stock</h1><p>Indent → approval → purchase order → goods received (GRN) → supplier bill → payment. Every step in one place.</p></div>
+    <div class="row">${btn || ""}<button class="btn" id="biz28r">${icon("spark")}${BIZ.busy ? "Syncing…" : "Refresh"}</button></div></div>
+    ${loadNote28() || `<div class="hero-strip"><div><span>Indents to order</span><b>${indents45().length}</b></div><div><span>Waiting approval</span><b>${pos.filter(p => p.status === "pending").length}</b></div><div><span>Open POs (to receive)</span><b>${openPo.length} · ${inr28(sum29(openPo, "total"))}</b></div><div><span>Stock to reorder</span><b>${reorder45().length}</b></div></div>
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:10px">${tabs28(U.pur, purTabsFor45(), "pt")}<input class="q28" id="q28" type="search" placeholder="Find…" value="${esc(U.q)}" aria-label="Find"></div>${body}`}`;
+  $("#biz28r").onclick = () => bizSync28(true);
+  $("#q28") && ($("#q28").oninput = e => { U.q = e.target.value; clearTimeout(BIZ.qt); BIZ.qt = setTimeout(() => { render(); const i = $("#q28"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 250); });
+}
+function purIndent45(v) {
+  const L = qf29(indents45(), x => `${x.no} ${x.dept} ${x.jobNo} ${who28(x.reqBy || x.by)} ${(x.lines || []).map(l => l.desc).join(" ")}`).sort((a, b) => String(a.needBy || "9").localeCompare(String(b.needBy || "9")));
+  const done = all28("po").filter(p => p.indentNo).length, low = reorder45();
+  purShell45(v, `${low.length ? `<div class="note warn small" style="margin-bottom:10px;display:flex;gap:10px;align-items:center;flex-wrap:wrap"><span><b>${low.length} item${low.length > 1 ? "s" : ""} below minimum stock:</b> ${low.slice(0, 6).map(x => esc(x.desc)).join(" · ")}${low.length > 6 ? " …" : ""}</span><button class="btn sm" id="in45low" type="button">Make reorder indent</button></div>` : ""}
+    ${tbl29(["Indent", "Department", "Material", "For job", "Needed by", "Raised by", ""], L.map(x => `<tr class="r26" data-in45="${x.id}" tabindex="0"><td class="mono" style="font-size:.75rem">${esc(x.no || "")}<div class="small muted">${dmy(x.date)}</div></td><td>${esc(x.dept || "")}</td><td class="small">${(x.lines || []).map(l => `${esc(l.desc || BIZ.rows[l.item]?.name || "")} — <b>${esc(l.qty)} ${esc(l.unit || "")}</b>`).join("<br>")}</td><td>${esc(x.jobNo || "")}</td><td>${x.needBy ? dueChip(x.needBy) : "—"}</td><td>${esc(who28(x.reqBy || x.by))}</td><td><button class="btn sm primary" data-in45po="${x.id}" type="button">Make PO</button></td></tr>`), `No open indents. ${done ? done + " indent" + (done > 1 ? "s" : "") + " already turned into POs." : "Press New indent to ask purchase for material."}`)}`,
+    `<button class="btn primary" id="in45new">${icon("plus")}New indent</button>`);
+  $("#in45new")?.addEventListener("click", () => indentPanel45());
+  $("#in45low")?.addEventListener("click", () => indentPanel45(null, { lines: low, notes: "Reorder — stock below minimum" }));
+  $$("[data-in45]", v).forEach(el => el.addEventListener("click", e => { if (e.target.closest("[data-in45po]")) return; indentPanel45(BIZ.rows[el.dataset.in45]); }));
+  $$("[data-in45po]", v).forEach(b => b.onclick = () => { indentPanel45(BIZ.rows[b.dataset.in45po]); setTimeout(() => $("#in45po")?.click(), 0); });
+}
+function purReports45(v) {
+  const fy = fyOf(todayISO()), pos = all28("po").filter(p => !["indent", "cancelled", "draft"].includes(p.status));
+  const inFy = pos.filter(p => fyOf(p.date) === fy), q = BIZ.ui.q.toLowerCase(), m = x => !q || x.toLowerCase().includes(q);
+  const pend = pos.filter(p => ["approved", "sent", "part"].includes(p.status)).flatMap(p => (p.lines || []).map(l => ({ p, l, left: (Number(l.qty) || 0) - (Number(l.recd) || 0) })).filter(x => x.left > 0 && m(`${x.p.no} ${x.p.supplier} ${x.l.desc || ""}`))).sort((a, b) => String(a.p.needBy || "9").localeCompare(String(b.p.needBy || "9")));
+  const sup = {}; inFy.forEach(p => { const s = sup[p.supplier || "—"] ||= { n: 0, v: 0, r: 0 }; s.n++; s.v += Number(p.total) || 0; s.r += sum29(p.lines || [], l => (Number(l.recd) || 0) * (Number(l.rate) || 0) * (1 + (Number(l.gst) || 0) / 100)); });
+  const itm = {}; inFy.forEach(p => (p.lines || []).forEach(l => { const k = BIZ.rows[l.item]?.name || l.desc || "—", x = itm[k] ||= { q: 0, v: 0, u: l.unit || "", last: 0, d: "" }; x.q += Number(l.qty) || 0; x.v += (Number(l.qty) || 0) * (Number(l.rate) || 0); if (String(p.date) >= x.d) { x.d = String(p.date); x.last = Number(l.rate) || 0; } }));
+  const mon = {}; inFy.forEach(p => { const k = String(p.date || "").slice(0, 7); mon[k] = (mon[k] || 0) + (Number(p.total) || 0); });
+  const mx = Math.max(1, ...Object.values(mon));
+  purShell45(v, `<section class="panel"><header><h2>Purchase by month · FY ${esc(fy)}</h2><span class="small muted">${inr28(sum29(inFy, "total"))} in ${inFy.length} POs</span></header><div class="body">${Object.keys(mon).length ? `<div class="mb45">${Object.entries(mon).sort().map(([k, val]) => `<div title="${inr28(val)}"><i style="height:${Math.max(4, val / mx * 110)}px"></i><b>${inr28(val).replace("₹", "")}</b><span>${new Date(k + "-01").toLocaleString("en-IN", { month: "short" })}</span></div>`).join("")}</div>` : '<p class="small muted">No purchase orders this year yet.</p>'}</div></section>
+    <h3 class="h45">Pending to receive (open POs)</h3>${tbl29(["PO", "Supplier", "Item", "Ordered", "Received", "Pending", "Needed by"], pend.map(x => `<tr class="r26" data-po="${x.p.id}" tabindex="0"><td class="mono" style="font-size:.75rem">${esc(x.p.no)}</td><td>${esc(x.p.supplier || "")}</td><td>${esc(x.l.desc || BIZ.rows[x.l.item]?.name || "")}</td><td class="n">${esc(x.l.qty)} ${esc(x.l.unit || "")}</td><td class="n">${Number(x.l.recd) || 0}</td><td class="n"><b>${x.left}</b></td><td>${x.p.needBy ? dueChip(x.p.needBy) : "—"}</td></tr>`), "Nothing pending — every approved PO is fully received.")}
+    <h3 class="h45">Supplier-wise · FY ${esc(fy)}</h3>${tbl29(["Supplier", "POs", "Ordered value", "Received value", "Bills to pay"], Object.entries(sup).filter(([k]) => m(k)).sort((a, b) => b[1].v - a[1].v).map(([k, s]) => `<tr><td><b>${esc(k)}</b></td><td class="n">${s.n}</td><td class="n">${inr28(s.v)}</td><td class="n">${inr28(s.r)}</td><td class="n">${inr28(sum29(all28("bill").filter(b => b.supplier === k), b => Math.max(0, billDue45(b))))}</td></tr>`), "No suppliers this year yet.")}
+    <h3 class="h45">Item-wise · FY ${esc(fy)}</h3>${tbl29(["Item", "Qty ordered", "Value", "Average rate", "Last rate"], Object.entries(itm).filter(([k]) => m(k)).sort((a, b) => b[1].v - a[1].v).map(([k, x]) => `<tr><td><b>${esc(k)}</b></td><td class="n">${fmt(x.q, "INR", 2)} ${esc(x.u)}</td><td class="n">${inr28(x.v)}</td><td class="n">${x.q ? inr28(x.v / x.q) : "—"}</td><td class="n">${inr28(x.last)}</td></tr>`), "No items this year yet.")}`);
+  $$("[data-po]", v).forEach(el => el.addEventListener("click", () => poPanel28(BIZ.rows[el.dataset.po])));
+}
+function purFlow45(v) {
+  $("#flow39", v)?.remove(); if ($("#flow45", v)) return;
+  const ok = FLOW45.filter(s => allowed21(s[2]) && (s[2] !== "accounts" || (typeof cardOk32 !== "function" || cardOk32(["", s[2], s[3]]))));
+  const U = BIZ.ui, cur = U.pur === "ind" ? "ind" : U.pur === "po" ? (U.st45 || "") : "";
+  let n = []; try { n = ok.map(s => s[4]()); } catch { n = ok.map(() => 0); }
+  v.insertAdjacentHTML("afterbegin", `<nav id="flow45" class="fl39" aria-label="Purchase flow">${ok.map((s, i) => `<button type="button" class="fl39-s ${s[0] === cur ? "on" : ""}" data-fl45="${i}" ${s[0] === cur ? 'aria-current="step"' : ""}><i>${i + 1}</i><span>${s[1]}</span>${n[i] ? `<em>${n[i]}</em>` : ""}</button>${i < ok.length - 1 ? '<span class="fl39-a" aria-hidden="true">›</span>' : ""}`).join("")}</nav>`);
+  $$("[data-fl45]", v).forEach(b => b.onclick = () => { const s = ok[+b.dataset.fl45]; if (typeof GS44 !== "undefined") GS44.open = true; BIZ.ui.st45 = ""; go32(s[2], s[3]); });
+}
+{
+  const _vp45 = VIEWS.purchase;
+  VIEWS.purchase = v => {
+    const U = BIZ.ui, rule = purRule45();
+    if (U.pur === "ind" && rule && !rule.includes("po") && !rule.includes("ind")) U.pur = rule[0];
+    if (U.pur === "prep" && rule && !rule.includes("po") && !rule.includes("prep")) U.pur = rule[0];
+    if (purOnly45() && !PUR_KEYS45.includes(U.pur)) U.pur = "po";
+    if (U.pur !== "po") U.st45 = "";
+    if (U.pur === "ind" || U.pur === "prep") { bizSync28(); U.pur === "ind" ? purIndent45(v) : purReports45(v); }
+    else _vp45(v);
+    try {
+      if (!PUR_KEYS45.includes(U.pur)) return;   // sales order / delivery tabs stay as they are
+      const h1 = $("h1", v); if (h1) h1.textContent = "Purchase & stock";
+      const eb = $(".topbar .eyebrow", v); if (eb) eb.textContent = "Purchase";
+      // tabs: purchase tabs only (sales tabs stay for people who have them)
+      const tr = $(".tabs-row", v);
+      if (tr) {
+        const sales = purOnly45() ? [] : [["so", "Sales orders"], ["dn", "Deliveries"]].filter(([k]) => !rule || rule.includes(k));
+        tr.outerHTML = tabs28(U.pur, [...purTabsFor45(), ...sales], "pt");
+        $$("[data-pt]", v).forEach(b => b.onclick = () => { U.pur = b.dataset.pt; U.st45 = ""; render(); });
+      }
+      if (U.pur === "po") {
+        const p1 = $("#p28new", v); if (p1 && !$("#in45new2", v)) { p1.insertAdjacentHTML("beforebegin", `<button class="btn" id="in45new2">${icon("plus")}New indent</button>`); $("#in45new2", v).onclick = () => indentPanel45(); }
+        const g = PO_GRP45[U.st45];
+        $$("tr[data-po]", v).forEach(tr2 => { const p = BIZ.rows[tr2.dataset.po]; if (!p) return; if (p.status === "indent" || (g && !g.includes(p.status))) tr2.remove(); else if (p.indentNo) tr2.children[0]?.insertAdjacentHTML("beforeend", `<div class="small muted">from indent ${esc(p.indentNo)}</div>`); });
+        if (g) $(".tabs-row", v)?.parentElement?.insertAdjacentHTML("afterend", `<div class="fc41" style="margin:0 0 10px"><span>Showing</span><button type="button" class="chip fc41-c" id="st45x">${esc(PO_GRP_L45[U.st45])} <i aria-hidden="true">×</i></button></div>`);
+        $("#st45x", v)?.addEventListener("click", () => { U.st45 = ""; render(); });
+      }
+      purFlow45(v);
+    } catch (e) { console.warn("p45", e); }
+  };
+}
+/* the sidebar says "Purchase" for a purchase-only login */
+{
+  const _r45 = render;
+  render = function () { _r45.apply(this, arguments); try { const a = $('#nav [data-r="purchase"] span'); if (a) a.textContent = purOnly45() ? "Purchase & stock" : a.textContent; if (STATE.route === "purchase" && PUR_KEYS45.includes(BIZ.ui.pur)) { $("#flow39")?.remove(); const t = $("#appbar26 .ab26-t b"); if (t) t.textContent = "Purchase & stock"; } } catch (e) { console.warn("p45", e); } };
+}
+/* module cards: Purchase indent + Purchase reports */
+{
+  const m = MODS32.find(x => x.id === "purchase");
+  if (m) { m.groups.Transactions.unshift(["Purchase indent", "purchase", { pur: "ind" }, "Material request from workshop / stores"]); m.groups.Reports.unshift(["Purchase reports", "purchase", { pur: "prep" }, "Pending to receive, supplier & item-wise"]); }
+}
+/* ---- "Purchase only" login: one tap in Permissions ticks only the Purchase pages ---- */
+const PUR_ONLY45 = ["purchase.ind", "purchase.po", "purchase.stock", "purchase.moves", "purchase.prep", "vendors", "tasks"];
+{
+  const _pp45 = permPanel34;
+  permPanel34 = async function (email) {
+    const out = await _pp45.apply(this, arguments);
+    try {
+      const D = $("#dr26"), row = D && $("[data-tpl]", D)?.parentElement; if (!row || $("#pm45", D)) return out;
+      row.insertAdjacentHTML("afterbegin", `<button type="button" class="btn sm primary" id="pm45" title="Only Purchase indent, purchase orders, stock, movements, purchase reports, vendors and My work">Purchase only</button>`);
+      $("#pm45", D).onclick = () => { const T = new Set(PUR_ONLY45); $$("[data-tok]", D).forEach(x => { x.checked = T.has(x.dataset.tok); }); const r = $("#pm34r", D); if (r) r.value = "operation"; $$("[data-mall]", D).forEach(a => { const L = $$(`[data-m="${a.dataset.mall}"]`, D); a.checked = L.length && L.every(x => x.checked); a.indeterminate = !a.checked && L.some(x => x.checked); }); toast("Purchase only ticked — press Save permissions"); };
+    } catch (e) { console.warn("p45", e); }
+    return out;
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.in45{display:grid;grid-template-columns:minmax(0,1.3fr) minmax(0,1.3fr) 90px 80px auto;gap:6px;align-items:center;margin-bottom:6px}
+.in45 input,.in45 select{width:100%;min-width:0;border:1px solid var(--line-2);background:var(--surface);border-radius:6px;padding:7px 8px;color:var(--ink);font:inherit;font-size:.86rem}
+@media (max-width:640px){.in45{grid-template-columns:1fr 1fr;}.in45 [data-l=item],.in45 [data-l=desc]{grid-column:1/-1}}
+.h45{margin:18px 0 8px;font-size:.98rem}
+.mb45{display:flex;gap:10px;align-items:flex-end;overflow-x:auto;padding-bottom:4px}.mb45>div{display:flex;flex-direction:column;align-items:center;gap:3px;min-width:44px}
+.mb45 i{display:block;width:30px;background:var(--copper);border-radius:4px 4px 0 0}.mb45 b{font-size:.68rem;font-weight:600}.mb45 span{font-size:.72rem;color:var(--muted)}
+</style>`);
+
+
 boot();
 
 </script>
