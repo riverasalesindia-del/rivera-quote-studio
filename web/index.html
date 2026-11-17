@@ -9704,7 +9704,7 @@ VIEWS.gs = v => {
   if (!loadNote28()) {
     $$("[data-d50]", v).forEach(b => b.onclick = () => { G.dash = b.dataset.d50; render(); });
     $$("[data-g50g]", v).forEach(b => b.onclick = () => { G.grp = b.dataset.g50g; render(); });
-    $$("[data-a50]", v).forEach(b => b.onclick = () => { const a = [...alerts50(), ...approvals50()].find(x => x[0] === b.dataset.a50); if (!a) return; if (a[3] === "po") { BIZ.ui.pur = "po"; BIZ.ui.st45 = "pending"; if (typeof GS44 !== "undefined") GS44.open = true; location.hash = "purchase"; return; } G.tab = a[3]; G.x = a[0]; render(); });
+    $$("[data-a50]", v).forEach(b => b.onclick = () => { const a = [...alerts50(), ...approvals50()].find(x => x[0] === b.dataset.a50); if (!a) return; if (a[6]) return a[6](); if (a[3] === "po") { BIZ.ui.pur = "po"; BIZ.ui.st45 = "pending"; if (typeof GS44 !== "undefined") GS44.open = true; location.hash = "purchase"; return; } G.tab = a[3]; G.x = a[0]; render(); });
     $$("[data-t50]", v).forEach(b => b.onclick = () => taskPanel28(BIZ.rows[b.dataset.t50]));
     page.wire && page.wire(v);
   }
@@ -9753,6 +9753,151 @@ table.g50{width:100%;border-collapse:collapse;font-size:.86rem}.g50 th{backgroun
 body.gs50 .dr26{width:min(1040px,100vw)}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .o50>header{background:#1d2b3a;color:#dbe6f0}:root:not([data-theme="light"]) .s50{background:#2a3644;color:#dbe6f0}}
 @media (max-width:860px){.d50-top{grid-template-columns:repeat(2,1fr)}.m50{flex-wrap:nowrap;overflow-x:auto}.m50-p{position:fixed;left:12px;right:12px;top:auto}}
+</style>`);
+
+
+/* ===================== p51: GrowSmart look for the whole app — dark top menu (Company · Dashboard · Sales ▾ · Purchase ▾ · Stock ▾ · Accounts ▾ · Service ▾ · HR ▾ …, bell, user ▾) with Transactions / Masters / Reports in each menu, centred page on a teal background, GrowSmart home (Current company, square module tiles, search, Transactions / Masters / Reports cards with ★ favourites), Sales menu in GrowSmart order (Leads, Quotations, Competitive quotes, Orders, …, Complaints, Events), one Dashboard with Sales / Purchase / Stock / Accounts alerts ===================== */
+{
+  const ms = MODS32.find(m => m.id === "sales");
+  if (ms) ms.groups = {
+    Transactions: [["Leads", "gs", { gs: "lead" }, "Enquiries, activities, next follow-up"], ["Quotations", "gs", { gs: "quote" }, "Every quotation and its status"], ["Competitive quotes", "compare", {}, "Offers side by side"], ["Orders", "gs", { gs: "so" }, "Customer PO → sales order"], ["Delivery planner", "gs", { gs: "plan" }, "What to deliver, by date"], ["Delivery notes", "gs", { gs: "dn" }, "Challans and dispatch"], ["Sales invoice tool", "gs", { gs: "tool" }, "Invoice what was delivered"], ["Sales invoices", "gs", { gs: "inv" }, "GST tax invoices"], ["Receipts", "gs", { gs: "rcpt" }, "Customer payments"], ["Complaints", "service", { svc: "calls" }, "Customer complaints & service calls"], ["Events", "tasks", {}, "Follow-ups, tasks, calendar"], ["Auto quotation", "scan", {}, "Drop the enquiry → quotation ready"], ["Quote workings", "workings", {}, "Costing for coils"], ["Quotation (letterhead)", "quote", {}, "Rivera letterhead quote"], ["Quote follow-ups", "qfu", {}, "Sent quotes waiting for reply"]],
+    Masters: [["Customers", "customers", {}, "360° view of every customer"], ["Quotation register", "register", {}, "Every quote, every revision"], ["Price list / rate card", "ratecard", {}, "Costing rates"]],
+    Reports: [["Sales dashboard", "gs", { gs: "dash" }, "Alerts, approvals, tasks, people"], ["Accounts receivable", "gs", { gs: "ar" }, "Ageing by invoice"], ["Collection status", "gs", { gs: "coll" }, "Outstanding by customer"], ["Sales register", "gs", { gs: "sreg" }, "Invoices by month"], ["Quotation status", "gs", { gs: "qrep" }, "Conversion this year"], ["Lead analysis", "gs", { gs: "lrep" }, "Source and win rate"], ["History & reports", "history", {}, "Won / lost, by period"], ["Team tracker", "tracker", {}, "Visits on a map"]]
+  };
+  const _c51 = cardOk32;
+  cardOk32 = function (c) { if (c?.[0] === "Events" && c[1] === "tasks" && typeof myTokens34 === "function" && myTokens34() && !allowed21("gs")) return false; if (c?.[1] === "gs") { const k = c[2]?.gs || "dash"; return (k === "dash" ? allowed21("gs") : tabOk50(k)) && (typeof myTokens34 === "function" && myTokens34() ? _c51(c) : true); } return _c51.apply(this, arguments); };
+  const _g51 = go32;
+  go32 = function (route, ui) { if (route === "gs") { const G = GS(); G.tab = ui?.gs || "dash"; G.x = ""; } return _g51.apply(this, arguments); };
+  /* Dashboard: Purchase and Stock alerts next to Sales and Accounts */
+  const _a51 = alerts50;
+  alerts50 = function () {
+    const out = _a51.apply(this, arguments), t = todayISO(), P = (pur, st) => () => { BIZ.ui.pur = pur; BIZ.ui.st45 = st || ""; if (typeof GS44 !== "undefined") GS44.open = true; location.hash = "purchase"; };
+    if (can50("purchase", { pur: "po" })) out.push(
+      ["pInd", "Purchase", "Indents to order", "po", p => p.status === "indent", "material requests", P("ind")],
+      ["pSend", "Purchase", "Purchase orders to send", "po", p => p.status === "approved", "approved, not sent", P("po", "approved")],
+      ["pRecv", "Purchase", "Goods to receive", "po", p => ["sent", "part"].includes(p.status), "with the supplier", P("po", "open")],
+      ["pLate", "Purchase", "Supplier deliveries late", "po", p => ["sent", "part", "approved"].includes(p.status) && p.needBy && p.needBy < t, "needed-by date passed", P("po", "open")]);
+    if (can50("purchase", { pur: "stock" })) out.push(["sLow", "Stock", "Items below minimum", "item", it => Number(it.min) > 0 && stockOf28(it.id) < Number(it.min), "reorder now", P("ind")]);
+    return out;
+  };
+}
+const FAV51 = "rqs.fav51";
+const ICON51 = [[/lead|enquir/i, "phone28"], [/competitive|compare/i, "compare"], [/quote workings|costing/i, "sheet"], [/follow/i, "fu32"], [/auto quotation|scan/i, "scan"], [/quotation|quote/i, "doc"], [/delivery planner/i, "cal26"], [/delivery|challan|dispatch/i, "box28"], [/invoice tool/i, "acc29"], [/invoice|bill/i, "acc29"], [/receipt|payment|collection|receivable|expense/i, "wallet"], [/complaint|service/i, "svc29"], [/event|task|my work/i, "cal26"], [/order/i, "so31"], [/customer/i, "cust32"], [/register|history/i, "hist"], [/rate|price/i, "rate"], [/dashboard/i, "dash29"], [/tracker|map/i, "map31"], [/tender|gem|bid/i, "gem"], [/indent|purchase/i, "box28"], [/stock|item|movement/i, "db"], [/vendor|supplier|rfq/i, "vendor"], [/report|analysis|status|register/i, "list"], [/job|repair|workshop/i, "wrench28"], [/project/i, "proj29"], [/attendance|leave|payroll|employee/i, "hr29"], [/user|access/i, "users"], [/document|library/i, "folder"]];
+const icon51 = (c, fb) => (ICON51.find(([re]) => re.test(c[0])) || [0, fb])[1];
+const favs51 = () => { try { const a = JSON.parse(localStorage.getItem(FAV51) || "[]"); return Array.isArray(a) ? a : []; } catch { return []; } };
+const favKey51 = c => c[0] + "|" + c[1] + "|" + JSON.stringify(c[2] || {});
+/* ---- GrowSmart home ---- */
+VIEWS.apps = v => {
+  bizSync28();
+  const M = modsFor32(), U = BIZ.ui; if (!M.length) { v.innerHTML = '<div class="empty"><b>No modules for this login</b>Ask the admin to tick your pages in Users & access ▸ Permissions.</div>'; return; }
+  const m = M.find(x => x.id === U.mod) || M[0]; U.mod = m.id;
+  const F = favs51(), all = M.flatMap(x => Object.values(x.groups).flat().map(c => ({ c, m: x })));
+  const favs = all.filter(({ c }) => F.includes(favKey51(c)));
+  const tabs = [...["Transactions", "Masters", "Reports"].filter(g => m.groups[g]?.length), ...(favs.length ? ["Favourites"] : [])]; if (!tabs.includes(U.mtab)) U.mtab = tabs[0];
+  const q = (U.lq || "").trim().toLowerCase();
+  const cards = q ? all.filter(({ c }) => `${c[0]} ${c[3] || ""}`.toLowerCase().includes(q)) : U.mtab === "Favourites" ? favs : (m.groups[U.mtab] || []).map(c => ({ c, m }));
+  v.innerHTML = `<div class="h51">
+    <div class="h51-co"><label for="co51">Current Company</label><select id="co51"><option>${esc(SETTINGS.company?.name || "Rivera Coil Manufacturing (I) Pvt Ltd")}</option></select></div>
+    <div class="h51-tiles" role="tablist" aria-label="Modules">${M.map(x => { const n = Object.values(x.groups).flat().reduce((a, c) => a + cardsCount32(c), 0); return `<button type="button" role="tab" aria-selected="${x.id === m.id}" class="h51-t ${x.id === m.id && !q ? "on" : ""}" data-mod="${x.id}" style="--t:${x.tone}"><span class="h51-ic">${icon(x.icon)}</span><b>${esc(x.name.replace(" & Stock", "").replace(" & Service", "").replace(" & Payroll", ""))}</b>${n ? `<i>${n}</i>` : ""}</button>`; }).join("")}</div>
+    <input class="h51-s" id="ln36q" type="search" placeholder="Search item here" value="${esc(U.lq || "")}" aria-label="Search item">
+    ${q ? `<div class="small muted" style="margin:10px 2px">${cards.length} match${cards.length === 1 ? "" : "es"} in all modules</div>` : `<div class="h51-tabs" role="tablist">${tabs.map(g => `<button type="button" role="tab" aria-selected="${g === U.mtab}" class="${g === U.mtab ? "on" : ""}" data-mt="${g}">${g === "Favourites" ? "★ " : ""}${g}</button>`).join("")}</div>`}
+    <div class="h51-cards">${cards.map(({ c, m: x }, i) => { const n = cardsCount32(c), f = F.includes(favKey51(c)); return `<div class="h51-c" style="--t:${x.tone}"><button type="button" class="h51-cb" data-ci="${i}" title="${esc(c[3] || "")}"><span class="h51-ci" style="color:${x.tone}">${icon(icon51(c, x.icon))}</span><span>${esc(c[0])}</span>${n ? `<i>${n}</i>` : ""}</button><button type="button" class="h51-star ${f ? "on" : ""}" data-fv="${i}" aria-pressed="${f}" aria-label="${f ? "Remove from" : "Add to"} favourites">${f ? "★" : "☆"}</button></div>`; }).join("") || '<p class="small muted">Nothing found.</p>'}</div>
+  </div>`;
+  $$("[data-mod]", v).forEach(b => b.onclick = () => { U.mod = b.dataset.mod; U.mtab = "Transactions"; U.lq = ""; render(); });
+  $$("[data-mt]", v).forEach(b => b.onclick = () => { U.mtab = b.dataset.mt; render(); });
+  $$("[data-ci]", v).forEach(b => b.onclick = () => { const { c } = cards[+b.dataset.ci]; U.lq = ""; go32(c[1], c[2]); });
+  $$("[data-fv]", v).forEach(b => b.onclick = () => { const k = favKey51(cards[+b.dataset.fv].c), L = favs51(), i = L.indexOf(k); i >= 0 ? L.splice(i, 1) : L.push(k); try { localStorage.setItem(FAV51, JSON.stringify(L)); } catch { } render(); });
+  const qi = $("#ln36q", v); qi.oninput = () => { U.lq = qi.value; clearTimeout(BIZ.lt); BIZ.lt = setTimeout(() => { render(); const i = $("#ln36q"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 200); };
+};
+/* ---- dark top menu ---- */
+const NAV51 = "rqs.nav51";
+const topNav51 = () => { try { return localStorage.getItem(NAV51) !== "side"; } catch { return true; } };
+function dashGo51() { if (allowed21("gs")) return go32("gs", { gs: "dash" }); if (allowed21("purchase")) { BIZ.ui.pur = "dash"; location.hash = "purchase"; return; } location.hash = "apps"; }
+function nav51() {
+  const main = $("#main"), on = topNav51() && signed26?.() && !(AUTH.required() && !signed26());
+  document.body.classList.toggle("gs51", !!on);
+  let bar = $("#nav51");
+  if (!on) { bar?.remove(); return; }
+  if (!bar) { main.insertAdjacentHTML("afterbegin", `<nav id="nav51" class="n51" aria-label="Main menu"></nav>`); bar = $("#nav51"); }
+  const sig = [STATE.route, BIZ.ui.pur, GS().tab, NEW26?.total || 0, JSON.stringify(AUTH.user || {}), modsFor32().map(x => x.id + Object.values(x.groups).flat().map(c => c[0] + cardsCount32(c)).join()).join(";")].join("|");
+  if (bar.dataset.sig === sig) return; bar.dataset.sig = sig;
+  const openIdx = $$(".n51-d", bar).findIndex(x => x.classList.contains("open"));
+  const M = modsFor32(), u = AUTH.user || {}, cur = STATE.route, curMod = cur === "gs" ? "sales" : M.find(x => Object.values(x.groups).flat().some(c => c[1] === cur && (!c[2]?.pur || c[2].pur === BIZ.ui.pur)))?.id;
+  const nNew = NEW26?.total || 0;
+  bar.innerHTML = `<button type="button" class="n51-b" data-n51h title="All modules"><img src="${RIVERA_MARK}" alt="">Rivera Coil</button>
+    <button type="button" class="n51-i ${cur === "gs" && GS().tab === "dash" ? "on" : ""}" data-n51d>${icon("dash29")}Dashboard</button>
+    ${M.map(x => `<div class="n51-d ${x.id === curMod ? "cur" : ""}"><button type="button" class="n51-i" aria-haspopup="true">${icon(x.icon)}${esc(x.name.replace(" & Stock", "").replace(" & Service", "").replace(" & Payroll", ""))}<span class="n51-c" aria-hidden="true">▾</span></button><div class="n51-p" role="menu">${["Transactions", "Masters", "Reports"].filter(g => x.groups[g]?.length).map(g => `<div class="n51-g">${g}</div>${x.groups[g].map((c, i) => `<button type="button" role="menuitem" data-n51="${x.id}|${g}|${i}">${esc(c[0])}${cardsCount32(c) ? `<i>${cardsCount32(c)}</i>` : ""}</button>`).join("")}`).join("")}</div></div>`).join("")}
+    <span class="n51-sp"></span>
+    <button type="button" class="n51-ic" data-n51s title="Search everything (Ctrl K)" aria-label="Search everything">${icon("search")}</button>
+    ${typeof new47ok === "function" && new47ok().length && u.access !== "view" ? `<button type="button" class="n51-new" id="new51">${icon("plus")}New</button>` : ""}
+    ${canTdb26() ? `<button type="button" class="n51-ic" data-n51n title="New tenders" aria-label="${nNew} new tenders">${icon("bell26")}${nNew ? `<i>${nNew > 99 ? "99+" : nNew}</i>` : ""}</button>` : ""}
+    <div class="n51-d n51-u"><button type="button" class="n51-i" aria-haspopup="true">${icon("users")}${esc(u.name || u.email || "")}<span class="n51-c" aria-hidden="true">▾</span></button><div class="n51-p n51-pr" role="menu"><div class="n51-g">${esc(u.email || "")}</div>
+      ${allowed21("tasks") ? `<button type="button" data-n51go="tasks">My work</button>` : ""}${allowed21("users") ? `<button type="button" data-n51go="users">${AUTH.isAdmin ? "Users & access" : "My account"}</button>` : ""}
+      <button type="button" data-n51side>Side menu instead</button><button type="button" data-n51o class="bad">Log out</button></div></div>`;
+  $("[data-n51h]", bar).onclick = () => { location.hash = "apps"; };
+  $("[data-n51d]", bar).onclick = dashGo51;
+  $$(".n51-d > .n51-i", bar).forEach(b => b.onclick = e => { e.stopPropagation(); const d = b.parentElement, o = !d.classList.contains("open"); $$(".n51-d.open").forEach(x => x.classList.remove("open")); d.classList.toggle("open", o); });
+  $$("[data-n51]", bar).forEach(b => b.onclick = () => { const [mid, g, i] = b.dataset.n51.split("|"), c = M.find(x => x.id === mid)?.groups[g]?.[+i]; $$(".n51-d.open").forEach(x => x.classList.remove("open")); if (c) { BIZ.ui.mod = mid; go32(c[1], c[2]); } });
+  $("[data-n51s]", bar).onclick = () => gsOpen17();
+  $("#new51")?.addEventListener("click", e => { e.stopPropagation(); new47Open(e.currentTarget); });
+  $("[data-n51n]", bar)?.addEventListener("click", e => { e.stopPropagation(); const ab = $("#ab26n"); ab ? ab.click() : bellPop26?.(); });
+  $$("[data-n51go]", bar).forEach(b => b.onclick = () => { location.hash = b.dataset.n51go; });
+  $("[data-n51side]", bar).onclick = () => { try { localStorage.setItem(NAV51, "side"); } catch { } nav51(); render(); toast("Side menu on — the top menu comes back from the ⋮ button"); };
+  $("[data-n51o]", bar).onclick = () => signOut();
+  if (openIdx >= 0) $$(".n51-d", bar)[openIdx]?.classList.add("open");
+}
+addEventListener("click", e => { if (!e.target.closest?.(".n51-d")) $$(".n51-d.open").forEach(x => x.classList.remove("open")); });
+addEventListener("keydown", e => { if (e.key === "Escape") $$(".n51-d.open").forEach(x => x.classList.remove("open")); });
+{
+  const _r51 = render;
+  render = function () { _r51.apply(this, arguments); try { nav51(); } catch (e) { console.warn("p51", e); } };
+  const _ab51 = appbar26;
+  appbar26 = function () { const o = _ab51.apply(this, arguments); try { if ($("#nav51")) { const n = $("[data-n51n] i"); const t = NEW26?.total || 0; if (n) n.textContent = t > 99 ? "99+" : t; } } catch { } return o; };
+  /* ⋮ in the side menu brings the top menu back */
+  const _rb51 = railBtn47;
+  railBtn47 = function () { _rb51.apply(this, arguments); try { const b = $("#rail47"); if (b && !b.dataset.n51) { b.dataset.n51 = "1"; b.addEventListener("contextmenu", e => { e.preventDefault(); try { localStorage.removeItem(NAV51); } catch { } render(); }); } const br = $("#brandRail"); if (br && !$("#top51", br)) { br.insertAdjacentHTML("beforeend", `<button type="button" id="top51" class="rail47-b" style="right:30px" title="Top menu (GrowSmart style)" aria-label="Use the top menu">${icon("grid32")}</button>`); $("#top51").onclick = () => { try { localStorage.removeItem(NAV51); } catch { } render(); }; } } catch { } };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+@media (min-width:861px){
+  body.gs51{background:#5d9b99}
+  body.gs51 .rail{display:none}
+  body.gs51 .shell{grid-template-columns:minmax(0,1fr);background:#5d9b99}
+  body.gs51 .main{max-width:1240px;width:100%;margin:0 auto;background:var(--bg);min-height:100vh;box-shadow:0 0 0 1px rgba(0,0,0,.05),0 0 40px rgba(0,0,0,.12)}
+  body.gs51 #appbar26{display:none}
+  body.gs51 #new47f{display:none}
+  body.gs51 .m50{display:none}
+}
+.n51{position:sticky;top:0;z-index:45;display:flex;align-items:center;gap:0;flex-wrap:wrap;margin:-22px calc(-1 * max(24px,env(safe-area-inset-right,0px))) 18px calc(-1 * max(24px,env(safe-area-inset-left,0px)));padding:4px 8px;background:#222;color:#bbb;border-bottom:1px solid #080808;min-height:52px}
+.n51-b{display:inline-flex;align-items:center;gap:8px;border:0;background:none;color:#fff;font:600 .92rem var(--f-body);padding:8px 12px 8px 4px;cursor:pointer}.n51-b img{width:26px;height:26px;border-radius:6px;background:#fff}
+.n51-i{display:inline-flex;align-items:center;gap:5px;border:0;background:none;color:#bbb;font:inherit;font-size:.85rem;padding:10px 8px;max-width:170px;overflow:hidden;text-overflow:ellipsis;border-radius:6px;cursor:pointer;white-space:nowrap}.n51-i svg{width:15px;height:15px}
+.n51-i:hover,.n51-i:focus-visible,.n51-d.open>.n51-i{color:#fff;background:#080808;outline:none}.n51-i.on,.n51-d.cur>.n51-i{color:#fff;background:#080808}.n51-c{font-size:.7rem;opacity:.8}
+.n51-d{position:relative}.n51-p{display:none;position:absolute;top:calc(100% + 6px);left:0;min-width:230px;max-height:calc(100vh - 90px);overflow:auto;background:#fff;color:#333;border:1px solid rgba(0,0,0,.15);border-radius:6px;box-shadow:0 6px 18px rgba(0,0,0,.2);padding:6px 0;z-index:60}
+.n51-d.open>.n51-p{display:block}.n51-pr{left:auto;right:0}
+.n51-g{padding:8px 16px 4px;font-size:.72rem;color:#999;text-transform:uppercase;letter-spacing:.05em}
+.n51-p button{display:flex;justify-content:space-between;align-items:center;gap:10px;width:100%;text-align:left;border:0;background:none;color:#333;font:inherit;font-size:.86rem;padding:6px 18px;cursor:pointer}.n51-p button:hover,.n51-p button:focus-visible{background:#f5f5f5;color:#262626;outline:none}.n51-p button.bad{color:#b42318}
+.n51-p i{font-style:normal;font-size:.7rem;background:#d9534f;color:#fff;border-radius:9px;padding:1px 6px}
+.n51-sp{flex:1}
+.n51-ic{position:relative;display:grid;place-items:center;width:38px;height:38px;border:0;background:none;color:#bbb;border-radius:6px;cursor:pointer}.n51-ic:hover{color:#fff;background:#080808}.n51-ic svg{width:18px;height:18px}.n51-ic i{position:absolute;top:2px;right:0;font-style:normal;font-size:.62rem;font-weight:700;background:#d9534f;color:#fff;border-radius:8px;padding:1px 5px}
+.n51-new{display:inline-flex;align-items:center;gap:6px;border:0;background:#5cb85c;color:#fff;font:600 .84rem var(--f-body);padding:8px 12px;border-radius:5px;margin:0 6px;cursor:pointer}.n51-new:hover{background:#449d44}.n51-new svg{width:15px;height:15px}
+@media (max-width:860px){.n51{display:none}}
+.h51{max-width:1100px;margin:0 auto}
+.h51-co{display:flex;align-items:center;justify-content:center;gap:12px;margin:4px 0 18px;font-size:.92rem;color:var(--muted);white-space:nowrap}.h51-co select{width:min(420px,100%);border:1px solid var(--line-2);border-radius:5px;padding:6px 10px;font:inherit;background:var(--surface);color:var(--ink)}
+.h51-tiles{display:flex;flex-wrap:wrap;gap:12px;justify-content:center;margin-bottom:18px}
+.h51-t{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px;width:96px;height:92px;border:1px solid var(--line);border-radius:6px;background:var(--surface);color:var(--ink);font:inherit;font-size:.84rem;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.05)}
+.h51-t .h51-ic{display:grid;place-items:center;width:36px;height:36px;border-radius:50%;background:#26a65b;color:#fff}.h51-t .h51-ic svg{width:18px;height:18px}
+.h51-t.on{background:#337ab7;border-color:#2e6da4;color:#fff}.h51-t.on .h51-ic{background:#fff;color:#337ab7}.h51-t:hover{border-color:#337ab7}
+.h51-t>i{position:absolute;top:-7px;right:-7px;font-style:normal;font-size:.68rem;font-weight:700;background:#d9534f;color:#fff;border-radius:9px;padding:1px 6px}
+.h51-s{display:block;width:100%;max-width:640px;margin:0 auto 18px;border:1px solid var(--line-2);border-radius:5px;padding:9px 12px;font:inherit;background:var(--surface);color:var(--ink)}
+.h51-tabs{display:flex;gap:2px;border-bottom:1px solid var(--line);margin-bottom:14px}.h51-tabs button{border:1px solid transparent;border-bottom:0;background:none;color:#337ab7;font:inherit;font-size:.9rem;padding:9px 16px;border-radius:5px 5px 0 0;cursor:pointer;margin-bottom:-1px}
+.h51-tabs button.on{color:var(--ink);background:var(--surface);border-color:var(--line);border-top:3px solid #337ab7}
+.h51-cards{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px}
+.h51-c{display:flex;align-items:stretch;border:1px solid var(--line);border-radius:5px;background:var(--surface);box-shadow:0 1px 2px rgba(0,0,0,.04)}.h51-c:hover{border-color:#337ab7}
+.h51-cb{flex:1;display:flex;align-items:center;gap:10px;border:0;background:none;color:var(--ink);font:inherit;font-size:.9rem;padding:11px 12px;text-align:left;cursor:pointer;min-width:0}.h51-cb>span:nth-child(2){flex:1;min-width:0}
+.h51-ci{display:grid;place-items:center;width:22px;height:22px;color:#555;flex:none}.h51-ci svg{width:16px;height:16px}
+.h51-cb i{font-style:normal;font-size:.7rem;font-weight:700;background:#d9534f;color:#fff;border-radius:9px;padding:1px 7px}
+.h51-star{border:0;background:none;color:#bbb;font-size:1.15rem;padding:0 12px;cursor:pointer}.h51-star.on{color:#f0ad4e}.h51-star:hover{color:#f0ad4e}
+@media (max-width:860px){.h51-cards{grid-template-columns:1fr}.h51-t{width:84px;height:84px}.h51-co{flex-wrap:wrap}.h51-co select{min-width:0;width:100%}}
+@media (min-width:861px) and (max-width:1100px){.h51-cards{grid-template-columns:repeat(2,minmax(0,1fr))}}
 </style>`);
 
 
