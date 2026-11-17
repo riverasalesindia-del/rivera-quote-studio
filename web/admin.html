@@ -9342,6 +9342,106 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 </style>`);
 
 
+/* ===================== p47: real-app feel — ⋮ button at the top right of the sidebar folds it to an icon strip (and back), remembers it, Ctrl+B; "+ New" quick-create menu (desktop app bar and a round + button on phones) that opens the right form for what this login may do ===================== */
+IC.dots47 = '<circle cx="12" cy="5" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="12" r="1.6" fill="currentColor" stroke="none"/><circle cx="12" cy="19" r="1.6" fill="currentColor" stroke="none"/>';
+const RAIL47 = "rqs.rail47";
+const railMini47 = () => { try { return localStorage.getItem(RAIL47) === "1"; } catch { return false; } };
+function railSet47(mini) {
+  document.body.classList.toggle("rail47", !!mini);
+  try { localStorage.setItem(RAIL47, mini ? "1" : "0"); } catch { }
+  const b = $("#rail47"); if (b) { b.setAttribute("aria-expanded", String(!mini)); b.title = mini ? "Open the menu (Ctrl+B)" : "Close the menu (Ctrl+B)"; b.setAttribute("aria-label", b.title); }
+  railTips47();
+}
+function railTips47() { $$("#nav a[data-r]").forEach(a => { const t = a.querySelector("span")?.textContent || ""; if (document.body.classList.contains("rail47")) a.title = t; else if (a.title === t) a.removeAttribute("title"); }); }
+function railBtn47() {
+  const br = $("#brandRail"); if (!br || $("#rail47")) return;
+  br.insertAdjacentHTML("beforeend", `<button type="button" id="rail47" class="rail47-b">${icon("dots47")}</button>`);
+  $("#rail47").onclick = () => railSet47(!document.body.classList.contains("rail47"));
+  railSet47(railMini47());
+}
+addEventListener("keydown", e => { if ((e.ctrlKey || e.metaKey) && (e.key === "b" || e.key === "B") && !e.target.closest?.("input,textarea,select,[contenteditable]")) { e.preventDefault(); railSet47(!document.body.classList.contains("rail47")); } });
+
+/* ---- "+ New": everything you can create, in one place ---- */
+const NEW47 = [
+  ["Sales", "Lead / enquiry", "funnel28", "crm", {}, () => leadPanel28()],
+  ["Sales", "Auto quotation (scan)", "scan", "scan", {}, () => { location.hash = "scan"; }],
+  ["Sales", "Quote workings", "sheet", "workings", {}, () => { location.hash = "workings"; }],
+  ["Sales", "Sales order", "so31", "purchase", { pur: "so" }, () => soPanel31()],
+  ["Sales", "Invoice", "acc29", "accounts", { acc: "inv" }, () => invPanel29()],
+  ["Sales", "Payment received", "wallet", "accounts", { acc: "rcpt" }, () => rcptPanel29()],
+  ["Purchase", "Purchase indent", "plus", "purchase", { pur: "ind" }, () => indentPanel45()],
+  ["Purchase", "Purchase order", "doc", "purchase", { pur: "po" }, () => poPanel28()],
+  ["Purchase", "Receive goods (GRN)", "box28", "purchase", { pur: "po" }, () => grnPick46()],
+  ["Purchase", "Issue material", "orders", "purchase", { pur: "stock" }, () => movePanel28({ type: "issue" })],
+  ["Purchase", "Supplier bill", "wallet", "accounts", { acc: "bill" }, () => billPanel29()],
+  ["Workshop", "Repair job", "wrench28", "jobs", {}, () => jobPanel28()],
+  ["Workshop", "Service call", "svc29", "service", { svc: "calls" }, () => svcPanel29()],
+  ["Office", "Expense", "wallet", "accounts", { acc: "exp" }, () => expPanel29()],
+  ["Office", "Leave request", "hr29", "hr", { hr: "leave" }, () => leavePanel29()],
+  ["Office", "Task for someone", "check28", "tasks", {}, () => taskPanel28()]
+];
+const new47ok = () => NEW47.filter(x => { try { return allowed21(x[3]) && (typeof cardOk32 !== "function" || cardOk32(["", x[3], x[4]])) && typeof x[5] === "function"; } catch { return false; } });
+function new47Open(anchor) {
+  if ($("#new47m")) return new47Close();
+  const L = new47ok(); if (!L.length) return;
+  const groups = [...new Set(L.map(x => x[0]))];
+  document.body.insertAdjacentHTML("beforeend", `<div id="new47m" class="new47m" role="menu" aria-label="Create new">${groups.map(g => `<div class="new47g"><span>${g}</span>${L.map((x, i) => [x, i]).filter(([x]) => x[0] === g).map(([x, i]) => `<button type="button" role="menuitem" data-n47="${i}">${icon(x[2])}<b>${esc(x[1])}</b></button>`).join("")}</div>`).join("")}</div>`);
+  const m = $("#new47m"), r = anchor?.getBoundingClientRect?.();
+  if (r && innerWidth > 860) { m.style.top = (r.bottom + 8) + "px"; m.style.right = Math.max(12, innerWidth - r.right) + "px"; }
+  $$("[data-n47]", m).forEach(b => b.onclick = () => { const x = L[+b.dataset.n47]; new47Close(); try { bizSync28?.(); if (STATE.route !== x[3] && x[3] !== "scan" && x[3] !== "workings") { Object.assign(BIZ.ui, x[4]); } x[5](); } catch (e) { toast(e.message || String(e), "bad"); } });
+  setTimeout(() => { addEventListener("click", new47Away, true); addEventListener("keydown", new47Esc); m.querySelector("button")?.focus(); }, 0);
+}
+function new47Close() { $("#new47m")?.remove(); removeEventListener("click", new47Away, true); removeEventListener("keydown", new47Esc); }
+function new47Away(e) { if (!e.target.closest?.("#new47m,#new47,#new47f")) new47Close(); }
+function new47Esc(e) { if (e.key === "Escape") new47Close(); }
+function new47Btns() {
+  const ro = AUTH.user?.access === "view" || AUTH.user?.role === "viewer", ok = !ro && signed26?.() && new47ok().length;
+  const bar = $("#appbar26 .ab26-r");
+  if (bar && ok && !$("#new47", bar)) { bar.insertAdjacentHTML("afterbegin", `<button type="button" class="btn primary new47" id="new47" aria-haspopup="menu">${icon("plus")}<span>New</span></button>`); $("#new47").onclick = e => new47Open(e.currentTarget); }
+  if (ok && !$("#new47f")) { document.body.insertAdjacentHTML("beforeend", `<button type="button" class="new47f" id="new47f" aria-label="Create new">${icon("plus")}</button>`); $("#new47f").onclick = e => new47Open(e.currentTarget); }
+  if (!ok) { $("#new47")?.remove(); $("#new47f")?.remove(); }
+}
+{
+  const _r47 = render;
+  render = function () { _r47.apply(this, arguments); try { railBtn47(); railTips47(); new47Btns(); } catch (e) { console.warn("p47", e); } };
+  addEventListener("hashchange", () => new47Close());
+  const _ab47 = appbar26;
+  appbar26 = function () { const o = _ab47.apply(this, arguments); try { new47Btns(); } catch (e) { console.warn("p47", e); } return o; };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+#brandRail{position:relative;padding-right:34px}
+.rail47-b{position:absolute;top:50%;right:-2px;transform:translateY(-50%);width:30px;height:30px;display:grid;place-items:center;border:0;border-radius:8px;background:transparent;color:var(--rail-ink);opacity:.75;cursor:pointer}
+.rail47-b:hover,.rail47-b:focus-visible{opacity:1;background:rgba(255,255,255,.1);outline:none}.rail47-b svg{width:18px;height:18px}
+@media (min-width:861px){
+  body.rail47 .shell{grid-template-columns:68px minmax(0,1fr)}
+  body.rail47 .shell{background:linear-gradient(to right,var(--rail) 68px,transparent 68px)}
+  body.rail47 .rail{padding-left:10px;padding-right:10px;align-items:center}
+  body.rail47 #brandRail{padding:0;flex-direction:column;gap:8px}
+  body.rail47 #brandRail>*:not(#rail47):not(img):not(svg):not(:first-child){display:none}
+  body.rail47 #brandRail>div{display:none}
+  body.rail47 .rail47-b{position:static;transform:none;opacity:1}
+  body.rail47 .nav{width:100%}
+  body.rail47 .nav a{justify-content:center;padding:10px 0}
+  body.rail47 .nav a span,body.rail47 .nv32-h span,body.rail47 .nav .badge{display:none}
+  body.rail47 .nv32-h{justify-content:center;padding:4px 0;height:10px;pointer-events:none}.body.rail47 .nv32-h svg{display:none}
+  body.rail47 .nv32-h svg{display:none}body.rail47 .nv32-h::after{content:"";display:block;width:24px;height:1px;background:rgba(255,255,255,.15)}
+  body.rail47 .nv32-b{display:block!important}
+  body.rail47 .rail-foot{justify-content:center}body.rail47 .rail-foot #syncText{display:none}
+}
+.new47{display:inline-flex;align-items:center;gap:6px}
+.new47m{position:fixed;z-index:120;top:64px;right:24px;width:min(560px,calc(100vw - 24px));max-height:calc(100vh - 90px);overflow:auto;background:var(--surface);color:var(--ink);border:1px solid var(--line);border-radius:16px;box-shadow:0 18px 48px rgba(2,49,91,.22);padding:12px;display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:4px 12px}
+.new47g{display:flex;flex-direction:column;gap:2px}.new47g>span{font-size:.7rem;letter-spacing:.07em;text-transform:uppercase;color:var(--muted);padding:6px 8px 2px}
+.new47g button{display:flex;align-items:center;gap:10px;padding:8px;border:0;border-radius:9px;background:transparent;color:inherit;font:inherit;font-size:.86rem;text-align:left;cursor:pointer}
+.new47g button:hover,.new47g button:focus-visible{background:var(--copper-soft);outline:none}.new47g button svg{width:18px;height:18px;color:var(--copper);flex:none}.new47g b{font-weight:500}
+.new47f{display:none}
+@media (max-width:860px){
+  .new47f{display:grid;place-items:center;position:fixed;right:16px;bottom:calc(86px + env(safe-area-inset-bottom,0px));z-index:60;width:54px;height:54px;border-radius:50%;border:0;background:var(--copper);color:#fff;box-shadow:0 8px 22px rgba(226,94,0,.4);cursor:pointer}.new47f svg{width:24px;height:24px}
+  .new47m{top:auto;bottom:calc(150px + env(safe-area-inset-bottom,0px));right:12px;left:12px;width:auto;max-height:60vh}
+}
+@media print{.new47f,.new47m{display:none!important}}
+</style>`);
+
+
 boot();
 
 </script>
