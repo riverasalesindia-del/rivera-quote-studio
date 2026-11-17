@@ -9956,6 +9956,177 @@ header .r52{margin-left:auto}
 </style>`);
 
 
+/* ===================== p53: one connected flow — Sales ↔ Operation ↔ Purchase ↔ Finance. A confirmed sales order is handed over by itself (work order for the factory, material indent for anything short in stock, advance-collection task for Finance); "Order flow" page shows every open order's 5 steps (Sales · Operation · Purchase · Dispatch · Finance) with who it is waiting on; the same step bar sits on top of every sales order, with the customer's history (quotes, orders, last rate); dashboard alerts for each department ===================== */
+IC.flow53 = '<circle cx="5" cy="12" r="2.2"/><circle cx="12" cy="12" r="2.2"/><circle cx="19" cy="12" r="2.2"/><path d="M7.2 12h2.6M14.2 12h2.6"/>';
+const FIN53 = "finance@rivera.co.in";
+const DEPT53 = [["sales", "Sales"], ["ops", "Operation"], ["pur", "Purchase"], ["disp", "Dispatch"], ["fin", "Finance"]];
+const open53 = o => ["confirmed", "part", "delivered", "invoiced", "exception"].includes(o.status);
+const short53 = r => (r.lines || []).filter(l => l.item && avail31(l.item, r.id) < (Number(l.qty) || 0) - (Number(l.delivered) || 0))
+  .map(l => ({ item: l.item, desc: BIZ.rows[l.item]?.name || l.desc, qty: (Number(l.qty) || 0) - (Number(l.delivered) || 0) - Math.max(0, avail31(l.item, r.id)), unit: BIZ.rows[l.item]?.unit || l.unit, rate: lastRate28(l.item) || "", gst: 18 }));
+const back53 = (d, n) => { if (!d) return ""; const x = new Date(d); x.setDate(x.getDate() - n); const t = x.toISOString().slice(0, 10); return t < todayISO() ? todayISO() : t; };
+
+/* ---- the five steps of one order: [dept, state(done|doing|todo|late|na), text, open()] ---- */
+function steps53(r) {
+  const t = todayISO(), S = [];
+  S.push(["sales", r.status === "exception" ? "doing" : "done", r.status === "exception" ? "Waiting admin approval" : `${r.no || "Order"}${r.poNo ? " · PO " + r.poNo : ""}${r.quoteNo ? " · quote " + r.quoteNo : ""}`, () => soPanel31(r)]);
+  const jobs = all28("job").filter(j => j.soId === r.id), j = jobs[0];
+  if (!j) S.push(["ops", r.status === "exception" ? "todo" : "late", r.status === "exception" ? "After approval" : "Not sent to the factory", null]);
+  else { const st = (JOB_ST.find(s => s[0] === j.stage) || [])[1] || j.stage, fin = ["ready", "dispatched", "invoiced"].includes(j.stage);
+    S.push(["ops", fin ? "done" : j.promised && j.promised < t ? "late" : "doing", `${j.no || "Work order"} · ${st}${!fin && j.promised ? " · by " + dmy(j.promised) : ""}`, () => jobPanel28(j)]); }
+  const pos = all28("po").filter(p => p.soId === r.id && p.status !== "cancelled"), sh = ["confirmed", "part", "exception"].includes(r.status) ? short53(r) : [];
+  if (!pos.length) S.push(["pur", sh.length ? "late" : "na", sh.length ? `${sh.length} item${sh.length > 1 ? "s" : ""} short — no indent` : "Stock is enough", null]);
+  else { const open = pos.filter(p => !["received", "closed"].includes(p.status)), p0 = open[0] || pos[0], st = (PO_ST.find(s => s[0] === p0.status) || [])[1] || p0.status;
+    S.push(["pur", open.length ? (p0.needBy && p0.needBy < t ? "late" : "doing") : "done", open.length ? `${p0.no || "Indent"} · ${st}${pos.length > 1 ? ` (+${pos.length - 1})` : ""}` : `Material received (${pos.length})`, () => poPanel28(p0)]); }
+  const dns = all28("dn").filter(d => d.so === r.id), delivered = ["delivered", "invoiced", "closed"].includes(r.status);
+  S.push(["disp", delivered ? "done" : r.status === "part" ? "doing" : r.deliveryDate && r.deliveryDate < t ? "late" : "todo", delivered ? `Delivered${dns.length ? " · " + dns.map(d => d.no).join(", ") : ""}` : r.status === "part" ? `Part delivered (${dns.length})` : r.deliveryDate ? `Due ${dmy(r.deliveryDate)}` : "No date yet", dns.length ? () => dnPanel31(dns.at(-1)) : null]);
+  const invs = all28("inv").filter(i => i.so === r.id && i.status !== "cancelled"), bal = invs.reduce((a, i) => a + (Number(i.balance) || 0), 0), od = invs.some(i => i.balance > 0 && i.due < t);
+  const notInv = dns.filter(d => !d.inv).length;
+  S.push(["fin", !invs.length ? (notInv ? "late" : "todo") : bal > 0 ? (od ? "late" : "doing") : notInv ? "doing" : "done", !invs.length ? (notInv ? "Delivered, not invoiced" : Number(r.advance) > 0 ? `Advance ${r.advance}% to collect` : "Invoice after delivery") : bal > 0 ? `${inr28(bal)} to collect${od ? " · overdue" : ""}` : notInv ? "Invoice the rest" : "Fully paid", invs.length ? () => invPanel29(invs.find(i => i.balance > 0) || invs.at(-1)) : null]);
+  return S;
+}
+const waiting53 = S => S.find(s => ["late", "doing", "todo"].includes(s[1])) || null;
+const LBL53 = { done: "Done", doing: "In progress", todo: "Next", late: "Needs action", na: "Not needed" };
+function bar53(S, cls) {
+  return `<ol class="fl53 ${cls || ""}" aria-label="Order steps">${S.map((s, i) => `<li class="fl53-s ${s[1]}"><button type="button" data-fl53="${i}" ${s[3] ? "" : "disabled"} title="${esc(DEPT53.find(d => d[0] === s[0])[1] + " — " + LBL53[s[1]] + ": " + s[2])}"><span class="fl53-d" aria-hidden="true">${s[1] === "done" ? "✓" : s[1] === "na" ? "–" : i + 1}</span><b>${DEPT53.find(d => d[0] === s[0])[1]}</b><small>${esc(s[2])}</small><span class="sr-only"> (${LBL53[s[1]]})</span></button></li>`).join("")}</ol>`;
+}
+const wireBar53 = (root, S) => $$("[data-fl53]", root).forEach(b => b.onclick = e => { e.stopPropagation(); const s = S[+b.dataset.fl53]; if (s?.[3]) s[3](); });
+
+/* ---- hand-over: confirmed order → work order + indent + finance task (once per order) ---- */
+const HO53 = new Set();
+const need53 = o => o.status === "confirmed" && (!o.handoff53 || !all28("job").some(j => j.soId === o.id));
+async function handoff53(so, quiet, force) {
+  if (!so?.id || so.kind !== "so" || so.status !== "confirmed" || (so.handoff53 && !force) || HO53.has(so.id) || !signed26() || myRole21() === "viewer") return null;
+  HO53.add(so.id);
+  try {
+    const recs = [], made = [], skipped = [], desc = String(so.subject || so.lines?.[0]?.desc || "").slice(0, 120);
+    if (!all28("job").some(j => j.soId === so.id)) {
+      recs.push({ kind: "job", stage: "approved", received: todayISO(), soId: so.id, soNo: so.no, customer: so.customer, contact: [so.contact, so.phone].filter(Boolean).join(" · "), equipment: desc || "As per sales order", work: (so.lines || []).map(l => `${l.desc || ""} × ${l.qty || ""} ${l.unit || ""}`.trim()).filter(Boolean).join("; ").slice(0, 300) || desc, custPo: so.poNo || "", promised: so.deliveryDate || "", estimate: so.taxable || "", notes: `Work order from sales order ${so.no}${so.notes ? " — " + so.notes : ""}`, from53: "so", _l: "work order" });
+    }
+    const sh = short53(so);
+    if (sh.length && !all28("po").some(p => p.soId === so.id && p.status !== "cancelled")) {
+      recs.push({ kind: "po", status: "indent", date: todayISO(), reqBy: me28(), soId: so.id, jobNo: so.no, dept: "Production", needBy: back53(so.deliveryDate, 7), lines: sh, notes: `Material short for sales order ${so.no} (${so.customer})`, from53: "so", _l: `indent (${sh.length} item${sh.length > 1 ? "s" : ""})` });
+    }
+    if (Number(so.advance) > 0 && !all28("task").some(x => x.soId === so.id && x.from53)) {
+      recs.push({ kind: "task", title: `Collect ${so.advance}% advance — ${so.customer} (${so.no})`, assignee: FIN53, due: todayISO(), pri: "high", status: "open", soId: so.id, notes: `Order total ${inr28(so.total)} · advance ${inr28((Number(so.total) || 0) * Number(so.advance) / 100)} · customer PO ${so.poNo || ""}`, from53: "so", _l: "advance task for Finance" });
+    }
+    /* one by one, so a login that may not create (say) a work order still hands over the rest */
+    for (const x of recs) { const { _l, ...rec } = x; try { await _put53b(rec); made.push(_l); } catch (e) { skipped.push(`${_l} (${e.message})`); } }
+    const so2 = { ...(BIZ.rows[so.id] || so), handoff53: { at: new Date().toISOString(), by: me28(), made, skipped } };
+    logAdd28(so2, "Sent to departments", [made.length ? made.join(" · ") : "nothing new needed", skipped.length ? "not done: " + skipped.join(" · ") : ""].filter(Boolean).join(" — "));
+    await _put53b(so2);
+    if (!quiet && (made.length || skipped.length)) toast(made.length ? `Sent on: ${made.join(", ")}${skipped.length ? " — ask the admin for the rest" : ""}` : "Couldn't hand over: " + skipped.join(", "), skipped.length ? "bad" : undefined);
+    if (STATE.route === "flow53") render();
+    return made;
+  } catch (e) { console.warn("p53 handoff", e); if (!quiet) toast("Couldn't hand the order over: " + e.message, "bad"); return null; }
+  finally { HO53.delete(so.id); }
+}
+let _put53b = recs => bizPut28(recs);
+{
+  const _put53 = bizPut28; _put53b = recs => _put53(recs);
+  bizPut28 = async function (recs) {
+    const out = await _put53.apply(this, arguments);
+    try { (out || []).filter(r => r?.kind === "so" && r.status === "confirmed" && !r.handoff53).forEach(r => setTimeout(() => handoff53(BIZ.rows[r.id] || r), 50)); } catch (e) { console.warn("p53", e); }
+    return out;
+  };
+}
+
+/* ---- customer history (quotes, orders, last rate) for the order panel ---- */
+function hist53(r) {
+  const c = norm31(r.customer); if (!c) return "";
+  const qs = (STATE.quotes || []).filter(q => norm31(q.customer) === c), sos = all28("so").filter(o => o.id !== r.id && o.status !== "cancelled" && norm31(o.customer) === c);
+  const won = qs.filter(q => autoSt31({ k: "q", id: q.id })[0] === "Won").length, invs = all28("inv").filter(i => i.status !== "cancelled" && norm31(i.customer) === c), out = invs.reduce((a, i) => a + (Number(i.balance) || 0), 0);
+  const lastQ = qs.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+  if (!qs.length && !sos.length && !invs.length) return `<div class="h53 small muted">First order from this customer — no earlier quotes or orders.</div>`;
+  return `<div class="h53"><div><span>Quotes</span><b>${qs.length}</b><small>${won} won</small></div><div><span>Earlier orders</span><b>${sos.length}</b><small>${inr28(sos.reduce((a, o) => a + (Number(o.taxable) || 0), 0))}</small></div><div><span>Outstanding</span><b style="${out > 0 ? "color:var(--bad)" : ""}">${inr28(out)}</b><small>${invs.length} invoice${invs.length === 1 ? "" : "s"}</small></div>${lastQ ? `<div><span>Last quote</span><b>${esc(lastQ.no || "")}</b><small>${dmy(String(lastQ.date || "").slice(0, 10))}${lastQ.rate ? " · " + fmt(num(lastQ.rate), lastQ.currency || "INR", 0) : ""}</small></div>` : ""}</div>`;
+}
+let CUR53 = null;
+function soTop53(D) {
+  const B = $(".dr26-b", D); if (!B || $(".fl53-wrap", B)) return;
+  const src = CUR53, r = src?.id ? (BIZ.rows[src.id] || src) : null, S = r ? steps53(r) : null, w = S && waiting53(S);
+  B.insertAdjacentHTML("afterbegin", `<section class="fl53-wrap${S ? "" : " new"}">${S ? `<div class="fl53-h"><b>Order flow</b>${w ? `<span class="chip ${w[1] === "late" ? "bad" : "warn"}">Waiting on ${DEPT53.find(d => d[0] === w[0])[1]}</span>` : `<span class="chip ok">All done</span>`}${need53(r) ? `<button type="button" class="btn sm" id="ho53">${icon("flow53")}Send to departments</button>` : ""}</div>${bar53(S, "sm")}` : ""}<div class="h53box">${hist53(r || src || {})}</div></section>`);
+  if (S) wireBar53(B, S);
+  $("#ho53", B)?.addEventListener("click", async e => { e.target.disabled = true; const m = await handoff53(BIZ.rows[r.id] || r, false, true); if (m) { closeDrawer26(); soPanel31(BIZ.rows[r.id]); } else e.target.disabled = false; });
+  /* customer history appears as the customer is chosen on a new order */
+  const ci = $("#f28_customer", B); if (ci) ci.addEventListener("change", () => { const h = $(".h53box", B); if (h) h.innerHTML = hist53({ id: r?.id, customer: ci.value }); });
+}
+{
+  const _sp53 = soPanel31, _pn53 = panel28;
+  soPanel31 = function (src) { CUR53 = src || {}; return _sp53.apply(this, arguments); };
+  panel28 = function (o) { const D = _pn53.apply(this, arguments); try { if (CUR53 && $("#so31tot", D)) soTop53(D); else if (!$("#so31tot", D)) CUR53 = null; } catch (e) { console.warn("p53", e); } return D; };
+}
+
+/* ---- Order flow page ---- */
+const FL53 = () => (BIZ.ui.fl53 ||= { dept: "", q: "", done: false });
+VIEWS.flow53 = v => {
+  bizSync28();
+  const U = FL53(), t = todayISO(), q = U.q.trim().toLowerCase();
+  const rows = all28("so").filter(o => U.done ? o.status !== "cancelled" && o.status !== "draft" : open53(o) && o.status !== "closed").map(o => { const S = steps53(o); return { o, S, w: waiting53(S) }; })
+    .filter(x => U.done || x.w).sort((a, b) => (b.S.some(s => s[1] === "late") - a.S.some(s => s[1] === "late")) || String(a.o.deliveryDate || "9").localeCompare(String(b.o.deliveryDate || "9")));
+  const cnt = k => rows.filter(x => x.w?.[0] === k).length, late = rows.filter(x => x.S.some(s => s[1] === "late")).length;
+  const L = rows.filter(x => (!U.dept || x.w?.[0] === U.dept) && (!q || `${x.o.no} ${x.o.customer} ${x.o.poNo} ${x.o.quoteNo} ${x.o.subject} ${(x.o.lines || []).map(l => l.desc).join(" ")}`.toLowerCase().includes(q)));
+  const noHo = rows.filter(x => need53(x.o)).length;
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Sales → Operation → Purchase → Dispatch → Finance</div><h1>Order flow</h1><p>Every open sales order, step by step. When an order is confirmed it goes to the factory as a work order, short material goes to Purchase as an indent and Finance gets the advance to collect — all by itself. Tap a step to open it.</p></div></div>
+  ${loadNote28() || `<div class="hero-strip fl53-k" style="grid-template-columns:repeat(auto-fit,minmax(130px,1fr))">${[["", "Open orders", rows.length], ["ops", "At Operation", cnt("ops")], ["pur", "Waiting material", cnt("pur")], ["disp", "To dispatch", cnt("disp")], ["fin", "With Finance", cnt("fin")]].map(([k, l, n]) => `<button type="button" class="${U.dept === k ? "on" : ""}" data-fd="${k}" aria-pressed="${U.dept === k}"><span>${l}</span><b>${n}</b></button>`).join("")}<div class="${late ? "warn" : ""}"><span>Need action</span><b>${late}</b></div></div>
+  <section class="panel"><div class="body fl53-tools"><label class="f fl53-f">Find an order<input type="text" id="fl53q" placeholder="Order no, customer, PO, item…" value="${esc(U.q)}"></label><label class="fl53-c"><input type="checkbox" id="fl53d" ${U.done ? "checked" : ""}> Show finished orders too</label>${noHo && (isAdmin28() || myRole21() !== "viewer") ? `<button type="button" class="btn sm" id="fl53all">${icon("flow53")}Send ${noHo} older order${noHo > 1 ? "s" : ""} to departments</button>` : ""}</div></section>
+  <section class="panel" style="margin-top:14px"><header><h2>${U.dept ? "Waiting on " + DEPT53.find(d => d[0] === U.dept)[1] : "All open orders"} (${L.length})</h2>${U.dept ? `<button type="button" class="btn sm ghost" data-fd="" style="margin-left:auto">Show all</button>` : ""}</header>
+  ${L.length ? `<div class="fl53-list">${L.map((x, i) => `<article class="fl53-o${x.S.some(s => s[1] === "late") ? " late" : ""}"><button type="button" class="fl53-oh" data-fo="${i}"><b>${esc(x.o.no || "")} · ${esc(x.o.customer || "")}</b><small>${esc(String(x.o.subject || x.o.lines?.[0]?.desc || "").slice(0, 90))}${x.o.poNo ? " · PO " + esc(x.o.poNo) : ""} · ${inr28(x.o.total)}</small>${x.w ? `<span class="chip ${x.w[1] === "late" ? "bad" : "warn"}">Waiting on ${DEPT53.find(d => d[0] === x.w[0])[1]}</span>` : `<span class="chip ok">Done</span>`}</button>${bar53(x.S)}</article>`).join("")}</div>` : `<div class="empty"><b>${rows.length ? "Nothing here" : "No open orders"}</b>${rows.length ? "Try another step or clear the search." : "Confirm a sales order (Sales ▸ Orders) and it shows up here with every department's step."}</div>`}</section>`}`;
+  $$("[data-fd]", v).forEach(b => b.onclick = () => { U.dept = U.dept === b.dataset.fd ? "" : b.dataset.fd; render(); });
+  $$("[data-fo]", v).forEach(b => b.onclick = () => soPanel31(L[+b.dataset.fo].o));
+  $$(".fl53-o", v).forEach((a, i) => wireBar53(a, L[i].S));
+  const qi = $("#fl53q", v); if (qi) qi.oninput = () => { U.q = qi.value; clearTimeout(U._t); U._t = setTimeout(() => { render(); const i = $("#fl53q"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 220); };
+  $("#fl53d", v)?.addEventListener("change", e => { U.done = e.target.checked; render(); });
+  $("#fl53all", v)?.addEventListener("click", async e => { e.target.disabled = true; let n = 0; for (const x of rows.filter(x => need53(x.o))) { const m = await handoff53(BIZ.rows[x.o.id] || x.o, true, true); if (m?.length) n++; } toast(`${n} order${n === 1 ? "" : "s"} sent to the departments`); render(); });
+};
+ROUTES.push(["flow53", "Order flow", "flow53"]);
+if (!BIZ_ROUTES.includes("flow53")) BIZ_ROUTES.push("flow53");
+if (typeof ROLE_PAGES !== "undefined") ["sales", "finance", "operation"].forEach(r => { if (ROLE_PAGES[r] && !ROLE_PAGES[r].includes("flow53")) ROLE_PAGES[r].push("flow53"); });
+if (typeof ALWAYS34 !== "undefined" && !ALWAYS34.includes("flow53")) ALWAYS34.push("flow53");
+{
+  const card = ["Order flow", "flow53", {}, "Sales → factory → purchase → dispatch → finance"];
+  const put = (mod, grp, first) => { const m = MODS32.find(x => x.id === mod); if (!m) return; const L = m.groups[grp] ||= []; if (!L.some(c => c[1] === "flow53")) first ? L.unshift(card) : L.push(card); };
+  put("sales", "Transactions"); put("service", "Transactions", true); put("purchase", "Reports", true); put("accounts", "Reports", true);
+  ICON51.unshift([/order flow/i, "flow53"]);
+  const _cc53 = cardsCount32;
+  cardsCount32 = function (c) { if (c?.[1] === "flow53") { try { return all28("so").filter(o => open53(o) && steps53(o).some(s => s[1] === "late")).length; } catch { return 0; } } return _cc53.apply(this, arguments); };
+}
+/* ---- dashboard: what each department got from the others ---- */
+{
+  const _a53 = alerts50;
+  alerts50 = function () {
+    const out = _a53.apply(this, arguments), go = d => () => { FL53().dept = d; location.hash = "flow53"; };
+    try {
+      const sos = all28("so"), soOf = id => sos.find(o => o.id === id);
+      if (allowed21("jobs") || allowed21("flow53")) out.push(["woNew", "Operation", "New work orders from sales", "job", j => j.soId && ["received", "approved"].includes(j.stage), "start the work", go("ops")]);
+      if (allowed21("flow53")) out.push(["woReady", "Operation", "Work done — ready to dispatch", "job", j => j.soId && j.stage === "ready" && ["confirmed", "part"].includes(soOf(j.soId)?.status), "make the delivery note", go("disp")]);
+      if (can50("purchase", { pur: "po" })) out.push(["indSo", "Purchase", "Material for customer orders", "po", p => p.soId && p.status === "indent", "indents from sales orders", go("pur")]);
+      if (allowed21("flow53")) out.push(["soNoHo", "Sales", "Orders not sent to the factory", "so", need53, "tap → Send to departments", go("ops")]);
+    } catch (e) { console.warn("p53", e); }
+    return out;
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.fl53{list-style:none;margin:10px 0 0;padding:0;display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:6px}
+.fl53-s button{all:unset;box-sizing:border-box;display:flex;flex-direction:column;gap:2px;width:100%;height:100%;padding:8px 10px;border-radius:10px;border:1px solid var(--line);background:var(--surface);cursor:pointer;position:relative;min-width:0}
+.fl53-s button:disabled{cursor:default}.fl53-s button:not(:disabled):hover,.fl53-s button:focus-visible{border-color:var(--copper);outline:none}
+.fl53-s b{font-size:.78rem;text-transform:uppercase;letter-spacing:.04em;padding-right:22px}.fl53-s small{font-size:.75rem;color:var(--muted);line-height:1.3;overflow:hidden;text-overflow:ellipsis;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical}
+.fl53-d{position:absolute;top:7px;right:8px;width:18px;height:18px;border-radius:50%;font-size:.68rem;font-weight:700;display:grid;place-items:center;background:var(--sunk);color:var(--muted)}
+.fl53-s.done button{background:var(--ok-soft,#e8f5ec);border-color:color-mix(in srgb,var(--ok,#2f8f5b) 35%,transparent)}.fl53-s.done .fl53-d{background:var(--ok,#2f8f5b);color:#fff}
+.fl53-s.doing button{border-top:3px solid var(--warn,#d99a00)}.fl53-s.doing .fl53-d{background:var(--warn,#d99a00);color:#fff}
+.fl53-s.late button{border-top:3px solid var(--bad,#c0392b);background:color-mix(in srgb,var(--bad,#c0392b) 6%,var(--surface))}.fl53-s.late .fl53-d{background:var(--bad,#c0392b);color:#fff}.fl53-s.late small{color:var(--bad,#c0392b)}
+.fl53-s.na button{opacity:.6}
+.fl53.sm{gap:4px}.fl53.sm .fl53-s button{padding:6px 8px}.fl53.sm .fl53-s b{font-size:.68rem;letter-spacing:.02em;padding-right:18px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.fl53.sm .fl53-d{top:6px;right:5px;width:15px;height:15px;font-size:.6rem}.fl53.sm small{-webkit-line-clamp:2;font-size:.72rem}
+.fl53-wrap{margin:0 0 14px;padding:10px 12px;border:1px solid var(--line);border-radius:12px;background:var(--sunk)}.fl53-h{display:flex;align-items:center;gap:8px;flex-wrap:wrap}.fl53-h b{font-family:var(--f-display)}.fl53-h .btn{margin-left:auto}
+.h53{display:grid;grid-template-columns:repeat(auto-fit,minmax(110px,1fr));gap:6px;margin-top:10px}.h53>div{background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column}.h53 span{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}.h53 b{font-size:.92rem}.h53 small{font-size:.72rem;color:var(--muted)}
+.h53.small{display:block;margin-top:8px}.fl53-wrap.new{padding:0;border:0;background:none}.fl53-wrap.new .h53{margin-top:0}
+.fl53-k>button{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-direction:column;gap:4px;min-width:0;padding:14px 16px;color:#fff;background:linear-gradient(160deg,#02315B,#04477f)}.fl53-k>button.on{background:linear-gradient(160deg,#04477f,#0a6bb8);box-shadow:inset 0 -3px 0 var(--copper)}.fl53-k>button:hover{background:linear-gradient(160deg,#04477f,#0a5c9e)}.fl53-k button:focus-visible{outline:2px solid var(--copper);outline-offset:2px;border-radius:6px}
+.fl53-tools{display:flex;gap:12px;align-items:center;flex-wrap:wrap}.fl53-f{flex:1 1 260px;min-width:0;margin:0}.fl53-c{display:inline-flex;gap:6px;align-items:center;font-size:.88rem;cursor:pointer}.fl53-c input{width:auto;margin:0}
+.fl53-list{display:flex;flex-direction:column;gap:10px;padding:12px}
+.fl53-o{border:1px solid var(--line);border-radius:12px;padding:10px 12px;background:var(--surface)}.fl53-o.late{border-left:4px solid var(--bad,#c0392b)}
+.fl53-oh{all:unset;box-sizing:border-box;cursor:pointer;display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;width:100%}.fl53-oh small{color:var(--muted);flex:1 1 240px;min-width:0}.fl53-oh .chip{margin-left:auto}.fl53-oh:hover b,.fl53-oh:focus-visible b{color:var(--copper)}.fl53-oh:focus-visible{outline:2px solid var(--copper);outline-offset:3px;border-radius:6px}
+@media (max-width:700px){.fl53{grid-template-columns:1fr 1fr}.fl53-s:first-child{grid-column:1/-1}.fl53.sm{grid-template-columns:1fr 1fr}}
+</style>`);
+
+
 boot();
 
 </script>
