@@ -10336,10 +10336,10 @@ tr.tot54 td{border-top:2px solid var(--line-2,var(--line))}
 }
 
 
-/* ===================== p58: one-tap login for each person — at the top of Users & access the admin sees Sales · Finance · Operations as cards; one tap creates that login (or gives a new password), shows the username + temporary password big, with Copy, WhatsApp and Email buttons that send the team sign-in link too ===================== */
+/* ===================== p58: one-tap login for each person — at the top of Users & access the admin sees Sales · Finance · Admin as cards; one tap creates that login (or gives a new password), shows the username + temporary password big, with Copy, WhatsApp and Email buttons that send the team sign-in link too ===================== */
 function oneTap58(v) {
   if (STATE.route !== "users" || !AUTH.isAdmin || $("#q58", v)) return;
-  const host = $(".stack", v) || v, team = TEAM16.filter(m => m.role !== "admin");
+  const host = $(".stack", v) || v, team = [...TEAM16.filter(m => m.role !== "admin"), ...TEAM16.filter(m => m.role === "admin")], adm58 = m => m.role === "admin", site58 = m => adm58(m) ? LINKS16.admin : LINKS16.site;
   host.insertAdjacentHTML("afterbegin", `<section class="panel" id="q58"><header><h2>Give a login — one tap</h2><span class="small muted">the person signs in at ${esc(LINKS16.site)}</span></header><div class="body">
     <div class="q58-g">${team.map((m, i) => `<div class="q58-c" data-q58="${i}"><div><b>${esc(m.name)}</b><div class="mono small muted">${esc(m.email)}</div></div><span class="chip" data-q58s>…</span><button type="button" class="btn primary" data-q58b disabled>${icon("key")}…</button></div>`).join("")}</div>
     <div id="q58o"></div></div></section>`);
@@ -10351,7 +10351,7 @@ function oneTap58(v) {
   AUTH.call("users").then(d => { U = d.users || []; if (document.body.contains(P)) draw(); }).catch(e => { const o = $("#q58o", P); if (o) o.innerHTML = `<div class="note bad">${esc(e.message)}</div>`; });
   $$("[data-q58b]", P).forEach(b => b.onclick = async () => {
     const m = team[+b.closest("[data-q58]").dataset.q58], u = U.find(x => x.email === m.email);
-    if (u && !confirm(`Give ${m.email} a new password?\n\nThe old password stops working. They set their own at the next sign-in.`)) return;
+    if (u && !confirm(adm58(m) ? `Give the ADMIN login ${m.email} a new password?\n\nYour old admin password stops working on every other phone / PC. This device stays signed in. Write the new one down — you set your own at the next sign-in.` : `Give ${m.email} a new password?\n\nThe old password stops working. They set their own at the next sign-in.`)) return;
     b.disabled = true; b.innerHTML = '<span class="spin"></span>Creating…';
     try {
       const pw = strongPw16(m.tag), h = await AUTH.hash(pw, m.email);
@@ -10359,13 +10359,13 @@ function oneTap58(v) {
       else await AUTH.call("createUser", { email: m.email, name: m.name, role: m.role, contact: m.email, pw: h });
       try { U = (await AUTH.call("users")).users || U; } catch { }
       draw();
-      const txt = `Rivera Quote Studio — your login\n\nOpen: ${LINKS16.site}\nUsername: ${m.email}\nPassword: ${pw}\n\nYou will be asked to set your own password at the first sign-in.${LINKS16.apk ? "\nAndroid app: " + LINKS16.apk : ""}`;
+      const txt = `Rivera Quote Studio — ${adm58(m) ? "admin" : "your"} login\n\nOpen: ${site58(m)}\nUsername: ${m.email}\nPassword: ${pw}\n\nYou will be asked to set your own password at the first sign-in.${LINKS16.apk ? "\nAndroid app: " + LINKS16.apk : ""}`;
       $("#q58o", P).innerHTML = `<div class="note ok q58-r"><b>${esc(m.name)} — login ready. This password is shown only now.</b>
         <div class="q58-kv"><span>Username</span><code>${esc(m.email)}</code><span>Password</span><code class="q58-pw">${esc(pw)}</code></div>
-        <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="q58c">Copy login + link</button><button type="button" class="btn" id="q58w">${icon("wa")}WhatsApp</button><button type="button" class="btn" id="q58e">${icon("mail")}Email it to ${esc(m.email)}</button></div>
-        <p class="small muted" style="margin:0">They open ${esc(LINKS16.site)}, type these, set their own password, and you approve the sign-in from the mail once. After that the app opens straight on the Dashboard on that phone / PC.</p></div>`;
+        <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="q58c">Copy login + link</button>${adm58(m) ? "" : `<button type="button" class="btn" id="q58w">${icon("wa")}WhatsApp</button>`}<button type="button" class="btn" id="q58e">${icon("mail")}Email it to ${esc(m.email)}</button></div>
+        <p class="small muted" style="margin:0">${adm58(m) ? `On another phone / PC open ${esc(LINKS16.admin)}, type these and set your own password. The admin login needs no approval.` : `They open ${esc(LINKS16.site)}, type these, set their own password, and you approve the sign-in from the mail once.`} After that the app opens straight on the Dashboard on that phone / PC.</p></div>`;
       $("#q58c", P).onclick = () => navigator.clipboard?.writeText(txt).then(() => toast("Login and link copied"), () => toast(txt));
-      $("#q58w", P).onclick = () => openLink("https://wa.me/?text=" + encodeURIComponent(txt));
+      $("#q58w", P) && ($("#q58w", P).onclick = () => openLink("https://wa.me/?text=" + encodeURIComponent(txt)));
       $("#q58e", P).onclick = async e => { e.target.disabled = true; try { await AUTH.call("mailLogin", { email: m.email, pw }); toast("Login mailed to " + m.email); e.target.textContent = "Mailed"; } catch (x) { toast(x.message, "bad"); e.target.disabled = false; } };
       $("#q58o", P).scrollIntoView?.({ behavior: "smooth", block: "nearest" });
       toast(`${m.name} login ready`);
