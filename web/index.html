@@ -10255,6 +10255,28 @@ tr.tot54 td{border-top:2px solid var(--line-2,var(--line))}
 </style>`);
 
 
+/* ===================== p55: older confirmed orders reach the departments by themselves — when the admin's app has loaded the records, every confirmed sales order that has no work order yet is handed over (work order · indent · advance task) automatically, once a day per device; no button to press ===================== */
+{
+  const KEY55 = "rqs.auto55";
+  let busy55 = false;
+  const auto55 = async () => {
+    if (busy55 || !BIZ.loaded || !isAdmin28() || !signed26()) return;
+    let last = ""; try { last = localStorage.getItem(KEY55) || ""; } catch { }
+    const L = all28("so").filter(need53); if (!L.length || last === todayISO()) return;
+    busy55 = true;
+    try {
+      let n = 0;
+      for (const o of L) { const m = await handoff53(BIZ.rows[o.id] || o, true, true); if (m?.length) n++; }
+      try { localStorage.setItem(KEY55, todayISO()); } catch { }
+      if (n) { toast(`${n} confirmed order${n > 1 ? "s" : ""} sent to the factory, purchase and finance`); if (["flow53", "apps", "gs"].includes(STATE.route)) render(); }
+    } catch (e) { console.warn("p55", e); }
+    busy55 = false;
+  };
+  const _bs55 = bizSync28;
+  bizSync28 = async function () { const out = await _bs55.apply(this, arguments); setTimeout(auto55, 400); return out; };
+}
+
+
 boot();
 
 </script>
