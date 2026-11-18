@@ -10277,6 +10277,34 @@ tr.tot54 td{border-top:2px solid var(--line-2,var(--line))}
 }
 
 
+/* ===================== p56: the same GrowSmart screen for every login (Admin · Sales · Finance · Operation) — light look like the GrowSmart video on every PC / phone even when Windows or Android is in dark mode (Dark mode is a switch in the user menu ▾), the Dashboard opens on each login's own department (Sales → Sales, Finance → Accounts, Operation → Operation), and a module that would only hold "Order flow" is not shown as an empty tile ===================== */
+{
+  const TH56 = "rqs.theme";
+  const theme56 = () => { try { return localStorage.getItem(TH56) === "dark" ? "dark" : "light"; } catch { return "light"; } };
+  const apply56 = () => { document.documentElement.setAttribute("data-theme", theme56()); const m = document.querySelector('meta[name="theme-color"]'); if (m) m.setAttribute("content", theme56() === "dark" ? "#0D141B" : "#02315B"); };
+  apply56();
+  const _n56 = nav51;
+  nav51 = function () {
+    const out = _n56.apply(this, arguments);
+    try {
+      const pr = $("#nav51 .n51-pr"); if (pr && !$("[data-th56]", pr)) {
+        const lo = $("[data-n51o]", pr), dark = theme56() === "dark";
+        lo?.insertAdjacentHTML("beforebegin", `<button type="button" data-th56 role="menuitemcheckbox" aria-checked="${dark}">${dark ? "☀ Light mode" : "☾ Dark mode"}</button>`);
+        $("[data-th56]", pr).onclick = () => { try { localStorage.setItem(TH56, dark ? "light" : "dark"); } catch { } apply56(); $$(".n51-d.open").forEach(x => x.classList.remove("open")); const b = $("#nav51"); if (b) b.dataset.sig = ""; render(); };
+      }
+    } catch (e) { console.warn("p56", e); }
+    return out;
+  };
+  /* Dashboard: start on my own department's alerts */
+  const MY56 = { finance: "Accounts", operation: "Operation", sales: "Sales" };
+  const _d56 = dash50;
+  dash50 = function (G) { if (G && !G._own56) { G._own56 = true; const g = MY56[myRole21?.() || ""]; if (g) G.grp = g; } return _d56.apply(this, arguments); };
+  /* Accounts tile only for logins that have Accounts pages (Order flow is reachable from their own modules) */
+  const acc = MODS32.find(m => m.id === "accounts"), card = acc && Object.values(acc.groups).flat().find(c => c[1] === "flow53");
+  if (card) { const _ok56 = cardOk32; cardOk32 = function (c) { if (c === card && !isAdmin28() && !allowed21("accounts")) return false; return _ok56.apply(this, arguments); }; }
+}
+
+
 boot();
 
 </script>
