@@ -10127,6 +10127,134 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 </style>`);
 
 
+/* ===================== p54: GrowSmart video tools — on the Quotation: Profitability analysis (selling vs cost price, gross profit %) and Stock check (copper needed vs copper in stock / free, one-tap indent); on every Sales order: "Quote vs order" compare (header + item lines, differences marked) and order Profitability (estimate from the quote workings vs material issued / bought); Collection status: customer-wise ageing (not due · 1–30 · 31–60 · 61–90 · 90+) and an email reminder next to WhatsApp ===================== */
+const pct54 = v => (Number.isFinite(v) ? (Math.round(v * 10) / 10).toFixed(1) : "0.0") + "%";
+const qRec54 = Q => (STATE.quotes || []).find(q => q.id === Q?.regId) || (STATE.quotes || []).find(q => Q?.no && q.no === Q.no && num(q.rev) === num(Q.rev));
+function work54(Q) {
+  const rec = qRec54(Q);
+  if (STATE.work && STATE.work.rows && ((Q.regId && STATE.work.regId === Q.regId) || (!Q.regId && !rec))) return STATE.work;
+  return rec?.workings?.rows ? rec.workings : null;
+}
+const calc54 = w => { try { return w ? calc(w) : null; } catch { return null; } };
+const cuNeed54 = c => (c?.rows || []).filter(r => r.kind === "copper" && r.mode === "kg").reduce((a, r) => a + num(r.kg) * num(r.rq), 0);
+function stockCat54(cat) {
+  const L = all28("item").filter(it => String(it.category || "").toLowerCase() === cat.toLowerCase());
+  return { items: L, stock: L.reduce((a, it) => a + stockOf28(it.id), 0), free: L.reduce((a, it) => a + Math.max(0, avail31(it.id)), 0) };
+}
+function modal54(title, html, wire) {
+  $("#m54")?.remove();
+  document.body.insertAdjacentHTML("beforeend", `<div id="m54" class="m54-ov"><div class="m54" role="dialog" aria-modal="true" aria-label="${esc(title)}"><header><h2>${esc(title)}</h2><button type="button" class="dr26-x" id="m54x" aria-label="Close">${icon("x26")}</button></header><div class="m54-b">${html}</div><footer><button type="button" class="btn" id="m54c">Close</button></footer></div></div>`);
+  const M = $("#m54"), close = () => { M.remove(); removeEventListener("keydown", k, true); };
+  const k = e => { if (e.key === "Escape") { e.stopPropagation(); close(); } };
+  addEventListener("keydown", k, true); M.onclick = e => { if (e.target === M) close(); }; $("#m54x").onclick = close; $("#m54c").onclick = close; $("#m54c").focus();
+  wire?.(M); return M;
+}
+
+/* ---- quotation page: profitability + stock check ---- */
+function quoteTools54(v) {
+  if (STATE.route !== "quote" || !STATE.quote || $("#st54", v)) return;
+  const host = $(".split > .stack", v) || $(".split", v); if (!host) return;
+  const Q = STATE.quote, w = work54(Q), c = calc54(w), sellL = (Q.lines || []).filter(l => l.desc || num(l.rate));
+  const fx = Q.currency && Q.currency !== "INR" ? (SETTINGS.fx?.[Q.currency] || 1) : 1;
+  const rows = sellL.map((l, i) => { const sell = num(l.qty || 1) * num(l.rate) * fx, cost = i === 0 && c ? c.cost : null; return { d: String(l.desc || "").slice(0, 70), sell, cost, gp: cost != null && sell ? (sell - cost) / sell * 100 : null }; });
+  const S = rows.reduce((a, r) => a + r.sell, 0), C = rows.reduce((a, r) => a + (r.cost || 0), 0), known = rows.some(r => r.cost != null);
+  const need = cuNeed54(c), cu = stockCat54("Copper"), short = Math.max(0, need - cu.free), ins = stockCat54("Insulation");
+  host.insertAdjacentHTML("beforeend", `<section class="panel" id="st54"><header><h2>Profit & stock check</h2><span class="small muted">before you send it</span></header><div class="body">
+    <h3 class="h54">Profitability analysis</h3>
+    ${known ? `<div class="tablewrap"><table class="t"><thead><tr><th>Item</th><th class="n">Selling ₹</th><th class="n">Cost ₹</th><th class="n">Gross profit</th></tr></thead><tbody>${rows.map(r => `<tr><td class="small">${esc(r.d)}</td><td class="n">${inr28(r.sell)}</td><td class="n">${r.cost == null ? "—" : inr28(r.cost)}</td><td class="n">${r.gp == null ? "—" : `<span class="chip ${r.gp < 10 ? "bad" : r.gp < 20 ? "warn" : "ok"}">${pct54(r.gp)}</span>`}</td></tr>`).join("")}<tr class="tot54"><td><b>Total</b></td><td class="n"><b>${inr28(S)}</b></td><td class="n"><b>${inr28(C)}</b></td><td class="n"><b>${inr28(S - C)}</b> · ${pct54(S ? (S - C) / S * 100 : 0)}</td></tr></tbody></table></div>${rows.length > 1 ? '<p class="small muted">Cost is known only for the line built from Quote Workings.</p>' : ""}`
+      : `<p class="small muted">Cost not known — build this quotation from <a href="#workings">Quote Workings</a> to see cost and profit.</p>`}
+    <h3 class="h54">Stock check</h3>
+    ${c && need ? `<div class="sk54"><div><span>Copper needed</span><b>${fmt(need, "INR", 1)} kg</b><small>${fmt(c.kgTotal, "INR", 2)} kg/coil × ${num(w.qty)}</small></div><div><span>In stock</span><b>${fmt(cu.stock, "INR", 1)} kg</b><small>free ${fmt(cu.free, "INR", 1)} kg after other orders</small></div><div class="${short ? "bad" : "ok"}"><span>${short ? "Short" : "Enough"}</span><b>${short ? fmt(short, "INR", 1) + " kg" : "✓"}</b><small>${short ? "buy before the order" : "can start on order"}</small></div></div>`
+      : `<p class="small muted">${c ? "No copper weight in the workings." : "Copper weight comes from Quote Workings."}</p>`}
+    ${ins.items.length ? `<p class="small" style="margin:8px 0 0">Insulation in stock: ${ins.items.slice(0, 6).map(it => `${esc(it.name)} <b>${stockOf28(it.id)} ${esc(it.unit || "")}</b>`).join(" · ")}</p>` : ""}
+    ${short && signed26() && allowed21("purchase") ? `<button type="button" class="btn sm" id="ind54" style="margin-top:10px">${icon("box28")}Raise indent for ${fmt(short, "INR", 1)} kg copper</button>` : ""}
+    ${!all28("item").length && signed26() ? '<p class="small muted" style="margin-top:6px">Add copper items under Purchase ▸ Stock items to see stock here.</p>' : ""}
+  </div></section>`);
+  $("#ind54", v)?.addEventListener("click", () => indentPanel45(null, { lines: [{ item: cu.items.length === 1 ? cu.items[0].id : "", desc: cu.items.length === 1 ? cu.items[0].name : "Copper conductor (as per quotation " + (Q.no || "") + ")", qty: Math.ceil(short), unit: "kg", rate: cu.items.length === 1 ? lastRate28(cu.items[0].id) || "" : "", gst: 18 }], notes: `Copper for quotation ${Q.no || ""} — ${Q.to?.name || ""}` }));
+}
+
+/* ---- sales order: quote vs order, order profitability ---- */
+function soQuote54(r) { const q = (STATE.quotes || []).find(x => x.id === r.quoteId) || (r.quoteNo ? (STATE.quotes || []).find(x => x.no && String(r.quoteNo).startsWith(x.no)) : null); return q || null; }
+function compare54(r) {
+  const q = soQuote54(r); if (!q) return toast("The quotation for this order is not on this device", "bad");
+  const Q = q.quote || {}, fx = q.currency && q.currency !== "INR" ? (SETTINGS.fx?.[q.currency] || 1) : 1;
+  const ql = (Q.lines || []).filter(l => l.desc || num(l.rate)), ol = r.lines || [], n = Math.max(ql.length, ol.length);
+  const diff = (a, b) => String(a ?? "").trim().toLowerCase() !== String(b ?? "").trim().toLowerCase();
+  const mark = d => d ? '<i class="d54" title="Changed">●</i>' : "";
+  const head = [["Customer", q.customer || Q.to?.name, r.customer], ["Contact", Q.to?.contact, r.contact], ["Delivery", Q.ctx?.delivery, r.deliveryDate ? dmy(r.deliveryDate) : r.deliveryText], ["Advance %", Q.ctx?.advance, r.advance], ["Value (before GST)", inr28(qINR(q)), inr28(soTaxable31(r))]];
+  const lines = Array.from({ length: n }, (_, i) => { const a = ql[i] || {}, b = ol[i] || {}, ar = Math.round(num(a.rate) * fx * 100) / 100;
+    return `<tr><td>${i + 1}</td><td class="small">${esc(String(a.desc || "—").slice(0, 80))}${mark(diff(a.desc, b.desc))}</td><td class="n">${a.qty ?? "—"}</td><td class="n">${a.rate != null ? inr28(ar) : "—"}</td><td class="small">${esc(String(b.desc || "—").slice(0, 80))}</td><td class="n">${b.qty ?? "—"}${mark(num(a.qty) !== num(b.qty))}</td><td class="n">${b.rate != null ? inr28(b.rate) : "—"}${mark(Math.abs(ar - num(b.rate)) > 0.5)}</td></tr>`; }).join("");
+  modal54(`Quote vs order · ${q.no || ""} → ${r.no || "order"}`, `<p class="small muted" style="margin-top:0"><i class="d54">●</i> = changed between the quotation and the customer's order</p>
+    <h3 class="h54">Quote and order details</h3><div class="tablewrap"><table class="t"><thead><tr><th></th><th>Quotation</th><th>Order</th></tr></thead><tbody>${head.map(([l, a, b]) => `<tr><td><b>${l}</b></td><td>${esc(a ?? "—")}</td><td>${esc(b ?? "—")}${mark(diff(a, b))}</td></tr>`).join("")}</tbody></table></div>
+    <h3 class="h54">Items</h3><div class="tablewrap"><table class="t"><thead><tr><th>#</th><th>Quoted item</th><th class="n">Qty</th><th class="n">Rate ₹</th><th>Ordered item</th><th class="n">Qty</th><th class="n">Rate ₹</th></tr></thead><tbody>${lines}</tbody></table></div>`);
+}
+function profit54(r) {
+  const q = soQuote54(r), w = q?.workings?.rows ? q.workings : null, c = calc54(w), sale = soTaxable31(r);
+  const ratio = c && num(w.qty) && num(r.lines?.[0]?.qty) ? num(r.lines[0].qty) / num(w.qty) : 1, est = c ? c.cost * ratio : null;
+  const jobs = all28("job").filter(j => j.soId === r.id), issued = all28("move").filter(m => jobs.some(j => j.id === m.job) && Number(m.qty) < 0).reduce((a, m) => a + Math.abs(Number(m.qty) || 0) * (Number(m.rate) || lastRate28(m.item)), 0);
+  const pos = all28("po").filter(p => p.soId === r.id && !["indent", "cancelled", "draft"].includes(p.status)), bought = pos.reduce((a, p) => a + (Number(p.taxable) || Number(p.total) || 0), 0);
+  const actual = Math.max(issued, bought), invs = all28("inv").filter(i => i.so === r.id && i.status !== "cancelled"), billed = sum29(invs, "taxable") || sum29(invs, "total"), got = sum29(invs, i => (Number(i.total) || 0) - (Number(i.balance) || 0));
+  const row = (l, cost) => cost == null ? `<tr><td>${l}</td><td class="n">—</td><td class="n">—</td><td class="n">—</td></tr>` : `<tr><td>${l}</td><td class="n">${inr28(cost)}</td><td class="n">${inr28(sale - cost)}</td><td class="n"><span class="chip ${sale && (sale - cost) / sale < .1 ? "bad" : sale && (sale - cost) / sale < .2 ? "warn" : "ok"}">${pct54(sale ? (sale - cost) / sale * 100 : 0)}</span></td></tr>`;
+  modal54(`Profitability · ${r.no || "order"}`, `<div class="sk54"><div><span>Order value (before GST)</span><b>${inr28(sale)}</b><small>${(r.lines || []).length} line${(r.lines || []).length === 1 ? "" : "s"}</small></div><div><span>Invoiced</span><b>${inr28(billed)}</b><small>received ${inr28(got)}</small></div></div>
+    <div class="tablewrap" style="margin-top:12px"><table class="t"><thead><tr><th>Cost basis</th><th class="n">Cost ₹</th><th class="n">Gross profit ₹</th><th class="n">GP %</th></tr></thead><tbody>
+    ${row(`Estimate from quote workings${q ? " (" + esc(q.no || "") + ")" : ""}${ratio !== 1 ? ` × ${Math.round(ratio * 100) / 100} for order qty` : ""}`, est)}
+    ${row(`Actual material so far (${issued >= bought ? "issued to the work order" : "bought for this order"})`, actual || null)}
+    </tbody></table></div>
+    ${c ? `<h3 class="h54">Estimated cost breakdown</h3><div class="tablewrap"><table class="t"><tbody>${c.rows.filter(x => x.total).map(x => `<tr><td class="small">${esc(x.desc || KIND_LABEL?.[x.kind] || x.kind || "")}</td><td class="n">${inr28(x.total * ratio)}</td></tr>`).join("")}${[["Winding kit", c.wkit], ["Fixture", c.fixture], ["Freight", c.freight], ["Special", c.special]].filter(x => x[1]).map(x => `<tr><td class="small">${x[0]}</td><td class="n">${inr28(x[1] * ratio)}</td></tr>`).join("")}</tbody></table></div>` : `<p class="small muted">No Quote Workings saved with this order's quotation, so there is no cost estimate. Actual material appears once stock is issued to the work order or a PO is raised for the order.</p>`}`);
+}
+{
+  const _top54 = soTop53;
+  soTop53 = function (D) {
+    _top54.apply(this, arguments);
+    try {
+      const r = CUR53?.id ? (BIZ.rows[CUR53.id] || CUR53) : null, W = $(".fl53-wrap", D); if (!r || !W || $(".tl54", W)) return;
+      W.insertAdjacentHTML("beforeend", `<div class="tl54">${soQuote54(r) ? `<button type="button" class="btn sm" data-t54="cmp">${icon("compare")}Quote vs order</button>` : ""}<button type="button" class="btn sm" data-t54="pf">${icon("rate")}Profitability</button></div>`);
+      $$("[data-t54]", W).forEach(b => b.onclick = () => (b.dataset.t54 === "cmp" ? compare54 : profit54)(BIZ.rows[r.id] || r));
+    } catch (e) { console.warn("p54", e); }
+  };
+}
+
+/* ---- collection status with customer-wise ageing + email reminder ---- */
+{
+  const AG54 = ["Not due", "1–30", "31–60", "61–90", "90+"];
+  coll50 = function (G) {
+    const C = {}, t = todayISO();
+    openInv50().forEach(i => { const k = norm31(i.customer), c = C[k] ||= { name: i.customer, due: 0, over: 0, n: 0, oldest: "", phone: "", email: "", ag: [0, 0, 0, 0, 0], inv: [] }; c.due += i.balance; c.n++; c.ag[bucket50(i)] += i.balance; c.inv.push(i); if (i.due < t) c.over += i.balance; if (!c.oldest || i.due < c.oldest) c.oldest = i.due; if (!c.email && i.email) c.email = i.email; });
+    all28("lead").forEach(l => { const c = C[norm31(l.company)]; if (c) { c.phone ||= l.phone || ""; c.email ||= l.email || ""; } });
+    all28("so").forEach(o => { const c = C[norm31(o.customer)]; if (c) { c.phone ||= o.phone || ""; c.email ||= o.email || ""; } });
+    const R = Object.values(C).sort((a, b) => b.over - a.over || b.due - a.due), T = [0, 0, 0, 0, 0]; R.forEach(c => c.ag.forEach((x, i) => { T[i] += x; }));
+    const lastPay = n => all28("rcpt").filter(r => norm31(r.customer) === norm31(n)).map(r => r.date).sort().pop() || "";
+    const agCol = k => [AG54[k], r => ({ t: String(Math.round(r.ag[k])), h: r.ag[k] ? `<span class="${k > 1 ? "bad50" : ""}">${inr28(r.ag[k])}</span>` : "—" }), "n"];
+    const msg = c => `Dear Sir/Madam,\n\nAs per our records ₹${fmt(c.due, "INR", 0)} is outstanding on ${c.n} invoice${c.n > 1 ? "s" : ""}${c.over ? ` (₹${fmt(c.over, "INR", 0)} overdue)` : ""}:\n${c.inv.sort((a, b) => String(a.due).localeCompare(String(b.due))).slice(0, 12).map(i => `- ${i.no} dated ${dmy(i.date)}, due ${dmy(i.due)}: ₹${fmt(i.balance, "INR", 0)}`).join("\n")}\n\nKindly arrange the payment. Please ignore if already paid.\n\nRegards,\n${SETTINGS.company?.name || "Rivera Coil Manufacturing (I) Pvt Ltd"}`;
+    const g = grid50("coll", [["Customer", r => ({ t: r.name, h: `<b>${esc(r.name)}</b>` })], ["Invoices", r => String(r.n), "n"], ["Outstanding", r => money50(r.due), "n"], ...[0, 1, 2, 3, 4].map(agCol), ["Oldest due", r => date50(r.oldest)], ["Last payment", r => date50(lastPay(r.name))],
+      ["", r => ({ t: "", h: `<span class="row" style="gap:6px;flex-wrap:nowrap"><button type="button" class="btn sm" data-cs="${esc(r.name)}">Statement</button>${r.email ? `<button type="button" class="btn sm" data-ce="${esc(r.name)}">${icon("mail")}Email</button>` : ""}${r.phone ? `<button type="button" class="btn sm" data-cw="${esc(r.name)}">${icon("wa")}Remind</button>` : ""}<button type="button" class="btn sm primary" data-cr="${esc(r.name)}">Receipt</button></span>` }), "", false]], R, r => statement50(r.name));
+    return { html: `<div class="l50-h"><h2>Collection status</h2></div><div class="ag50">${AG54.map((l, i) => `<div class="${i > 1 && T[i] ? "bad" : ""}"><span>${i ? l + " days" : l}</span><b>${inr28(T[i])}</b></div>`).join("")}<div class="tot"><span>Total outstanding</span><b>${inr28(T.reduce((a, x) => a + x, 0))}</b></div></div>${g.html}`, wire: v => { g.wire(v);
+      const find = n => R.find(x => x.name === n);
+      $$("[data-cs]", v).forEach(b => b.onclick = e => { e.stopPropagation(); statement50(b.dataset.cs); });
+      $$("[data-cr]", v).forEach(b => b.onclick = e => { e.stopPropagation(); rcptPanel29(null, { customer: b.dataset.cr }); });
+      $$("[data-ce]", v).forEach(b => b.onclick = e => { e.stopPropagation(); const c = find(b.dataset.ce); openLink(`mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent("Payment reminder — outstanding invoices")}&body=${encodeURIComponent(msg(c))}`); });
+      $$("[data-cw]", v).forEach(b => b.onclick = e => { e.stopPropagation(); const c = find(b.dataset.cw); openLink("https://wa.me/" + String(c.phone).replace(/\D/g, "").replace(/^(\d{10})$/, "91$1") + "?text=" + encodeURIComponent(msg(c))); });
+    } };
+  };
+}
+{
+  const _r54 = render;
+  render = function () { _r54.apply(this, arguments); try { quoteTools54($("#view")); } catch (e) { console.warn("p54", e); } };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.h54{font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted);margin:14px 0 6px}.h54:first-child{margin-top:0}
+.sk54{display:grid;grid-template-columns:repeat(auto-fit,minmax(130px,1fr));gap:8px}.sk54>div{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--sunk);display:flex;flex-direction:column;gap:2px}.sk54 span{font-size:.68rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}.sk54 b{font-size:1.05rem}.sk54 small{font-size:.72rem;color:var(--muted)}
+.sk54>div.bad{border-color:var(--bad,#c0392b);background:color-mix(in srgb,var(--bad,#c0392b) 7%,var(--surface))}.sk54>div.bad b{color:var(--bad,#c0392b)}.sk54>div.ok b{color:var(--ok,#2f8f5b)}
+tr.tot54 td{border-top:2px solid var(--line-2,var(--line))}
+.tl54{display:flex;gap:6px;flex-wrap:wrap;margin-top:10px}
+.d54{font-style:normal;color:var(--bad,#c0392b);font-size:.7rem;margin-left:4px}
+.m54-ov{position:fixed;inset:0;z-index:2000;background:rgba(10,20,35,.5);display:grid;place-items:center;padding:16px}
+.m54{width:min(860px,100%);max-height:calc(100vh - 32px);display:flex;flex-direction:column;background:var(--surface);color:var(--ink,inherit);border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.3);overflow:hidden}
+.m54>header{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:14px 16px;border-bottom:1px solid var(--line)}.m54>header h2{margin:0;font-family:var(--f-display);font-size:1.08rem}
+.m54-b{padding:14px 16px;overflow:auto}.m54>footer{display:flex;justify-content:flex-end;padding:10px 16px;border-top:1px solid var(--line)}
+</style>`);
+
+
 boot();
 
 </script>
