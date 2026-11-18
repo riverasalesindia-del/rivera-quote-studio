@@ -1118,10 +1118,31 @@ function recRows() { return fastRead("Records", RCH, recSheet); }
 function recOut(r) { var o = {}; try { o = JSON.parse(r.data || "{}"); } catch (e) { } o.id = r.id; o.kind = r.kind; o.no = r.no; o.by = r.by; o.at = r.at; return o; }
 function recList(d, me) {
   var kinds = (d.kinds || Object.keys(REC_KINDS)).filter(function (k) { return REC_KINDS[k]; }), since = String(d.since || "");
-  var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && recCan(r.kind, me) && (!since ? r.del !== "1" : String(r.at) > since); });
-  return { ok: true, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.del === "1") o._del = 1; return o; }) };
+  var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (recCan(r.kind, me) || linkedRead(r, me)) && (!since ? r.del !== "1" : String(r.at) > since); });
+  return { ok: true, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.kind === "po" && !recCan("po", me)) o = poLite(o); if (r.del === "1") o._del = 1; return o; }) };
+}
+/* Order flow: anyone who can see sales orders also sees (read-only) the work orders and indents / POs made for a sales order,
+   so every department sees where an order stands; supplier prices are left out for logins without Purchase */
+function linkedRead(r, me) { return (r.kind === "job" || r.kind === "po") && recCan("so", me) && /"soId":"/.test(String(r.data || "")); }
+function poLite(o) {
+  return { id: o.id, kind: o.kind, no: o.no, by: o.by, at: o.at, status: o.status, soId: o.soId, jobNo: o.jobNo, needBy: o.needBy, date: o.date, dept: o.dept, from53: o.from53, supplier: o.supplier ? "(supplier)" : "",
+    lines: (o.lines || []).map(function (l) { return { item: l.item, desc: l.desc, qty: l.qty, unit: l.unit }; }) };
 }
 function fyShort() { var t = new Date(), y = Number(Utilities.formatDate(t, "Asia/Kolkata", "yyyy")), m = Number(Utilities.formatDate(t, "Asia/Kolkata", "M")); if (m < 4) y--; return String(y).slice(2) + "-" + String(y + 1).slice(2); }
+/* hand-over from a confirmed sales order (web app p53): whoever can save sales orders may also create that order's
+   one work order, one material indent and the advance task — nothing else, and only once per order */
+function handoffOk(rec, all, me) {
+  if (!rec || rec.id || rec.from53 !== "so" || !rec.soId) return false;
+  if (["job", "po", "task"].indexOf(rec.kind) < 0) return false;
+  if (rec.kind === "po" && rec.status !== "indent") return false;
+  if (!recCan("so", me)) return false;
+  var so = all.filter(function (x) { return x.id === rec.soId && x.kind === "so" && !x.del; })[0]; if (!so) return false;
+  var sd = {}; try { sd = JSON.parse(so.data || "{}"); } catch (e) { return false; }
+  if (sd.status !== "confirmed") return false;
+  var dup = all.some(function (x) { if (x.kind !== rec.kind || x.del) return false; var o = {}; try { o = JSON.parse(x.data || "{}"); } catch (e) { } return o.soId === rec.soId && o.from53 === "so" && o.status !== "cancelled"; });
+  return !dup;
+}
+
 function recPut(d, me) {
   if (me.role === "viewer" || me.access === "view") throw "View-only login";
   var list = d.recs || (d.rec ? [d.rec] : []); if (!list.length) throw "Nothing to save";
@@ -1132,7 +1153,7 @@ function recPut(d, me) {
     list.forEach(function (rec) {
       var kind = rec.kind; if (!REC_KINDS[kind]) throw "Unknown record type";
       if (kind === "lead" && ["admin", "sales"].indexOf(me.role) < 0) throw "Only sales can change leads";
-      if (!recCan(kind, me)) throw "Your login can't change this";
+      if (!recCan(kind, me) && !handoffOk(rec, all, me)) throw "Your login can't change this";
       var r = rec.id ? all.filter(function (x) { return x.id === rec.id; })[0] : null, before = null;
       if (r) { try { before = JSON.parse(r.data || "{}"); } catch (e) { before = {}; } }
       if (!r) {
@@ -1150,6 +1171,8 @@ function recPut(d, me) {
       if (kind === "leave" && data.status === "applied" && (!before || before.status !== "applied")) mails.push([ADMIN, "Leave request: " + clean(data.empName, 60) + " " + clean(data.from, 12) + " to " + clean(data.to, 12), "<p>" + esc(data.empName || "") + " asked for " + esc(data.type || "leave") + " from <b>" + esc(data.from || "") + "</b> to <b>" + esc(data.to || "") + "</b>.</p><p>" + esc(data.reason || "") + "</p><p>" + btn(LINKS.site + "#hr", "Open HR", "#02315B") + "</p>"]);
       if (kind === "svc" && /@/.test(data.techEmail || "") && data.techEmail !== me.email && (!before || before.techEmail !== data.techEmail)) mails.push([data.techEmail, "Service call " + r.no + " assigned to you", "<p><b>" + esc(data.customer || "") + "</b> — " + esc(data.equipment || "") + "</p><p>" + esc(data.complaint || "") + "</p><p>Visit: <b>" + esc(data.visit || "—") + "</b> · " + esc(data.site || "") + "</p><p>" + btn(LINKS.site + "#service", "Open service call", "#02315B") + "</p>"]);
       if (kind === "so" && data.status === "exception" && (!before || before.status !== "exception")) mails.push([ADMIN, "Sales order " + r.no + " needs your approval", "<p><b>" + esc(me.name || me.email) + "</b> booked <b>" + esc(r.no) + "</b> for <b>" + esc(data.customer || "") + "</b> (₹" + Number(data.total || 0).toLocaleString("en-IN") + ").</p><p>Exceptions:</p><ul>" + (data.exceptions || []).map(function (x) { return "<li>" + esc(x) + "</li>"; }).join("") + "</ul><p>" + btn(LINKS.site + "#purchase", "Open Sales", "#02315B") + "</p>"]);
+      if (kind === "job" && data.from53 === "so" && !before) mails.push([ADMIN, "New work order " + r.no + " from sales order " + clean(data.soNo || "", 40), "<p><b>" + esc(me.name || me.email) + "</b> confirmed sales order <b>" + esc(data.soNo || "") + "</b> for <b>" + esc(data.customer || "") + "</b>. Work order <b>" + esc(r.no) + "</b> is now with the factory" + (data.promised ? " — promised by <b>" + esc(data.promised) + "</b>" : "") + ".</p><p>" + esc(data.work || "") + "</p><p>" + btn(LINKS.site + "#flow53", "Open Order flow", "#02315B") + "</p>"]);
+      if (kind === "po" && data.from53 === "so" && data.status === "indent" && !before) mails.push([ADMIN, "Material indent " + r.no + " for sales order " + clean(data.jobNo || "", 40), "<p>Material is short for sales order <b>" + esc(data.jobNo || "") + "</b>. Indent <b>" + esc(r.no) + "</b> needs a purchase order" + (data.needBy ? " — needed by <b>" + esc(data.needBy) + "</b>" : "") + ".</p><ul>" + (data.lines || []).map(function (l) { return "<li>" + esc(l.desc || "") + " — " + esc(String(l.qty || "")) + " " + esc(l.unit || "") + "</li>"; }).join("") + "</ul><p>" + btn(LINKS.site + "#flow53", "Open Order flow", "#02315B") + "</p>"]);
       if (kind === "po" && data.status === "pending" && (!before || before.status !== "pending")) mails.push([ADMIN, "Purchase order " + r.no + " waiting for your approval", "<p><b>" + esc(me.name || me.email) + "</b> raised <b>" + esc(r.no) + "</b> to <b>" + esc(data.supplier || "") + "</b> for ₹" + Number(data.total || 0).toLocaleString("en-IN") + ".</p><p>" + btn(LINKS.site + "#purchase", "Open Purchase", "#02315B") + "</p>"]);
     });
     writeTable(sh, RCH, all);
