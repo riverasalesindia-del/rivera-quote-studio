@@ -10336,6 +10336,54 @@ tr.tot54 td{border-top:2px solid var(--line-2,var(--line))}
 }
 
 
+/* ===================== p58: one-tap login for each person — at the top of Users & access the admin sees Sales · Finance · Operations as cards; one tap creates that login (or gives a new password), shows the username + temporary password big, with Copy, WhatsApp and Email buttons that send the team sign-in link too ===================== */
+function oneTap58(v) {
+  if (STATE.route !== "users" || !AUTH.isAdmin || $("#q58", v)) return;
+  const host = $(".stack", v) || v, team = TEAM16.filter(m => m.role !== "admin");
+  host.insertAdjacentHTML("afterbegin", `<section class="panel" id="q58"><header><h2>Give a login — one tap</h2><span class="small muted">the person signs in at ${esc(LINKS16.site)}</span></header><div class="body">
+    <div class="q58-g">${team.map((m, i) => `<div class="q58-c" data-q58="${i}"><div><b>${esc(m.name)}</b><div class="mono small muted">${esc(m.email)}</div></div><span class="chip" data-q58s>…</span><button type="button" class="btn primary" data-q58b disabled>${icon("key")}…</button></div>`).join("")}</div>
+    <div id="q58o"></div></div></section>`);
+  const P = $("#q58", v);
+  let U = [];
+  const st = u => !u ? ["Not created", "warn"] : u.status === "disabled" ? ["Disabled", "bad"] : u.mustChange || !u.lastLogin ? ["Waiting for first sign-in", "navy"] : ["Active", "ok"];
+  const draw = () => $$("[data-q58]", P).forEach(c => { const m = team[+c.dataset.q58], u = U.find(x => x.email === m.email), [t, k] = st(u), b = $("[data-q58b]", c), s = $("[data-q58s]", c);
+    s.className = "chip " + k; s.textContent = t; b.disabled = false; b.innerHTML = `${icon("key")}${u ? "New password" : "Create login"}`; });
+  AUTH.call("users").then(d => { U = d.users || []; if (document.body.contains(P)) draw(); }).catch(e => { const o = $("#q58o", P); if (o) o.innerHTML = `<div class="note bad">${esc(e.message)}</div>`; });
+  $$("[data-q58b]", P).forEach(b => b.onclick = async () => {
+    const m = team[+b.closest("[data-q58]").dataset.q58], u = U.find(x => x.email === m.email);
+    if (u && !confirm(`Give ${m.email} a new password?\n\nThe old password stops working. They set their own at the next sign-in.`)) return;
+    b.disabled = true; b.innerHTML = '<span class="spin"></span>Creating…';
+    try {
+      const pw = strongPw16(m.tag), h = await AUTH.hash(pw, m.email);
+      if (u) await AUTH.call("setUser", { email: m.email, pw: h, role: u.role || m.role, status: "approved" });
+      else await AUTH.call("createUser", { email: m.email, name: m.name, role: m.role, contact: m.email, pw: h });
+      try { U = (await AUTH.call("users")).users || U; } catch { }
+      draw();
+      const txt = `Rivera Quote Studio — your login\n\nOpen: ${LINKS16.site}\nUsername: ${m.email}\nPassword: ${pw}\n\nYou will be asked to set your own password at the first sign-in.${LINKS16.apk ? "\nAndroid app: " + LINKS16.apk : ""}`;
+      $("#q58o", P).innerHTML = `<div class="note ok q58-r"><b>${esc(m.name)} — login ready. This password is shown only now.</b>
+        <div class="q58-kv"><span>Username</span><code>${esc(m.email)}</code><span>Password</span><code class="q58-pw">${esc(pw)}</code></div>
+        <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="q58c">Copy login + link</button><button type="button" class="btn" id="q58w">${icon("wa")}WhatsApp</button><button type="button" class="btn" id="q58e">${icon("mail")}Email it to ${esc(m.email)}</button></div>
+        <p class="small muted" style="margin:0">They open ${esc(LINKS16.site)}, type these, set their own password, and you approve the sign-in from the mail once. After that the app opens straight on the Dashboard on that phone / PC.</p></div>`;
+      $("#q58c", P).onclick = () => navigator.clipboard?.writeText(txt).then(() => toast("Login and link copied"), () => toast(txt));
+      $("#q58w", P).onclick = () => openLink("https://wa.me/?text=" + encodeURIComponent(txt));
+      $("#q58e", P).onclick = async e => { e.target.disabled = true; try { await AUTH.call("mailLogin", { email: m.email, pw }); toast("Login mailed to " + m.email); e.target.textContent = "Mailed"; } catch (x) { toast(x.message, "bad"); e.target.disabled = false; } };
+      $("#q58o", P).scrollIntoView?.({ behavior: "smooth", block: "nearest" });
+      toast(`${m.name} login ready`);
+    } catch (e) { toast(e.message, "bad"); draw(); }
+  });
+}
+{
+  const _r58 = render;
+  render = function () { _r58.apply(this, arguments); try { oneTap58($("#view")); } catch (e) { console.warn("p58", e); } };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.q58-g{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:10px}
+.q58-c{display:flex;flex-direction:column;gap:8px;align-items:flex-start;border:1px solid var(--line);border-radius:12px;padding:12px;background:var(--sunk)}.q58-c .btn{width:100%;justify-content:center}
+.q58-r{display:flex;flex-direction:column;gap:10px;margin-top:12px}.q58-kv{display:grid;grid-template-columns:auto 1fr;gap:6px 12px;align-items:center}.q58-kv span{font-size:.75rem;text-transform:uppercase;letter-spacing:.05em;color:var(--muted)}
+.q58-kv code{font-size:1.05rem;font-weight:700;background:var(--surface);border:1px solid var(--line);border-radius:6px;padding:4px 8px;word-break:break-all}.q58-pw{letter-spacing:.04em}
+</style>`);
+
+
 boot();
 
 </script>
