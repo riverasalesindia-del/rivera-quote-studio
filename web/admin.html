@@ -10384,6 +10384,56 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 </style>`);
 
 
+/* ===================== p59: Buyers & Competitors — "Download list" (PDF / Word, like Tender search): exactly the list on screen (your search box, the "only live" tick and the column sort), with a short summary on top — Tender247-style buyer / competitor report to send or print ===================== */
+const t59 = x => ({ t: String(x ?? "") });
+const rs59 = v => num(v) ? fmt(num(v), "INR", 0) : "—";
+/* the same list the screen shows (search box; p52 has already applied the tick and sort to the cached stats) */
+function shown59(S, tab) {
+  const d = S.cache.stats?.d; if (!d) return [];
+  if (tab === "buyers") { const q = (S.bq || "").toLowerCase(); return (d.buyers || []).filter(b => !q || (b.org + " " + (b.states || []).join(" ") + " " + (b.items || []).join(" ")).toLowerCase().includes(q)); }
+  const q = (S.cq || "").toLowerCase(); return (d.competitors || []).filter(x => !q || (x.name + " " + (x.items || []).join(" ") + " " + (x.buyers || []).join(" ")).toLowerCase().includes(q));
+}
+function blocks59(S, tab, L) {
+  const d = S.cache.stats?.d || {}, today = dmy(todayISO()), MAX = 1500, Lx = L.slice(0, MAX);
+  const s = (st52()[tab] || {}), q = tab === "buyers" ? S.bq : S.cq;
+  const how = [q && `search “${String(q).trim()}”`, tab === "buyers" && S.live52 && "only buyers with live tenders", s.k && `sorted by ${s.k} (${s.dir === "asc" ? "low → high" : "high → low"})`, L.length > MAX && `first ${MAX} of ${L.length}`].filter(Boolean).join(" · ");
+  if (tab === "buyers") {
+    const live = sum29(L, "live"), val = sum29(L, "value"), tr = sum29(L, "tracked"), won = sum29(L, "won");
+    return [{ t: `RIVERA — BUYERS (${L.length}) — ${today}`, b: true, sz: 13, color: "02315B", after: 60 },
+      { t: `${sum29(L, "n").toLocaleString("en-IN")} tenders · ${live.toLocaleString("en-IN")} live now · total value ₹${fmt(val, "INR", 0)} · Rivera tracked ${tr}, won ${won}${how ? " · " + how : ""}`, sz: 9, after: 120 },
+      { widths: [2000, 650, 550, 1100, 2200, 1300, 900, 900], table: [["Buyer", "Tenders", "Live", "Total value ₹", "Usual items", "State / portal", "Last tender", "Rivera tracked / won"].map(t59),
+        ...Lx.map(b => [b.org, num(b.n), num(b.live) || "—", rs59(b.value), (b.items || []).join("; ").slice(0, 120), [...(b.states || []), ...(b.portals || [])].join(", "), b.last ? dmy(b.last) : "—", b.tracked ? b.tracked + " / " + (b.won || 0) : "—"].map(t59))] }];
+  }
+  const rv = d.rivera;
+  return [{ t: `RIVERA — COMPETITORS (${L.length}) — ${today}`, b: true, sz: 13, color: "02315B", after: 60 },
+    { t: `${rv ? `Rivera: ${rv.bids} bids with results · L1 ${rv.l1} · awarded ${rv.won}. ` : ""}“Rivera vs them” = how much Rivera's price was above (+) or below (-) theirs on the same tender${how ? " · " + how : ""}`, sz: 9, after: 120 },
+    { widths: [2000, 650, 650, 750, 1100, 900, 900, 1450, 1200], table: [["Competitor", "Bids seen", "Times L1", "Awarded", "Avg price ₹", "Beat Rivera", "Rivera vs them", "Items", "Buyers"].map(t59),
+      ...Lx.map(x => [x.name, num(x.bids), num(x.l1) || "—", num(x.won) || "—", rs59(x.avgPrice), x.vsRivera ? `${num(x.beatRivera)} of ${num(x.vsRivera)}` : "—", x.avgGap == null ? "—" : (x.avgGap > 0 ? "+" : "") + Number(x.avgGap).toFixed(1) + "%", (x.items || []).join("; ").slice(0, 100), (x.buyers || []).join("; ").slice(0, 80)].map(t59))] }];
+}
+function tdbDl59(B, S) {
+  const tab = S.tab; if (tab !== "buyers" && tab !== "comp") return;
+  const h = $("table.t", B)?.closest(".panel")?.querySelector("header"); if (!h || $(".dl59", h)) return;
+  h.insertAdjacentHTML("beforeend", `<button type="button" class="btn sm dl59" title="Download this list as PDF or Word">${icon("dl")}Download list</button>`);
+  $(".dl59", h).onclick = () => {
+    const L = shown59(S, tab); if (!L.length) return toast("Nothing to download", "bad");
+    const nm = tab === "buyers" ? "BUYERS" : "COMPETITORS", label = tab === "buyers" ? "Buyers list" : "Competitors list", blocks = () => blocks59(S, tab, L);
+    openShare({ title: label, base: `RIVERA_${nm}_${todayISO()}`, text: `Rivera — ${label.toLowerCase()} (${L.length}) — ${dmy(todayISO())}`, formats: [F.pdf(label + " (PDF)", () => blocksPdf(blocks())), F.docx(label + " (Word)", () => buildDocx(blocks(), brandLogo()))] });
+  };
+}
+{
+  const _tdb59 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb59(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || !AUTH.api || !AUTH.user) return;
+    try { tdbDl59(B, S); } catch (e) { console.warn("p59", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+header .dl59{margin-left:auto}header .r52+.dl59{margin-left:8px}.dl59 svg{width:15px;height:15px}
+@media (max-width:600px){header .dl59{margin-left:0}}
+</style>`);
+
+
 boot();
 
 </script>
