@@ -10384,6 +10384,354 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 </style>`);
 
 
+/* ===================== p59: Buyers & Competitors — "Download list" (PDF / Word, like Tender search): exactly the list on screen (your search box, the "only live" tick and the column sort), with a short summary on top — Tender247-style buyer / competitor report to send or print ===================== */
+const t59 = x => ({ t: String(x ?? "") });
+const rs59 = v => num(v) ? fmt(num(v), "INR", 0) : "—";
+/* the same list the screen shows (search box; p52 has already applied the tick and sort to the cached stats) */
+function shown59(S, tab) {
+  const d = S.cache.stats?.d; if (!d) return [];
+  if (tab === "buyers") { const q = (S.bq || "").toLowerCase(); return (d.buyers || []).filter(b => !q || (b.org + " " + (b.states || []).join(" ") + " " + (b.items || []).join(" ")).toLowerCase().includes(q)); }
+  const q = (S.cq || "").toLowerCase(); return (d.competitors || []).filter(x => !q || (x.name + " " + (x.items || []).join(" ") + " " + (x.buyers || []).join(" ")).toLowerCase().includes(q));
+}
+function blocks59(S, tab, L) {
+  const d = S.cache.stats?.d || {}, today = dmy(todayISO()), MAX = 1500, Lx = L.slice(0, MAX);
+  const s = (st52()[tab] || {}), q = tab === "buyers" ? S.bq : S.cq;
+  const how = [q && `search “${String(q).trim()}”`, tab === "buyers" && S.live52 && "only buyers with live tenders", s.k && `sorted by ${s.k} (${s.dir === "asc" ? "low → high" : "high → low"})`, L.length > MAX && `first ${MAX} of ${L.length}`].filter(Boolean).join(" · ");
+  if (tab === "buyers") {
+    const live = sum29(L, "live"), val = sum29(L, "value"), tr = sum29(L, "tracked"), won = sum29(L, "won");
+    return [{ t: `RIVERA — BUYERS (${L.length}) — ${today}`, b: true, sz: 13, color: "02315B", after: 60 },
+      { t: `${sum29(L, "n").toLocaleString("en-IN")} tenders · ${live.toLocaleString("en-IN")} live now · total value ₹${fmt(val, "INR", 0)} · Rivera tracked ${tr}, won ${won}${how ? " · " + how : ""}`, sz: 9, after: 120 },
+      { widths: [2000, 650, 550, 1100, 2200, 1300, 900, 900], table: [["Buyer", "Tenders", "Live", "Total value ₹", "Usual items", "State / portal", "Last tender", "Rivera tracked / won"].map(t59),
+        ...Lx.map(b => [b.org, num(b.n), num(b.live) || "—", rs59(b.value), (b.items || []).join("; ").slice(0, 120), [...(b.states || []), ...(b.portals || [])].join(", "), b.last ? dmy(b.last) : "—", b.tracked ? b.tracked + " / " + (b.won || 0) : "—"].map(t59))] }];
+  }
+  const rv = d.rivera;
+  return [{ t: `RIVERA — COMPETITORS (${L.length}) — ${today}`, b: true, sz: 13, color: "02315B", after: 60 },
+    { t: `${rv ? `Rivera: ${rv.bids} bids with results · L1 ${rv.l1} · awarded ${rv.won}. ` : ""}“Rivera vs them” = how much Rivera's price was above (+) or below (-) theirs on the same tender${how ? " · " + how : ""}`, sz: 9, after: 120 },
+    { widths: [2000, 650, 650, 750, 1100, 900, 900, 1450, 1200], table: [["Competitor", "Bids seen", "Times L1", "Awarded", "Avg price ₹", "Beat Rivera", "Rivera vs them", "Items", "Buyers"].map(t59),
+      ...Lx.map(x => [x.name, num(x.bids), num(x.l1) || "—", num(x.won) || "—", rs59(x.avgPrice), x.vsRivera ? `${num(x.beatRivera)} of ${num(x.vsRivera)}` : "—", x.avgGap == null ? "—" : (x.avgGap > 0 ? "+" : "") + Number(x.avgGap).toFixed(1) + "%", (x.items || []).join("; ").slice(0, 100), (x.buyers || []).join("; ").slice(0, 80)].map(t59))] }];
+}
+function tdbDl59(B, S) {
+  const tab = S.tab; if (tab !== "buyers" && tab !== "comp") return;
+  const h = $("table.t", B)?.closest(".panel")?.querySelector("header"); if (!h || $(".dl59", h)) return;
+  h.insertAdjacentHTML("beforeend", `<button type="button" class="btn sm dl59" title="Download this list as PDF or Word">${icon("dl")}Download list</button>`);
+  $(".dl59", h).onclick = () => {
+    const L = shown59(S, tab); if (!L.length) return toast("Nothing to download", "bad");
+    const nm = tab === "buyers" ? "BUYERS" : "COMPETITORS", label = tab === "buyers" ? "Buyers list" : "Competitors list", blocks = () => blocks59(S, tab, L);
+    openShare({ title: label, base: `RIVERA_${nm}_${todayISO()}`, text: `Rivera — ${label.toLowerCase()} (${L.length}) — ${dmy(todayISO())}`, formats: [F.pdf(label + " (PDF)", () => blocksPdf(blocks())), F.docx(label + " (Word)", () => buildDocx(blocks(), brandLogo()))] });
+  };
+}
+{
+  const _tdb59 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb59(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || !AUTH.api || !AUTH.user) return;
+    try { tdbDl59(B, S); } catch (e) { console.warn("p59", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+header .dl59{margin-left:auto}header .r52+.dl59{margin-left:8px}.dl59 svg{width:15px;height:15px}
+@media (max-width:600px){header .dl59{margin-left:0}}
+</style>`);
+
+
+/* ===================== p60: Vendor registration & evaluation — one page (Sales ▾ and Purchase ▾ menus, Vendors page buttons) with three tabs:
+   1. Supplier registration — Rivera's own suppliers: date, reg. no, email, GST / PAN / MSME / bank, status, and their documents (upload, see, download); form as PDF / Word
+   2. Supplier evaluation — quality · delivery · price · service · documents scored 1–5 → % and grade A–D, for the Purchase or Sales team; PDF / Word; updates the vendor's rating
+   3. Rivera's registration with customers — NTPC, BHEL … : customer, vendor code, dates, email, status; Rivera's details + Rivera's company documents (never QIC) ticked from
+      Company documents or uploaded; registration form PDF / Word and one "form + documents" PDF
+   Data: suppliers stay in the Vendors list; evaluations and customer registrations sync to the team register like vendors; documents go to the private document store ===================== */
+IC.reg60 = '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M8 8h8M8 12h8M8 16h5"/><path d="m15 17 1.5 1.5L20 15"/>';
+["vevals", "custregs"].forEach(c => { if (!COLLS.includes(c)) COLLS.push(c); STATE.data[c] ||= LS.get(c, []); });
+const U60 = () => STATE.vf60 ||= { tab: "reg", q: "", ed: null };
+const VTYPE60 = ["Manufacturer", "Trader / dealer", "Service / job work", "Transporter", "Other"];
+const VSTAT60 = { applied: ["warn", "Applied"], approved: ["ok", "Approved"], rejected: ["bad", "Rejected"], blocked: ["bad", "Blocked"] };
+const CSTAT60 = { todo: ["", "To fill"], submitted: ["warn", "Submitted"], approved: ["ok", "Registered"], rejected: ["bad", "Rejected"], renew: ["warn", "Renewal due"] };
+const VDOC60 = { gst: "GST certificate", pan: "PAN card", msme: "MSME / Udyam certificate", cheque: "Cancelled cheque / bank letter", iso: "ISO / quality certificate", tc: "Test certificate sample", profile: "Company profile", reg: "Signed registration form", other: "Other" };
+const CRIT60 = [["quality", "Quality of material", "rejections, test certificates", 30], ["delivery", "On-time delivery", "promised vs actual date", 25], ["price", "Price & payment terms", "vs market and other suppliers", 20], ["service", "Response & support", "quotes, communication, after-sales", 15], ["docs", "Documents & compliance", "GST invoice, TC, ISO, MSME, e-way bill", 10]];
+const SCORE60 = { 5: "5 · Excellent", 4: "4 · Good", 3: "3 · Average", 2: "2 · Poor", 1: "1 · Very poor" };
+const evalPct60 = s => Math.round(CRIT60.reduce((a, [k, , , w]) => a + w * (num(s?.[k]) || 0) / 5, 0));
+const grade60 = p => p >= 85 ? ["A", "ok", "Approved — preferred supplier"] : p >= 70 ? ["B", "ok", "Approved"] : p >= 50 ? ["C", "warn", "Conditional — must improve"] : ["D", "bad", "Not approved"];
+const fy60 = d => fyOf(d || todayISO());
+const nextNo60 = (pre, L, key, date) => { const f = fy60(date), n = L.filter(x => String(x[key] || "").includes(`/${f}/`)).map(x => num(String(x[key]).split("/").pop())).reduce((a, b) => Math.max(a, b), 0); return `RCM/${pre}/${f}/${String(n + 1).padStart(3, "0")}`; };
+const vendors60 = () => [...(STATE.data.vendors || [])].sort((a, b) => String(a.name || "").localeCompare(String(b.name || "")));
+const lastEval60 = id => (STATE.data.vevals || []).filter(e => e.vendorId === id).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0];
+const expSoon60 = d => d && d >= todayISO() && d <= new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+const kb60 = n => n > 1e6 ? (n / 1e6).toFixed(1) + " MB" : Math.max(1, Math.round(n / 1e3)) + " KB";
+const libDocs60 = () => (STATE.data.docs || []).filter(d => !d.missing && !d.blocked && !qicDoc17(d));
+const custNames60 = () => [...new Set([...(STATE.quotes || []).map(q => q.customer), ...(STATE.data.custregs || []).map(c => c.customer), ...(STATE.data.tenders || []).map(t => t.org)].filter(Boolean).map(s => String(s).trim()))].sort().slice(0, 400);
+
+/* ---- documents: kept in the private document store (team), cached on this device ---- */
+async function up60(file, meta) {
+  if (file.size > 12e6) throw new Error("File is over 12 MB — please scan it smaller");
+  const id = "v60_" + uid(), rec = { id, name: file.name, mime: file.type || "application/octet-stream", size: file.size, at: todayISO(), by: AUTH.user?.email || "" };
+  try { await FILES.put("srv:" + id, file); } catch { }
+  if (AUTH.api && AUTH.user) await AUTH.call("fileAdd", { id, name: file.name, type: rec.mime, kind: "doc", meta: { v60: 1, ...meta }, b64: await blobToB64(file) }, 300000);
+  else rec.local = 1;
+  return rec;
+}
+async function get60(f) {
+  const c = await FILES.get("srv:" + f.id); if (c?.blob) return { name: c.name || f.name, blob: c.blob };
+  if (f.local || !AUTH.api) throw new Error("This file is only on the device it was added from");
+  const d = await AUTH.call("fileGet", { id: f.id }, 180000), bin = atob(d.b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+  const file = new File([u], d.name || f.name, { type: d.type || f.mime }); try { await FILES.put("srv:" + f.id, file); } catch { }
+  return { name: file.name, blob: file };
+}
+async function dl60(f, btn) { if (btn) btn.disabled = true; try { const o = await get60(f); await saveFile(o.name, o.blob, o.blob.type); } catch (e) { toast(e.message, "bad"); } finally { if (btn) btn.disabled = false; } }
+/* one PDF: given pages first, then each document (PDF pages / photos) */
+async function merge60(head, files) {
+  const PDFLib = await getPdfLib(), out = await PDFLib.PDFDocument.create(), gaps = [];
+  if (head) { const h = await PDFLib.PDFDocument.load(await head.arrayBuffer()); (await out.copyPages(h, h.getPageIndices())).forEach(p => out.addPage(p)); }
+  for (const [label, get] of files) {
+    try {
+      const o = await get(); if (!o) { gaps.push(label); continue; }
+      const t = (o.blob.type || "") + " " + (o.name || "");
+      if (/pdf/i.test(t)) { const s = await PDFLib.PDFDocument.load(await o.blob.arrayBuffer(), { ignoreEncryption: true }); (await out.copyPages(s, s.getPageIndices().slice(0, 30))).forEach(p => out.addPage(p)); }
+      else if (/png|jpe?g/i.test(t)) { const b = new Uint8Array(await o.blob.arrayBuffer()), img = /png/i.test(t) ? await out.embedPng(b) : await out.embedJpg(b), pg = out.addPage([595.28, 841.89]), sc = Math.min(555 / img.width, 800 / img.height, 1); pg.drawImage(img, { x: (595.28 - img.width * sc) / 2, y: 841.89 - 20 - img.height * sc, width: img.width * sc, height: img.height * sc }); }
+      else gaps.push(label + " (not PDF / photo)");
+    } catch (e) { gaps.push(label); }
+  }
+  return { blob: new Blob([await out.save()], { type: "application/pdf" }), pages: out.getPageCount(), gaps };
+}
+const kv60 = (title, rows) => { const L = rows.filter(r => r[1] != null && String(r[1]).trim() !== ""); return L.length ? { widths: [3000, 6600], table: [[{ t: title }, { t: "" }], ...L.map(([k, v]) => [{ t: k }, { t: String(v) }])] } : null; };
+const sign60 = (left, right) => [{ t: "", before: 300 }, { widths: [4800, 4800], table: [[{ t: left }, { t: right }], [{ t: "Name / signature / date:" }, { t: "Name / signature / date:" }]] }];
+
+/* ---- 1. supplier registration ---- */
+function regBlocks60(x) {
+  const ev = lastEval60(x.id), D = x.regDocs || [];
+  return [{ t: "SUPPLIER REGISTRATION FORM", b: true, sz: 14, color: "02315B", after: 40 },
+    { t: `Reg. no ${x.regNo || "—"} · Date ${x.regDate ? dmy(x.regDate) : "—"} · Status: ${(VSTAT60[x.regStatus] || VSTAT60.applied)[1]}`, sz: 9, after: 140 },
+    kv60("Supplier", [["Name", x.name], ["Type", x.vtype], ["Address", x.address], ["City / state", [x.country, x.state].filter(Boolean).join(", ")], ["Website", x.web], ["Materials / services supplied", x.category]]),
+    kv60("Contact", [["Contact person", x.contact], ["Designation", x.designation], ["Phone / WhatsApp", x.phone], ["Email", x.email]]),
+    kv60("Statutory", [["GSTIN", x.gstin], ["PAN", x.pan], ["MSME / Udyam no.", x.msme], ["ISO / quality", x.iso]]),
+    kv60("Bank", [["Bank", x.bankName], ["Account no.", x.bankAcc], ["IFSC", x.ifsc], ["Branch", x.bankBranch]]),
+    { t: "Documents received", b: true, sz: 11, color: "02315B", before: 160, after: 60 },
+    D.length ? { widths: [3000, 3600, 1500, 1500], table: [["Document", "File", "Received", "Valid till"].map(t => ({ t })), ...D.map(f => [VDOC60[f.doc] || f.doc || "Document", f.name, f.at ? dmy(f.at) : "", f.expiry ? dmy(f.expiry) : "—"].map(t => ({ t: String(t) })))] } : { t: "No documents attached yet.", sz: 9 },
+    ...(ev ? [{ t: `Last evaluation: ${ev.no} on ${dmy(ev.date)} — ${ev.pct}% · grade ${ev.grade} (${grade60(ev.pct)[2]})`, sz: 9, before: 120 }] : []),
+    kv60("Approval", [["Approved by", x.approvedBy], ["Next review", x.reviewDate ? dmy(x.reviewDate) : ""], ["Remarks", x.notes]]),
+    ...sign60("Prepared by (Purchase)", "Approved by")].filter(Boolean);
+}
+function regForm60(B, x) {
+  const D = x.regDocs ||= [], f = (l, k, type = "text", extra = "") => `<label class="f">${l}<input type="${/^(email|tel)$/.test(type) ? "text" : type}" ${/^(email|tel)$/.test(type) ? `inputmode="${type}"` : ""} data-f60="${k}" value="${esc(x[k] ?? "")}" ${extra}></label>`;
+  B.innerHTML = `<section class="panel f60"><header><h2>${x.id ? "Supplier registration — " + esc(x.name || "") : "New supplier registration"}</h2><span class="chip ${(VSTAT60[x.regStatus] || VSTAT60.applied)[0]}">${(VSTAT60[x.regStatus] || VSTAT60.applied)[1]}</span></header><div class="body stack" style="gap:14px">
+    <div class="fields">${f("Registration no.", "regNo")}${f("Date of registration", "regDate", "date")}<label class="f">Status<select data-f60="regStatus">${Object.entries(VSTAT60).map(([k, [, l]]) => `<option value="${k}" ${(x.regStatus || "applied") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>${f("Next review date", "reviewDate", "date")}</div>
+    <h3 class="h60">Supplier</h3><div class="fields"><label class="f" style="grid-column:span 2">Supplier name *<input type="text" data-f60="name" value="${esc(x.name || "")}" required style="font-weight:600"></label><label class="f">Type<select data-f60="vtype">${VTYPE60.map(t => `<option ${x.vtype === t ? "selected" : ""}>${t}</option>`).join("")}</select></label>${f("Materials / services supplied", "category", "text", 'placeholder="copper strip, mica tape, varnish…"')}${f("Website", "web", "url")}</div>
+    <div class="fields"><label class="f" style="grid-column:span 2">Address<input type="text" data-f60="address" value="${esc(x.address || "")}"></label>${f("City", "country")}${f("State", "state")}</div>
+    <h3 class="h60">Contact</h3><div class="fields">${f("Contact person", "contact")}${f("Designation", "designation")}${f("Phone / WhatsApp", "phone", "tel")}${f("Email", "email", "email", 'placeholder="sales@supplier.com"')}</div>
+    <h3 class="h60">Statutory & bank</h3><div class="fields">${f("GSTIN", "gstin", "text", 'maxlength="15" style="text-transform:uppercase"')}${f("PAN", "pan", "text", 'maxlength="10" style="text-transform:uppercase"')}${f("MSME / Udyam no.", "msme")}${f("ISO / quality certificate", "iso", "text", 'placeholder="ISO 9001:2015 · valid till…"')}${f("Bank", "bankName")}${f("Account no.", "bankAcc")}${f("IFSC", "ifsc", "text", 'maxlength="11" style="text-transform:uppercase"')}${f("Branch", "bankBranch")}</div>
+    <h3 class="h60">Documents <span class="small muted">${D.length} attached</span></h3>
+    ${D.length ? `<div class="scroll"><table class="t"><thead><tr><th>Document</th><th>File</th><th>Received</th><th>Valid till</th><th></th></tr></thead><tbody>${D.map((d, i) => `<tr><td><b>${esc(VDOC60[d.doc] || d.doc || "Document")}</b></td><td class="small">${esc(d.name)} <span class="muted">· ${kb60(d.size || 0)}${d.local ? " · this device only" : ""}</span></td><td class="small">${d.at ? dmy(d.at) : ""}${d.by ? `<div class="muted">${esc(String(d.by).split("@")[0])}</div>` : ""}</td><td>${d.expiry ? `<span class="chip ${d.expiry < todayISO() ? "bad" : expSoon60(d.expiry) ? "warn" : "ok"}">${d.expiry < todayISO() ? "Expired " : ""}${dmy(d.expiry)}</span>` : '<span class="muted">—</span>'}</td><td style="white-space:nowrap"><button type="button" class="btn sm" data-d60="${i}">${icon("dl")}Download</button> <button type="button" class="btn sm ghost" data-x60="${i}" aria-label="Remove ${esc(d.name)}">${icon("x26")}</button></td></tr>`).join("")}</tbody></table></div>` : `<div class="muted small">No documents yet — add the supplier's GST certificate, PAN, MSME, cancelled cheque and ISO certificate below.</div>`}
+    <div class="up60"><label class="f">Document<select id="u60t">${Object.entries(VDOC60).map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></label><label class="f">Valid till (if any)<input type="date" id="u60e"></label><label class="f" style="grid-column:span 2">File (PDF or photo, max 12 MB)<input type="file" id="u60f" accept=".pdf,image/*,.doc,.docx,.xls,.xlsx" multiple></label><button type="button" class="btn" id="u60go">${icon("up")}Upload</button></div>
+    <h3 class="h60">Approval</h3><div class="fields">${f("Approved by", "approvedBy")}<label class="f" style="grid-column:span 3">Remarks<input type="text" data-f60="notes" value="${esc(x.notes || "")}"></label></div>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="s60">${icon("save")}Save</button><button type="button" class="btn" id="p60">${icon("dl")}Download form (PDF / Word)</button>${D.length ? `<button type="button" class="btn" id="a60">${icon("doc")}Form + documents (one PDF)</button>` : ""}${x.id ? `<button type="button" class="btn" id="e60">${icon("check28")}Evaluate</button>` : ""}<span class="spacer"></span><button type="button" class="btn ghost" id="c60">Close</button></div>
+  </div></section>`;
+  bind60(B, x);
+  const save = async (quiet) => { if (!String(x.name || "").trim()) { toast("Enter the supplier name", "bad"); return null; } ["gstin", "pan", "ifsc"].forEach(k => x[k] && (x[k] = String(x[k]).toUpperCase().trim()));
+    x.regNo ||= nextNo60("VR", STATE.data.vendors || [], "regNo", x.regDate); x.regDate ||= todayISO(); x.regStatus ||= "applied"; x.rating ||= 3;
+    const o = await DB.put("vendors", x); if (o && !quiet) toast("Supplier registration saved"); return o; };
+  $("#s60", B).onclick = async () => { if (await save()) { U60().ed = null; render(); } };
+  $("#p60", B).onclick = () => { if (!x.regNo) x.regNo = nextNo60("VR", STATE.data.vendors || [], "regNo", x.regDate); share60("Supplier registration — " + (x.name || ""), `SUPPLIER_REGISTRATION_${x.name || "new"}_${x.regDate || todayISO()}`, () => regBlocks60(x), `Supplier registration ${x.regNo} — ${x.name || ""}`); };
+  $("#a60", B)?.addEventListener("click", e => pack60(e.currentTarget, `SUPPLIER_REGISTRATION_${x.name}_with_documents`, () => regBlocks60(x), D.map(d => [VDOC60[d.doc] || d.name, () => get60(d)])));
+  $("#e60", B)?.addEventListener("click", async () => { if (!await save(true)) return; Object.assign(U60(), { tab: "eval", ed: { kind: "eval", x: newEval60(x) } }); render(); });
+  $("#c60", B).onclick = () => { U60().ed = null; render(); };
+  $$("[data-d60]", B).forEach(b => b.onclick = () => dl60(D[+b.dataset.d60], b));
+  $$("[data-x60]", B).forEach(b => b.onclick = () => { if (!confirm("Remove this document from the supplier?")) return; D.splice(+b.dataset.x60, 1); regForm60(B, x); });
+  $("#u60go", B).onclick = async e => {
+    const fs = [...($("#u60f", B).files || [])]; if (!fs.length) return toast("Choose a file first", "bad");
+    const btn = e.currentTarget; btn.disabled = true; btn.textContent = "Uploading…";
+    try { for (const file of fs) D.push({ ...(await up60(file, { vendor: x.name || "", doc: $("#u60t", B).value })), doc: $("#u60t", B).value, expiry: $("#u60e", B).value || "" });
+      if (x.id || x.name) await save(true); toast(`${fs.length} document${fs.length > 1 ? "s" : ""} added`); }
+    catch (err) { toast(err.message || "Upload failed", "bad"); }
+    regForm60(B, x);
+  };
+}
+/* ---- 2. supplier evaluation ---- */
+const newEval60 = v => ({ date: todayISO(), vendorId: v?.id || "", vendorName: v?.name || "", team: /sales/.test(myRole21?.() || "") ? "sales" : "purchase", from: "", to: todayISO(), scores: {}, notes: {}, by: AUTH.user?.name || AUTH.user?.email || "" });
+function evalBlocks60(e) {
+  const p = evalPct60(e.scores), [g, , dec] = grade60(p), v = (STATE.data.vendors || []).find(x => x.id === e.vendorId);
+  return [{ t: "SUPPLIER EVALUATION FORM", b: true, sz: 14, color: "02315B", after: 40 },
+    { t: `Evaluation no ${e.no || "—"} · Date ${dmy(e.date)} · ${e.team === "sales" ? "Sales" : "Purchase"} team`, sz: 9, after: 140 },
+    kv60("Supplier", [["Name", e.vendorName], ["Materials / services", v?.category], ["Contact", [v?.contact, v?.phone, v?.email].filter(Boolean).join(" · ")], ["GSTIN", v?.gstin], ["Registration", v?.regNo ? `${v.regNo} (${dmy(v.regDate)})` : ""], ["Period evaluated", (e.from || e.to) ? `${e.from ? dmy(e.from) : "…"} to ${e.to ? dmy(e.to) : "…"}` : ""]]),
+    { t: "", before: 100 },
+    { widths: [3600, 900, 1300, 1000, 2800], table: [["Criterion", "Weight", "Score (1–5)", "Points", "Remarks"].map(t => ({ t })), ...CRIT60.map(([k, l, h, w]) => [`${l} (${h})`, w + "%", num(e.scores?.[k]) ? SCORE60[num(e.scores[k])] : "—", (Math.round(w * (num(e.scores?.[k]) || 0) / 5 * 10) / 10).toString(), e.notes?.[k] || ""].map(t => ({ t: String(t) }))), [{ t: "TOTAL" }, { t: "100%" }, { t: "" }, { t: p + " / 100" }, { t: `Grade ${g} — ${dec}` }]] },
+    { t: "Grade: A 85–100 preferred · B 70–84 approved · C 50–69 conditional · D below 50 not approved", sz: 8, before: 60 },
+    kv60("Result", [["Decision", e.decision || dec], ["Action / improvement needed", e.action], ["Evaluated by", e.by], ["Approved by", e.approvedBy]]),
+    ...sign60("Evaluated by", "Approved by")].filter(Boolean);
+}
+function evalForm60(B, e) {
+  const vs = vendors60(), draw = () => {
+    const p = evalPct60(e.scores), [g, tone, dec] = grade60(p), done = CRIT60.filter(([k]) => num(e.scores[k])).length;
+    B.innerHTML = `<section class="panel f60"><header><h2>${e.id ? "Supplier evaluation " + esc(e.no || "") : "New supplier evaluation"}</h2><span class="chip ${done ? tone : ""}" id="g60">${done ? `${p}% · Grade ${g}` : "Not scored"}</span></header><div class="body stack" style="gap:14px">
+      <div class="fields"><label class="f" style="grid-column:span 2">Supplier *<select data-f60="vendorId"><option value="">— choose supplier —</option>${vs.map(v => `<option value="${esc(v.id)}" ${e.vendorId === v.id ? "selected" : ""}>${esc(v.name)}${v.regNo ? " · " + esc(v.regNo) : ""}</option>`).join("")}</select></label>
+        <label class="f">Date<input type="date" data-f60="date" value="${esc(e.date || "")}"></label><label class="f">Team<select data-f60="team"><option value="purchase" ${e.team !== "sales" ? "selected" : ""}>Purchase</option><option value="sales" ${e.team === "sales" ? "selected" : ""}>Sales</option></select></label>
+        <label class="f">Period from<input type="date" data-f60="from" value="${esc(e.from || "")}"></label><label class="f">Period to<input type="date" data-f60="to" value="${esc(e.to || "")}"></label></div>
+      ${vs.length ? "" : `<div class="note small">No suppliers yet — add one in the Supplier registration tab first.</div>`}
+      <div class="scroll"><table class="t ev60"><thead><tr><th>Criterion</th><th class="n">Weight</th><th>Score</th><th>Remarks</th></tr></thead><tbody>${CRIT60.map(([k, l, h, w]) => `<tr><td><b>${l}</b><div class="small muted">${h}</div></td><td class="n">${w}%</td><td><div class="sc60" role="radiogroup" aria-label="${l} score">${[1, 2, 3, 4, 5].map(n => `<button type="button" role="radio" aria-checked="${num(e.scores[k]) === n}" class="${num(e.scores[k]) === n ? "on" : ""}" data-s60="${k}" data-n="${n}" title="${SCORE60[n]}">${n}</button>`).join("")}</div></td><td><input type="text" data-n60="${k}" value="${esc(e.notes[k] || "")}" placeholder="remarks (optional)"></td></tr>`).join("")}</tbody></table></div>
+      <div class="res60"><div><span>Total</span><b>${p} / 100</b></div><div><span>Grade</span><b class="g60 ${tone}">${done ? g : "—"}</b></div><div style="flex:2"><span>Suggested decision</span><b>${done ? dec : "Score all five"}</b></div></div>
+      <div class="fields"><label class="f" style="grid-column:span 2">Action / improvement needed<input type="text" data-f60="action" value="${esc(e.action || "")}"></label><label class="f">Evaluated by<input type="text" data-f60="by" value="${esc(e.by || "")}"></label><label class="f">Approved by<input type="text" data-f60="approvedBy" value="${esc(e.approvedBy || "")}"></label></div>
+      <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="s60">${icon("save")}Save evaluation</button><button type="button" class="btn" id="p60">${icon("dl")}Download form (PDF / Word)</button><span class="spacer"></span><button type="button" class="btn ghost" id="c60">Close</button></div>
+    </div></section>`;
+    bind60(B, e, k => { if (k === "vendorId") e.vendorName = vs.find(v => v.id === e.vendorId)?.name || ""; });
+    $$("[data-s60]", B).forEach(b => b.onclick = () => { e.scores[b.dataset.s60] = +b.dataset.n; draw(); });
+    $$("[data-n60]", B).forEach(i => i.oninput = () => { e.notes[i.dataset.n60] = i.value; });
+    $("#s60", B).onclick = async () => {
+      if (!e.vendorId) return toast("Choose the supplier", "bad");
+      if (CRIT60.some(([k]) => !num(e.scores[k]))) return toast("Give a score (1–5) for all five points", "bad");
+      e.pct = evalPct60(e.scores); e.grade = grade60(e.pct)[0]; e.decision = grade60(e.pct)[2]; e.no ||= nextNo60("VE", STATE.data.vevals || [], "no", e.date);
+      if (!await DB.put("vevals", e)) return;
+      const v = (STATE.data.vendors || []).find(x => x.id === e.vendorId); if (v) { v.rating = Math.max(1, Math.min(5, Math.round(e.pct / 20))); v.lastEval = { no: e.no, date: e.date, pct: e.pct, grade: e.grade }; await DB.put("vendors", v); }
+      toast(`Saved — ${e.vendorName}: ${e.pct}% · grade ${e.grade}`); U60().ed = null; render(); };
+    $("#p60", B).onclick = () => share60("Supplier evaluation — " + (e.vendorName || ""), `SUPPLIER_EVALUATION_${e.vendorName || "new"}_${e.date}`, () => evalBlocks60(e), `Supplier evaluation ${e.no || ""} — ${e.vendorName}: ${evalPct60(e.scores)}% grade ${grade60(evalPct60(e.scores))[0]}`);
+    $("#c60", B).onclick = () => { U60().ed = null; render(); };
+  };
+  e.scores ||= {}; e.notes ||= {}; draw();
+}
+/* ---- 3. Rivera's registration with a customer ---- */
+const RDOC60 = ["gst", "pan", "cin", "udyam", "iso", "bank", "profile", "mii"];
+function newCust60() {
+  const L = libDocs60(), pick = RDOC60.map(t => L.filter(d => d.type === t && !docExpired(d))[0]).filter(Boolean).map(d => d.id);
+  return { date: todayISO(), status: "todo", customer: "", email: "", contact: "", vcode: "", portal: "", validTill: "", category: SETTINGS.company.tagline || "", pan: "", libDocs: pick, extra: [], by: AUTH.user?.name || "" };
+}
+function custBlocks60(c) {
+  const C = SETTINGS.company, K = SETTINGS.bank || {}, L = libDocs60(), docs = (c.libDocs || []).map(id => L.find(d => d.id === id)).filter(Boolean);
+  return [{ t: "VENDOR REGISTRATION — " + (C.name || LEGAL.name).toUpperCase(), b: true, sz: 13, color: "02315B", after: 40 },
+    { t: `To: ${c.customer || "—"}${c.vcode ? " · Our vendor code " + c.vcode : ""} · Date ${dmy(c.date || todayISO())}`, sz: 9, after: 140 },
+    kv60("Company", [["Name", C.name], ["Legal name", LEGAL.upper], ["Registered address / works", C.address], ["Products & services", c.category || C.tagline], ["Capacity", C.capacity], ["HSN / SAC", [C.hsn, C.sac].filter(Boolean).join(" / ")]]),
+    kv60("Statutory", [["GSTIN", C.gstin], ["PAN", c.pan || (C.gstin ? String(C.gstin).slice(2, 12) : "")], ["CIN", C.cin], ["Udyam / MSME", C.udyam]]),
+    kv60("Contact", [["Contact person", c.ourContact], ["Phone", C.phone], ["Email", C.email], ["Website", C.web]]),
+    kv60("Bank", [["Bank", K.name], ["Account no.", K.acc], ["Account type", K.type], ["IFSC", K.ifsc], ["Branch", K.branch]]),
+    kv60("Customer", [["Customer", c.customer], ["Contact", c.contact], ["Email", c.email], ["Portal / link", c.portal], ["Applied on", c.date ? dmy(c.date) : ""], ["Valid till / renewal", c.validTill ? dmy(c.validTill) : ""]]),
+    { t: "Documents enclosed", b: true, sz: 11, color: "02315B", before: 160, after: 60 },
+    { widths: [600, 5400, 3600], table: [["#", "Document", "Valid till"].map(t => ({ t })), ...[...docs.map(d => [docLabel(d.type), d.expiry ? dmy(d.expiry) : "—"]), ...(c.extra || []).map(f => [f.name, f.expiry ? dmy(f.expiry) : "—"])].map((r, i) => [String(i + 1), ...r].map(t => ({ t: String(t) })))] },
+    { t: "We confirm the above details are correct.", before: 200 }, { t: "For " + C.name, b: true, before: 240 }, { t: "", before: 300 }, { t: (C.signatory || "Authorised Signatory") + " (Signature & Seal)" }].filter(Boolean);
+}
+function custForm60(B, c) {
+  const L = libDocs60(), groups = {}; L.forEach(d => (groups[d.type] ||= []).push(d)); c.libDocs ||= []; c.extra ||= [];
+  const f = (l, k, type = "text", extra = "") => `<label class="f">${l}<input type="${/^(email|tel)$/.test(type) ? "text" : type}" ${/^(email|tel)$/.test(type) ? `inputmode="${type}"` : ""} data-f60="${k}" value="${esc(c[k] ?? "")}" ${extra}></label>`, C = SETTINGS.company;
+  B.innerHTML = `<section class="panel f60"><header><h2>${c.id ? "Rivera's registration — " + esc(c.customer) : "New registration with a customer"}</h2><span class="chip ${(CSTAT60[c.status] || CSTAT60.todo)[0]}">${(CSTAT60[c.status] || CSTAT60.todo)[1]}</span></header><div class="body stack" style="gap:14px">
+    <h3 class="h60">Customer</h3><div class="fields"><label class="f" style="grid-column:span 2">Customer *<input type="text" data-f60="customer" list="cl60" value="${esc(c.customer || "")}" placeholder="NTPC Ltd, BHEL Trichy, TANGEDCO…" style="font-weight:600"></label><datalist id="cl60">${custNames60().map(n => `<option value="${esc(n)}">`).join("")}</datalist>${f("Contact person", "contact")}${f("Customer email", "email", "email", 'placeholder="vendor.reg@customer.com"')}
+      ${f("Portal / link", "portal", "url", 'placeholder="https://…"')}${f("Our vendor code", "vcode")}${f("Applied / submitted on", "date", "date")}${f("Valid till / renewal", "validTill", "date")}
+      <label class="f">Status<select data-f60="status">${Object.entries(CSTAT60).map(([k, [, l]]) => `<option value="${k}" ${(c.status || "todo") === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>${f("Our contact person", "ourContact", "text", `placeholder="${esc(AUTH.user?.name || "name, designation")}"`)}<label class="f" style="grid-column:span 2">Products / category registered for<input type="text" data-f60="category" value="${esc(c.category || "")}"></label></div>
+    <h3 class="h60">Rivera details on the form</h3>
+    <div class="kv60"><div><span>Company</span><b>${esc(C.name)}</b></div><div><span>GSTIN</span><b>${esc(C.gstin || "—")}</b></div><div><span>Email</span><b>${esc(C.email || "—")}</b></div><div><span>Phone</span><b>${esc(C.phone || "—")}</b></div><div><span>Bank</span><b>${esc([SETTINGS.bank?.name, SETTINGS.bank?.ifsc].filter(Boolean).join(" · ") || "add in Settings")}</b></div><div><span>Udyam</span><b>${esc(C.udyam || "—")}</b></div></div>
+    <div class="fields">${f("PAN (if not from GSTIN)", "pan", "text", `maxlength="10" placeholder="${esc(C.gstin ? String(C.gstin).slice(2, 12) : "")}"`)}</div>
+    <h3 class="h60">Rivera documents to send <span class="small muted">${c.libDocs.length + c.extra.length} chosen · from Company documents (QIC papers never shown)</span></h3>
+    ${L.length ? `<div class="dl60">${Object.entries(groups).sort((a, b) => (RDOC60.indexOf(a[0]) + 1 || 99) - (RDOC60.indexOf(b[0]) + 1 || 99)).map(([t, ds]) => `<div class="dg60"><b>${esc(docLabel(t))}</b>${ds.slice(0, 8).map(d => `<label class="${docExpired(d) ? "ex60" : ""}"><input type="checkbox" data-l60="${esc(d.id)}" ${c.libDocs.includes(d.id) ? "checked" : ""}> <span>${esc(docTitle(d))}</span>${d.expiry ? ` <span class="chip ${docExpired(d) ? "bad" : expSoon60(d.expiry) ? "warn" : ""}">${docExpired(d) ? "expired " : "till "}${dmy(d.expiry)}</span>` : ""}<button type="button" class="btn sm ghost" data-o60="${esc(d.id)}" title="Download this document">${icon("dl")}</button></label>`).join("")}</div>`).join("")}</div>` : `<div class="note small">Company documents are not loaded on this device yet — open <a href="#library">Company documents</a> once, or upload the files below.</div>`}
+    <h3 class="h60">Other files <span class="small muted">the customer's filled form, extra letters…</span></h3>
+    ${c.extra.length ? `<div class="scroll"><table class="t"><tbody>${c.extra.map((d, i) => `<tr><td>${esc(d.name)} <span class="small muted">· ${kb60(d.size || 0)} · ${d.at ? dmy(d.at) : ""}</span></td><td style="white-space:nowrap;text-align:right"><button type="button" class="btn sm" data-d60="${i}">${icon("dl")}Download</button> <button type="button" class="btn sm ghost" data-x60="${i}" aria-label="Remove ${esc(d.name)}">${icon("x26")}</button></td></tr>`).join("")}</tbody></table></div>` : ""}
+    <div class="up60"><label class="f" style="grid-column:span 3">File (PDF or photo, max 12 MB)<input type="file" id="u60f" accept=".pdf,image/*,.doc,.docx,.xls,.xlsx" multiple></label><button type="button" class="btn" id="u60go">${icon("up")}Upload</button></div>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="s60">${icon("save")}Save</button><button type="button" class="btn" id="p60">${icon("dl")}Download form (PDF / Word)</button><button type="button" class="btn" id="a60">${icon("doc")}Form + documents (one PDF)</button>${c.email ? `<button type="button" class="btn" id="m60">${icon("mail")}Email customer</button>` : ""}<span class="spacer"></span><button type="button" class="btn ghost" id="c60">Close</button></div>
+  </div></section>`;
+  bind60(B, c);
+  const save = async quiet => { if (!String(c.customer || "").trim()) { toast("Enter the customer", "bad"); return null; } const o = await DB.put("custregs", c); if (o && !quiet) toast("Registration saved"); return o; };
+  $$("[data-l60]", B).forEach(i => i.onchange = () => { c.libDocs = i.checked ? [...new Set([...c.libDocs, i.dataset.l60])] : c.libDocs.filter(x => x !== i.dataset.l60); });
+  $$("[data-o60]", B).forEach(b => b.onclick = async ev => { ev.preventDefault(); const d = L.find(x => x.id === b.dataset.o60); b.disabled = true; try { const o = await getOriginal(d); if (!o) throw new Error("File not on this device"); await saveFile(o.name, o.blob, o.blob.type); } catch (e) { toast(e.message, "bad"); } b.disabled = false; });
+  $$("[data-d60]", B).forEach(b => b.onclick = () => dl60(c.extra[+b.dataset.d60], b));
+  $$("[data-x60]", B).forEach(b => b.onclick = () => { if (!confirm("Remove this file?")) return; c.extra.splice(+b.dataset.x60, 1); custForm60(B, c); });
+  $("#u60go", B).onclick = async e => { const fs = [...($("#u60f", B).files || [])]; if (!fs.length) return toast("Choose a file first", "bad"); const btn = e.currentTarget; btn.disabled = true; btn.textContent = "Uploading…";
+    try { for (const file of fs) c.extra.push(await up60(file, { customer: c.customer || "", doc: "custreg" })); if (c.customer) await save(true); toast("Added"); } catch (err) { toast(err.message || "Upload failed", "bad"); } custForm60(B, c); };
+  $("#s60", B).onclick = async () => { if (await save()) { U60().ed = null; render(); } };
+  const nm = () => `RIVERA_VENDOR_REGISTRATION_${c.customer || "customer"}_${c.date || todayISO()}`;
+  $("#p60", B).onclick = () => share60("Vendor registration — " + (c.customer || ""), nm(), () => custBlocks60(c), `Rivera vendor registration for ${c.customer}`);
+  $("#a60", B).onclick = e => pack60(e.currentTarget, nm() + "_with_documents", () => custBlocks60(c), [...c.libDocs.map(id => L.find(d => d.id === id)).filter(Boolean).map(d => [docTitle(d), () => getOriginal(d)]), ...c.extra.map(f => [f.name, () => get60(f)])]);
+  $("#m60", B)?.addEventListener("click", () => openLink(`mailto:${encodeURIComponent(c.email)}?subject=${encodeURIComponent(`Vendor registration — ${C.name}`)}&body=${encodeURIComponent(`Dear Sir / Madam,\n\nPlease find enclosed our vendor registration form and documents (GST, PAN, Udyam, ISO, bank details) for registering ${C.name} as a vendor${c.category ? " for " + c.category : ""}.\n\nThanks & regards,\n${AUTH.user?.name || C.signatory || ""}\n${C.name}\n${C.phone || ""}`)}`));
+  $("#c60", B).onclick = () => { U60().ed = null; render(); };
+}
+/* ---- shared bits ---- */
+function bind60(B, o, after) { $$("[data-f60]", B).forEach(i => { const ev = i.tagName === "SELECT" || i.type === "date" ? "change" : "input"; i.addEventListener(ev, () => { o[i.dataset.f60] = i.value; after?.(i.dataset.f60); }); }); }
+function share60(title, base, blocks, text) { openShare({ title, base: base.replace(/[\\/:*?"<>|]+/g, " "), text, formats: [F.pdf(title + " (PDF)", () => blocksPdf(blocks())), F.docx(title + " (Word)", () => buildDocx(blocks(), brandLogo()))] }); }
+async function pack60(btn, base, blocks, files) {
+  const t = btn.innerHTML; btn.disabled = true; btn.textContent = "Making the PDF…";
+  try { const head = await blocksPdf(blocks()), P = await merge60(head instanceof Blob ? head : new Blob([head], { type: "application/pdf" }), files);
+    await saveFile(safeName(base.replace(/[\\/:*?"<>|]+/g, " ")) + ".pdf", P.blob, "application/pdf"); toast(`PDF ready — ${P.pages} pages${P.gaps.length ? " · couldn't add: " + P.gaps.join(", ") : ""}`, P.gaps.length ? "bad" : ""); }
+  catch (e) { toast("Couldn't make the PDF: " + e.message, "bad"); }
+  finally { btn.disabled = false; btn.innerHTML = t; }
+}
+/* ---- the page ---- */
+VIEWS.vendorforms = v => {
+  const U = U60(); if (BIZ.ui?.vf) { U.tab = BIZ.ui.vf; U.ed = null; delete BIZ.ui.vf; }
+  const tabs = [["reg", "Supplier registration"], ["eval", "Supplier evaluation"], ["cust", "Rivera's registration with customers"]];
+  const vs = vendors60(), regd = vs.filter(x => x.regNo), E = [...(STATE.data.vevals || [])].sort((a, b) => String(b.date).localeCompare(String(a.date))), CR = [...(STATE.data.custregs || [])].sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const expDocs = regd.reduce((n, x) => n + (x.regDocs || []).filter(d => d.expiry && d.expiry < todayISO()).length, 0), renew = CR.filter(c => c.validTill && c.validTill <= new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)).length;
+  const newBtn = { reg: "New supplier registration", eval: "New evaluation", cust: "New customer registration" }[U.tab];
+  v.innerHTML = `<div class="topbar"><div><div class="eyebrow">Sales · Purchase — vendor forms</div><h1>Vendor registration & evaluation</h1><p>Register suppliers with their documents, score them every few months, and keep Rivera's own vendor registrations with customers (NTPC, BHEL, TANGEDCO…) — every form downloads as PDF or Word.</p></div>
+    <div class="row"><button type="button" class="btn primary" id="n60">${icon("plus")}${newBtn}</button></div></div>
+    <div class="hero-strip"><div><span>Registered suppliers</span><b>${regd.length}</b><small>${regd.filter(x => x.regStatus === "approved").length} approved</small></div><div><span>Evaluations</span><b>${E.length}</b></div><div><span>Expired supplier documents</span><b>${expDocs}</b></div><div><span>Registered with customers</span><b>${CR.filter(c => c.status === "approved").length} / ${CR.length}</b></div><div><span>Renewals in 30 days</span><b>${renew}</b></div></div>
+    <div class="tabs-row" role="tablist">${tabs.map(([k, l]) => `<button type="button" role="tab" class="tab ${U.tab === k ? "on" : ""}" aria-selected="${U.tab === k}" data-t60="${k}">${l}</button>`).join("")}</div>
+    <div id="b60"></div>`;
+  $$("[data-t60]", v).forEach(b => b.onclick = () => { U.tab = b.dataset.t60; U.ed = null; U.q = ""; render(); });
+  const B = $("#b60", v);
+  $("#n60", v).onclick = () => { U.ed = U.tab === "reg" ? { kind: "reg", x: { regDate: todayISO(), regStatus: "applied", vtype: VTYPE60[0], rating: 3, regDocs: [] } } : U.tab === "eval" ? { kind: "eval", x: newEval60() } : { kind: "cust", x: newCust60() }; render(); };
+  if (U.ed) { ({ reg: regForm60, eval: evalForm60, cust: custForm60 })[U.ed.kind](B, U.ed.x); return; }
+  const q = (U.q || "").toLowerCase(), hit = s => !q || String(s).toLowerCase().includes(q);
+  const search = ph => `<section class="panel"><div class="body"><label class="f">Search<input type="text" id="q60" value="${esc(U.q || "")}" placeholder="${ph}"></label></div></section>`;
+  let html = "";
+  if (U.tab === "reg") {
+    const L = vs.filter(x => hit([x.name, x.email, x.gstin, x.category, x.regNo, x.country].join(" ")));
+    html = search("supplier, email, GSTIN, material, reg. no…") + `<section class="panel" style="margin-top:16px"><header><h2>Suppliers (${L.length})</h2><span class="small muted">all vendors — tap Register to fill the form for an old vendor</span></header>${L.length ? `<div class="scroll"><table class="t"><thead><tr><th>Reg. no · date</th><th>Supplier</th><th>Email · phone</th><th>GSTIN</th><th>Documents</th><th>Status</th><th>Last evaluation</th><th></th></tr></thead><tbody>${L.map(x => { const D = x.regDocs || [], ex = D.filter(d => d.expiry && d.expiry < todayISO()).length, ev = lastEval60(x.id) || x.lastEval, st = x.regNo ? (VSTAT60[x.regStatus] || VSTAT60.applied) : null;
+      return `<tr><td class="small">${x.regNo ? `<b class="mono">${esc(x.regNo)}</b><div class="muted">${x.regDate ? dmy(x.regDate) : ""}</div>` : '<span class="muted">not registered</span>'}</td><td><b>${esc(x.name)}</b><div class="small muted">${esc(x.category || "")}</div></td><td class="small">${x.email ? `<a href="mailto:${esc(x.email)}">${esc(x.email)}</a>` : "—"}<div class="muted">${esc(x.phone || "")}</div></td><td class="mono small">${esc(x.gstin || "—")}</td>
+        <td class="small">${D.length ? `${D.length} file${D.length > 1 ? "s" : ""}${ex ? ` <span class="chip bad">${ex} expired</span>` : ""}<div class="muted">${esc([...new Set(D.map(d => (VDOC60[d.doc] || "").split(" ")[0]))].filter(Boolean).join(", "))}</div>` : '<span class="muted">none</span>'}</td>
+        <td>${st ? `<span class="chip ${st[0]}">${st[1]}</span>` : ""}</td><td class="small">${ev ? `<span class="chip ${grade60(ev.pct)[1]}">${ev.grade} · ${ev.pct}%</span><div class="muted">${dmy(ev.date)}</div>` : "—"}</td>
+        <td style="white-space:nowrap"><button type="button" class="btn sm ${x.regNo ? "" : "primary"}" data-r60="${esc(x.id)}">${x.regNo ? "Open" : "Register"}</button> ${x.regNo ? `<button type="button" class="btn sm ghost" data-rp60="${esc(x.id)}" title="Download the registration form">${icon("dl")}</button>` : ""} <button type="button" class="btn sm ghost" data-re60="${esc(x.id)}" title="Evaluate this supplier">${icon("check28")}</button></td></tr>`; }).join("")}</tbody></table></div>` : `<div class="empty"><b>No suppliers yet</b>Tap “New supplier registration”.</div>`}</section>`;
+  } else if (U.tab === "eval") {
+    const L = E.filter(e => hit([e.vendorName, e.no, e.grade, e.team, e.by].join(" ")));
+    html = search("supplier, grade, evaluation no…") + `<section class="panel" style="margin-top:16px"><header><h2>Evaluations (${L.length})</h2><span class="small muted">Quality 30 · Delivery 25 · Price 20 · Support 15 · Documents 10 — grade A ≥85, B ≥70, C ≥50, D below</span></header>${L.length ? `<div class="scroll"><table class="t"><thead><tr><th>No · date</th><th>Supplier</th><th>Team</th><th>Period</th><th class="n">Score</th><th>Grade</th><th>Decision</th><th>By</th><th></th></tr></thead><tbody>${L.map(e => `<tr><td class="small"><b class="mono">${esc(e.no || "")}</b><div class="muted">${dmy(e.date)}</div></td><td><b>${esc(e.vendorName)}</b></td><td class="small">${e.team === "sales" ? "Sales" : "Purchase"}</td><td class="small">${e.from ? dmy(e.from) + " – " : ""}${e.to ? dmy(e.to) : ""}</td><td class="n"><b>${num(e.pct)}%</b></td><td><span class="chip ${grade60(num(e.pct))[1]}">${esc(e.grade || "")}</span></td><td class="small">${esc(e.decision || "")}</td><td class="small">${esc(e.by || "")}</td>
+      <td style="white-space:nowrap"><button type="button" class="btn sm" data-eo60="${esc(e.id)}">Open</button> <button type="button" class="btn sm ghost" data-ep60="${esc(e.id)}" title="Download the evaluation form">${icon("dl")}</button></td></tr>`).join("")}</tbody></table></div>` : `<div class="empty"><b>No evaluations yet</b>Tap “New evaluation” — pick a supplier and score five points from 1 to 5.</div>`}</section>`;
+  } else {
+    const L = CR.filter(c => hit([c.customer, c.email, c.vcode, c.status, c.category].join(" ")));
+    html = search("customer, email, vendor code…") + `<section class="panel" style="margin-top:16px"><header><h2>Rivera registered with (${L.length})</h2><span class="small muted">each customer's vendor registration — form, documents sent, vendor code and renewal date</span></header>${L.length ? `<div class="scroll"><table class="t"><thead><tr><th>Customer</th><th>Email</th><th>Submitted</th><th>Vendor code</th><th>Valid till</th><th>Documents</th><th>Status</th><th></th></tr></thead><tbody>${L.map(c => { const st = CSTAT60[c.status] || CSTAT60.todo, due = c.validTill && c.validTill <= new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+      return `<tr><td><b>${esc(c.customer)}</b>${c.portal ? `<div class="small"><a href="${esc(c.portal)}" target="_blank" rel="noopener">portal ${icon("ext26")}</a></div>` : ""}</td><td class="small">${c.email ? `<a href="mailto:${esc(c.email)}">${esc(c.email)}</a>` : "—"}<div class="muted">${esc(c.contact || "")}</div></td><td class="small">${c.date ? dmy(c.date) : "—"}</td><td class="mono small">${esc(c.vcode || "—")}</td><td>${c.validTill ? `<span class="chip ${c.validTill < todayISO() ? "bad" : due ? "warn" : ""}">${dmy(c.validTill)}</span>` : "—"}</td><td class="small">${(c.libDocs || []).length + (c.extra || []).length}</td><td><span class="chip ${st[0]}">${st[1]}</span></td>
+        <td style="white-space:nowrap"><button type="button" class="btn sm" data-co60="${esc(c.id)}">Open</button> <button type="button" class="btn sm ghost" data-cp60="${esc(c.id)}" title="Download the registration form">${icon("dl")}</button></td></tr>`; }).join("")}</tbody></table></div>` : `<div class="empty"><b>No customer registrations yet</b>Tap “New customer registration” — Rivera's details and company documents fill in by themselves.</div>`}</section>`;
+  }
+  B.innerHTML = html;
+  const qi = $("#q60", B); if (qi) qi.oninput = () => { U.q = qi.value; clearTimeout(U._t); U._t = setTimeout(() => { render(); const i = $("#q60"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 250); };
+  const V = id => (STATE.data.vendors || []).find(x => x.id === id), EV = id => (STATE.data.vevals || []).find(x => x.id === id), CU = id => (STATE.data.custregs || []).find(x => x.id === id);
+  $$("[data-r60]", B).forEach(b => b.onclick = () => { const x = clone(V(b.dataset.r60)); x.regDate ||= todayISO(); x.regStatus ||= "applied"; U.ed = { kind: "reg", x }; render(); });
+  $$("[data-rp60]", B).forEach(b => b.onclick = () => { const x = V(b.dataset.rp60); share60("Supplier registration — " + x.name, `SUPPLIER_REGISTRATION_${x.name}_${x.regDate || todayISO()}`, () => regBlocks60(x), `Supplier registration ${x.regNo} — ${x.name}`); });
+  $$("[data-re60]", B).forEach(b => b.onclick = () => { U.tab = "eval"; U.ed = { kind: "eval", x: newEval60(V(b.dataset.re60)) }; render(); });
+  $$("[data-eo60]", B).forEach(b => b.onclick = () => { U.ed = { kind: "eval", x: clone(EV(b.dataset.eo60)) }; render(); });
+  $$("[data-ep60]", B).forEach(b => b.onclick = () => { const e = EV(b.dataset.ep60); share60("Supplier evaluation — " + e.vendorName, `SUPPLIER_EVALUATION_${e.vendorName}_${e.date}`, () => evalBlocks60(e), `Supplier evaluation ${e.no} — ${e.vendorName}: ${e.pct}% grade ${e.grade}`); });
+  $$("[data-co60]", B).forEach(b => b.onclick = () => { U.ed = { kind: "cust", x: clone(CU(b.dataset.co60)) }; render(); });
+  $$("[data-cp60]", B).forEach(b => b.onclick = () => { const c = CU(b.dataset.cp60); share60("Vendor registration — " + c.customer, `RIVERA_VENDOR_REGISTRATION_${c.customer}_${c.date || todayISO()}`, () => custBlocks60(c), `Rivera vendor registration for ${c.customer}`); });
+};
+/* route, who can open it, menu cards (Sales ▾ · Purchase ▾ · Tenders ▾) and buttons on the Vendors page */
+ROUTES.push(["vendorforms", "Vendor registration & evaluation", "reg60"]);
+if (typeof ROLE_PAGES !== "undefined") ["sales", "finance", "operation"].forEach(r => { if (ROLE_PAGES[r] && !ROLE_PAGES[r].includes("vendorforms")) ROLE_PAGES[r].push("vendorforms"); });
+if (typeof ALWAYS34 !== "undefined" && !ALWAYS34.includes("vendorforms")) ALWAYS34.push("vendorforms");
+if (typeof PUR_ONLY45 !== "undefined" && !PUR_ONLY45.includes("vendorforms")) PUR_ONLY45.push("vendorforms");
+{
+  const put = (mod, grp, card, first) => { const m = MODS32.find(x => x.id === mod); if (!m) return; const L = m.groups[grp] ||= []; if (!L.some(c => c[1] === card[1] && JSON.stringify(c[2]) === JSON.stringify(card[2]))) first ? L.unshift(card) : L.push(card); };
+  put("purchase", "Masters", ["Supplier registration", "vendorforms", { vf: "reg" }, "Form, documents, approval"]);
+  put("purchase", "Reports", ["Supplier evaluation", "vendorforms", { vf: "eval" }, "Score, grade A–D"]);
+  put("sales", "Masters", ["Vendor registration (customers)", "vendorforms", { vf: "cust" }, "Rivera registered with NTPC, BHEL…"]);
+  put("sales", "Reports", ["Supplier evaluation", "vendorforms", { vf: "eval" }, "Score, grade A–D"]);
+  put("tenders", "Masters", ["Vendor registration (customers)", "vendorforms", { vf: "cust" }, "Vendor codes and renewals"]);
+  if (typeof ICON51 !== "undefined") ICON51.unshift([/registration|evaluation/i, "reg60"]);
+}
+{
+  const _vv60 = VIEWS.vendors;
+  VIEWS.vendors = v => {
+    _vv60(v);
+    try { const row = $(".topbar .row", v); if (!row || $("#vr60", row)) return;
+      row.insertAdjacentHTML("beforeend", `<button type="button" class="btn" id="vr60">${icon("reg60")}Registration form</button><button type="button" class="btn" id="ve60">${icon("check28")}Evaluation</button>`);
+      $("#vr60", row).onclick = () => go32("vendorforms", { vf: "reg" }); $("#ve60", row).onclick = () => go32("vendorforms", { vf: "eval" }); } catch (e) { console.warn("p60", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.f60 .h60{margin:4px 0 -4px;font-size:.82rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);font-weight:600;display:flex;gap:8px;align-items:baseline}
+.up60{display:grid;grid-template-columns:repeat(4,minmax(0,1fr)) auto;gap:10px;align-items:end;padding:12px;border:1px dashed var(--line);border-radius:10px;background:var(--surface)}
+.sc60{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.sc60 button{all:unset;cursor:pointer;width:34px;height:32px;text-align:center;font-weight:600;border-right:1px solid var(--line)}.sc60 button:last-child{border-right:0}
+.sc60 button:hover,.sc60 button:focus-visible{background:color-mix(in srgb,var(--copper) 12%,transparent)}.sc60 button.on{background:var(--copper);color:#fff}
+.ev60 input{min-width:180px}
+.hero-strip small{display:block;font-size:.72rem;opacity:.75;margin-top:2px}
+.res60{display:flex;gap:12px;flex-wrap:wrap}.res60>div{flex:1;min-width:120px;padding:10px 14px;border:1px solid var(--line);border-radius:10px}.res60 span{display:block;font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.res60 b{font-size:1.1rem}
+.g60.ok{color:var(--ok)}.g60.warn{color:var(--warn,#b7791f)}.g60.bad{color:var(--bad,#c0392b)}
+.kv60{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px}.kv60>div{padding:8px 12px;border:1px solid var(--line);border-radius:8px}.kv60 span{display:block;font-size:.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:.05em}.kv60 b{font-size:.9rem;word-break:break-word}
+.dl60{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:10px}.dg60{border:1px solid var(--line);border-radius:10px;padding:10px 12px;display:flex;flex-direction:column;gap:4px}.dg60>b{font-size:.84rem}
+.dg60 label{display:flex;align-items:center;gap:6px;font-size:.84rem;cursor:pointer}.dg60 label input{width:auto;margin:0}.dg60 label>span:first-of-type{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.dg60 .btn{padding:2px 6px}.dg60 .ex60{opacity:.6}
+@media (max-width:700px){.up60{grid-template-columns:1fr}.up60 .f{grid-column:auto!important}}
+</style>`);
+
+
 boot();
 
 </script>
