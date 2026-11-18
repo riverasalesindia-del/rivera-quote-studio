@@ -10305,6 +10305,37 @@ tr.tot54 td{border-top:2px solid var(--line-2,var(--line))}
 }
 
 
+/* ===================== p57: sign-in that tells people what to do — a team login typed on the admin page (admin.html) is taken to the team sign-in page with the email filled in, and "Wrong username or password" for a team login says to ask the admin to reset it (Users & access ▸ Reset password) ===================== */
+{
+  const _c57 = AUTH.call;
+  AUTH.call = async function (action, body, ...a) {
+    try { return await _c57.call(this, action, body, ...a); }
+    catch (e) {
+      const id = String(body?.email || "").toLowerCase();
+      if (action === "login" && /wrong username or password/i.test(e?.message || "") && id && id !== ADMIN_ID)
+        throw new Error(`Wrong password for ${id}. Type it again carefully — or ask the admin (${ADMIN_ID}) to open Users & access ▸ ${id} ▸ Reset password and give you the new one.`);
+      throw e;
+    }
+  };
+  /* team sign-in page: the email typed on the admin page is already filled in */
+  const _sl57 = showLogin;
+  showLogin = function (o = {}) {
+    let from = false; try { from = !ADMIN_PAGE && localStorage.getItem("rqs.from57") === "1"; if (from) localStorage.removeItem("rqs.from57"); } catch { }
+    const out = _sl57.call(this, from && !o.msg ? { ...o, msg: "This is the team sign-in. Type your password again." } : o);
+    try { const em = $("#aE"), last = localStorage.getItem("rqs.lastEmail") || ""; if (em && !em.value && last && last !== ADMIN_ID && !ADMIN_PAGE) { em.value = last; $("#aP")?.focus(); } } catch { }
+    return out;
+  };
+  if (ADMIN_PAGE) document.addEventListener("click", e => {
+    const go = e.target.closest?.("#aGo"), em = $("#aE"); if (!go || !em || !$("#aP")) return;
+    const id = em.value.trim().toLowerCase(); if (!id || id === ADMIN_ID || !/@/.test(id)) return;
+    e.preventDefault(); e.stopImmediatePropagation();
+    try { localStorage.setItem("rqs.lastEmail", id); localStorage.setItem("rqs.from57", "1"); } catch { }
+    go.disabled = true; go.textContent = "Opening the team sign-in…";
+    location.href = location.pathname.replace(/admin\.html$/i, "") || "./";
+  }, true);
+}
+
+
 boot();
 
 </script>
