@@ -10732,6 +10732,52 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 </style>`);
 
 
+/* ===================== p61: Tender search — "New" tag on tenders that came in since this login last looked (Tender247-style), a "New since my last look" quick button
+   (with a × chip to drop it). Works on the server's existing "since" filter — no server change ===================== */
+const since61 = () => { const s = typeof seen26 === "function" ? seen26() : ""; return s || new Date(Date.now() - 3 * 864e5).toISOString(); };
+function tdbNew61(B, S) {
+  const mark = since61(), by = {};
+  Object.keys(S.cache || {}).forEach(k => { const rows = k.startsWith("q:") && S.cache[k]?.d?.rows; if (rows) rows.forEach(r => { if (r && r.bid) by[r.bid] = r; }); });
+  $$("table.t tbody tr", B).forEach(tr => {
+    const tc = tr.children[0], tb = tr.children[1]; if (!tc || !tb || tr.dataset.n61) return;
+    const r = by[(tb.querySelector("a")?.textContent || tb.textContent || "").trim()];
+    tr.dataset.n61 = "1";
+    if (r && r.firstSeen && String(r.firstSeen) > mark) { tr.classList.add("n61-row"); tc.insertAdjacentHTML("afterbegin", `<span class="n61" title="Came into the database on ${esc(dmy(String(r.firstSeen).slice(0, 10)))}">New</span>`); }
+  });
+  // quick button beside the Closing buttons
+  const qc = $(".qc29", B);
+  if (qc && !$("[data-n61]", qc)) {
+    const on = !!S.f.since;
+    qc.insertAdjacentHTML("beforeend", `<button type="button" class="btn sm ${on ? "primary" : ""}" data-n61="1" aria-pressed="${on}" title="Tenders that came in since ${esc(dmy(mark.slice(0, 10)))}">★ New since my last look</button>`);
+    const b = $("[data-n61]", qc);
+    b.addEventListener("click", () => { if (typeof GS44 === "object") GS44.open = true; }, true);
+    b.onclick = () => { if (S.f.since) { delete S.f.since; } else { S.f.since = mark; S.f.sort = "new"; } S.page = 1; render(); };
+  }
+  // removable chip when the filter is on
+  if (S.f.since && !$(".n61c", B)) {
+    const html = `<button type="button" class="chip fc41-c n61c" title="Remove this filter">New since: <b>${esc(dmy(String(S.f.since).slice(0, 10)))}</b><i aria-hidden="true">×</i></button>`;
+    const fc = $(".fc41", B);
+    if (fc) { const x = $("#fc41x", fc); x ? x.insertAdjacentHTML("beforebegin", html) : fc.insertAdjacentHTML("beforeend", html); }
+    else $(".fields", B)?.closest("section.panel")?.insertAdjacentHTML("afterend", `<div class="fc41" role="group" aria-label="Filters on"><span>Filters on</span>${html}</div>`);
+    $(".n61c", B).onclick = () => { delete S.f.since; S.page = 1; render(); };
+    $("#fc41x", B)?.addEventListener("click", () => { delete S.f.since; }, true);
+  }
+  $("#tclr", B)?.addEventListener("click", () => { delete S.f.since; }, true);
+}
+{
+  const _tdb61 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb61(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
+    try { tdbNew61(B, S); } catch (e) { console.warn("p61", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.n61{display:inline-block;font-size:.66rem;font-weight:700;letter-spacing:.04em;text-transform:uppercase;padding:1px 6px;border-radius:999px;background:var(--copper);color:#fff;margin:0 6px 3px 0;vertical-align:middle}
+tr.n61-row>td:first-child{box-shadow:inset 3px 0 0 var(--copper)}
+</style>`);
+
+
 boot();
 
 </script>
