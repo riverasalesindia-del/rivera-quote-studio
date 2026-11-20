@@ -11809,7 +11809,7 @@ function upd65() {
 function keep65() {
   clearTimeout(W62.k65); W62.k65 = setTimeout(async () => { const S = W62.u65; if (!S || !S.items.length) return; const old = updMine65();
     const wd = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: S.items.map(i => ({ title: i.title, state: i.state, pct: +i.pct || 0, from: i.from || "", to: i.to || "", wk: i.wk || "" })), remarks: (S.remarks || "").trim(), plannedAt: old?.plannedAt || now62() };
-    try { await bizPut28(wd); const c = $("#u65k"); if (c) c.textContent = "✓ Saved " + hm62(); } catch { const c = $("#u65k"); if (c) c.textContent = "Not saved - check internet"; } }, 2500);
+    try { await bizPut28(wd); const c = $("#u65k"); if (c) c.textContent = "✓ Saved " + hm62(); } catch { const c = $("#u65k"); if (c) c.innerHTML = '<b style="color:#ec6f1c">● No internet</b> - kept on this device, sent when the internet is back'; } }, 2500);
 }
 function dayEdit66(src) {
   const r = JSON.parse(JSON.stringify(src)), I = r.items || (r.items = []);
@@ -12110,7 +12110,7 @@ wireUpd65 = function (v) {
 keep65 = function () {
   clearTimeout(W62.k65); W62.k65 = setTimeout(async () => { const S = W62.u65; if (!S || !S.items.length) return; const old = updMine65();
     const wd = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: S.items.filter(i => i.state !== "dropped").map(i => ({ title: i.title, state: i.state, pct: +i.pct || 0, from: i.from || "", to: i.to || "", wk: i.wk || "", ...(i.carried ? { carried: true, since: i.since || "" } : {}), ...(i.given ? { given: i.given } : {}) })), remarks: (S.remarks || "").trim(), plannedAt: old?.plannedAt || now62() };
-    try { await bizPut28(wd); const c = $("#u65k"); if (c) c.textContent = "✓ Kept " + t1268(hm62()); } catch { const c = $("#u65k"); if (c) c.textContent = "Not saved - check internet"; } }, 2000);
+    try { await bizPut28(wd); const c = $("#u65k"); if (c) c.textContent = "✓ Kept " + t1268(hm62()); } catch { const c = $("#u65k"); if (c) c.innerHTML = '<b style="color:#ec6f1c">● No internet</b> - kept on this device, sent when the internet is back'; } }, 2000);
 };
 document.head.insertAdjacentHTML("beforeend", `<style>
 .o68{--nv:#0b2a57;--or:#ec6f1c;--sk:#29a8e8;--gr:#1e8e3e;--rd:#c0392b;--ln:#dfe5ee;--mut:#5d6878;max-width:760px;margin:0 auto;padding-bottom:96px;font-size:15px;line-height:1.45}
@@ -12153,6 +12153,72 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 </style>`);
 /* the page heading for this tab, like the old app */
 { const _w = VIEWS.work; VIEWS.work = v => { _w(v); if (BIZ.ui.w62 === "upd") { const h = $(".topbar h1", v); if (h) h.textContent = "Daily Work Update"; const p = $(".topbar p", v); if (p) p.textContent = `${AUTH.user?.name || ""} · today's work with time, then Submit`; } }; }
+
+
+/* ===================== p69: Work update, upgraded — day timeline (filled / not filled hours), overlap check, quick time buttons,
+   works without internet for a while (kept on the device, sent when the internet is back), hours per day in My history ===================== */
+const tm69 = s => s ? +s.slice(0, 2) * 60 + +s.slice(3, 5) : null;
+const hm69 = m => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(m % 60).padStart(2, "0")}`;
+const bk69 = () => `rqs.u69.${me28()}.${todayISO()}`;
+function gaps69(I) {
+  const a = tm69(OPEN68), end = Math.min(tm69(CLOSE68), Math.max(tm69(hm62()), a)), L = I.filter(i => i.state !== "dropped" && i.from && i.to && i.to > i.from).map(i => [tm69(i.from), tm69(i.to), i]).sort((x, y) => x[0] - y[0]);
+  const gaps = [], over = []; let cur = a;
+  L.forEach(([f, t, i], k) => { if (f - cur >= 15 && cur < end) gaps.push([cur, Math.min(f, end)]); if (k && f < L[k - 1][1]) over.push([L[k - 1][2].title, i.title]); cur = Math.max(cur, t); });
+  if (end - cur >= 15) gaps.push([cur, end]);
+  /* lunch 13:30-14:20 is not a gap */
+  return { L, gaps: gaps.map(([f, t]) => [f, t]).filter(([f, t]) => !(f >= 810 && t <= 860)), over };
+}
+function timeline69(I) {
+  const a = tm69(OPEN68), b = tm69(CLOSE68), W = b - a, { L, gaps, over } = gaps69(I), col = { done: "#1e8e3e", progress: "#1971c2", pending: "#ec6f1c" };
+  const pos = m => Math.max(0, Math.min(100, (m - a) / W * 100));
+  const now = tm69(hm62()), ticks = []; for (let h = 9; h <= 18; h++) ticks.push(h * 60);
+  return `<div class="t69"><div class="t69-bar">${gaps.map(([f, t]) => `<i class="t69-gap" style="left:${pos(f)}%;width:${pos(t) - pos(f)}%" title="Not filled ${t1268(hm69(f))} - ${t1268(hm69(t))}"></i>`).join("")}
+    ${L.map(([f, t, i]) => `<i class="t69-blk" style="left:${pos(f)}%;width:${Math.max(.6, pos(t) - pos(f))}%;background:${col[i.state] || "#888"}" title="${esc(i.title)} · ${t1268(i.from)} - ${t1268(i.to)}"></i>`).join("")}
+    ${now > a && now < b ? `<b class="t69-now" style="left:${pos(now)}%" title="Now"></b>` : ""}</div>
+    <div class="t69-ticks">${ticks.map(m => `<span style="left:${pos(m)}%">${(m / 60) % 12 || 12}</span>`).join("")}</div>
+    <div class="t69-leg"><span><i style="background:#1e8e3e"></i>Completed</span><span><i style="background:#1971c2"></i>In progress</span><span><i style="background:#ec6f1c"></i>Pending</span><span><i class="t69-gapi"></i>Not filled</span></div>
+    ${gaps.length ? `<div class="t69-warn">⏱ Time not filled: ${gaps.map(([f, t]) => `<button type="button" data-gap="${hm69(f)}|${hm69(t)}">${t1268(hm69(f))} - ${t1268(hm69(t))}</button>`).join(" ")} <span class="o68-muted">tap to add a work for it</span></div>` : L.length ? '<div class="t69-ok">✓ Every hour so far is filled</div>' : ""}
+    ${over.length ? `<div class="t69-warn bad">⚠ Times overlap: ${over.slice(0, 3).map(([x, y]) => `<b>${esc(x.slice(0, 30))}</b> and <b>${esc(y.slice(0, 30))}</b>`).join("; ")}</div>` : ""}</div>`;
+}
+{
+  /* keep a copy on this device every time something changes, and use it if the server copy is older (no internet) */
+  const _k = keep65;
+  keep65 = function () { try { const S = W62.u65; if (S) localStorage.setItem(bk69(), JSON.stringify({ at: Date.now(), items: S.items, remarks: S.remarks || "" })); } catch { } return _k.apply(this, arguments); };
+  const _i = updItems65;
+  updItems65 = function () {
+    const fresh = !(W62.u65 && W62.u65.day === todayISO()), I = _i.apply(this, arguments);
+    if (fresh) { try { const b = JSON.parse(localStorage.getItem(bk69()) || "null"), d = updMine65(), srv = d ? Date.parse(d.at || d.submittedAt || d.plannedAt || 0) || 0 : 0; if (b && b.items?.length && b.at > srv + 5000) { W62.u65.items = b.items; W62.u65.remarks = b.remarks; W62.u65.local69 = 1; setTimeout(() => keep65(), 800); return W62.u65.items; } } catch { } }
+    return I;
+  };
+  const _w = wireUpd65;
+  wireUpd65 = function (v) {
+    _w(v); const S = W62.u65; if (!S || !$(".o68-win", v)) return; const I = S.items;
+    $(".o68-win", v).insertAdjacentHTML("beforeend", timeline69(I));
+    $$("[data-gap]", v).forEach(b => b.onclick = () => { const [f, t] = b.dataset.gap.split("|"); $("#u65f", v).value = f; $("#u65to", v).value = t; const n = $("#u65n", v); n.focus(); n.scrollIntoView({ block: "center", behavior: "smooth" }); toast(`Write what you did ${t1268(f)} - ${t1268(t)}, then + Add`); });
+    /* quick "To" buttons in the add row */
+    const row = $(".o68-addrow", v), to = $("#u65to", v);
+    if (row && to) { to.closest(".o68-tl").insertAdjacentHTML("afterend", `<span class="q69">${[["+15m", 15], ["+30m", 30], ["+1h", 60]].map(([l, m]) => `<button type="button" data-q="${m}">${l}</button>`).join("")}<button type="button" data-q="now">Now</button></span>`);
+      $$("[data-q]", row).forEach(b => b.onclick = () => { const f = $("#u65f", v).value; if (b.dataset.q === "now") { to.value = hm62(); if (!f) { const p = I.map(i => i.to).filter(Boolean).sort().pop(); if (p) $("#u65f", v).value = p; } return; } if (!f) { toast("Set the From time first", "bad"); return $("#u65f", v).focus(); } to.value = hm69(Math.min(tm69(f) + +b.dataset.q, 23 * 60 + 59)); }); }
+    /* internet status next to "Everything you type is kept" */
+    const k = $("#u65k", v); if (k) { const st = () => { if (!navigator.onLine) k.innerHTML = '<b style="color:#ec6f1c">● No internet</b> - your work is kept on this device and sent when the internet is back'; }; st(); if (S.local69) k.textContent = "Restored from this device"; }
+    /* hours per day in My history */
+    $$(".o68-hist", v).forEach(h => { const id = $("[data-eday]", h)?.dataset.eday, r = BIZ.rows[id]; if (!r) return; const m = (r.items || []).reduce((a, i) => a + mins62(i.from, i.to), 0), dn = (r.items || []).filter(i => i.state === "done").length; $(".o68-hd b", h)?.insertAdjacentHTML("afterend", ` <span class="h69">${dn}/${(r.items || []).length} done · ${dur62(m) || "0h"}</span>`); });
+  };
+  if (!window.__on69) { window.__on69 = 1; addEventListener("online", () => { toast("Internet is back - sending your work"); keep65(); }); addEventListener("offline", () => { if (STATE.route === "work") render(); }); }
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.t69{margin-top:12px;border-top:1px dashed #dfe5ee;padding-top:10px}
+.t69-bar{position:relative;height:22px;background:#f2f5f9;border-radius:6px;overflow:hidden}
+.t69-blk{position:absolute;top:2px;bottom:2px;border-radius:4px;opacity:.9}.t69-gap{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(135deg,#fde2cf 0 6px,#fff3e8 6px 12px)}
+.t69-now{position:absolute;top:-2px;bottom:-2px;width:2px;background:#0b2a57}
+.t69-ticks{position:relative;height:16px;font-size:10.5px;color:#5d6878}.t69-ticks span{position:absolute;transform:translateX(-50%);top:2px}
+.t69-leg{display:flex;gap:12px;flex-wrap:wrap;font-size:11.5px;color:#5d6878;margin-top:2px}.t69-leg i{display:inline-block;width:10px;height:10px;border-radius:3px;margin-right:4px;vertical-align:-1px}.t69-gapi{background:repeating-linear-gradient(135deg,#fde2cf 0 3px,#fff3e8 3px 6px);border:1px solid #f4c7a6}
+.t69-warn{margin-top:8px;font-size:12.5px;color:#9a3f0b;display:flex;gap:6px;flex-wrap:wrap;align-items:center}.t69-warn button{border:1px solid #f4c7a6;background:#fff3e8;color:#9a3f0b;border-radius:14px;padding:2px 9px;font-size:12px;font-weight:700;cursor:pointer}
+.t69-warn.bad{color:#c0392b}.t69-ok{margin-top:8px;font-size:12.5px;color:#1e8e3e;font-weight:600}
+.q69{display:inline-flex;gap:3px}.q69 button{border:1.5px solid #dfe5ee;background:#fff;border-radius:8px;padding:0 8px;height:40px;font-size:12px;font-weight:700;color:#0b2a57;cursor:pointer}
+.h69{font-size:12px;color:#5d6878;font-weight:600;background:#f2f5f9;border-radius:10px;padding:1px 8px}
+@media(max-width:520px){.q69{flex:1 1 100%}.q69 button{flex:1}}
+</style>`);
 
 boot();
 
