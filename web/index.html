@@ -11542,6 +11542,52 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .dp63{border:2px solid var(--copper,#E26A0C);border-radius:12px;padding:10px 12px;margin:10px 0;display:flex;flex-direction:column;gap:6px}.dp63>div{display:flex;flex-wrap:wrap;gap:8px 16px}.dp63 label{display:inline-flex;gap:6px;align-items:center;font-weight:600;cursor:pointer}.dp63 input{width:18px;height:18px;accent-color:var(--copper,#E26A0C)}
 </style>`);
 
+/* ===================== p64: Tender search — "On this page" summary strip (Tender247-style: total value, EMD, closing in 3 days, strong matches, already tracked;
+   tap "closing in 3 days" to sort by closing) + press "/" on any tender page to jump straight to its search box (speed). Client-side only — no server change ===================== */
+function tdbSum64(B, S) {
+  if ($(".s64", B)) return;
+  const body = { ...S.f, page: S.page, size: 50 }, d = S.cache["q:" + JSON.stringify(body)]?.d; if (!d?.rows?.length) return;
+  const tbl = $("table.t", B), head = tbl?.closest("section.panel")?.querySelector("header"); if (!head) return;
+  const today = todayISO(), lim = new Date(Date.now() + 3 * 864e5).toISOString().slice(0, 10), mine = new Set((STATE.data.tenders || []).map(t => t.bid));
+  let val = 0, emd = 0, soon = 0, strong = 0, trk = 0, live = 0;
+  d.rows.forEach(r => {
+    val += num(r.value) || 0; emd += num(r.emd) || 0;
+    if (r.status === "live") { live++; const c = String(r.closing || "").slice(0, 10); if (c && c >= today && c <= lim) soon++; }
+    if (num(r.fit) >= 75) strong++;
+    if (r.tracked || mine.has(r.bid)) trk++;
+  });
+  const it = (l, v, extra = "") => `<div class="s64-i" ${extra}><span>${l}</span><b>${v}</b></div>`;
+  head.insertAdjacentHTML("afterend", `<div class="s64" role="group" aria-label="On this page">
+    ${it("On this page", d.rows.length + (live && live < d.rows.length ? ` <small>(${live} live)</small>` : ""))}
+    ${it("Total value", tdbMoney(val))}${it("Total EMD", tdbMoney(emd))}
+    ${soon ? `<button type="button" class="s64-i s64-hot" id="s64soon" title="Sort by closing date (soonest first)"><span>Closing in 3 days</span><b>${soon}</b></button>` : it("Closing in 3 days", "0")}
+    ${it("Strong match 75%+", strong)}${it("Already tracked", trk)}</div>`);
+  $("#s64soon", B)?.addEventListener("click", () => { S.f.sort = "closing"; S.page = 1; render(); });
+}
+{
+  const _tdb64 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb64(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
+    try { tdbSum64(B, S); } catch (e) { console.warn("p64", e); }
+  };
+  addEventListener("keydown", e => {
+    if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
+    const t = e.target, tag = (t?.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select" || t?.isContentEditable) return;
+    const box = ["#tq", "#rq", "#bq", "#cq"].map(s => $(s)).find(x => x && x.offsetParent !== null);
+    if (!box) return;
+    e.preventDefault(); box.focus(); box.select?.();
+  });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.s64{display:flex;flex-wrap:wrap;gap:8px;padding:10px 16px;border-bottom:1px solid var(--line,#e5e7eb)}
+.s64-i{display:flex;flex-direction:column;gap:2px;min-width:110px;padding:6px 10px;border-radius:10px;background:var(--soft,#f4f6f9);border:1px solid transparent;text-align:left;font:inherit;color:inherit}
+.s64-i span{font-size:.7rem;color:var(--muted,#6b7280);text-transform:uppercase;letter-spacing:.03em}.s64-i b{font-size:1rem}.s64-i small{font-weight:400;color:var(--muted,#6b7280)}
+button.s64-hot{cursor:pointer;border-color:var(--copper,#E26A0C);background:rgba(226,106,12,.08)}button.s64-hot b{color:var(--copper,#E26A0C)}
+@media (max-width:560px){.s64-i{min-width:calc(50% - 4px)}}
+</style>`);
+
 boot();
 
 </script>
