@@ -10778,6 +10778,666 @@ tr.n61-row>td:first-child{box-shadow:inset 3px 0 0 var(--copper)}
 </style>`);
 
 
+/* ===== p62: departments - Work Board, Courier, Handover, Assets, Vault, Quality, HR docs, Purchase, Statements ===== */
+/* ===================== p62: Work Board inside Quote Studio — My work · Assign work · Today's plan · Daily update (From / To time for every work) · Work dashboard & Today's work PDF · Courier register · Handover · Asset register · Password vault · Quality (QAP & test reports) · HR documents (Form IV register, certificates) · Purchase comparative statement & return · Stock / asset / payable statements. Each department sees only its own part; admin sees everything. ===================== */
+const W62 = { team: [], md: "info@rivera.co.in", t: 0 };
+const adm62 = () => !!(AUTH.isAdmin || AUTH.user?.role === "admin");
+const pg62 = t => { const P = AUTH.user?.pages; return adm62() || (Array.isArray(P) && P.includes(t)); };
+const nm62 = e => (W62.team.find(u => u.email === e) || {}).name || who28(e);
+const now62 = () => new Date().toISOString();
+const hm62 = () => { const d = new Date(); return String(d.getHours()).padStart(2, "0") + ":" + String(d.getMinutes()).padStart(2, "0"); };
+const mins62 = (a, b) => { if (!a || !b) return 0; const m = (+b.slice(0, 2) * 60 + +b.slice(3, 5)) - (+a.slice(0, 2) * 60 + +a.slice(3, 5)); return m > 0 ? m : 0; };
+const dur62 = m => m ? `${Math.floor(m / 60) ? Math.floor(m / 60) + "h " : ""}${m % 60 ? (m % 60) + "m" : ""}`.trim() : "";
+const dmy62 = s => s ? new Date(String(s).slice(0, 10) + "T00:00:00").toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" }) : "";
+const dt62 = s => s ? new Date(String(s).replace(" ", "T")).toLocaleString("en-IN", { day: "2-digit", month: "short", hour: "numeric", minute: "2-digit" }) : "";
+const pcol62 = p => ["#c0392b", "#d9532b", "#e8590c", "#f08c00", "#f59f00", "#fab005", "#c0ca33", "#94d82d", "#69b34c", "#2f9e44", "#1e8e3e"][Math.max(0, Math.min(10, Math.round((+p || 0) / 10)))];
+async function team62(force) {
+  if (!force && W62.team.length && Date.now() - W62.t < 600000) return W62.team;
+  try { const d = await AUTH.call("work62", { op: "team" }); W62.team = d.team || []; W62.md = d.md || W62.md; W62.t = Date.now(); } catch { if (!W62.team.length) W62.team = TEAM28.map(([email, name]) => ({ email, name })); }
+  W62.team.forEach(u => { if (!TEAM28.some(t => t[0] === u.email)) TEAM28.push([u.email, u.name]); });
+  return W62.team;
+}
+const peopleOpts62 = (sel, skipMe) => W62.team.filter(u => !skipMe || u.email !== me28()).map(u => `<option value="${esc(u.email)}" ${u.email === sel ? "selected" : ""}>${esc(u.name)}</option>`).join("");
+const top62 = (eyebrow, title, p, btns = "") => `<div class="topbar"><div><div class="eyebrow">${esc(eyebrow)}</div><h1>${esc(title)}</h1>${p ? `<p>${p}</p>` : ""}</div><div class="row" style="gap:8px;flex-wrap:wrap">${btns}</div></div>`;
+const tabOk62 = (route, k) => { const T = typeof tabsAllowed34 === "function" ? tabsAllowed34(route) : null; return !T || T.includes(k); };
+function tabsFor62(route, key, list) { const L = list.filter(([k, , need]) => (need === undefined || need) && tabOk62(route, k)); if (!L.some(x => x[0] === BIZ.ui[key])) BIZ.ui[key] = L[0]?.[0]; return L; }
+async function lhImg62() { try { const L = await lh24Load(); return L?.urls?.head ? `<img src="${L.urls.head}" style="width:100%;margin-bottom:8px" alt="">` : ""; } catch { return ""; } }
+const coName62 = () => SETTINGS.company?.name || "Rivera Coil Manufacturing (I) Pvt Ltd";
+
+/* ---------------- WORK ---------------- */
+const WST62 = { new: ["New", ""], accepted: ["Pending", "warn"], progress: ["In progress", "navy"], pending: ["Pending", "warn"], done: ["Completed", "ok"], cancelled: ["Removed", "bad"] };
+const myWk62 = () => all28("wk").filter(x => x.to === me28());
+function wkCard62(x, mine) {
+  const st = WST62[x.status] || WST62.new, od = x.due && x.status !== "done" && String(x.due).slice(0, 10) < todayISO();
+  return `<button type="button" class="wk62" data-wk="${x.id}"><span class="wk62-p" style="--c:${pcol62(x.pct)}">${x.pct || 0}%</span><span class="wk62-m"><b>${esc(x.title)}</b>
+    <small>${mine ? "from " + esc(nm62(x.from)) : "to " + esc(nm62(x.to))}${x.due ? " · " + (od ? '<b style="color:#c0392b">overdue ' : "due ") + esc(dt62(x.due)) + (od ? "</b>" : "") : ""}${x.src === "plan" ? " · today's plan" : x.src === "meeting" ? " · meeting" : ""}</small></span><span class="chip ${st[1]}">${st[0]}</span></button>`;
+}
+VIEWS.work = v => {
+  bizSync28(); team62().then(() => { if (STATE.route === "work" && !v.dataset.t62) { v.dataset.t62 = 1; render(); } });
+  const tabs = tabsFor62("work", "w62", [["mine", "My work"], ["given", "Given by me"], ["assign", "Assign work"], ["plan", "Today's plan"], ["du", "Daily update"], ["dash", "Work dashboard"]]);
+  const U = BIZ.ui, t = BIZ.ui.w62, me = me28(), K = all28("wk");
+  const openMine = myWk62().filter(x => !["done", "cancelled"].includes(x.status));
+  const body = { mine: () => list62(myWk62(), true), given: () => list62(K.filter(x => x.from === me && x.to !== me), false), assign: assign62, plan: plan62, du: du62, dash: dash62 }[t] || (() => "");
+  v.innerHTML = top62("Work Board", { mine: "My work", given: "Work I gave", assign: "Assign work", plan: "Today's plan", du: "Daily update", dash: "Work dashboard" }[t] || "Work",
+    t === "mine" ? `${openMine.length} open · ${openMine.filter(x => x.due && String(x.due).slice(0, 10) < todayISO()).length} overdue · only your own work is shown here` : "",
+    `<button class="btn" id="w62r" type="button">${icon("spark")}${BIZ.busy ? "Syncing…" : "Refresh"}</button>`)
+    + (loadNote28() || `${tabs28(t, tabs, "w62t")}<div id="w62b" style="margin-top:12px">${body()}</div>`);
+  $$("[data-w62t]", v).forEach(b => b.onclick = () => { U.w62 = b.dataset.w62t; render(); });
+  $("#w62r", v).onclick = () => bizSync28(true);
+  $$("[data-wk]", v).forEach(b => b.onclick = () => wkPanel62(BIZ.rows[b.dataset.wk]));
+  ({ assign: wireAssign62, plan: wirePlan62, du: wireDu62, dash: wireDash62 }[t] || (() => { }))(v);
+  const f = $("#w62f", v); if (f) f.oninput = () => { U.w62q = f.value; clearTimeout(W62.ft); W62.ft = setTimeout(() => { render(); const i = $("#w62f"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 250); };
+  $$("[data-w62s]", v).forEach(b => b.onclick = () => { U.w62s = b.dataset.w62s; render(); });
+};
+function list62(L, mine) {
+  const U = BIZ.ui, s = U.w62s || "open", q = (U.w62q || "").toLowerCase();
+  const F = L.filter(x => s === "open" ? !["done", "cancelled"].includes(x.status) : s === "done" ? x.status === "done" : true).filter(x => !q || (x.title + " " + nm62(x.from) + " " + nm62(x.to)).toLowerCase().includes(q))
+    .sort((a, b) => String(a.due || "9").localeCompare(String(b.due || "9")));
+  return `<section class="panel"><div class="body"><div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">${[["open", "Open"], ["done", "Completed"], ["all", "All"]].map(([k, l]) => `<button type="button" class="btn sm ${s === k ? "primary" : ""}" data-w62s="${k}">${l}</button>`).join("")}<input id="w62f" type="search" placeholder="Search work or name" value="${esc(U.w62q || "")}" style="flex:1;min-width:180px"></div>
+    <div class="stack" style="gap:8px">${F.map(x => wkCard62(x, mine)).join("") || `<div class="empty"><b>${mine ? "No work here" : "You have not given any work"}</b>${mine ? "New work given to you shows here and comes by mail." : "Use Assign work."}</div>`}</div></div></section>`;
+}
+function wkPanel62(x) {
+  if (!x) return;
+  const me = me28(), mine = x.to === me, giver = x.from === me || adm62(), ownPlan = mine && x.src === "plan", open = !["done", "cancelled"].includes(x.status);
+  const st = WST62[x.status] || WST62.new;
+  const D = panel28({
+    title: x.title, chips: `<span class="chip">${esc(x.no || "")}</span><span class="chip ${st[1]}">${st[0]}</span><span class="chip">${x.pct || 0}%</span>`,
+    body: `<div class="small muted" style="margin-bottom:8px">From <b>${esc(nm62(x.from))}</b> → <b>${esc(nm62(x.to))}</b> · given ${esc(dt62(x.created || x.at))}${x.due ? " · finish by <b>" + esc(dt62(x.due)) + "</b>" : ""}</div>
+      ${x.details ? `<p style="white-space:pre-wrap">${esc(x.details)}</p>` : ""}
+      ${(giver || ownPlan) && open ? `<div class="row" style="justify-content:flex-end;gap:6px;margin:-4px 0 6px"><button type="button" class="btn sm" id="wk62e" title="Edit">✏️ Edit</button><button type="button" class="btn sm" id="wk62x" title="Remove" style="color:#c0392b">🗑️ Remove</button></div><div id="wk62ed"></div>` : ""}
+      ${mine && open ? `<section class="dr26-sec"><h3>Update my work</h3>
+        ${x.status === "new" ? `<button type="button" class="btn primary block" id="wk62a">✓ Accept</button>` : ""}
+        <div class="pct62">${[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(p => `<button type="button" data-pc="${p}" class="${(x.pct || 0) === p ? "on" : ""}" style="--c:${pcol62(p)}">${p}</button>`).join("")}</div>
+        <div class="row" style="gap:6px;margin-top:8px"><button type="button" class="btn" data-ws="progress" style="flex:1;background:#1a73e8;color:#fff">▶ In progress</button><button type="button" class="btn" data-ws="pending" style="flex:1;background:#E26A0C;color:#fff">⏸ Pending</button><button type="button" class="btn" data-ws="done" style="flex:1;background:#1e8e3e;color:#fff">✓ Completed</button></div></section>` : ""}
+      ${mine && x.status === "done" ? `<button type="button" class="btn block" id="wk62u" style="margin-top:8px">↩ Undo Completed</button>` : ""}
+      <section class="dr26-sec"><h3>Reply / comment <span class="small muted">(optional)</span></h3><textarea id="wk62c" rows="2" placeholder="Write a reply, ask a question, give an update…"></textarea><div class="row" style="justify-content:flex-end;margin-top:6px"><button type="button" class="btn sm primary" id="wk62s">Send</button></div></section>
+      <section class="dr26-sec"><h3>History</h3>${timeline28(x.log)}</section>`
+  });
+  const save = async (patch, type, text, msg) => { const r = { ...x, ...patch }; if (type) logAdd28(r, type, text); if (await save28(null, r, msg)) { closeDrawer26(); render(); } };
+  $("#wk62a") && ($("#wk62a").onclick = () => save({ status: "accepted" }, "Accepted", "Accepted the work", "Accepted"));
+  $$("[data-pc]", D).forEach(b => b.onclick = () => { const p = +b.dataset.pc; save({ pct: p, status: p >= 100 ? "done" : "progress", doneAt: p >= 100 ? now62() : "" }, "Progress", p + "%", p >= 100 ? "Completed" : "Progress " + p + "%"); });
+  $$("[data-ws]", D).forEach(b => b.onclick = () => { const s = b.dataset.ws; save({ status: s, pct: s === "done" ? 100 : x.pct || 0, doneAt: s === "done" ? now62() : "" }, { progress: "In progress", pending: "Pending", done: "Completed" }[s], $("#wk62c").value.trim(), { progress: "In progress", pending: "Pending", done: "Completed" }[s]); });
+  $("#wk62u") && ($("#wk62u").onclick = () => save({ status: "progress", pct: 90, doneAt: "" }, "Reopened", "Undo completed", "Back to in progress"));
+  $("#wk62s").onclick = () => { const c = $("#wk62c").value.trim(); if (!c) { $("#wk62c").focus(); $("#wk62c").placeholder = "Type your reply here, then tap Send"; return; } save({}, "Reply", c, "Sent"); };
+  $("#wk62e") && ($("#wk62e").onclick = () => {
+    $("#wk62ed").innerHTML = `<div class="fields" style="margin:6px 0">${field28(["title", "Work *", "text", null, 1], x)}${giver ? field28(["details", "Details", "textarea"], x) + field28(["due", "Finish by", "datetime-local"], x) : ""}</div><button type="button" class="btn primary block" id="wk62es">Save changes</button>`;
+    $("#wk62es").onclick = () => { const r = readForm28($("#wk62ed"), {}); if (!r.title) return toast("Write the work", "bad"); save(r, "Edited", r.title, "Saved"); };
+  });
+  $("#wk62x") && ($("#wk62x").onclick = e => { const b = e.currentTarget; if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Tap again to remove"; return; } save({ status: "cancelled" }, "Removed", ownPlan ? "Removed from today's plan" : "Cancelled", "Removed"); });
+}
+function assign62() {
+  const due = new Date(Date.now() + 864e5); due.setHours(18, 30, 0, 0);
+  return `<section class="panel"><div class="body"><div class="fields">
+    <label class="f" style="grid-column:1/-1">Give to (tick one or more)<div class="ppl62">${W62.team.filter(u => u.email !== me28()).map(u => `<label><input type="checkbox" value="${esc(u.email)}" data-to62> ${esc(u.name)}</label>`).join("") || '<span class="small muted">Loading the team…</span>'}</div></label>
+    <label class="f" style="grid-column:1/-1">Work *<input id="as62t" maxlength="200" placeholder="What has to be done?"></label>
+    <label class="f" style="grid-column:1/-1">Details (optional)<textarea id="as62d" rows="3" placeholder="Customer, quantity, place…"></textarea></label>
+    <label class="f">Finish by<input id="as62u" type="datetime-local" value="${new Date(due.getTime() - due.getTimezoneOffset() * 6e4).toISOString().slice(0, 16)}"></label>
+    <label class="f">Priority<select id="as62p"><option>Normal</option><option>High</option><option>Urgent</option></select></label></div>
+    <button type="button" class="btn primary block" id="as62s" style="margin-top:10px">Assign work</button><p class="small muted">Each person gets a mail at once and sees it in My work. You see their progress in Given by me.</p></div></section>`;
+}
+function wireAssign62(v) {
+  const b = $("#as62s", v); if (!b) return;
+  b.onclick = async () => {
+    const to = $$("[data-to62]:checked", v).map(c => c.value), title = $("#as62t", v).value.trim();
+    if (!to.length) return toast("Tick who gets the work", "bad"); if (!title) return toast("Write the work", "bad");
+    const recs = to.map(e => { const r = { kind: "wk", title, details: $("#as62d", v).value.trim(), from: me28(), fromName: AUTH.user?.name || "", to: e, toName: nm62(e), due: $("#as62u", v).value, pri: $("#as62p", v).value, status: "new", pct: 0, src: "assign", created: now62() }; logAdd28(r, "Assigned", "to " + nm62(e)); return r; });
+    if (await save28(b, recs, `Work given to ${to.length} ${to.length > 1 ? "people" : "person"} - mail sent`)) { BIZ.ui.w62 = "given"; render(); }
+  };
+}
+const planToday62 = () => all28("wk").filter(x => x.src === "plan" && x.to === me28() && x.day === todayISO() && x.status !== "cancelled");
+function plan62() {
+  const P = planToday62();
+  return `<section class="panel"><div class="body"><p class="small muted" style="margin-top:0">Write what you will do today, one work per line. MD sir sees it; in the evening you mark each one in the Daily update.</p>
+    ${P.length ? `<div class="stack" style="gap:6px;margin-bottom:12px">${P.map(x => `<div class="pl62" data-pid="${x.id}"><span class="pl62-t">${esc(x.title)}</span><span class="chip">${x.pct || 0}%</span>${x.status !== "done" ? `<button type="button" class="btn sm" data-pe="${x.id}" title="Edit">✏️</button><button type="button" class="btn sm" data-pd="${x.id}" title="Remove">🗑️</button>` : '<span class="chip ok">Completed</span>'}</div>`).join("")}</div>` : ""}
+    <textarea id="pl62n" rows="4" placeholder="One work per line…"></textarea><button type="button" class="btn primary block" id="pl62s" style="margin-top:8px;background:#7b3fa0">${P.length ? "Add to today's plan" : "Send today's plan"}</button></div></section>`;
+}
+function wirePlan62(v) {
+  const s = $("#pl62s", v); if (!s) return;
+  s.onclick = async () => {
+    const lines = $("#pl62n", v).value.split("\n").map(x => x.replace(/^\s*[-*•\d.)]+\s*/, "").trim()).filter(Boolean).slice(0, 30); if (!lines.length) return toast("Write at least one work", "bad");
+    const recs = lines.map(title => ({ kind: "wk", title, from: me28(), fromName: AUTH.user?.name || "", to: me28(), toName: AUTH.user?.name || "", src: "plan", day: todayISO(), status: "accepted", pct: 0, created: now62() }));
+    if (await save28(s, recs, `Today's plan saved (${lines.length})`)) render();
+  };
+  $$("[data-pe]", v).forEach(b => b.onclick = () => { const x = BIZ.rows[b.dataset.pe], row = b.closest(".pl62"); row.innerHTML = `<input class="pl62-i" maxlength="200" value="${esc(x.title)}"><button type="button" class="btn sm primary">Save</button>`; const i = $("input", row); i.focus(); const go = async () => { const t = i.value.trim(); if (!t) return; const r = { ...x, title: t }; logAdd28(r, "Edited", t); if (await save28(null, r, "Plan updated")) render(); }; $("button", row).onclick = go; i.onkeydown = e => { if (e.key === "Enter") go(); }; });
+  $$("[data-pd]", v).forEach(b => b.onclick = async () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Remove?"; return; } const r = { ...BIZ.rows[b.dataset.pd], status: "cancelled" }; logAdd28(r, "Removed", "from today's plan"); if (await save28(null, r, "Removed")) render(); });
+}
+/* ---- evening daily update: every work needs From and To time ---- */
+const duMine62 = (day = todayISO()) => all28("wd").find(x => x.who === me28() && x.day === day);
+function duItems62() {
+  const d = duMine62(); if (d && d.items) return JSON.parse(JSON.stringify(d.items));
+  if (W62.draft?.day === todayISO()) return W62.draft.items;
+  const plan = planToday62().map(x => ({ title: x.title, state: x.status === "done" ? "done" : "progress", from: "", to: "", wk: x.id }));
+  return plan;
+}
+function du62() {
+  const d = duMine62(), items = W62.duItems || (W62.duItems = duItems62()), tot = items.reduce((a, i) => a + mins62(i.from, i.to), 0);
+  const late = hm62() > "18:30";
+  return `<section class="panel"><div class="body">
+    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:8px"><span class="chip ${d?.submittedAt ? "ok" : "warn"}">${d?.submittedAt ? "Sent " + esc(dt62(d.submittedAt)) : "Not sent yet"}</span><span class="chip">${items.filter(i => i.state === "done").length} completed · ${items.filter(i => i.state === "progress").length} in progress · ${items.filter(i => i.state === "pending").length} pending</span><span class="chip navy">Total ${dur62(tot) || "0h"}</span>${late && !d?.submittedAt ? '<span class="chip bad">After 6:30 PM - marked late</span>' : ""}</div>
+    <div class="stack" style="gap:8px">${items.map((i, n) => `<div class="du62 ${i.state}" data-n="${n}"><div class="du62-h"><input class="du62-t" value="${esc(i.title)}" maxlength="300" data-f="title"><button type="button" class="btn sm" data-dx="${n}" title="Remove" style="color:#c0392b">🗑️</button></div>
+      <div class="du62-r"><div class="seg62">${[["done", "Completed"], ["progress", "In progress"], ["pending", "Pending"]].map(([k, l]) => `<button type="button" class="${i.state === k ? "on " + k : ""}" data-st="${k}">${l}</button>`).join("")}</div>
+      <label>From<input type="time" data-f="from" value="${esc(i.from || "")}"></label><label>To<input type="time" data-f="to" value="${esc(i.to || "")}"></label><button type="button" class="btn sm" data-now="${n}">Now</button><b class="small">${dur62(mins62(i.from, i.to))}</b></div></div>`).join("") || '<div class="empty"><b>No work yet</b>Add what you did today below.</div>'}</div>
+    <div class="du62-add"><input id="du62n" placeholder="What did you work on?" maxlength="300"><label>From<input type="time" id="du62f"></label><label>To<input type="time" id="du62to"></label><button type="button" class="btn sm primary" id="du62a">+ Add</button></div>
+    <label class="f" style="margin-top:10px">Remarks (optional)<textarea id="du62r" rows="2">${esc(d?.remarks || W62.duRemarks || "")}</textarea></label>
+    <button type="button" class="btn primary block" id="du62s" style="margin-top:10px">${d?.submittedAt ? "Update and send again" : "Send today's update"}</button>
+    <p class="small muted">Every work needs a From and To time. "To" of one work fills "From" of the next. MD sir gets one report at 6:35 PM.</p></div></section>`;
+}
+function wireDu62(v) {
+  const I = W62.duItems; if (!I || !$("#du62s", v)) return;
+  const keep = () => { W62.draft = { day: todayISO(), items: I }; W62.duRemarks = $("#du62r", v)?.value || ""; };
+  $$(".du62", v).forEach(row => {
+    const n = +row.dataset.n;
+    $$("[data-f]", row).forEach(inp => inp.onchange = () => { I[n][inp.dataset.f] = inp.value; keep(); render(); });
+    $$("[data-st]", row).forEach(b => b.onclick = () => { I[n].state = b.dataset.st; keep(); render(); });
+  });
+  $$("[data-dx]", v).forEach(b => b.onclick = () => { I.splice(+b.dataset.dx, 1); keep(); render(); });
+  $$("[data-now]", v).forEach(b => b.onclick = () => { I[+b.dataset.now].to = hm62(); keep(); render(); });
+  const last = I.map(i => i.to).filter(Boolean).sort().pop(); if (last && !$("#du62f", v).value) $("#du62f", v).value = last;
+  const add = () => { const t = $("#du62n", v).value.trim(), f = $("#du62f", v).value, to = $("#du62to", v).value; if (!t) return $("#du62n", v).focus(); if (!f || !to) { toast("Add the From and To time for this work", "bad"); return (f ? $("#du62to", v) : $("#du62f", v)).focus(); } if (to <= f) return toast('"To" time must be after "From" time', "bad"); I.push({ title: t, state: "done", from: f, to }); keep(); render(); setTimeout(() => $("#du62n")?.focus(), 50); };
+  $("#du62a", v).onclick = add; $("#du62n", v).onkeydown = e => { if (e.key === "Enter") add(); };
+  $("#du62r", v).oninput = keep;
+  $("#du62s", v).onclick = async e => {
+    if ($("#du62n", v).value.trim()) return toast('Tap "+ Add" for the work you typed, or clear it', "bad");
+    if (!I.length) return toast("Add at least one work", "bad");
+    const bad = I.find(i => !i.from || !i.to || i.to <= i.from); if (bad) return toast(!bad.from || !bad.to ? `Add From and To time for "${bad.title.slice(0, 40)}"` : `"To" must be after "From" for "${bad.title.slice(0, 40)}"`, "bad");
+    const old = duMine62(), r = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: I.map(i => ({ title: i.title, state: i.state, from: i.from, to: i.to, wk: i.wk || "" })), remarks: $("#du62r", v).value.trim(), submittedAt: now62(), late: hm62() > "18:30" };
+    const ups = I.filter(i => i.wk && BIZ.rows[i.wk]).map(i => { const w = { ...BIZ.rows[i.wk] }, s = i.state; if (w.status === s || (s === "done" && w.status === "done")) return null; w.status = s; if (s === "done") { w.pct = 100; w.doneAt = now62(); } logAdd28(w, "Daily update", s); return w; }).filter(Boolean);
+    if (await save28(e.target, [r, ...ups], "Update sent. Thank you!")) { W62.draft = null; W62.duItems = null; render(); }
+  };
+}
+function dash62() {
+  const t = todayISO(), K = all28("wk"), D = all28("wd").filter(x => x.day === t), all = adm62() || pg62("work.team");
+  const people = all ? W62.team : W62.team.filter(u => u.email === me28());
+  const rows = people.map(u => { const L = K.filter(x => x.to === u.email && x.status !== "cancelled"), op = L.filter(x => x.status !== "done"); return { u, open: op.length, over: op.filter(x => x.due && String(x.due).slice(0, 10) < t).length, done: L.filter(x => x.status === "done" && String(x.doneAt || "").slice(0, 10) === t).length, du: D.find(x => x.who === u.email), avg: op.length ? Math.round(op.reduce((a, x) => a + (+x.pct || 0), 0) / op.length) : 100 }; });
+  return `<div class="kpi62">${[["Open work", rows.reduce((a, r) => a + r.open, 0)], ["Overdue", rows.reduce((a, r) => a + r.over, 0)], ["Completed today", rows.reduce((a, r) => a + r.done, 0)], ["Daily updates sent", D.length + "/" + people.length]].map(([l, n]) => `<div class="panel kpi"><b>${n}</b><small>${l}</small></div>`).join("")}</div>
+    <section class="panel"><header><h2>${all ? "Every department" : "Me"}</h2><button type="button" class="btn sm primary" id="pdf62">📄 Today's work (PDF)</button></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Person</th><th>Open</th><th>Overdue</th><th>Done today</th><th>Avg %</th><th>Daily update</th></tr></thead><tbody>
+    ${rows.map(r => `<tr><td><b>${esc(r.u.name)}</b></td><td>${r.open}</td><td style="color:${r.over ? "#c0392b" : ""}">${r.over}</td><td style="color:#1e8e3e">${r.done}</td><td><span class="chip" style="background:${pcol62(r.avg)};color:#fff">${r.avg}%</span></td><td>${r.du ? `<span class="chip ok">Sent ${esc(dt62(r.du.submittedAt).split(", ").pop())}</span>` : '<span class="chip warn">Not yet</span>'}</td></tr>`).join("")}</tbody></table></div></section>`;
+}
+function wireDash62(v) { const b = $("#pdf62", v); if (b) b.onclick = () => dayPdf62(); }
+async function dayPdf62(day = todayISO()) {
+  const all = adm62() || pg62("work.team"), me = me28(), K = all28("wk"), D = all28("wd").filter(x => x.day === day && (all || x.who === me));
+  const ppl = all ? W62.team : W62.team.filter(u => u.email === me);
+  const sec = ppl.map(u => {
+    const ev = K.filter(x => x.to === u.email).flatMap(x => (x.log || []).filter(l => String(l.at).slice(0, 10) === day).map(l => ({ ...l, title: x.title, no: x.no }))).sort((a, b) => String(a.at).localeCompare(String(b.at)));
+    const du = D.find(x => x.who === u.email);
+    if (!ev.length && !du) return "";
+    return `<h2>${esc(u.name)}</h2>${du ? `<table><tr><th>Work</th><th>From</th><th>To</th><th>Time</th><th>Status</th></tr>${du.items.map(i => `<tr><td>${esc(i.title)}</td><td>${esc(i.from)}</td><td>${esc(i.to)}</td><td>${dur62(mins62(i.from, i.to))}</td><td>${{ done: "Completed", progress: "In progress", pending: "Pending" }[i.state] || ""}</td></tr>`).join("")}</table>${du.remarks ? `<p><i>Remarks: ${esc(du.remarks)}</i></p>` : ""}` : "<p><i>Daily update not sent.</i></p>"}
+      ${ev.length ? `<table><tr><th>Time</th><th>Work</th><th>What</th><th>By</th></tr>${ev.map(l => `<tr><td>${new Date(l.at).toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" })}</td><td>${esc(l.no || "")} ${esc(l.title)}</td><td>${esc(l.type)}${l.text ? " - " + esc(l.text) : ""}</td><td>${esc(nm62(l.by))}</td></tr>`).join("")}</table>` : ""}`;
+  }).join("");
+  printHtml28("Today's work " + day, `${await lhImg62()}<h1>Today's work - ${dmy62(day)}</h1><p>Every work assigned and updated today, with the time${all ? "" : " (" + esc(nm62(me)) + ")"}.</p>${sec || "<p>No work was assigned or updated on this day.</p>"}`);
+}
+
+/* ---------------- COURIER ---------------- */
+const CRCO62 = ["DTDC", "Blue Dart", "Professional Couriers", "India Post / Speed Post", "ST Courier", "Trackon", "DHL", "FedEx", "Delhivery", "By hand", "Transport / lorry", "Other"];
+const CRST62 = ["Pending", "Acknowledged", "Delivered", "Returned"];
+VIEWS.courier = v => {
+  bizSync28(); team62().then(() => { if (STATE.route === "courier" && !v.dataset.t62) { v.dataset.t62 = 1; render(); } });
+  const allOk = pg62("courier.all"), tabs = tabsFor62("courier", "cr62", [["mine", "My couriers"], ["all", "Courier register", allOk]]);
+  const U = BIZ.ui, me = me28(), q = (U.cr62q || "").toLowerCase();
+  const L = all28("cr").filter(x => U.cr62 === "all" ? true : x.forEmail === me || x.byEmail === me || x.by === me)
+    .filter(x => !U.cr62d || x.dir === U.cr62d).filter(x => !q || [x.party, x.place, x.docket, x.contents, x.company, x.no, nm62(x.forEmail)].join(" ").toLowerCase().includes(q))
+    .sort((a, b) => String(b.date + b.time).localeCompare(String(a.date + a.time)));
+  const t = todayISO(), A = all28("cr");
+  v.innerHTML = top62("Admin", "Courier register", "Incoming and outgoing couriers. The person a courier is for gets a mail and taps Acknowledge.",
+    `<button class="btn primary" id="cr62i" type="button">📥 Incoming</button><button class="btn" id="cr62o" type="button">📤 Outgoing</button>`)
+    + (loadNote28() || `${tabs.length > 1 ? tabs28(U.cr62, tabs, "cr62t") : ""}
+    <div class="kpi62">${[["Incoming today", A.filter(x => x.dir === "in" && x.date === t).length], ["Outgoing today", A.filter(x => x.dir === "out" && x.date === t).length], ["Waiting for me", A.filter(x => x.dir === "in" && x.status === "Pending" && x.forEmail === me).length], ["Not acknowledged", A.filter(x => x.dir === "in" && x.status === "Pending").length]].map(([l, n]) => `<div class="panel kpi"><b>${n}</b><small>${l}</small></div>`).join("")}</div>
+    <section class="panel"><div class="body"><div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">${[["", "All"], ["in", "Incoming"], ["out", "Outgoing"]].map(([k, l]) => `<button type="button" class="btn sm ${(U.cr62d || "") === k ? "primary" : ""}" data-crd="${k}">${l}</button>`).join("")}<input id="cr62q" type="search" placeholder="Search party, docket, contents…" value="${esc(U.cr62q || "")}" style="flex:1;min-width:180px"><button type="button" class="btn sm" id="cr62x">⬇ Excel</button></div>
+    <div style="overflow:auto"><table class="t"><thead><tr><th>No.</th><th>Date</th><th>Party</th><th>Courier / docket</th><th>Contents</th><th>For</th><th>Status</th></tr></thead><tbody>${L.map(x => `<tr data-cr="${x.id}" style="cursor:pointer"><td>${x.dir === "in" ? "📥" : "📤"} ${esc(x.no || "")}</td><td>${esc(dmy62(x.date))} ${esc(x.time || "")}</td><td><b>${esc(x.party)}</b><div class="small muted">${esc(x.place || "")}</div></td><td>${esc([x.company, x.docket].filter(Boolean).join(" · "))}</td><td>${esc(x.contents || "")}</td><td>${esc(nm62(x.forEmail) || x.dept || "")}</td><td><span class="chip ${x.status === "Pending" ? "warn" : "ok"}">${esc(x.status)}</span></td></tr>`).join("") || '<tr><td colspan="7" class="muted">No couriers yet.</td></tr>'}</tbody></table></div></div></section>`);
+  $$("[data-cr62t]", v).forEach(b => b.onclick = () => { U.cr62 = b.dataset.cr62t; render(); });
+  $$("[data-crd]", v).forEach(b => b.onclick = () => { U.cr62d = b.dataset.crd; render(); });
+  $("#cr62i", v).onclick = () => crPanel62(null, "in"); $("#cr62o", v).onclick = () => crPanel62(null, "out");
+  $$("[data-cr]", v).forEach(r => r.onclick = () => crPanel62(BIZ.rows[r.dataset.cr]));
+  const f = $("#cr62q", v); if (f) f.oninput = () => { U.cr62q = f.value; clearTimeout(W62.ct); W62.ct = setTimeout(() => { render(); const i = $("#cr62q"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 250); };
+  const x = $("#cr62x", v); if (x) x.onclick = () => csv62("courier-register.csv", [["No", "In/Out", "Date", "Time", "Party", "Place", "Courier", "Docket", "Contents", "Reference", "For", "Status", "Acknowledged by", "Acknowledged at"], ...L.map(c => [c.no, c.dir === "in" ? "Incoming" : "Outgoing", c.date, c.time, c.party, c.place, c.company, c.docket, c.contents, c.ref, nm62(c.forEmail), c.status, nm62(c.ackBy || ""), c.ackAt || ""])]);
+};
+function csv62(name, rows) { const s = "﻿" + rows.map(r => r.map(c => `"${String(c ?? "").replace(/"/g, '""')}"`).join(",")).join("\n"); const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([s], { type: "text/csv" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 5000); }
+function crPanel62(src, dir) {
+  const r = src ? { ...src } : { kind: "cr", dir, date: todayISO(), time: hm62(), status: "Pending", byEmail: me28(), handler: AUTH.user?.name || "" };
+  const me = me28(), canAck = r.dir === "in" && r.status === "Pending" && (r.forEmail === me || adm62() || pg62("courier.all")), canEd = !src || adm62() || pg62("courier.all") || r.by === me;
+  const F = [["party", r.dir === "in" ? "Sender (from) *" : "Recipient (to) *", "text"], ["place", "Place", "text"], ["company", "Courier company", "list", CRCO62], ["docket", "Docket / AWB no.", "text"], ["contents", "Contents", "text"], ["ref", "Reference (invoice / PO)", "text"], ["forEmail", r.dir === "in" ? "For (gets a mail)" : "Sent for", "select", [["", "—"], ...W62.team.map(u => [u.email, u.name])]], ["date", "Date", "date"], ["time", "Time", "time"], ["status", "Status", "select", CRST62], ["handler", r.dir === "in" ? "Received by" : "Handed over by", "text"], ["phone", "Phone", "tel"], ["remarks", "Remarks", "textarea"]];
+  const D = panel28({
+    title: src ? `${r.no} · ${r.party}` : r.dir === "in" ? "📥 Incoming courier" : "📤 Outgoing courier", chips: src ? `<span class="chip ${r.status === "Pending" ? "warn" : "ok"}">${esc(r.status)}</span>${r.ackBy ? `<span class="chip">Acknowledged by ${esc(nm62(r.ackBy))} · ${esc(dt62(r.ackAt))}</span>` : ""}` : "",
+    body: `${canAck && src ? `<button type="button" class="btn primary block" id="cr62a" style="background:#1e8e3e;margin-bottom:10px">✓ Acknowledge - I received it</button>` : ""}
+      <div class="fields">${F.map(f => field28(f, r)).join("")}</div>
+      <section class="dr26-sec"><h3>Scan / photo of the slip</h3>${r.scan ? `<button type="button" class="btn sm" id="cr62v">📎 Open scan</button>` : '<span class="small muted">No scan</span>'} <label class="btn sm">${icon("plus")}${r.scan ? "Replace" : "Add"} scan<input type="file" accept="image/*,.pdf" id="cr62f" hidden></label></section>`,
+    foot: `${src ? '<button class="btn" id="cr62p" type="button">🖨 Receipt</button>' : ""}<span style="flex:1"></span>${canEd ? '<button class="btn primary" id="cr62s" type="button">Save</button>' : ""}`
+  });
+  let file = null;
+  $("#cr62f").onchange = e => { file = e.target.files[0]; if (file && file.size > 8e6) { toast("Scan is bigger than 8 MB", "bad"); file = null; } else if (file) toast("Scan will be saved with the courier"); };
+  $("#cr62v") && ($("#cr62v").onclick = () => openFile62(r.scan, r.scanName));
+  $("#cr62a") && ($("#cr62a").onclick = async e => { const x = { ...r, status: "Acknowledged", ackBy: me, ackAt: now62() }; if (await save28(e.target, x, "Acknowledged")) { closeDrawer26(); render(); } });
+  $("#cr62p") && ($("#cr62p").onclick = async () => printHtml28(r.no, `${await lhImg62()}<h1>${r.dir === "in" ? "Incoming" : "Outgoing"} courier receipt - ${esc(r.no)}</h1><table>${F.filter(f => r[f[0]]).map(f => `<tr><th style="width:35%">${esc(f[1].replace(" *", ""))}</th><td>${esc(f[0] === "forEmail" ? nm62(r[f[0]]) : f[0] === "date" ? dmy62(r.date) : r[f[0]])}</td></tr>`).join("")}${r.ackBy ? `<tr><th>Acknowledged</th><td>${esc(nm62(r.ackBy))} · ${esc(dt62(r.ackAt))}</td></tr>` : ""}</table><br><br><table style="border:0"><tr><td style="border:0">${r.dir === "in" ? "Received by" : "Handed over by"}: ____________</td><td style="border:0;text-align:right">Authorised signature: ____________</td></tr></table>`));
+  $("#cr62s") && ($("#cr62s").onclick = async e => {
+    readForm28(D, r); if (!r.party) return toast(r.dir === "in" ? "Write the sender" : "Write the recipient", "bad");
+    if (file) { try { const id = "cr62_" + Date.now().toString(36), b64 = await b6462(file); await AUTH.call("filePut", { id, b64, name: file.name, type: file.type }, 90000); r.scan = id; r.scanName = file.name; } catch (er) { toast("Scan not saved: " + er.message, "bad"); } }
+    if (await save28(e.target, r, src ? "Saved" : r.dir === "in" && r.forEmail ? "Saved - " + nm62(r.forEmail) + " told by mail" : "Saved")) { closeDrawer26(); render(); }
+  });
+}
+const b6462 = f => new Promise((ok, no) => { const fr = new FileReader(); fr.onload = () => ok(String(fr.result).split(",")[1]); fr.onerror = () => no(new Error("Could not read the file")); fr.readAsDataURL(f); });
+async function openFile62(id, name) {
+  try { const d = await AUTH.call("fileGet", { id }, 90000); const b64 = d.b64 || d.data || ""; if (!b64) throw new Error("File not found"); const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i); const url = URL.createObjectURL(new Blob([u], { type: d.type || (/\.pdf$/i.test(name || "") ? "application/pdf" : "image/jpeg") })); window.open(url, "_blank"); }
+  catch (e) { toast(e.message, "bad"); }
+}
+
+/* ---------------- HANDOVER ---------------- */
+const HOC62 = [["work", "Pending work and follow-ups", "Every open job, its status and next step. Your open work is listed below automatically.", 1], ["files", "Files and documents", "Where every important file is kept (Synology folder / PC) - or the list of files given to Admin.", 1], ["contacts", "Contacts (customers / vendors)", "Important names and numbers, or the contact list file given to Admin.", 1], ["phone", "Phone data", "Contacts and WhatsApp business groups exported and given to Admin.", 1], ["email", "Email and system access", "Which email IDs, software and portals you used. Do NOT write passwords - give access to Admin directly (Admin keeps them in the Password vault).", 1], ["assets", "Company assets returned", "Laptop, mobile, SIM, ID card, keys, tools - to whom each was given.", 1]];
+const HOR62 = { sales: [["customers", "Customer list with status", "Active customers, last contact, next follow-up.", 1], ["quotes", "Open quotations, enquiries and orders", "Quote numbers, values, expected decisions.", 1], ["collections", "Payments to collect", "Customer, invoice, amount, due date.", 1], ["tenders", "Tenders and portals", "Bid numbers and due dates (no passwords).", 0]],
+  finance: [["bank", "Bank and payment schedule", "Upcoming payments, cheques issued.", 1], ["statutory", "GST / TDS / PF / ESI dates", "Returns due, filings pending, notices.", 1], ["receivables", "Receivables and payables", "Outstanding list with ageing.", 1]],
+  operation: [["jobs", "Jobs in progress", "Each job: stage, next step, customer date.", 1], ["records", "Quality and test records", "Test reports, QC and calibration records.", 1], ["stock", "Stock and pending purchase", "Stock position, open POs, deliveries due.", 1]],
+  admin: [["team", "Team and responsibilities", "Who does what, targets, approvals waiting.", 1]] };
+const HOST62 = { draft: ["Draft", ""], submitted: ["With Admin", "warn"], admin_ok: ["With MD", "navy"], approved: ["Approved", "ok"], returned: ["Sent back", "bad"] };
+VIEWS.handover = v => {
+  bizSync28(); team62().then(() => { if (STATE.route === "handover" && !v.dataset.t62) { v.dataset.t62 = 1; render(); } });
+  const me = me28(), apr = pg62("handover.approve"), tabs = tabsFor62("handover", "ho62", [["mine", "My handover"], ["approve", "Approvals", apr]]);
+  const L = all28("ho").filter(x => BIZ.ui.ho62 === "approve" ? true : x.emp === me || x.to === me).sort((a, b) => String(b.at).localeCompare(String(a.at)));
+  const mineOpen = all28("ho").find(x => x.emp === me && x.status !== "approved");
+  v.innerHTML = top62("Admin", "Handover", "Leaving, transferring or long leave? Hand over everything here. The app checks it against your role, then Admin and MD sir approve.",
+    mineOpen ? `<button class="btn primary" id="ho62c" type="button">Continue my handover</button>` : `<button class="btn primary" id="ho62n" type="button">🔁 Start my handover</button>`)
+    + (loadNote28() || `${tabs.length > 1 ? tabs28(BIZ.ui.ho62, tabs, "ho62t") : ""}<section class="panel"><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Employee</th><th>Handing over to</th><th>Reason</th><th>Status</th></tr></thead><tbody>
+      ${L.map(x => `<tr data-ho="${x.id}" style="cursor:pointer"><td><b>${esc(x.empName || nm62(x.emp))}</b></td><td>${esc(x.toName || nm62(x.to))}</td><td>${esc(x.reason || "")}</td><td><span class="chip ${(HOST62[x.status] || HOST62.draft)[1]}">${(HOST62[x.status] || HOST62.draft)[0]}</span></td></tr>`).join("") || '<tr><td colspan="4" class="muted">No handovers.</td></tr>'}</tbody></table></div></section>`);
+  $$("[data-ho62t]", v).forEach(b => b.onclick = () => { BIZ.ui.ho62 = b.dataset.ho62t; render(); });
+  $("#ho62n", v) && ($("#ho62n", v).onclick = () => hoPanel62(null));
+  $("#ho62c", v) && ($("#ho62c", v).onclick = () => hoPanel62(mineOpen));
+  $$("[data-ho]", v).forEach(r => r.onclick = () => hoPanel62(BIZ.rows[r.dataset.ho]));
+};
+function hoCheck62(r) {
+  const miss = (r.items || []).filter(i => i.req && !i.na && !String(i.text || "").trim()).map(i => i.title), p = [];
+  if (!r.to) p.push("Choose who takes over your work"); if (miss.length) p.push("Fill: " + miss.join(", "));
+  (r.items || []).filter(i => i.na && String(i.text || "").trim().length < 3).forEach(i => p.push(`Give a reason why "${i.title}" is not applicable`));
+  return p;
+}
+function hoPanel62(src) {
+  const me = me28(), role = AUTH.user?.role || "sales";
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "ho", emp: me, empName: AUTH.user?.name || "", status: "draft", items: [...HOC62, ...(HOR62[role] || [])].map(([key, title, hint, req]) => ({ key, title, hint, req, text: "", na: false })) };
+  const edit = r.emp === me && ["draft", "returned"].includes(r.status), canAdm = r.status === "submitted" && pg62("handover.approve"), canMd = r.status === "admin_ok" && (me === W62.md || adm62());
+  const openWk = all28("wk").filter(x => x.to === r.emp && !["done", "cancelled"].includes(x.status)), assets = all28("fa").filter(a => a.holder === r.emp);
+  const P = hoCheck62(r), done = (r.items || []).filter(i => i.na || String(i.text || "").trim()).length;
+  const D = panel28({
+    title: `Handover - ${r.empName || nm62(r.emp)}`, chips: `<span class="chip ${(HOST62[r.status] || HOST62.draft)[1]}">${(HOST62[r.status] || HOST62.draft)[0]}</span><span class="chip">${done}/${r.items.length} items</span><span class="chip">${openWk.length} open work</span>`,
+    body: `${r.status === "returned" && r.note ? `<div class="note warn small">Sent back: ${esc(r.note)}</div>` : ""}
+      <div class="fields">${edit ? `<label class="f">Who takes over *<select id="ho62to"><option value="">Choose…</option>${peopleOpts62(r.to, true)}</select></label>${field28(["reason", "Reason", "select", ["Resigning", "Transfer to another department", "Role change", "Long leave", "Other"]], r)}${field28(["lastDay", "Last working day", "date"], r)}` : `<div class="small">To <b>${esc(r.toName || nm62(r.to))}</b> · ${esc(r.reason || "")} · last day ${esc(dmy62(r.lastDay))}</div>`}</div>
+      ${(r.items || []).map((i, n) => `<div class="ho62i ${i.na ? "na" : String(i.text || "").trim() ? "ok" : i.req ? "miss" : ""}"><b>${esc(i.title)}</b>${i.req ? "" : ' <span class="small muted">(optional)</span>'}<div class="small muted">${esc(i.hint)}</div>${edit ? `<textarea rows="2" data-hi="${n}">${esc(i.text || "")}</textarea><label class="small"><input type="checkbox" data-hn="${n}" ${i.na ? "checked" : ""}> Not applicable to me</label>` : `<div style="white-space:pre-wrap">${esc(i.text || (i.na ? "Not applicable" : "-"))}</div>`}</div>`).join("")}
+      <section class="dr26-sec"><h3>Open work (moves to the new person on approval)</h3>${openWk.map(x => `<div class="small">• ${esc(x.title)} (${x.pct || 0}%)</div>`).join("") || '<span class="small muted">No open work.</span>'}</section>
+      ${assets.length ? `<section class="dr26-sec"><h3>Company assets with this person</h3>${assets.map(a => `<div class="small">• ${esc(a.name)} ${esc(a.tag || "")} ${esc(a.serial || "")}</div>`).join("")}</section>` : ""}
+      ${edit && P.length ? `<div class="note warn small"><b>Before you can submit:</b><br>${P.map(esc).join("<br>")}</div>` : ""}
+      ${canAdm || canMd ? `<label class="f" style="margin-top:10px">Note (needed when sending back)<textarea id="ho62note" rows="2"></textarea></label>` : ""}
+      <section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>`,
+    foot: `${r.status === "approved" ? '<button class="btn" id="ho62p" type="button">🖨 Handover summary</button>' : ""}<span style="flex:1"></span>${edit ? '<button class="btn" id="ho62s" type="button">Save</button><button class="btn primary" id="ho62go" type="button">Check and submit</button>' : ""}${canAdm || canMd ? `<button class="btn" id="ho62b" type="button">Send back</button><button class="btn primary" id="ho62ok" type="button">${canMd ? "Approve" : "Verified - send to MD"}</button>` : ""}`
+  });
+  const read = () => { if (!edit) return; r.to = $("#ho62to").value; r.toName = nm62(r.to); r.reason = $("[data-k=reason]", D).value; r.lastDay = $("[data-k=lastDay]", D).value; $$("[data-hi]", D).forEach(t => { r.items[+t.dataset.hi].text = t.value; }); $$("[data-hn]", D).forEach(c => { r.items[+c.dataset.hn].na = c.checked; }); };
+  const put = async (btn, extra, type, text, msg, more = []) => { read(); Object.assign(r, extra); logAdd28(r, type, text); if (await save28(btn, [r, ...more], msg)) { closeDrawer26(); render(); return true; } };
+  $("#ho62s") && ($("#ho62s").onclick = e => put(e.target, {}, "Saved", "", "Saved"));
+  $("#ho62go") && ($("#ho62go").onclick = e => { read(); const p = hoCheck62(r); if (p.length) return toast(p[0], "bad"); const nm = prompt(`Are you sure? You are handing over to ${r.toName}, ${openWk.length} open work will move. Type your name to confirm:`); if (!nm || nm.trim().toLowerCase() !== String(r.empName || "").trim().toLowerCase()) return toast(`Type your name exactly as "${r.empName}"`, "bad"); put(e.target, { status: "submitted", confirmed: now62() }, "Submitted", `Confirmed. ${done}/${r.items.length} items, ${openWk.length} open work`, "Submitted - Admin and MD sir will review it"); });
+  const note = () => ($("#ho62note")?.value || "").trim();
+  $("#ho62b") && ($("#ho62b").onclick = e => { if (!note()) return toast("Write what is missing", "bad"); put(e.target, { status: "returned", note: note() }, "Sent back", note(), "Sent back"); });
+  $("#ho62ok") && ($("#ho62ok").onclick = e => {
+    if (canMd) { const moves = openWk.map(x => { const w = { ...x, to: r.to, toName: r.toName, status: x.status === "new" ? "new" : "accepted" }; logAdd28(w, "Reassigned", "Handover from " + (r.empName || nm62(r.emp))); return w; }); put(e.target, { status: "approved", mdBy: me, mdAt: now62(), note: note() }, "Approved", note() || "Approved by MD", "Approved - open work moved", moves); }
+    else put(e.target, { status: "admin_ok", adminBy: me, adminAt: now62(), note: note() }, "Admin verified", note(), "Sent to MD sir");
+  });
+  $("#ho62p") && ($("#ho62p").onclick = async () => printHtml28("Handover " + (r.empName || ""), `${await lhImg62()}<h1>Handover - ${esc(r.empName || nm62(r.emp))}</h1><p>To <b>${esc(r.toName)}</b> · ${esc(r.reason || "")} · last day ${esc(dmy62(r.lastDay))} · Admin ${esc(nm62(r.adminBy || ""))} ${esc(dt62(r.adminAt))} · MD ${esc(dt62(r.mdAt))}</p><table><tr><th>Item</th><th>Details</th></tr>${r.items.map(i => `<tr><td><b>${esc(i.title)}</b></td><td style="white-space:pre-wrap">${esc(i.na ? "Not applicable: " + i.text : i.text)}</td></tr>`).join("")}</table><p><small>Passwords are not kept in this document.</small></p>`));
+}
+
+/* ---------------- ASSET REGISTER ---------------- */
+const FACAT62 = ["Laptop / Computer", "Mobile / SIM", "Electronics", "Machine / Equipment", "Tools", "Testing / Lab instrument", "Vehicle", "Furniture", "Office equipment", "Canteen", "Software / Licence", "Other"];
+const FAST62 = ["In use", "Spare", "Under repair", "Lost", "Disposed"];
+VIEWS.assets62 = v => {
+  bizSync28(); team62();
+  const U = BIZ.ui, q = (U.fa62q || "").toLowerCase(), A = all28("fa");
+  const L = A.filter(a => (!U.fa62c || a.category === U.fa62c) && (!U.fa62s || a.status === U.fa62s) && (!q || [a.tag, a.name, a.serial, a.regNo, a.location, a.dept, a.company, a.invoice, nm62(a.holder || "")].join(" ").toLowerCase().includes(q))).sort((a, b) => String(a.category + a.name).localeCompare(b.category + b.name));
+  const soon = A.filter(a => a.warranty && a.warranty >= todayISO() && a.warranty <= new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)).length;
+  v.innerHTML = top62("Admin", "Asset register", `${A.length} assets · ${inr28(sum29(A, "value"))} · ${A.filter(a => a.holder).length} with people${soon ? ` · <b style="color:#c0392b">${soon} warranties ending in 30 days</b>` : ""}`,
+    `<button class="btn primary" id="fa62n" type="button">${icon("plus")}Add asset</button><label class="btn">⬆ Import Excel<input type="file" accept=".xlsx,.xls" id="fa62i" hidden></label><button class="btn" id="fa62x" type="button">⬇ Excel</button><button class="btn" id="fa62l" type="button">🏷 Labels</button>`)
+    + (loadNote28() || `<section class="panel"><div class="body"><div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px"><input id="fa62q" type="search" placeholder="Search name, tag, serial, person, vehicle no…" value="${esc(U.fa62q || "")}" style="flex:1;min-width:200px">
+      <select id="fa62c"><option value="">All categories</option>${FACAT62.map(c => `<option ${c === U.fa62c ? "selected" : ""}>${c}</option>`).join("")}</select><select id="fa62s"><option value="">Any status</option>${FAST62.map(c => `<option ${c === U.fa62s ? "selected" : ""}>${c}</option>`).join("")}</select></div>
+      <div style="overflow:auto"><table class="t"><thead><tr><th>Asset</th><th>Category</th><th>With</th><th>Location</th><th>Status</th><th style="text-align:right">Value</th></tr></thead><tbody>${L.slice(0, 1500).map(a => `<tr data-fa="${a.id}" style="cursor:pointer"><td><b>${esc(a.name)}</b><div class="small muted">${esc([a.tag, a.company, a.serial || a.regNo].filter(Boolean).join(" · "))}</div></td><td>${esc(a.category || "")}</td><td>${esc(a.holder ? nm62(a.holder) : "-")}</td><td>${esc(a.location || "")}</td><td><span class="chip ${a.status === "In use" ? "ok" : a.status === "Under repair" ? "warn" : ""}">${esc(a.status || "")}</span></td><td style="text-align:right">${a.value ? inr28(a.value) : "-"}</td></tr>`).join("") || '<tr><td colspan="6" class="muted">No assets. Add one, or import the asset register Excel from the Synology (ASSET / 00_Asset_Registers).</td></tr>'}</tbody></table></div></div></section>`);
+  const f = $("#fa62q", v); if (f) f.oninput = () => { U.fa62q = f.value; clearTimeout(W62.at); W62.at = setTimeout(() => { render(); const i = $("#fa62q"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 300); };
+  $("#fa62c", v) && ($("#fa62c", v).onchange = e => { U.fa62c = e.target.value; render(); }); $("#fa62s", v) && ($("#fa62s", v).onchange = e => { U.fa62s = e.target.value; render(); });
+  $("#fa62n", v).onclick = () => faPanel62(null); $$("[data-fa]", v).forEach(r => r.onclick = () => faPanel62(BIZ.rows[r.dataset.fa]));
+  $("#fa62x", v).onclick = () => csv62("asset-register.csv", [["Tag", "Company", "Category", "Name", "Serial / IMEI", "Vehicle no", "Location", "Department", "With", "Status", "Purchase date", "Invoice", "Value", "Warranty until", "Notes"], ...L.map(a => [a.tag, a.company, a.category, a.name, a.serial, a.regNo, a.location, a.dept, nm62(a.holder || ""), a.status, a.purchase, a.invoice, a.value, a.warranty, a.notes])]);
+  $("#fa62l", v).onclick = () => printHtml28("Asset labels", `<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px">${L.slice(0, 300).map(a => `<div style="border:1px solid #999;border-radius:6px;padding:8px;font-size:11px"><b style="color:#02315B">RIVERA</b><br><b style="font-size:13px">${esc(a.tag || a.no)}</b><br>${esc(a.name)}<br>${esc([a.company, a.location].filter(Boolean).join(" · "))}</div>`).join("")}</div>`);
+  $("#fa62i", v).onchange = e => e.target.files[0] && faImport62(e.target.files[0]);
+};
+function faPanel62(src) {
+  const r = src ? { ...src } : { kind: "fa", status: "In use", category: "Other" };
+  const D = panel28({
+    title: src ? `${r.name} · ${r.tag || r.no}` : "New asset", chips: src ? `<span class="chip">${esc(r.status)}</span>` : "",
+    body: `<div class="fields">${[["name", "Name *", "text", null, 1], ["tag", "Asset tag / ID", "text"], ["category", "Category", "select", FACAT62], ["company", "Company (RCM / RCR)", "text"], ["serial", "Serial / IMEI", "text"], ["regNo", "Vehicle / reg. no.", "text"], ["holder", "With (person)", "select", [["", "- In store -"], ...W62.team.map(u => [u.email, u.name])]], ["status", "Status", "select", FAST62], ["location", "Location", "text"], ["dept", "Department", "text"], ["purchase", "Purchase date", "date"], ["invoice", "Invoice no.", "text"], ["vendor", "Bought from", "text"], ["value", "Value ₹", "number"], ["warranty", "Warranty until", "date"], ["notes", "Notes", "textarea"]].map(f => field28(f, r)).join("")}</div>${src ? `<section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>` : ""}`,
+    foot: `${src ? '<button class="btn" id="fa62d" type="button" style="color:#c0392b">Remove</button>' : ""}<span style="flex:1"></span><button class="btn primary" id="fa62sv" type="button">Save</button>`
+  });
+  $("#fa62sv").onclick = async e => { const old = r.holder; readForm28(D, r); if (!r.name) return toast("Write the asset name", "bad"); if (src && old !== r.holder) logAdd28(r, r.holder ? "Assigned" : "Returned", r.holder ? nm62(r.holder) : "Back to store"); if (await save28(e.target, r, "Saved")) { closeDrawer26(); render(); } };
+  $("#fa62d") && ($("#fa62d").onclick = async e => { if (!e.target.dataset.sure) { e.target.dataset.sure = 1; e.target.textContent = "Tap again to remove"; return; } try { await bizDel28(r.id); toast("Removed"); closeDrawer26(); render(); } catch (er) { toast(er.message, "bad"); } });
+}
+/* import the Synology asset registers (Total Assets RCM / RCR.xlsx): every sheet, rows with an AST/... asset ID; tool lists too */
+async function faImport62(file) {
+  try {
+    await loadScript(LIBS.sheetjs); const wb = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true });
+    const co = (file.name.toUpperCase().match(/\bRC[A-Z]\b/) || [""])[0], have = new Set(all28("fa").map(a => a.tag)), out = [];
+    const xd = v => { if (v instanceof Date) return new Date(v.getTime() - v.getTimezoneOffset() * 6e4).toISOString().slice(0, 10); if (typeof v === "number" && v > 20000 && v < 80000) return new Date(Date.UTC(1899, 11, 30) + v * 864e5).toISOString().slice(0, 10); const m = String(v || "").match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/); return m ? `${m[3].length === 2 ? "20" + m[3] : m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : ""; };
+    const cat = (n, s) => { const t = (n + " " + s).toLowerCase(); return /laptop|computer|cpu|monitor/.test(t) ? "Laptop / Computer" : /mobile|phone/.test(t) ? "Mobile / SIM" : /meter|tester|vernier|gauge/.test(t) ? "Testing / Lab instrument" : /chair|table|rack|cupboard|almirah/.test(t) ? "Furniture" : /tool|spanner|wrench|drill/.test(t) ? "Tools" : /kitchen|canteen/.test(t) ? "Canteen" : /electric|ac |fan|cctv|ups|camera/.test(t) ? "Electronics" : /mechanical|machine|press|oven|crane/.test(t) ? "Machine / Equipment" : "Other"; };
+    for (const n of wb.SheetNames) {
+      const g = window.XLSX.utils.sheet_to_json(wb.Sheets[n], { header: 1, raw: true, defval: null });
+      const hi = g.slice(0, 15).findIndex(r => r.some(c => /asset\s*id/i.test(String(c || "")))), hdr = hi >= 0 ? g[hi].map(c => String(c || "").trim().toLowerCase()) : [];
+      const cost = hdr.lastIndexOf("cost"), rem = hdr.findLastIndex(h => h.startsWith("remark")); let sec = "";
+      for (const r of g.slice(hi + 1)) {
+        const cells = r.filter(c => c !== null && c !== ""); if (!cells.length) continue;
+        if (cells.length === 1 && typeof cells[0] === "string" && !/AST\//.test(cells[0])) { sec = cells[0]; continue; }
+        const ic = r.findIndex(c => typeof c === "string" && /^\s*AST\//.test(c));
+        if (ic > 0) { const tag = r[ic].replace(/\s+/g, ""), name = String(r[ic - 1] || "").trim(); if (!name || have.has(tag)) continue; have.add(tag);
+          out.push({ kind: "fa", tag, company: co, name: name.slice(0, 200), category: cat(name, sec), location: String(r[ic + 1] || "").trim(), dept: xd(r[ic + 2]) ? "" : String(r[ic + 2] || "").trim(), purchase: xd(r[ic + 3]) || xd(r[ic + 2]), value: cost >= 0 && Number(r[cost]) ? Number(r[cost]) : "", invoice: ic >= 2 && typeof r[ic - 2] === "string" ? r[ic - 2] : "", notes: [rem >= 0 ? r[rem] : "", "Sheet: " + n.trim()].filter(Boolean).join(" · "), status: "In use" }); }
+      }
+    }
+    if (!out.length) return toast("No asset rows (with an AST/... ID) found in this file", "bad");
+    if (!confirm(`Import ${out.length} assets from ${file.name}?`)) return;
+    for (let i = 0; i < out.length; i += 150) { toast(`Importing ${Math.min(i + 150, out.length)} / ${out.length}…`); await bizPut28(out.slice(i, i + 150)); }
+    toast(`${out.length} assets imported`); render();
+  } catch (e) { toast("Import failed: " + e.message, "bad"); }
+}
+
+/* ---------------- PASSWORD VAULT (encrypted here in the browser; the server only keeps scrambled data) ---------------- */
+const VT62 = { key: null, items: [], show: new Set(), q: "", timer: 0 };
+const VCAT62 = ["Finance / Bank", "Email", "Software / Portal", "Government / GST", "Wi-Fi / Network", "Device / Mobile", "Other"];
+const vb64 = b => btoa(String.fromCharCode(...new Uint8Array(b))), vub64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+async function vKey62(pw, salt, iter) { const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pw), "PBKDF2", false, ["deriveKey"]); return crypto.subtle.deriveKey({ name: "PBKDF2", salt: vub64(salt), iterations: iter, hash: "SHA-256" }, base, { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]); }
+async function vEnc62(o, key = VT62.key) { const iv = crypto.getRandomValues(new Uint8Array(12)); return { iv: vb64(iv), ct: vb64(await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(JSON.stringify(o)))) }; }
+async function vDec62(iv, ct, key = VT62.key) { return JSON.parse(new TextDecoder().decode(await crypto.subtle.decrypt({ name: "AES-GCM", iv: vub64(iv) }, key, vub64(ct)))); }
+const vMeta62 = () => all28("vlt").find(x => x.meta);
+function vLock62() { clearTimeout(VT62.timer); VT62.timer = setTimeout(() => { VT62.key = null; VT62.items = []; VT62.show.clear(); if (STATE.route === "vault") render(); }, 10 * 6e4); }
+VIEWS.vault = async v => {
+  bizSync28(); team62();
+  const head = top62("Admin", "Password vault", "Finance, bank, email and portal logins. Only MD sir and the Admin department. Locked with a master password typed only here - it is never sent to the server and cannot be recovered.", VT62.key ? `<button class="btn primary" id="vt62n" type="button">${icon("plus")}Add entry</button><label class="btn">⬆ Import CSV<input type="file" accept=".csv" id="vt62i" hidden></label><button class="btn" id="vt62k" type="button">🔒 Lock</button>` : "");
+  if (!window.crypto?.subtle) { v.innerHTML = head + '<div class="empty"><b>Needs a secure (https) page</b></div>'; return; }
+  const M = vMeta62();
+  if (loadNote28()) { v.innerHTML = head + loadNote28(); return; }
+  if (!M) {
+    v.innerHTML = head + `<section class="panel" style="max-width:460px"><div class="body"><h3 style="margin-top:0">Create the master password</h3><p class="small muted">At least 10 characters. Keep it safe and share it only in person with the Admin department.</p><input type="password" id="vt62a" placeholder="Master password" autocomplete="new-password"><input type="password" id="vt62b" placeholder="Type it again" autocomplete="new-password" style="margin-top:8px"><button class="btn primary block" id="vt62c" type="button" style="margin-top:10px">Create vault</button></div></section>`;
+    $("#vt62c", v).onclick = async e => { const p = $("#vt62a", v).value; if (p.length < 10) return toast("Use at least 10 characters", "bad"); if (p !== $("#vt62b", v).value) return toast("The two do not match", "bad"); const salt = vb64(crypto.getRandomValues(new Uint8Array(16))), iter = 310000, key = await vKey62(p, salt, iter), c = await vEnc62({ ok: "rivera-vault" }, key); if (await save28(e.target, { kind: "vlt", meta: true, title: "__vault", salt, iter, iv: c.iv, ct: c.ct }, "Vault created")) { VT62.key = key; render(); } };
+    return;
+  }
+  if (!VT62.key) {
+    v.innerHTML = head + `<section class="panel" style="max-width:420px"><div class="body"><h3 style="margin-top:0">🔒 Locked</h3><input type="password" id="vt62p" placeholder="Master password" autocomplete="current-password"><button class="btn primary block" id="vt62u" type="button" style="margin-top:10px">Unlock</button><p class="small muted">Locks again by itself after 10 minutes.</p></div></section>`;
+    const go = async () => { try { const k = await vKey62($("#vt62p", v).value, M.salt, M.iter); await vDec62(M.iv, M.ct, k); VT62.key = k; render(); } catch { toast("Wrong master password", "bad"); } };
+    $("#vt62u", v).onclick = go; $("#vt62p", v).onkeydown = e => { if (e.key === "Enter") go(); }; $("#vt62p", v).focus(); return;
+  }
+  vLock62();
+  const rows = all28("vlt").filter(x => !x.meta);
+  VT62.items = []; for (const x of rows) { try { VT62.items.push({ ...x, d: await vDec62(x.iv, x.ct) }); } catch { VT62.items.push({ ...x, d: { username: "?", password: "", notes: "(cannot open)" } }); } }
+  const q = VT62.q.toLowerCase(), L = VT62.items.filter(i => !q || [i.title, i.category, i.d.username, i.url, nm62(i.holder || "")].join(" ").toLowerCase().includes(q)).sort((a, b) => (a.category + a.title).localeCompare(b.category + b.title));
+  const age = i => Math.floor((Date.now() - new Date(i.changed || i.at).getTime()) / 864e5);
+  v.innerHTML = head + `<section class="panel"><div class="body"><input id="vt62q" type="search" placeholder="Search title, user, website, person…" value="${esc(VT62.q)}" style="width:100%;margin-bottom:10px">
+    ${L.map(i => `<div class="vt62r"><div class="vt62m"><b>${esc(i.title)}</b><small>${esc(i.category)} · ${esc(i.d.username || "")}${i.url ? " · " + esc(i.url.replace(/^https?:\/\//, "").slice(0, 40)) : ""}${i.holder ? " · " + esc(nm62(i.holder)) : ""}</small></div><code>${VT62.show.has(i.id) ? esc(i.d.password) : "••••••••"}</code><span class="chip ${age(i) > 90 ? "bad" : ""}" title="Days since changed">${age(i)}d</span><button type="button" class="btn sm" data-vs="${i.id}">${VT62.show.has(i.id) ? "Hide" : "👁"}</button><button type="button" class="btn sm" data-vc="${i.id}">📋</button><button type="button" class="btn sm" data-ve="${i.id}">✏️</button></div>`).join("") || '<div class="empty"><b>No entries yet</b>Add the first one.</div>'}
+    <p class="small muted">A red number = password older than 90 days; change it. Old passwords stay in each entry's history.</p></div></section>`;
+  $("#vt62k", v).onclick = () => { VT62.key = null; VT62.items = []; VT62.show.clear(); render(); };
+  $("#vt62n", v).onclick = () => vtPanel62(null);
+  $("#vt62i", v).onchange = e => e.target.files[0] && vtImport62(e.target.files[0]);
+  const f = $("#vt62q", v); f.oninput = () => { VT62.q = f.value; clearTimeout(W62.vt); W62.vt = setTimeout(() => { render(); const i = $("#vt62q"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 250); };
+  $$("[data-vs]", v).forEach(b => b.onclick = () => { const id = b.dataset.vs; VT62.show.has(id) ? VT62.show.delete(id) : VT62.show.add(id); render(); });
+  $$("[data-vc]", v).forEach(b => b.onclick = async () => { const i = VT62.items.find(x => x.id === b.dataset.vc); try { await navigator.clipboard.writeText(i.d.password || ""); toast("Copied"); } catch { toast("Copy not allowed here - use 👁", "bad"); } });
+  $$("[data-ve]", v).forEach(b => b.onclick = () => vtPanel62(VT62.items.find(x => x.id === b.dataset.ve)));
+};
+const vStr62 = p => Math.min(4, (p.length >= 10) + (p.length >= 14) + (/[a-z]/.test(p) && /[A-Z]/.test(p)) + /\d/.test(p) + /[^\w]/.test(p));
+function vtPanel62(it) {
+  const d = it ? it.d : { username: "", password: "", notes: "", history: [] };
+  const D = panel28({
+    title: it ? it.title : "New vault entry", chips: it ? `<span class="chip">${esc(it.category)}</span>` : "",
+    body: `<div class="fields">${field28(["title", "Name *", "text"], { title: it?.title || "" })}${field28(["category", "Category", "select", VCAT62], { category: it?.category || "Other" })}${field28(["username", "User name / ID", "text"], d)}${field28(["url", "Website", "text"], { url: it?.url || "" })}
+      <label class="f" style="grid-column:1/-1">Password<span class="row" style="gap:6px"><input id="vt62pw" value="${esc(d.password || "")}" autocomplete="off" spellcheck="false" style="flex:1;font-family:monospace"><button type="button" class="btn sm" id="vt62g">🎲 Generate</button></span><span class="vs62"><i id="vt62st"></i></span></label>
+      ${field28(["holder", "Who uses it", "select", [["", "—"], ...W62.team.map(u => [u.email, u.name])]], { holder: it?.holder || "" })}${field28(["notes", "Notes (encrypted)", "textarea"], d)}</div>
+      ${(d.history || []).length ? `<details class="dr26-sec"><summary>Old passwords (${d.history.length})</summary>${d.history.map(h => `<div class="small"><code>${esc(h.p)}</code> until ${esc(h.until)}</div>`).join("")}</details>` : ""}`,
+    foot: `${it ? '<button class="btn" id="vt62x" type="button" style="color:#c0392b">Delete</button>' : ""}<span style="flex:1"></span><button class="btn primary" id="vt62s" type="button">Save</button>`
+  });
+  const st = () => { const s = vStr62($("#vt62pw").value); $("#vt62st").style.cssText = `display:block;height:100%;width:${(s + 1) * 20}%;background:${["#c0392b", "#e8590c", "#f59f00", "#74b816", "#1e8e3e"][s]}`; }; st();
+  $("#vt62pw").oninput = st;
+  $("#vt62g").onclick = () => { const a = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789!@#$%&*?"; $("#vt62pw").value = [...crypto.getRandomValues(new Uint32Array(16))].map(x => a[x % a.length]).join(""); st(); };
+  $("#vt62s").onclick = async e => {
+    const f = readForm28(D, {}), pw = $("#vt62pw").value; if (!f.title) return toast("Write a name", "bad");
+    const changed = !it || pw !== (d.password || ""), hist = [...(d.history || [])]; if (it && changed && d.password) hist.unshift({ p: d.password, until: todayISO() });
+    const enc = await vEnc62({ username: f.username, password: pw, notes: f.notes, history: hist.slice(0, 10) });
+    const r = { ...(it ? { id: it.id, kind: "vlt", changed: it.changed } : { kind: "vlt" }), title: f.title, category: f.category, url: f.url, holder: f.holder, ...enc }; if (changed) r.changed = now62();
+    if (await save28(e.target, r, "Saved")) { closeDrawer26(); render(); }
+  };
+  $("#vt62x") && ($("#vt62x").onclick = async e => { if (!e.target.dataset.sure) { e.target.dataset.sure = 1; e.target.textContent = "Tap again to delete"; return; } try { await bizDel28(it.id); toast("Deleted"); closeDrawer26(); render(); } catch (er) { toast(er.message, "bad"); } });
+}
+async function vtImport62(file) {
+  const rows = (await file.text()).split(/\r?\n/).filter(l => l.trim()).map(l => { const o = []; let c = "", q = false; for (const ch of l) { if (ch === '"') q = !q; else if (ch === "," && !q) { o.push(c); c = ""; } else c += ch; } o.push(c); return o.map(x => x.trim()); });
+  const h = rows.shift().map(x => x.toLowerCase()), ix = n => h.findIndex(x => n.some(k => x.includes(k)));
+  const ti = ix(["title", "name", "account"]), ui = ix(["user", "login", "email"]), pi = ix(["password", "pass"]), wi = ix(["url", "website", "site"]), ci = ix(["category", "type"]), ni = ix(["note", "remark"]);
+  if (ti < 0 || pi < 0) return toast("CSV needs columns: title, username, password (url, category, notes optional)", "bad");
+  const out = []; for (const r of rows) { if (!r[ti]) continue; out.push({ kind: "vlt", title: r[ti], category: ci >= 0 ? (VCAT62.find(c => c.toLowerCase().startsWith((r[ci] || "").toLowerCase().split(" ")[0])) || "Other") : "Other", url: wi >= 0 ? r[wi] : "", changed: now62(), ...(await vEnc62({ username: ui >= 0 ? r[ui] : "", password: r[pi] || "", notes: ni >= 0 ? r[ni] : "", history: [] })) }); }
+  if (!out.length) return toast("No rows", "bad");
+  for (let i = 0; i < out.length; i += 100) await bizPut28(out.slice(i, i + 100));
+  toast(`Imported ${out.length} entries (encrypted on this device)`); render();
+}
+
+/* ---------------- QUALITY: QAP (from QAP R2, 01.07.26) and electrical test reports with the standard acceptance limits ---------------- */
+const QAPT62 = [
+  ["Raw material - conductor", "Purity, elongation, tensile strength, BDV, overall and bare dimensions", "Purity 99.9 %, elongation 15 min, BDV min 2 kV, dimension as per design", "100 %", "Material to IEC standards; test certificate furnished with coils", "Non-conformity", "Supplier"],
+  ["Intermediate - after coil forming", "Surge comparison test", "1.7 × Un + 2 kV, rise time 0.2 µs ± 0.1 µs, 5 pulses or as per customer", "100 %", "Conductor strand insulation not short-circuited", "Non-conformity", "Rivera"],
+  ["Intermediate - after coil forming", "Tan delta & capacitance (guard electrodes)", "0.2 Un to 1.2 Un in steps", "100 %", "At 0.2 Un DF < 2 %; Δ per 0.2 Un step < 0.5 %; tip-up 0.6–0.2 Un < 0.5 %", "Non-conformity", "Rivera"],
+  ["Final electrical routine test on individual coils", "Surge comparison test", "1.7 × Un + 2 kV, rise time 0.2 µs ± 0.1 µs, 5 pulses", "100 %", "Strand insulation not short-circuited", "Rejection / non-conformity", "Rivera"],
+  ["Final electrical routine test on individual coils", "Insulation resistance", "5000 V DC for 1 minute", "100 %", "IR (1 min) ≥ 300 MΩ", "Electric oven heating", "Rivera"],
+  ["Final electrical routine test on individual coils", "AC high voltage on slot portion", "(2 × Un + 1) kV for 1 minute", "100 %", "No failure on slot portion for 1 minute", "Rejection / non-conformity", "Rivera"],
+  ["Final electrical routine test on individual coils", "DCR measurement", "Measure coil resistance", "100 %", "As per existing design", "Rejection / non-conformity", "Rivera"],
+  ["Final electrical routine test on individual coils", "Partial discharge", "0.2 Un to 1.2 Un in steps", "100 %", "Within limits of the approved test procedure / OEM; no abnormal PD pattern", "Non-conformity", "Rivera"],
+  ["Packing", "Visual inspection", "Nil", "100 %", "Sticker / logo on all coils, no damage on finished insulation", "Non-conformity", "Rivera"]];
+const QSTD62 = [["AC high voltage withstand", "Rivera norms / IEC 60034-15 / BS 4999-5000", "(2 Un + 1) kV RMS for 1 min (type test: then up to 2 × (2 Un + 1) kV at 1 kV/s)"], ["Tan delta – initial", "IEEE 286-2000 / IEC 60034-27-3", "≤ 2.0 % at 0.2 Un"], ["Tan delta – step increase", "IEC 60034-27-3 Table 1", "≤ 0.5 % per 0.2 Un step"], ["Tan delta – tip-up", "IEC 60034-27-3 Table 1", "≤ 0.5 % between 0.6 Un and 0.2 Un"], ["Insulation resistance", "IEEE 43-2013", "Rivera QAP: ≥ 300 MΩ at 5 kV DC, 1 min (IEEE 43 minimum 100 MΩ at 40 °C)"], ["Polarization index", "IEEE 43-2013", "Class A ≥ 1.5; Class B / F / H ≥ 2.0"], ["Interturn surge", "Rivera norms / IEC 60034-15", "Routine 1.7 Un + 2 kV, 5 pulses; IEC sample SFI 3.5 Un (min 5.6 kV peak)"], ["Partial discharge", "IEC 60034-27-1", "No universal pC limit - as per approved procedure / OEM"], ["DC resistance", "Design", "As per design value"]];
+const QTESTS62 = [["surge", "Surge comparison (kV)", u => +(1.7 * u + 2).toFixed(2), "No strand short (waveforms match)", "pf"], ["ir", "Insulation resistance at 5 kV DC, 1 min (MΩ)", () => 5, "≥ 300 MΩ", "min300"], ["hv", "AC HV on slot portion (kV, 1 min)", u => +(2 * u + 1).toFixed(2), "No failure", "pf"], ["td02", "Tan delta at 0.2 Un (%)", u => +(0.2 * u).toFixed(2), "< 2.0 %", "max2"], ["tdstep", "Tan delta increase per 0.2 Un step (%)", () => "", "< 0.5 %", "max0.5"], ["tdtip", "Tan delta tip-up 0.6–0.2 Un (%)", () => "", "< 0.5 %", "max0.5"], ["dcr", "DC resistance (mΩ)", () => "", "As per design", "rec"], ["pd", "Partial discharge (pC)", () => "", "As per approved procedure", "rec"]];
+const qJudge62 = (rule, val) => { if (val === "" || val == null) return ""; const n = parseFloat(val); if (rule === "pf") return /^(p|ok|pass|yes)/i.test(val) ? "Pass" : /^(f|no|fail)/i.test(val) ? "Fail" : ""; if (rule === "min300") return isNaN(n) ? "" : n >= 300 ? "Pass" : "Fail"; if (rule === "max2") return isNaN(n) ? "" : n < 2 ? "Pass" : "Fail"; if (rule === "max0.5") return isNaN(n) ? "" : n < 0.5 ? "Pass" : "Fail"; return "Recorded"; };
+VIEWS.quality = v => {
+  bizSync28();
+  const tabs = tabsFor62("quality", "q62", [["tr", "Test reports"], ["qap", "QAP"], ["std", "Test standards"], ["reg", "Test register"]]), t = BIZ.ui.q62;
+  const TR = all28("qtr").sort((a, b) => String(b.date).localeCompare(String(a.date))), QA = all28("qap");
+  const body = {
+    tr: () => `<section class="panel"><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>No.</th><th>Date</th><th>Customer / job</th><th>Product</th><th>Un (kV)</th><th>Coils</th><th>Result</th></tr></thead><tbody>${TR.map(x => `<tr data-tr="${x.id}" style="cursor:pointer"><td>${esc(x.no)}</td><td>${esc(dmy62(x.date))}</td><td><b>${esc(x.customer || "")}</b><div class="small muted">${esc(x.job || "")}</div></td><td>${esc(x.product || "")}</td><td>${esc(x.un || "")}</td><td>${(x.coils || []).length}</td><td><span class="chip ${x.result === "Pass" ? "ok" : x.result === "Fail" ? "bad" : "warn"}">${esc(x.result || "Open")}</span></td></tr>`).join("") || '<tr><td colspan="7" class="muted">No test reports yet.</td></tr>'}</tbody></table></div></section>`,
+    qap: () => `<section class="panel"><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>QAP no.</th><th>Customer / project</th><th>Product</th><th>Rev.</th><th>Date</th></tr></thead><tbody>${QA.map(x => `<tr data-qa="${x.id}" style="cursor:pointer"><td>${esc(x.no)}</td><td>${esc(x.customer || "")}</td><td>${esc(x.product || "")}</td><td>${esc(x.rev || "")}</td><td>${esc(dmy62(x.date))}</td></tr>`).join("") || '<tr><td colspan="5" class="muted">No QAP yet. "New QAP" starts from Rivera QAP R2 (01.07.26).</td></tr>'}</tbody></table></div></section>`,
+    std: () => `<section class="panel"><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Test</th><th>Standard</th><th>Acceptance / test value</th></tr></thead><tbody>${QSTD62.map(r => `<tr><td><b>${esc(r[0])}</b></td><td>${esc(r[1])}</td><td>${esc(r[2])}</td></tr>`).join("")}</tbody></table><p class="small muted">From Rivera QAP R2 (QASC03, 01.07.26) and the Electrical Testing QAP with standard acceptance limits (RIV/QAP/TEST/001). Have Rivera Engineering confirm the standard editions before a customer submission.</p></div></section>`,
+    reg: () => { const c = TR.flatMap(x => (x.coils || []).map(k => ({ x, k }))); return `<section class="panel"><div class="body" style="overflow:auto"><div class="kpi62">${[["Reports", TR.length], ["Coils tested", c.length], ["Coils passed", c.filter(o => o.k.res === "Pass").length], ["Coils failed", c.filter(o => o.k.res === "Fail").length]].map(([l, n]) => `<div class="panel kpi"><b>${n}</b><small>${l}</small></div>`).join("")}</div><table class="t"><thead><tr><th>Report</th><th>Date</th><th>Customer</th><th>Coil</th><th>Result</th></tr></thead><tbody>${c.slice(0, 1000).map(o => `<tr><td>${esc(o.x.no)}</td><td>${esc(dmy62(o.x.date))}</td><td>${esc(o.x.customer || "")}</td><td>${esc(o.k.id || "")}</td><td><span class="chip ${o.k.res === "Pass" ? "ok" : o.k.res === "Fail" ? "bad" : ""}">${esc(o.k.res || "")}</span></td></tr>`).join("")}</tbody></table></div></section>`; }
+  }[t] || (() => "");
+  v.innerHTML = top62("Quality", { tr: "Test reports", qap: "Quality assurance plan", std: "Test standards", reg: "Test register" }[t], "", `<button class="btn primary" id="q62tr" type="button">${icon("plus")}New test report</button><button class="btn" id="q62qa" type="button">${icon("plus")}New QAP</button>`) + (loadNote28() || tabs28(t, tabs, "q62t") + `<div style="margin-top:12px">${body()}</div>`);
+  $$("[data-q62t]", v).forEach(b => b.onclick = () => { BIZ.ui.q62 = b.dataset.q62t; render(); });
+  $("#q62tr", v).onclick = () => trPanel62(null); $("#q62qa", v).onclick = () => qaPanel62(null);
+  $$("[data-tr]", v).forEach(r => r.onclick = () => trPanel62(BIZ.rows[r.dataset.tr])); $$("[data-qa]", v).forEach(r => r.onclick = () => qaPanel62(BIZ.rows[r.dataset.qa]));
+};
+function trPanel62(src) {
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "qtr", date: todayISO(), product: "Stator diamond coils", un: 6.6, coils: [{ id: "C1" }] };
+  const draw = () => {
+    const u = +r.un || 0;
+    return `<div class="fields">${[["customer", "Customer *", "list", [...new Set(all28("qtr").map(x => x.customer).filter(Boolean))]], ["job", "Job / work order / PO", "text"], ["product", "Product", "list", ["Stator diamond coils", "Roebel bars", "Armature coils", "Field / interpole coils", "Rotor pole coils"]], ["un", "Rated voltage Un (kV)", "number"], ["date", "Test date", "date"], ["testedBy", "Tested by", "text"], ["witness", "Customer witness", "text"]].map(f => field28(f, r)).join("")}</div>
+      <div class="small muted" style="margin:8px 0">Test values for Un ${u} kV: surge ${(1.7 * u + 2).toFixed(2)} kV · AC HV ${(2 * u + 1).toFixed(2)} kV for 1 min · IR at 5 kV DC ≥ 300 MΩ · tan δ at 0.2 Un (${(0.2 * u).toFixed(2)} kV) &lt; 2 %</div>
+      <div style="overflow:auto"><table class="t qtr62"><thead><tr><th>Coil</th>${QTESTS62.map(q => `<th title="${esc(q[3])}">${esc(q[1])}<div class="small muted">${esc(q[3])}</div></th>`).join("")}<th>Result</th><th></th></tr></thead><tbody>
+      ${r.coils.map((k, i) => `<tr><td><input data-ck="${i}" data-f="id" value="${esc(k.id || "")}" style="width:70px"></td>${QTESTS62.map(q => `<td><input data-ck="${i}" data-f="${q[0]}" value="${esc(k[q[0]] ?? "")}" placeholder="${q[4] === "pf" ? "Pass/Fail" : ""}" style="width:80px"><div class="small ${qJudge62(q[4], k[q[0]]) === "Fail" ? "bad62" : "ok62"}">${qJudge62(q[4], k[q[0]])}</div></td>`).join("")}<td><b class="${k.res === "Fail" ? "bad62" : "ok62"}">${esc(k.res || "")}</b></td><td><button type="button" class="btn sm" data-cx="${i}">🗑️</button></td></tr>`).join("")}</tbody></table></div>
+      <button type="button" class="btn sm" id="tr62a" style="margin-top:6px">${icon("plus")}Add coil</button>`;
+  };
+  const D = panel28({ title: src ? `${r.no} · ${r.customer}` : "New electrical test report", chips: src ? `<span class="chip ${r.result === "Pass" ? "ok" : r.result === "Fail" ? "bad" : "warn"}">${esc(r.result || "Open")}</span>` : "", body: `<div id="tr62b">${draw()}</div>`, foot: `${src ? '<button class="btn" id="tr62p" type="button">🖨 Test certificate</button>' : ""}<span style="flex:1"></span><button class="btn primary" id="tr62s" type="button">Save</button>` });
+  const judge = () => { r.coils.forEach(k => { const R = QTESTS62.map(q => qJudge62(q[4], k[q[0]])); k.res = R.includes("Fail") ? "Fail" : R.some(x => x === "Pass") ? "Pass" : ""; }); r.result = r.coils.some(k => k.res === "Fail") ? "Fail" : r.coils.length && r.coils.every(k => k.res === "Pass") ? "Pass" : "Open"; };
+  const wire = () => {
+    $$("[data-ck]", D).forEach(i => i.onchange = () => { r.coils[+i.dataset.ck][i.dataset.f] = i.value.trim(); readForm28($("#tr62b").querySelector(".fields"), r); judge(); $("#tr62b").innerHTML = draw(); wire(); });
+    $$("#tr62b .fields [data-k]", D).forEach(i => i.onchange = () => { readForm28($("#tr62b").querySelector(".fields"), r); $("#tr62b").innerHTML = draw(); wire(); });
+    $$("[data-cx]", D).forEach(b => b.onclick = () => { r.coils.splice(+b.dataset.cx, 1); $("#tr62b").innerHTML = draw(); wire(); });
+    $("#tr62a").onclick = () => { readForm28($("#tr62b").querySelector(".fields"), r); r.coils.push({ id: "C" + (r.coils.length + 1) }); $("#tr62b").innerHTML = draw(); wire(); };
+  };
+  wire();
+  $("#tr62s").onclick = async e => { readForm28($("#tr62b").querySelector(".fields"), r); if (!r.customer) return toast("Write the customer", "bad"); judge(); if (await save28(e.target, r, "Test report saved")) { closeDrawer26(); render(); } };
+  $("#tr62p") && ($("#tr62p").onclick = async () => { const u = +r.un || 0; printHtml28(r.no, `${await lhImg62()}<h1>Electrical test certificate - ${esc(r.no)}</h1><table><tr><th>Customer</th><td>${esc(r.customer)}</td><th>Job / PO</th><td>${esc(r.job || "")}</td></tr><tr><th>Product</th><td>${esc(r.product)}</td><th>Rated voltage Un</th><td>${u} kV</td></tr><tr><th>Test date</th><td>${esc(dmy62(r.date))}</td><th>Tested by / witness</th><td>${esc(r.testedBy || "")} / ${esc(r.witness || "")}</td></tr></table>
+    <table><tr><th>Coil</th>${QTESTS62.map(q => `<th>${esc(q[1])}<br><small>${esc(q[3])}</small></th>`).join("")}<th>Result</th></tr>${r.coils.map(k => `<tr><td>${esc(k.id)}</td>${QTESTS62.map(q => `<td>${esc(k[q[0]] ?? "")}</td>`).join("")}<td><b>${esc(k.res || "")}</b></td></tr>`).join("")}</table>
+    <p>Test values: surge ${(1.7 * u + 2).toFixed(2)} kV (1.7 Un + 2 kV, 5 pulses) · AC HV ${(2 * u + 1).toFixed(2)} kV for 1 min · IR at 5 kV DC, 1 min ≥ 300 MΩ · tan δ per IEEE 286 / IEC 60034-27-3. Overall result: <b>${esc(r.result)}</b>.</p><br><table style="border:0"><tr><td style="border:0">Tested by: ____________</td><td style="border:0">Quality: ____________</td><td style="border:0">Customer: ____________</td></tr></table>`); });
+}
+function qaPanel62(src) {
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "qap", date: todayISO(), rev: "02", product: "Stator coils / Roebel bars", rows: QAPT62.map(x => [...x]) };
+  const draw = () => `<div class="fields">${[["customer", "Customer / project", "text"], ["po", "PO / drawing no.", "text"], ["product", "Product", "text"], ["rev", "Revision", "text"], ["date", "Date", "date"], ["prepared", "Prepared by", "text"], ["approved", "Approved by", "text"]].map(f => field28(f, r)).join("")}</div>
+    <div style="overflow:auto;margin-top:8px"><table class="t"><thead><tr><th>Stage</th><th>Inspection / test</th><th>Test voltage / spec.</th><th>Freq.</th><th>Acceptance criteria</th><th>Reaction</th><th>Action by</th><th></th></tr></thead><tbody>${r.rows.map((x, i) => `<tr>${x.map((c, j) => `<td><textarea data-qr="${i}" data-qc="${j}" rows="2" style="min-width:${j === 4 ? 200 : 110}px">${esc(c)}</textarea></td>`).join("")}<td><button type="button" class="btn sm" data-qx="${i}">🗑️</button></td></tr>`).join("")}</tbody></table></div><button type="button" class="btn sm" id="qa62a">${icon("plus")}Add row</button>`;
+  const D = panel28({ title: src ? `${r.no} · ${r.customer || ""}` : "New QAP (from Rivera QAP R2)", body: `<div id="qa62b">${draw()}</div>`, foot: `${src ? '<button class="btn" id="qa62p" type="button">🖨 Print QAP</button>' : ""}<span style="flex:1"></span><button class="btn primary" id="qa62s" type="button">Save</button>` });
+  const read = () => { readForm28($("#qa62b .fields"), r); $$("[data-qr]", D).forEach(t => { r.rows[+t.dataset.qr][+t.dataset.qc] = t.value; }); };
+  const wire = () => { $$("[data-qx]", D).forEach(b => b.onclick = () => { read(); r.rows.splice(+b.dataset.qx, 1); $("#qa62b").innerHTML = draw(); wire(); }); $("#qa62a").onclick = () => { read(); r.rows.push(["", "", "", "100 %", "", "Non-conformity", "Rivera"]); $("#qa62b").innerHTML = draw(); wire(); }; };
+  wire();
+  $("#qa62s").onclick = async e => { read(); if (await save28(e.target, r, "QAP saved")) { closeDrawer26(); render(); } };
+  $("#qa62p") && ($("#qa62p").onclick = async () => { read(); printHtml28(r.no, `${await lhImg62()}<h1>Quality Assurance Plan - Electrical routine test and inspection</h1><table><tr><th>QAP no.</th><td>${esc(r.no)}</td><th>Revision</th><td>${esc(r.rev)} / ${esc(dmy62(r.date))}</td></tr><tr><th>Customer / project</th><td>${esc(r.customer || "")}</td><th>PO / drawing</th><td>${esc(r.po || "")}</td></tr><tr><th>Product</th><td colspan="3">${esc(r.product || "")}</td></tr></table>
+    <table><tr><th>S.no</th><th>Stage</th><th>Inspection / test</th><th>Test voltage / spec.</th><th>Freq.</th><th>Acceptance criteria</th><th>Reaction</th><th>Action by</th></tr>${r.rows.map((x, i) => `<tr><td>${i + 1}</td>${x.map(c => `<td>${esc(c)}</td>`).join("")}</tr>`).join("")}</table>
+    <p><small>Standards: AC HV - Rivera norms / IEC 60034-15 & BS 4999-5000 · Tan delta - IEEE 286-2000 & IEC 60034-27-3 · IR - IEEE 43-2013 · Surge - Rivera norms / IEC 60034-15 · PD - IEC 60034-27.</small></p><table style="border:0"><tr><td style="border:0">Prepared: ${esc(r.prepared || "")}</td><td style="border:0">Approved: ${esc(r.approved || "")}</td><td style="border:0">Customer approval: ____________</td></tr></table>`); });
+}
+
+/* ---------------- HR DOCUMENTS: Form IV employee register (Code on Wages, rule 51(3)) and certificates ---------------- */
+const F4X62 = [["surname", "Surname", "text"], ["gender", "Gender", "select", ["", "Male", "Female", "Other"]], ["father", "Father's / spouse name", "text"], ["nationality", "Nationality", "text"], ["edu", "Education level", "text"], ["category", "Category", "select", [["", "—"], ["HS", "Highly skilled"], ["S", "Skilled"], ["SS", "Semi-skilled"], ["US", "Unskilled"]]], ["empType", "Type of employment", "select", ["", "Permanent", "Probation", "Contract", "Trainee", "Apprentice"]], ["aadhaar", "Aadhaar", "text"], ["ifsc", "Bank / branch (IFSC)", "text"], ["bankName", "Bank name", "text"], ["addrNow", "Present address", "textarea"], ["addrPerm", "Permanent address", "textarea"], ["serviceBook", "Service book no.", "text"], ["exit", "Date of exit", "date"], ["exitWhy", "Reason for exit", "text"], ["idMark", "Mark of identification", "text"], ["remarks", "Remarks", "text"]];
+const CERT62 = [["salary", "Salary certificate"], ["experience", "Experience certificate"], ["relieving", "Relieving letter"], ["noc", "No objection certificate (NOC)"]];
+VIEWS.hrx = v => {
+  bizSync28();
+  const tabs = tabsFor62("hrx", "h62", [["form4", "Employee register (Form IV)"], ["cert", "Certificates"]]), t = BIZ.ui.h62, E = all28("emp").sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name)));
+  const body = t === "form4" ? `<section class="panel"><header><h2>Form IV - Employee register</h2><button type="button" class="btn sm primary" id="f462p">🖨 Print Form IV</button></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Code</th><th>Name</th><th>Designation</th><th>DOJ</th><th>UAN / ESIC</th><th>Form IV details</th></tr></thead><tbody>${E.map(e => { const miss = ["gender", "father", "aadhaar", "addrPerm"].filter(k => !e[k]).length; return `<tr data-em="${e.id}" style="cursor:pointer"><td>${esc(e.code || e.no)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.designation || "")}</td><td>${esc(dmy62(e.doj))}</td><td>${esc([e.uan, e.esiNo].filter(Boolean).join(" / "))}</td><td><span class="chip ${miss ? "warn" : "ok"}">${miss ? miss + " to fill" : "Complete"}</span></td></tr>`; }).join("") || '<tr><td colspan="6" class="muted">Add employees in HR & Payroll ▸ Employees first.</td></tr>'}</tbody></table></div></section>`
+    : `<section class="panel"><div class="body"><div class="fields"><label class="f">Employee<select id="ce62e">${E.map(e => `<option value="${e.id}">${esc(e.name)} (${esc(e.code || e.no)})</option>`).join("")}</select></label><label class="f">Certificate<select id="ce62t">${CERT62.map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></label><label class="f">Date<input type="date" id="ce62d" value="${todayISO()}"></label><label class="f">Purpose / addressed to<input id="ce62p" placeholder="e.g. bank loan, passport, To whom it may concern"></label><label class="f" style="grid-column:1/-1">Extra line (optional)<input id="ce62x" placeholder="e.g. last working day, conduct"></label></div><button type="button" class="btn primary block" id="ce62g" style="margin-top:10px">🖨 Make certificate</button></div></section>
+      <section class="panel"><header><h2>Issued</h2></header><div class="body"><table class="t"><thead><tr><th>No.</th><th>Date</th><th>Employee</th><th>Certificate</th></tr></thead><tbody>${all28("cert").sort((a, b) => String(b.date).localeCompare(String(a.date))).map(c => `<tr><td>${esc(c.no)}</td><td>${esc(dmy62(c.date))}</td><td>${esc(c.empName)}</td><td>${esc((CERT62.find(x => x[0] === c.type) || [0, c.type])[1])}</td></tr>`).join("") || '<tr><td colspan="4" class="muted">None yet.</td></tr>'}</tbody></table></div></section>`;
+  v.innerHTML = top62("HR & Payroll", t === "form4" ? "Employee register (Form IV)" : "Certificates", "") + (loadNote28() || tabs28(t, tabs, "h62t") + `<div style="margin-top:12px">${body}</div>`);
+  $$("[data-h62t]", v).forEach(b => b.onclick = () => { BIZ.ui.h62 = b.dataset.h62t; render(); });
+  $$("[data-em]", v).forEach(r => r.onclick = () => f4Panel62(BIZ.rows[r.dataset.em]));
+  $("#f462p", v) && ($("#f462p", v).onclick = () => printForm462(E));
+  $("#ce62g", v) && ($("#ce62g", v).onclick = e => cert62(e.target));
+};
+function f4Panel62(src) {
+  const r = { ...src }, D = panel28({ title: `${r.name} · Form IV details`, body: `<p class="small muted">Name, code, designation, DOB, DOJ, phone, UAN, PAN, ESIC and bank account come from HR ▸ Employees.</p><div class="fields">${F4X62.map(f => field28(f, r)).join("")}</div>`, foot: '<span style="flex:1"></span><button class="btn primary" id="f462s" type="button">Save</button>' });
+  $("#f462s").onclick = async e => { readForm28(D, r); if (await save28(e.target, r, "Saved")) { closeDrawer26(); render(); } };
+}
+async function printForm462(E) {
+  const co = coName62(), H = ["Sl.", "Emp. code", "Name", "Surname", "Gender", "Father's / spouse name", "Date of birth", "Nationality", "Education", "Date of joining", "Designation", "Category", "Type of employment", "Mobile", "UAN", "PAN", "ESIC IP no.", "Aadhaar", "Bank A/c", "Bank", "Branch (IFSC)", "Present address", "Permanent address", "Service book no.", "Date of exit", "Reason for exit", "Identification mark", "Photo", "Signature / thumb", "Remarks"];
+  const rows = E.map((e, i) => [i + 1, e.code || e.no, e.name, e.surname, e.gender, e.father, dmy62(e.dob), e.nationality || "Indian", e.edu, dmy62(e.doj), e.designation, e.category, e.empType, e.phone, e.uan, e.pan, e.esiNo, e.aadhaar, e.bank, e.bankName, e.ifsc, e.addrNow, e.addrPerm, e.serviceBook, dmy62(e.exit), e.exitWhy, e.idMark, "", "", e.remarks]);
+  printHtml28("Form IV - Employee register", `<style>@page{size:A3 landscape}table{font-size:9px}th,td{padding:3px!important}</style><h1 style="text-align:center">FORM IV<br><small>[See rule 51(3)]</small><br>EMPLOYEE REGISTER</h1><p>Name of the establishment: <b>${esc(co)}</b> &nbsp; Name of the employer: ________ &nbsp; PAN/TAN of the employer: ________ &nbsp; LIN: ________</p><table><tr>${H.map((h, i) => `<th>${esc(h)}<br><small>${i + 1}</small></th>`).join("")}</tr>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c ?? "")}</td>`).join("")}</tr>`).join("")}</table><p><small>*Category: HS - highly skilled, S - skilled, SS - semi-skilled, US - unskilled.</small></p>`);
+}
+async function cert62(btn) {
+  const e = BIZ.rows[$("#ce62e").value]; if (!e) return toast("Add employees first", "bad");
+  const type = $("#ce62t").value, date = $("#ce62d").value, purpose = $("#ce62p").value.trim(), extra = $("#ce62x").value.trim(), co = coName62(), he = /^f/i.test(e.gender || "") ? ["She", "her", "Ms."] : ["He", "his", "Mr."];
+  const gross = (+e.basic || 0) + (+e.hra || 0) + (+e.allow || 0), nm = `${he[2]} ${esc(e.name)}${e.surname ? " " + esc(e.surname) : ""}`, since = dmy62(e.doj), till = e.exit ? dmy62(e.exit) : "";
+  const text = {
+    salary: `<p>This is to certify that ${nm} (Employee code ${esc(e.code || e.no)}) is working with ${esc(co)} as <b>${esc(e.designation || "")}</b> since ${since}.</p><p>${he[0]} draws a gross monthly salary of <b>${inr28(gross)}</b> (Basic + DA ${inr28(e.basic)}, HRA ${inr28(e.hra)}, other allowances ${inr28(e.allow)}).</p><p>This certificate is issued at ${he[1]} request${purpose ? " for the purpose of " + esc(purpose) : ""}.</p>`,
+    experience: `<p>This is to certify that ${nm} worked with ${esc(co)} as <b>${esc(e.designation || "")}</b> from ${since}${till ? " to " + till : " till date"}.</p><p>During ${he[1]} tenure we found ${he[1]} work and conduct good. We wish ${he[1].replace("his", "him").replace("her", "her")} success in the future.</p>`,
+    relieving: `<p>This is to confirm that ${nm}, ${esc(e.designation || "")} (Employee code ${esc(e.code || e.no)}), has been relieved from the services of ${esc(co)} with effect from the close of business on <b>${till || dmy62(date)}</b>, after completing the handover of ${he[1]} responsibilities.</p><p>${he[0]} was with us from ${since}. We thank ${he[1].replace("his", "him")} for ${he[1]} contribution.</p>`,
+    noc: `<p>This is to certify that ${nm} is working with ${esc(co)} as <b>${esc(e.designation || "")}</b> since ${since}.</p><p>The company has no objection to ${he[1]} ${esc(purpose || "the stated purpose")}.</p>`
+  }[type];
+  const title = (CERT62.find(x => x[0] === type) || [0, ""])[1];
+  const saved = await save28(btn, { kind: "cert", type, emp: e.id, empName: e.name, date, purpose }, title + " issued"); const no = saved?.[0]?.no || "";
+  printHtml28(title + " - " + e.name, `${await lhImg62()}<p style="display:flex;justify-content:space-between"><span>Ref: ${esc(no)}</span><span>Date: ${esc(dmy62(date))}</span></p><h1 style="text-align:center;text-decoration:underline;margin:18px 0">${esc(title.toUpperCase())}</h1>${type === "salary" || type === "noc" ? `<p><b>${esc(/^to /i.test(purpose) ? purpose : "To whom it may concern")}</b></p>` : ""}${text}${extra ? `<p>${esc(extra)}</p>` : ""}<br><br><p>For <b>${esc(co)}</b></p><br><br><p>Authorised signatory</p>`);
+  render();
+}
+
+/* ---------------- PURCHASE: comparative statement (RFQ quotes side by side → PO) and purchase return (debit note) ---------------- */
+VIEWS.pur62 = v => {
+  bizSync28();
+  const tabs = tabsFor62("pur62", "pu62", [["cmp", "Comparative statement"], ["ret", "Purchase return"]]), t = BIZ.ui.pu62;
+  const L = all28(t === "cmp" ? "pcs" : "pret").sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  v.innerHTML = top62("Purchase & Stock", t === "cmp" ? "Comparative statement" : "Purchase return", t === "cmp" ? "Put each supplier's quoted rate side by side; the lowest (L1) is marked; one tap makes the purchase order." : "Material sent back to the supplier: debit note and stock goes down.", `<button class="btn primary" id="pu62n" type="button">${icon("plus")}${t === "cmp" ? "New comparative" : "New return"}</button>`)
+    + (loadNote28() || tabs28(t, tabs, "pu62t") + `<section class="panel" style="margin-top:12px"><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>No.</th><th>Date</th><th>${t === "cmp" ? "For (indent / job)" : "Supplier"}</th><th>${t === "cmp" ? "Suppliers" : "PO"}</th><th>${t === "cmp" ? "L1" : "Value"}</th><th>Status</th></tr></thead><tbody>${L.map(x => `<tr data-pu="${x.id}" style="cursor:pointer"><td>${esc(x.no)}</td><td>${esc(dmy62(x.date))}</td><td>${esc(t === "cmp" ? x.forRef || "" : x.supplier || "")}</td><td>${esc(t === "cmp" ? (x.vendors || []).join(", ") : x.poNo || "")}</td><td>${t === "cmp" ? esc(x.l1 || "") : inr28(x.total)}</td><td><span class="chip ${x.status === "PO made" || x.status === "Sent" ? "ok" : "warn"}">${esc(x.status || "Open")}</span></td></tr>`).join("") || '<tr><td colspan="6" class="muted">None yet.</td></tr>'}</tbody></table></div></section>`);
+  $$("[data-pu62t]", v).forEach(b => b.onclick = () => { BIZ.ui.pu62 = b.dataset.pu62t; render(); });
+  $("#pu62n", v).onclick = () => (t === "cmp" ? csPanel62 : prPanel62)(null);
+  $$("[data-pu]", v).forEach(r => r.onclick = () => (t === "cmp" ? csPanel62 : prPanel62)(BIZ.rows[r.dataset.pu]));
+};
+function csPanel62(src) {
+  const items = all28("item"), r = src ? JSON.parse(JSON.stringify(src)) : { kind: "pcs", date: todayISO(), vendors: ["", "", ""], lines: [{ desc: "", qty: 1, unit: "kg", rates: [] }], status: "Open" };
+  const draw = () => {
+    const tot = r.vendors.map((_, j) => r.lines.reduce((a, l) => a + (+l.qty || 0) * (+(l.rates || [])[j] || 0), 0)), ok = tot.map((x, j) => r.vendors[j] && r.lines.every(l => +(l.rates || [])[j] > 0) ? x : Infinity), mn = Math.min(...ok);
+    r.l1 = mn < Infinity ? r.vendors[ok.indexOf(mn)] : "";
+    return `<div class="fields">${field28(["forRef", "For (indent / job / customer)", "text"], r)}${field28(["date", "Date", "date"], r)}</div>
+    <div style="overflow:auto;margin-top:8px"><table class="t"><thead><tr><th>Item</th><th>Qty</th><th>Unit</th>${r.vendors.map((s, j) => `<th><input data-cv="${j}" value="${esc(s)}" placeholder="Supplier ${j + 1}" list="cs62v" style="width:130px"></th>`).join("")}<th></th></tr></thead><tbody>
+    ${r.lines.map((l, i) => `<tr><td><input data-cl="${i}" data-f="desc" value="${esc(l.desc)}" list="cs62i" style="min-width:160px"></td><td><input data-cl="${i}" data-f="qty" type="number" value="${esc(l.qty)}" style="width:70px"></td><td><input data-cl="${i}" data-f="unit" value="${esc(l.unit)}" style="width:55px"></td>${r.vendors.map((_, j) => { const rs = r.lines.map(x => +(x.rates || [])[j] || 0), v0 = +(l.rates || [])[j] || 0, low = v0 > 0 && v0 === Math.min(...r.vendors.map((__, k) => +(l.rates || [])[k] || Infinity)); return `<td><input data-cr="${i}" data-j="${j}" type="number" value="${esc((l.rates || [])[j] ?? "")}" style="width:90px;${low ? "border-color:#1e8e3e;background:#e6f4ea" : ""}"></td>`; }).join("")}<td><button type="button" class="btn sm" data-cx="${i}">🗑️</button></td></tr>`).join("")}
+    <tr><td colspan="3"><b>Total</b></td>${tot.map((x, j) => `<td><b style="${ok[j] === mn && mn < Infinity ? "color:#1e8e3e" : ""}">${inr28(x)}${ok[j] === mn && mn < Infinity ? " · L1" : ""}</b></td>`).join("")}<td></td></tr></tbody></table></div>
+    <datalist id="cs62v">${[...new Set(all28("po").map(p => p.supplier).filter(Boolean))].map(s => `<option value="${esc(s)}">`).join("")}</datalist><datalist id="cs62i">${items.map(it => `<option value="${esc(it.name)}">`).join("")}</datalist>
+    <div class="row" style="gap:6px;margin-top:6px"><button type="button" class="btn sm" id="cs62a">${icon("plus")}Item</button><button type="button" class="btn sm" id="cs62s">${icon("plus")}Supplier</button></div>
+    ${r.l1 ? `<p class="note small" style="margin-top:8px">Lowest total (L1): <b>${esc(r.l1)}</b> - ${inr28(mn)}</p>` : ""}`;
+  };
+  const D = panel28({ title: src ? `${r.no} · comparative statement` : "New comparative statement", chips: src ? `<span class="chip">${esc(r.status)}</span>` : "", body: `<div id="cs62b">${draw()}</div>`, foot: `${src ? '<button class="btn" id="cs62p" type="button">🖨 Print</button>' : ""}<span style="flex:1"></span><button class="btn" id="cs62v2" type="button">Save</button><button class="btn primary" id="cs62po" type="button">Make PO for L1</button>` });
+  const read = () => { readForm28($("#cs62b .fields"), r); $$("[data-cv]", D).forEach(i => { r.vendors[+i.dataset.cv] = i.value.trim(); }); $$("[data-cl]", D).forEach(i => { r.lines[+i.dataset.cl][i.dataset.f] = i.type === "number" ? +i.value : i.value; }); $$("[data-cr]", D).forEach(i => { const l = r.lines[+i.dataset.cr]; l.rates = l.rates || []; l.rates[+i.dataset.j] = i.value === "" ? "" : +i.value; }); };
+  const wire = () => { $$("#cs62b input", D).forEach(i => i.onchange = () => { read(); $("#cs62b").innerHTML = draw(); wire(); }); $$("[data-cx]", D).forEach(b => b.onclick = () => { read(); r.lines.splice(+b.dataset.cx, 1); $("#cs62b").innerHTML = draw(); wire(); }); $("#cs62a").onclick = () => { read(); r.lines.push({ desc: "", qty: 1, unit: "kg", rates: [] }); $("#cs62b").innerHTML = draw(); wire(); }; $("#cs62s").onclick = () => { read(); r.vendors.push(""); $("#cs62b").innerHTML = draw(); wire(); }; };
+  wire();
+  r.vendors = r.vendors.length ? r.vendors : ["", "", ""]; r.vendors = r.vendors.filter(() => true);
+  $("#cs62v2").onclick = async e => { read(); $("#cs62b").innerHTML = draw(); wire(); r.vendors = r.vendors; if (await save28(e.target, { ...r, vendors: r.vendors.filter(Boolean).length ? r.vendors : r.vendors }, "Saved")) { closeDrawer26(); render(); } };
+  $("#cs62po").onclick = async e => {
+    read(); $("#cs62b").innerHTML = draw(); wire(); if (!r.l1) return toast("Enter every supplier's rate for every item first", "bad");
+    const j = r.vendors.indexOf(r.l1), lines = r.lines.map(l => { const it = items.find(x => x.name === l.desc); return { item: it?.id || "", desc: l.desc, qty: +l.qty || 0, unit: l.unit, rate: +(l.rates || [])[j] || 0, gst: 18 }; });
+    const po = { kind: "po", status: "pending", date: todayISO(), supplier: r.l1, lines, terms: "100% within 30 days of delivery", deliverTo: coName62() + ", factory", fromCs: r.no || "", notes: "From comparative statement " + (r.no || "") };
+    const out = await save28(e.target, [po], "Purchase order made for " + r.l1 + " - waiting for approval"); if (!out) return;
+    r.status = "PO made"; r.poNo = out[0].no; await save28(null, r, ""); closeDrawer26(); render();
+  };
+  $("#cs62p") && ($("#cs62p").onclick = async () => { read(); printHtml28(r.no, `${await lhImg62()}<h1>Comparative statement - ${esc(r.no)}</h1><p>For: ${esc(r.forRef || "")} · ${esc(dmy62(r.date))}</p><table><tr><th>Item</th><th>Qty</th>${r.vendors.filter(Boolean).map(s => `<th>${esc(s)}</th>`).join("")}</tr>${r.lines.map(l => `<tr><td>${esc(l.desc)}</td><td>${esc(l.qty)} ${esc(l.unit)}</td>${r.vendors.map((s, j) => s ? `<td>${esc((l.rates || [])[j] ?? "")}</td>` : "").join("")}</tr>`).join("")}</table><p>L1: <b>${esc(r.l1 || "-")}</b>${r.poNo ? " · PO " + esc(r.poNo) : ""}</p><br><table style="border:0"><tr><td style="border:0">Prepared: ________</td><td style="border:0">Approved: ________</td></tr></table>`); });
+}
+function prPanel62(src) {
+  const pos = all28("po").filter(p => ["part", "received", "closed", "sent"].includes(p.status) || (p.lines || []).some(l => +l.recd > 0));
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "pret", date: todayISO(), lines: [], status: "Open" };
+  const draw = () => `<div class="fields"><label class="f">Purchase order<select id="pr62po"><option value="">— choose —</option>${pos.map(p => `<option value="${p.id}" ${p.id === r.po ? "selected" : ""}>${esc(p.no)} · ${esc(p.supplier || "")}</option>`).join("")}</select></label>${field28(["date", "Return date", "date"], r)}${field28(["reason", "Reason", "list", ["Damaged", "Wrong item", "Short / excess", "Quality rejected", "Other"]], r)}${field28(["vehicle", "Vehicle / courier", "text"], r)}</div>
+    ${r.lines.length ? `<table class="t" style="margin-top:8px"><thead><tr><th>Item</th><th>Received</th><th>Return qty</th><th>Rate</th><th>Value</th></tr></thead><tbody>${r.lines.map((l, i) => `<tr><td>${esc(l.desc)}</td><td>${esc(l.recd)} ${esc(l.unit || "")}</td><td><input type="number" data-rq="${i}" value="${esc(l.qty || "")}" style="width:80px"></td><td>${inr28(l.rate)}</td><td>${inr28((+l.qty || 0) * (+l.rate || 0))}</td></tr>`).join("")}</tbody></table><p><b>Total ${inr28(r.lines.reduce((a, l) => a + (+l.qty || 0) * (+l.rate || 0), 0))}</b> (before GST)</p>` : '<p class="small muted">Choose the purchase order to list its received items.</p>'}`;
+  const D = panel28({ title: src ? `${r.no} · return to ${r.supplier}` : "New purchase return", chips: src ? `<span class="chip">${esc(r.status)}</span>` : "", body: `<div id="pr62b">${draw()}</div>`, foot: `${src ? '<button class="btn" id="pr62p" type="button">🖨 Debit note</button>' : ""}<span style="flex:1"></span>${src && r.status === "Sent" ? "" : '<button class="btn primary" id="pr62s" type="button">Save and send back</button>'}` });
+  const wire = () => {
+    $("#pr62po").onchange = e => { const p = BIZ.rows[e.target.value]; r.po = p?.id || ""; r.poNo = p?.no || ""; r.supplier = p?.supplier || ""; r.lines = (p?.lines || []).filter(l => +l.recd > 0).map(l => ({ item: l.item, desc: l.desc || BIZ.rows[l.item]?.name || "", recd: +l.recd, unit: l.unit, rate: +l.rate || 0, qty: 0 })); $("#pr62b").innerHTML = draw(); wire(); };
+    $$("[data-rq]", D).forEach(i => i.onchange = () => { const l = r.lines[+i.dataset.rq]; l.qty = Math.min(+i.value || 0, l.recd); $("#pr62b").innerHTML = draw(); wire(); });
+  };
+  wire();
+  $("#pr62s") && ($("#pr62s").onclick = async e => {
+    readForm28($("#pr62b .fields"), r); const L = r.lines.filter(l => +l.qty > 0); if (!r.po || !L.length) return toast("Choose the PO and enter the return quantity", "bad");
+    r.total = L.reduce((a, l) => a + l.qty * l.rate, 0); r.status = "Sent";
+    const moves = L.filter(l => l.item).map(l => ({ kind: "move", item: l.item, qty: -Math.abs(l.qty), rate: l.rate, type: "return", ref: r.poNo, date: r.date, note: "Purchase return to " + r.supplier }));
+    if (await save28(e.target, [r, ...moves], "Return saved - stock reduced")) { closeDrawer26(); render(); }
+  });
+  $("#pr62p") && ($("#pr62p").onclick = async () => { const L = r.lines.filter(l => +l.qty > 0), g = r.total * 0.18; printHtml28(r.no, `${await lhImg62()}<h1>Debit note / purchase return - ${esc(r.no)}</h1><p>To <b>${esc(r.supplier)}</b> · against PO ${esc(r.poNo)} · ${esc(dmy62(r.date))} · reason: ${esc(r.reason || "")}</p><table><tr><th>Item</th><th>Qty</th><th>Rate</th><th>Value</th></tr>${L.map(l => `<tr><td>${esc(l.desc)}</td><td>${esc(l.qty)} ${esc(l.unit || "")}</td><td>${inr28(l.rate)}</td><td>${inr28(l.qty * l.rate)}</td></tr>`).join("")}<tr><td colspan="3">GST 18 %</td><td>${inr28(g)}</td></tr><tr><th colspan="3">Total</th><th>${inr28(r.total + g)}</th></tr></table><p>Vehicle / courier: ${esc(r.vehicle || "")}</p><br><p>For ${esc(coName62())}<br><br>Authorised signatory</p>`); });
+}
+
+/* ---------------- STATEMENTS: stock statement, asset statement, accounts payable ---------------- */
+VIEWS.rep62 = v => {
+  bizSync28();
+  const tabs = tabsFor62("rep62", "r62", [["stock", "Stock statement"], ["asset", "Asset statement"], ["ap", "Accounts payable"]]), t = BIZ.ui.r62;
+  let html = "", rows = [];
+  if (t === "stock") { const I = all28("item").map(it => { const q = stockOf28(it.id), r = lastRate28(it.id); return { it, q, r, val: q * r, low: +it.min > 0 && q < +it.min }; }).sort((a, b) => String(a.it.category + a.it.name).localeCompare(b.it.category + b.it.name)); rows = [["Item", "Category", "Unit", "Stock", "Min", "Rate", "Value"], ...I.map(x => [x.it.name, x.it.category, x.it.unit, x.q, x.it.min, x.r, Math.round(x.val)])];
+    html = `<div class="kpi62">${[["Items", I.length], ["Stock value", inr28(sum29(I, "val"))], ["Below minimum", I.filter(x => x.low).length]].map(([l, n]) => `<div class="panel kpi"><b>${n}</b><small>${l}</small></div>`).join("")}</div><table class="t"><thead><tr>${rows[0].map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${I.map(x => `<tr style="${x.low ? "background:#fdecea" : ""}"><td><b>${esc(x.it.name)}</b></td><td>${esc(x.it.category || "")}</td><td>${esc(x.it.unit || "")}</td><td>${x.q}</td><td>${esc(x.it.min || "")}</td><td>${inr28(x.r)}</td><td>${inr28(x.val)}</td></tr>`).join("")}</tbody></table>`; }
+  if (t === "asset") { const A = all28("fa"), g = {}; A.forEach(a => { const k = a.category || "Other"; g[k] = g[k] || { n: 0, v: 0, held: 0 }; g[k].n++; g[k].v += +a.value || 0; if (a.holder) g[k].held++; }); rows = [["Category", "Assets", "With people", "Value"], ...Object.entries(g).map(([k, x]) => [k, x.n, x.held, Math.round(x.v)])];
+    html = `<div class="kpi62">${[["Assets", A.length], ["Value", inr28(sum29(A, "value"))], ["Under repair", A.filter(a => a.status === "Under repair").length]].map(([l, n]) => `<div class="panel kpi"><b>${n}</b><small>${l}</small></div>`).join("")}</div><table class="t"><thead><tr>${rows[0].map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${Object.entries(g).sort((a, b) => b[1].v - a[1].v).map(([k, x]) => `<tr><td><b>${esc(k)}</b></td><td>${x.n}</td><td>${x.held}</td><td>${inr28(x.v)}</td></tr>`).join("")}</tbody></table>`; }
+  if (t === "ap") { const B = all28("bill"), P = all28("spay"), s = {}; B.forEach(b => { const paid = sum29(P.filter(p => p.bill === b.id), "amount"), due = (+b.total || 0) - paid; if (due <= 0.5) return; const k = b.supplier || "—", d = Math.floor((Date.now() - new Date(b.date || b.at).getTime()) / 864e5) - (+b.terms || 0); s[k] = s[k] || { due: 0, b: 0, a: [0, 0, 0, 0] }; s[k].due += due; s[k].b++; s[k].a[d <= 0 ? 0 : d <= 30 ? 1 : d <= 60 ? 2 : 3] += due; }); rows = [["Supplier", "Bills", "To pay", "Not due", "1-30 days late", "31-60", "60+"], ...Object.entries(s).map(([k, x]) => [k, x.b, Math.round(x.due), ...x.a.map(Math.round)])];
+    html = `<div class="kpi62">${[["Suppliers to pay", Object.keys(s).length], ["Total payable", inr28(Object.values(s).reduce((a, x) => a + x.due, 0))], ["Overdue", inr28(Object.values(s).reduce((a, x) => a + x.a[1] + x.a[2] + x.a[3], 0))]].map(([l, n]) => `<div class="panel kpi"><b>${n}</b><small>${l}</small></div>`).join("")}</div><table class="t"><thead><tr>${rows[0].map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${Object.entries(s).sort((a, b) => b[1].due - a[1].due).map(([k, x]) => `<tr><td><b>${esc(k)}</b></td><td>${x.b}</td><td><b>${inr28(x.due)}</b></td>${x.a.map((y, i) => `<td style="${i > 1 && y ? "color:#c0392b" : ""}">${y ? inr28(y) : "-"}</td>`).join("")}</tr>`).join("") || '<tr><td colspan="7" class="muted">Nothing to pay.</td></tr>'}</tbody></table>`; }
+  v.innerHTML = top62("Reports", { stock: "Stock statement", asset: "Asset statement", ap: "Accounts payable" }[t], "", `<button class="btn" id="r62x" type="button">⬇ Excel</button>`) + (loadNote28() || tabs28(t, tabs, "r62t") + `<section class="panel" style="margin-top:12px"><div class="body" style="overflow:auto">${html}</div></section>`);
+  $$("[data-r62t]", v).forEach(b => b.onclick = () => { BIZ.ui.r62 = b.dataset.r62t; render(); });
+  $("#r62x", v).onclick = () => csv62(t + "-statement.csv", rows);
+};
+
+/* ---------------- menus: Work module for everyone, Quality module, new cards in HR / Purchase / Accounts / Admin; each role only its own ---------------- */
+{
+  const at = (after, row) => { if (ROUTES.some(r => r[0] === row[0])) return; const i = ROUTES.findIndex(r => r[0] === after); ROUTES.splice(i >= 0 ? i + 1 : ROUTES.length, 0, row); };
+  at("home", ["work", "Work Board", "check28"]);
+  [["courier", "Courier register", "box28"], ["handover", "Handover", "users"], ["quality", "Quality (QAP & tests)", "doc"], ["hrx", "HR documents", "hr29"], ["pur62", "Comparative & returns", "compare"], ["rep62", "Statements", "acc29"], ["assets62", "Asset register", "box28"], ["vault", "Password vault", "lock"]].forEach(r => at("work", r));
+  if (typeof ROLE_PAGES !== "undefined") {
+    const add = (role, L) => { if (ROLE_PAGES[role]) L.forEach(x => { if (!ROLE_PAGES[role].includes(x)) ROLE_PAGES[role].push(x); }); };
+    ["sales", "finance", "operation", "viewer"].forEach(r => add(r, ["work", "courier", "handover"]));
+    add("finance", ["hrx", "pur62", "rep62", "assets62"]); add("operation", ["quality", "pur62", "rep62"]);
+  }
+  MODS32.unshift({ id: "work", name: "Work Board", icon: "check28", tone: "#0b2a57", blurb: "My work, plan, daily update", groups: {
+    Transactions: [["My work", "work", { w62: "mine" }, "Work given to me - accept, update, complete"], ["Assign work", "work", { w62: "assign" }, "Give work to one or more people"], ["Today's plan", "work", { w62: "plan" }, "What I will do today"], ["Daily update", "work", { w62: "du" }, "Evening update with From / To time"], ["Courier", "courier", { cr62: "mine" }, "Couriers for me / sent by me"], ["Handover", "handover", { ho62: "mine" }, "Hand over before leaving"]],
+    Masters: [["Work I gave", "work", { w62: "given" }, "Progress of work I gave"]],
+    Reports: [["Work dashboard", "work", { w62: "dash" }, "Open, overdue, completed, daily updates + Today's work PDF"]] } });
+  MODS32.splice(MODS32.findIndex(m => m.id === "hr") + 1, 0, { id: "quality", name: "Quality", icon: "doc", tone: "#0f766e", blurb: "QAP and electrical tests", groups: {
+    Transactions: [["Test reports", "quality", { q62: "tr" }, "Surge, IR, AC HV, tan δ, DCR, PD - pass / fail by the limits"], ["QAP", "quality", { q62: "qap" }, "Quality assurance plan from Rivera QAP R2"]],
+    Masters: [["Test standards", "quality", { q62: "std" }, "Acceptance limits and standards"]],
+    Reports: [["Test register", "quality", { q62: "reg" }, "Every coil tested, pass / fail"]] } });
+  const card = (mod, grp, c) => { const m = MODS32.find(x => x.id === mod); if (m) (m.groups[grp] = m.groups[grp] || []).push(c); };
+  card("hr", "Masters", ["Employee register (Form IV)", "hrx", { h62: "form4" }, "Code on Wages register - print"]); card("hr", "Transactions", ["Certificates", "hrx", { h62: "cert" }, "Salary, experience, relieving, NOC"]);
+  card("purchase", "Transactions", ["Comparative statement", "pur62", { pu62: "cmp" }, "Supplier quotes side by side → PO"]); card("purchase", "Transactions", ["Purchase return", "pur62", { pu62: "ret" }, "Debit note, stock goes down"]);
+  card("purchase", "Reports", ["Stock statement", "rep62", { r62: "stock" }, "Stock and value of every item"]); card("purchase", "Reports", ["Asset statement", "rep62", { r62: "asset" }, "Assets by category and value"]);
+  card("accounts", "Reports", ["Accounts payable", "rep62", { r62: "ap" }, "What we owe each supplier, by age"]);
+  card("admin", "Transactions", ["Courier register (all)", "courier", { cr62: "all" }, "Every courier in and out"]); card("admin", "Transactions", ["Handover approvals", "handover", { ho62: "approve" }, "Admin check, then MD approval"]);
+  card("admin", "Masters", ["Asset register", "assets62", {}, "Every company asset, who has it"]); card("admin", "Masters", ["Password vault", "vault", {}, "MD + Admin only, encrypted"]);
+  card("work", "Reports", ["Team work (all people)", "work", { w62: "team" }, "Tick for the Admin department / MD: see everyone's work"]);
+  /* the "team" card is a permission switch only — it opens the dashboard */
+  const _g = go32; go32 = function (route, ui) { if (route === "work" && ui?.w62 === "team") ui = { w62: "dash" }; return _g.call(this, route, ui); };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.wk62{display:flex;align-items:center;gap:12px;width:100%;text-align:left;background:var(--card,#fff);border:1px solid var(--line);border-radius:12px;padding:10px 12px;cursor:pointer;font:inherit;color:inherit}.wk62:hover{border-color:var(--copper)}
+.wk62-p{flex:none;width:46px;height:46px;border-radius:50%;display:grid;place-items:center;font-weight:800;font-size:.8rem;color:var(--c);border:3px solid var(--c)}.wk62-m{flex:1;min-width:0;display:flex;flex-direction:column}.wk62-m small{color:var(--muted)}
+.pct62{display:grid;grid-template-columns:repeat(6,1fr);gap:6px;margin-top:8px}.pct62 button{border:0;border-radius:8px;padding:9px 0;font-weight:800;color:#fff;background:var(--c);opacity:.75;cursor:pointer}.pct62 button.on{opacity:1;outline:3px solid #02315B}
+.ppl62{display:flex;flex-wrap:wrap;gap:6px 14px;margin-top:6px}.ppl62 label{display:flex;gap:6px;align-items:center;font-weight:500}
+.pl62{display:flex;gap:8px;align-items:center;border:1px solid var(--line);border-radius:10px;padding:8px 10px}.pl62-t{flex:1}.pl62-i{flex:1}
+.du62{border:1px solid var(--line);border-left:4px solid #e8590c;border-radius:10px;padding:8px 10px}.du62.done{border-left-color:#1e8e3e}.du62.progress{border-left-color:#1a73e8}
+.du62-h{display:flex;gap:6px}.du62-t{flex:1;font-weight:600}.du62-r{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:6px}.du62-r label{display:flex;gap:4px;align-items:center;font-size:.85rem}
+.seg62{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.seg62 button{border:0;background:none;padding:6px 10px;font:inherit;font-size:.82rem;cursor:pointer}.seg62 .on.done{background:#1e8e3e;color:#fff}.seg62 .on.progress{background:#1a73e8;color:#fff}.seg62 .on.pending{background:#e8590c;color:#fff}
+.du62-add{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:10px;padding-top:10px;border-top:1px dashed var(--line)}.du62-add #du62n{flex:1;min-width:200px}.du62-add label{display:flex;gap:4px;align-items:center;font-size:.85rem}
+.kpi62{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin:0 0 12px}.kpi62 .kpi{padding:12px 14px}.kpi62 .kpi b{display:block;font-size:1.5rem}.kpi62 .kpi small{color:var(--muted)}
+.ho62i{border:1px solid var(--line);border-left:4px solid #cfd6e0;border-radius:10px;padding:8px 10px;margin:8px 0}.ho62i.ok{border-left-color:#1e8e3e}.ho62i.miss{border-left-color:#e8590c}.ho62i textarea{width:100%;margin-top:6px}
+.vt62r{display:flex;align-items:center;gap:8px;padding:8px 4px;border-bottom:1px solid var(--line)}.vt62m{flex:1;min-width:0;display:flex;flex-direction:column}.vt62m small{color:var(--muted)}.vt62r code{background:#f1f4f9;padding:3px 8px;border-radius:6px;max-width:170px;overflow:hidden;text-overflow:ellipsis}
+.vs62{display:block;height:6px;background:#eef1f5;border-radius:4px;overflow:hidden;margin-top:4px}
+.qtr62 td,.qtr62 th{vertical-align:top;font-size:.8rem}.ok62{color:#1e8e3e;font-weight:700}.bad62{color:#c0392b;font-weight:700}
+@media(max-width:640px){.pct62{grid-template-columns:repeat(4,1fr)}.vt62r{flex-wrap:wrap}}
+</style>`);
+
 boot();
 
 </script>

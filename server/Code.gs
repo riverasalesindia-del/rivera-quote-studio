@@ -288,6 +288,7 @@ function installAutomation() {
   ScriptApp.newTrigger("hourlyWatch").timeBased().everyHours(1).create();
   try { gemSweepInstall(); } catch (e) { }
   ScriptApp.newTrigger("dailyDigest").timeBased().atHour(8).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
+  try { work62Install(); } catch (e) { }
   props().setProperty("AUTO_ON", new Date().toISOString());
   return { ok: true };
 }
@@ -1001,6 +1002,7 @@ function api(d) {
   if (a === "tdbNote") return tdbNote(d, me);
   /* ---- business records: leads, repair jobs, purchase orders, stock, tasks ---- */
   if (a === "recList") return recList(d, me);
+  if (a === "work62") return work62Api(d, me);
   if (a === "recPut") return recPut(d, me);
   if (a === "recDel") return recDel(d, me);
   if (a === "frList") return { ok: true, list: frList(me), types: FR_TYPES };
@@ -1102,23 +1104,24 @@ function setup() { secret(); users(); sessions(); sheet("Log", ["time", "email",
 
 /* ================= p28: business records (GrowSmart-style) — leads & follow-ups, repair jobs, purchase orders, stock, tasks ================= */
 var RCH = ["id", "kind", "no", "data", "by", "at", "del"];
-var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN", cq: "CQ", sr: "RT" };
+var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN", cq: "CQ", sr: "RT", wk: "WK", wd: "DU", cr: "CR", ho: "HO", fa: "FA", vlt: "VL", qap: "QA", qtr: "TR", pret: "PR", pcs: "CS", cert: "CE" };
 /* who may see / change each kind (admin always) — salaries and books stay with admin + finance */
-var REC_ACCESS = { emp: ["finance"], att: ["finance"], sal: ["finance"], exp: ["finance"], bill: ["finance"], spay: ["finance"], inv: ["finance", "sales"], rcpt: ["finance", "sales"] };
-var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase", cq: "compq", sr: "salesret" };
+var REC_ACCESS = { vlt: ["-"], fa: ["finance", "operation"], qap: ["operation"], qtr: ["operation"], pret: ["operation", "finance"], pcs: ["operation", "finance"], cert: ["finance"], emp: ["finance"], att: ["finance"], sal: ["finance"], exp: ["finance"], bill: ["finance"], spay: ["finance"], inv: ["finance", "sales"], rcpt: ["finance", "sales"] };
+var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase", cq: "compq", sr: "salesret", fa: "assets62", vlt: "vault", qap: "quality", qtr: "quality", pret: "pur62", pcs: "pur62", cert: "hrx" };
 function recCan(kind, me) {
   if (me.role === "admin" || me.email === ADMIN) return true;
+  if (OPEN62.indexOf(kind) >= 0) return true;
   var P = userPages(me);
   if (P.length) { var pg = KIND_PAGE[kind]; if (!pg) return true; return P.some(function (x) { return x === pg || x.indexOf(pg + ".") === 0; }) || (kind === "item" || kind === "move") && P.some(function (x) { return /^jobs|^purchase/.test(x); }) || kind === "inv" && P.some(function (x) { return x.indexOf("purchase.so") === 0 || x.indexOf("purchase.dn") === 0; }); }
   var a = REC_ACCESS[kind]; return !a || a.indexOf(me.role) >= 0;
 }
-var REC_NO = { po: "RCM/PO/", job: "RJ/", inv: "RCM/INV/", svc: "SR/", proj: "PRJ/", sal: "SAL/", so: "RCM/SO/", dn: "RCM/DN/", sr: "RCM/CN/" };
+var REC_NO = { cr: "RCM/CR/", pret: "RCM/PR/", pcs: "RCM/CS/", qtr: "RCM/TR/", qap: "RCM/QAP/", ho: "HO/", po: "RCM/PO/", job: "RJ/", inv: "RCM/INV/", svc: "SR/", proj: "PRJ/", sal: "SAL/", so: "RCM/SO/", dn: "RCM/DN/", sr: "RCM/CN/" };
 function recSheet() { var sh = sheet("Records", RCH); tdbFmt(sh, RCH.length); return sh; }
 function recRows() { return fastRead("Records", RCH, recSheet); }
 function recOut(r) { var o = {}; try { o = JSON.parse(r.data || "{}"); } catch (e) { } o.id = r.id; o.kind = r.kind; o.no = r.no; o.by = r.by; o.at = r.at; return o; }
 function recList(d, me) {
   var kinds = (d.kinds || Object.keys(REC_KINDS)).filter(function (k) { return REC_KINDS[k]; }), since = String(d.since || "");
-  var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (recCan(r.kind, me) || linkedRead(r, me)) && (!since ? r.del !== "1" : String(r.at) > since); });
+  var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (recCan(r.kind, me) || linkedRead(r, me)) && vis62(r, me) && (!since ? r.del !== "1" : String(r.at) > since); });
   return { ok: true, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.kind === "po" && !recCan("po", me)) o = poLite(o); if (r.del === "1") o._del = 1; return o; }) };
 }
 /* Order flow: anyone who can see sales orders also sees (read-only) the work orders and indents / POs made for a sales order,
@@ -1156,6 +1159,7 @@ function recPut(d, me) {
       if (!recCan(kind, me) && !handoffOk(rec, all, me)) throw "Your login can't change this";
       var r = rec.id ? all.filter(function (x) { return x.id === rec.id; })[0] : null, before = null;
       if (r) { try { before = JSON.parse(r.data || "{}"); } catch (e) { before = {}; } }
+      if (r && OPEN62.indexOf(kind) >= 0 && !vis62(r, me)) throw "Your login can't change this";
       if (!r) {
         var fy = fyShort(), pre = REC_NO[kind] ? REC_NO[kind] + fy + "/" : REC_KINDS[kind] + "-", seq = 0;
         all.forEach(function (x) { if (x.kind === kind && String(x.no).indexOf(pre) === 0) seq = Math.max(seq, Number(String(x.no).slice(pre.length)) || 0); });
@@ -1166,6 +1170,7 @@ function recPut(d, me) {
       var js = JSON.stringify(data); if (js.length > 45000) throw "Record too large";
       r.data = js; r.by = me.email; r.at = now;
       out.push(recOut(r));
+      try { mails62(kind, data, before, r, me, mails); } catch (e62) { }
       if (kind === "task" && /@/.test(data.assignee || "") && data.assignee !== me.email && (!before || before.assignee !== data.assignee)) mails.push([data.assignee, "New task for you: " + clean(data.title, 120), "<p><b>" + esc(me.name || me.email) + "</b> gave you a task:</p><p style=\"font-size:16px\"><b>" + esc(data.title || "") + "</b></p><p>" + esc(data.note || "") + "</p><p>Due: <b>" + esc(data.due || "—") + "</b></p><p>" + btn(LINKS.site + "#tasks", "Open My work", "#02315B") + "</p>"]);
       if (kind === "cmt" && data.mentions && data.mentions.length) data.mentions.forEach(function (to) { if (/@/.test(to) && to !== me.email) mails.push([to, (me.name || me.email) + " mentioned you", "<p><b>" + esc(me.name || me.email) + "</b> wrote on <b>" + esc(data.onTitle || "") + "</b>:</p><blockquote style=\"border-left:3px solid #E26A0C;margin:0;padding:6px 12px\">" + esc(data.text || "") + "</blockquote><p>" + btn(LINKS.site + "#" + (data.route || "tasks"), "Open in Rivera", "#02315B") + "</p>"]); });
       if (kind === "leave" && data.status === "applied" && (!before || before.status !== "applied")) mails.push([ADMIN, "Leave request: " + clean(data.empName, 60) + " " + clean(data.from, 12) + " to " + clean(data.to, 12), "<p>" + esc(data.empName || "") + " asked for " + esc(data.type || "leave") + " from <b>" + esc(data.from || "") + "</b> to <b>" + esc(data.to || "") + "</b>.</p><p>" + esc(data.reason || "") + "</p><p>" + btn(LINKS.site + "#hr", "Open HR", "#02315B") + "</p>"]);
@@ -1186,6 +1191,8 @@ function recDel(d, me) {
   try {
     var sh = recSheet(), all = readTableRaw(sh, RCH), r = all.filter(function (x) { return x.id === d.id; })[0]; if (!r) throw "Not found";
     if (r.kind === "lead" && ["admin", "sales"].indexOf(me.role) < 0) throw "Only sales can change leads";
+    if (OPEN62.indexOf(r.kind) >= 0 && me.role !== "admin" && r.by !== me.email && !own62(r, me)) throw "Your login can't remove this";
+    if (["vlt", "fa", "qap", "qtr", "pret", "pcs", "cert"].indexOf(r.kind) >= 0 && !recCan(r.kind, me)) throw "Your login can't remove this";
     r.del = "1"; r.at = new Date().toISOString(); r.by = me.email; writeTable(sh, RCH, all);
   } finally { lock.releaseLock(); }
   log(me.email, "record-delete", d.id);
@@ -1214,4 +1221,119 @@ function recDigest() {
     try { mail(who, APP + " — your work for " + dmyS(today), html + "<p>" + btn(LINKS.site + "#tasks", "Open My work", "#02315B") + "</p>"); sent++; } catch (e) { }
   });
   return sent;
+}
+
+/* ================= p62: Work Board inside Quote Studio — work given to people, Today's plan, evening daily update (From / To time
+   for every work), courier register, handover, asset register, password vault (encrypted in the browser), QAP & test reports,
+   HR certificates, purchase comparative statement & purchase return. Each login sees only its own work; admin sees everything. ================= */
+var OPEN62 = ["wk", "wd", "cr", "ho"];
+function data62(r) { try { return JSON.parse(r.data || "{}"); } catch (e) { return {}; } }
+function md62() { return String(props().getProperty("WORK_MD") || "info@rivera.co.in").toLowerCase(); }
+/* who is part of a record: the giver and the receiver of a work, the writer of a daily update, the sender / receiver of a courier,
+   the person handing over and the person taking over */
+function own62(r, me) {
+  var x = data62(r), e = me.email;
+  if (r.kind === "wk") return x.to === e || x.from === e || r.by === e;
+  if (r.kind === "wd") return x.who === e;
+  if (r.kind === "cr") return x.forEmail === e || x.byEmail === e || r.by === e;
+  if (r.kind === "ho") return x.emp === e || x.to === e;
+  return true;
+}
+function vis62(r, me) {
+  if (OPEN62.indexOf(r.kind) < 0) return true;
+  if (me.role === "admin" || me.email === ADMIN || me.role === "viewer" || me.email === md62()) return true;
+  var P = userPages(me);
+  if (r.kind === "cr" && P.indexOf("courier.all") >= 0) return true;
+  if (r.kind === "ho" && P.indexOf("handover.approve") >= 0) return true;
+  if ((r.kind === "wk" || r.kind === "wd") && P.indexOf("work.dash") >= 0 && P.indexOf("work.team") >= 0) return true;
+  return own62(r, me);
+}
+function link62(tab) { return SITE + "#" + (tab || "work"); }
+function mails62(kind, x, before, r, me, mails) {
+  var nm = esc(me.name || me.email);
+  if (kind === "wk") {
+    if (/@/.test(x.to || "") && x.to !== me.email && (!before || before.to !== x.to) && x.src !== "plan")
+      mails.push([x.to, "New work for you: " + clean(x.title, 110), "<p><b>" + nm + "</b> gave you this work:</p><p style='font-size:16px'><b>" + esc(x.title) + "</b></p>" + (x.details ? "<p>" + esc(x.details) + "</p>" : "") + (x.due ? "<p>Finish by <b>" + esc(String(x.due).replace("T", " ")) + "</b></p>" : "") + btn(link62("work"), "Open my work", "#02315B")]);
+    var md = md62();
+    if (x.status === "done" && (!before || before.status !== "done") && /@/.test(x.from || "") && x.from !== me.email && x.from !== md && x.src !== "plan")
+      mails.push([x.from, "Completed: " + clean(x.title, 110), "<p><b>" + nm + "</b> completed the work you gave:</p><p><b>" + esc(x.title) + "</b></p>" + btn(link62("work"), "Open", "#1e8e3e")]);
+  }
+  if (kind === "cr" && x.dir === "in" && /@/.test(x.forEmail || "") && x.forEmail !== me.email && (!before || before.forEmail !== x.forEmail))
+    mails.push([x.forEmail, "Courier for you: " + clean(x.party, 80) + " (" + r.no + ")", "<p>A courier has come for you at the office.</p><p><b>" + esc(x.party) + "</b>" + (x.place ? ", " + esc(x.place) : "") + "<br>" + esc([x.company, x.docket, x.contents].filter(Boolean).join(" · ")) + "</p>" + btn(link62("courier"), "Acknowledge - I received it", "#1e8e3e")]);
+  if (kind === "ho" && x.status !== (before && before.status)) {
+    var who = esc(x.empName || x.emp);
+    if (x.status === "submitted") approvers62("handover.approve").forEach(function (a) { mails.push([a, "Handover for review: " + clean(x.empName || x.emp, 60), "<p><b>" + who + "</b> has submitted a handover to <b>" + esc(x.toName || x.to) + "</b>. The checklist was cross-checked by the app. Please verify and approve, or send it back.</p>" + btn(link62("handover"), "Review handover", "#5b2c83")]); });
+    if (x.status === "admin_ok") mails.push([md62(), "Handover ready for your approval: " + clean(x.empName || x.emp, 60) + " → " + clean(x.toName || x.to, 60), "<p>Dear Sir,</p><p>The handover of <b>" + who + "</b> to <b>" + esc(x.toName || x.to) + "</b> has been checked by the Admin department and is ready for your approval.</p>" + btn(link62("handover"), "Review and approve", "#1e8e3e")]);
+    if (x.status === "returned" && /@/.test(x.emp || "")) mails.push([x.emp, "Handover sent back - please complete", "<p>Your handover was sent back:</p><p><i>" + esc(x.note || "") + "</i></p>" + btn(link62("handover"), "Open handover", "#E26A0C")]);
+    if (x.status === "approved") [x.emp, x.to].forEach(function (t) { if (/@/.test(t || "")) mails.push([t, "Handover approved: " + clean(x.empName || x.emp, 60) + " → " + clean(x.toName || x.to, 60), "<p>The handover is approved. Open work has moved to <b>" + esc(x.toName || x.to) + "</b>.</p>" + btn(link62("handover"), "Open", "#02315B")]); });
+  }
+}
+function approvers62(tok) {
+  var v = users().getDataRange().getValues(), out = [];
+  for (var i = 1; i < v.length; i++) { var u = {}; UH.forEach(function (k, j) { u[k] = v[i][j]; }); if (u.status === "approved" && userPages(u).indexOf(tok) >= 0) out.push(String(u.email).toLowerCase()); }
+  if (!out.length) out.push(ADMIN);
+  return out;
+}
+function team62() {
+  var v = users().getDataRange().getValues(), out = [];
+  for (var i = 1; i < v.length; i++) { var u = {}; UH.forEach(function (k, j) { u[k] = v[i][j]; }); if (u.status === "approved" && /@/.test(u.email) && u.role !== "viewer") out.push({ email: String(u.email).toLowerCase(), name: u.name || u.email, role: u.role }); }
+  return out;
+}
+function work62Install() {
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (["workMorning62", "workRemind62", "workEvening62"].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
+  ScriptApp.newTrigger("workMorning62").timeBased().atHour(9).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
+  ScriptApp.newTrigger("workRemind62").timeBased().atHour(18).nearMinute(0).everyDays(1).inTimezone("Asia/Kolkata").create();
+  ScriptApp.newTrigger("workEvening62").timeBased().atHour(18).nearMinute(35).everyDays(1).inTimezone("Asia/Kolkata").create();
+  props().setProperty("WORK62_ON", new Date().toISOString());
+  return { ok: true };
+}
+function workday62() { return Utilities.formatDate(new Date(), "Asia/Kolkata", "u") !== "7"; }
+function rows62(kind) { return recRows().filter(function (r) { return r.kind === kind && r.del !== "1"; }).map(recOut); }
+function wkLine62(x) { return "<li style='margin:3px 0'><b>" + esc(x.title) + "</b> <span style='color:#5d6878'>(" + (x.pct || 0) + "%" + (x.due ? " · due " + esc(String(x.due).replace("T", " ").slice(0, 16)) : "") + ")</span></li>"; }
+/* 9:30 — each person gets only their own open work */
+function workMorning62() {
+  if (!workday62()) return;
+  var open = rows62("wk").filter(function (x) { return ["done", "cancelled"].indexOf(x.status) < 0; }), n = 0;
+  team62().forEach(function (u) {
+    var L = open.filter(function (x) { return x.to === u.email; }); if (!L.length) return;
+    var over = L.filter(function (x) { return x.due && String(x.due).slice(0, 10) < todayIST(); }).length;
+    try { mail(u.email, "Your work today - " + L.length + " open" + (over ? ", " + over + " overdue" : ""), "<p>Good morning " + esc(u.name) + ",</p><p>Your open work:</p><ul style='padding-left:18px'>" + L.slice(0, 25).map(wkLine62).join("") + "</ul>" + btn(link62("work"), "Open my work", "#02315B") + btn(link62("work"), "Write today's plan", "#7b3fa0")); n++; } catch (e) { }
+  });
+  log("automation", "work-morning", n + " mails");
+}
+/* 18:00 — reminder to everyone who has not sent the daily update */
+function workRemind62() {
+  if (!workday62()) return;
+  var t = todayIST(), done = rows62("wd").filter(function (x) { return x.day === t && x.submittedAt; }).map(function (x) { return x.who; }), n = 0;
+  team62().forEach(function (u) { if (u.email === md62() || done.indexOf(u.email) >= 0) return; try { mail(u.email, "Reminder: send today's work update", "<p>Hi " + esc(u.name) + ",</p><p>Please send today's daily work update before <b>6:30 PM</b>. Every work needs a From and To time.</p>" + btn(link62("work"), "Open daily update", "#E26A0C")); n++; } catch (e) { } });
+  log("automation", "work-remind", n + " reminders");
+}
+/* 18:35 — one clean report to MD sir: who sent the update, every work with its time, work completed today, overdue work */
+function workEvening62() {
+  if (!workday62()) return;
+  var t = todayIST(), team = team62(), W = rows62("wd").filter(function (x) { return x.day === t && x.submittedAt; }), K = rows62("wk");
+  var done = K.filter(function (x) { return x.status === "done" && String(x.doneAt || "").slice(0, 10) === t; }), over = K.filter(function (x) { return ["done", "cancelled"].indexOf(x.status) < 0 && x.due && String(x.due).slice(0, 10) < t; });
+  var sent = W.map(function (x) { return x.who; }), miss = team.filter(function (u) { return u.email !== md62() && sent.indexOf(u.email) < 0; });
+  var ST = { done: ["Completed", "#1e8e3e"], progress: ["In progress", "#1a73e8"], pending: ["Pending", "#E26A0C"] }, mins = 0;
+  var rows = W.map(function (w) {
+    var it = (w.items || []).map(function (i) { var a = String(i.from || ""), b = String(i.to || ""), m = a && b ? (Number(b.slice(0, 2)) * 60 + Number(b.slice(3, 5))) - (Number(a.slice(0, 2)) * 60 + Number(a.slice(3, 5))) : 0; if (m > 0) mins += m; var s = ST[i.state] || ["", "#555"]; return "<tr><td style='padding:4px 8px;border-bottom:1px solid #eef1f5'>" + esc(i.title) + "</td><td style='padding:4px 8px;border-bottom:1px solid #eef1f5;white-space:nowrap'>" + esc(a) + "–" + esc(b) + "</td><td style='padding:4px 8px;border-bottom:1px solid #eef1f5;color:" + s[1] + ";font-weight:bold'>" + s[0] + "</td></tr>"; }).join("");
+    return "<h3 style='margin:16px 0 4px;font-size:15px'>" + esc(w.whoName || w.who) + (w.late ? " <span style='color:#c0392b;font-size:12px'>(late)</span>" : "") + "</h3><table style='width:100%;border-collapse:collapse;font-size:13px'>" + it + "</table>" + (w.remarks ? "<p style='font-size:13px;color:#5d6878'>Remarks: " + esc(w.remarks) + "</p>" : "");
+  }).join("");
+  var html = "<p>Dear Sir,</p><p>Daily work report for <b>" + dmyS(t) + "</b>: <b>" + W.length + "/" + (W.length + miss.length) + "</b> sent the update · <b style='color:#1e8e3e'>" + done.length + "</b> work completed · <b style='color:#c0392b'>" + over.length + "</b> overdue · total time " + Math.floor(mins / 60) + "h " + (mins % 60) + "m.</p>"
+    + (miss.length ? "<p style='color:#c0392b'><b>Not sent:</b> " + miss.map(function (u) { return esc(u.name); }).join(", ") + "</p>" : "")
+    + rows
+    + (done.length ? "<h3 style='margin:18px 0 4px;font-size:15px;color:#1e8e3e'>Work completed today</h3><ul style='padding-left:18px'>" + done.map(function (x) { return "<li>" + esc(x.title) + " — " + esc(x.toName || x.to) + "</li>"; }).join("") + "</ul>" : "")
+    + (over.length ? "<h3 style='margin:18px 0 4px;font-size:15px;color:#c0392b'>Overdue work</h3><ul style='padding-left:18px'>" + over.slice(0, 40).map(function (x) { return "<li>" + esc(x.title) + " — " + esc(x.toName || x.to) + " (due " + dmyS(String(x.due).slice(0, 10)) + ", " + (x.pct || 0) + "%)</li>"; }).join("") + "</ul>" : "")
+    + btn(link62("work"), "Open Work Board", "#02315B");
+  try { mail(md62(), "Daily work report - " + dmyS(t) + ": " + W.length + " updates, " + done.length + " completed", html); } catch (e) { }
+  log("automation", "work-evening", W.length + " updates");
+}
+function work62Api(d, me) {
+  if (d.op === "team") return { ok: true, team: team62(), md: md62() };
+  if (me.role !== "admin" && me.email !== ADMIN) throw "Only the admin";
+  if (d.op === "state") { var on = false; try { on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === "workMorning62"; }); } catch (e) { } return { ok: true, on: on, md: md62() }; }
+  if (d.op === "md") { var m = String(d.md || "").trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(m)) throw "Enter a valid email"; props().setProperty("WORK_MD", m); return { ok: true, md: m }; }
+  if (d.op === "install") return work62Install();
+  if (d.op === "run") { var f = { morning: workMorning62, remind: workRemind62, evening: workEvening62 }[d.job]; if (!f) throw "Unknown job"; f(); return { ok: true }; }
+  throw "Unknown";
 }
