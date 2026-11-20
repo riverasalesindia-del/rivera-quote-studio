@@ -12007,6 +12007,153 @@ team62 = async function (force) {
 }
 { const _w = wireUpd65; wireUpd65 = function (v) { _w(v); const s = $("#h66", v); if (s) s.onchange = () => { W62.h66 = s.value; render(); }; }; }
 
+
+/* ===================== p68: Work update looks like the old Daily Work Update app — day card with the time bar, Work assigned to you
+   (status + % buttons), Pending from earlier (tick, time), Today's work (add box), Remarks, and the Submit bar at the bottom.
+   Everything typed is kept (server), MD gets the plans at 10:45 and the report at 6:35 PM ===================== */
+const OPEN68 = "09:00", CLOSE68 = "18:30";
+const CHECK68 = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
+const t1268 = hm => { if (!hm) return ""; let [h, m] = hm.split(":").map(Number); const ap = h >= 12 ? "PM" : "AM"; h = h % 12 || 12; return `${h}:${String(m).padStart(2, "0")} ${ap}`; };
+const prevMine68 = () => all28("wd").filter(x => x.who === me28() && x.day < todayISO() && x.items?.length).sort((a, b) => String(b.day).localeCompare(String(a.day)))[0];
+/* today's list: what was kept today, else today's plan + work given to me + what was still open the last day */
+updItems65 = function () {
+  if (W62.u65 && W62.u65.day === todayISO()) return W62.u65.items;
+  const d = updMine65(), prev = prevMine68(), open = (prev?.items || []).filter(i => i.state !== "done" && i.state !== "dropped");
+  const since = t => { const L = all28("wd").filter(x => x.who === me28() && x.day < todayISO() && (x.items || []).some(i => i.title === t && i.state !== "done")).map(x => x.day).sort(); return L[0] || prev?.day || ""; };
+  let items;
+  if (d?.items?.length) items = JSON.parse(JSON.stringify(d.items)).map(i => ({ ...i, carried: i.carried ?? open.some(o => o.title === i.title), since: i.since || (open.some(o => o.title === i.title) ? since(i.title) : "") }));
+  else {
+    const plan = planToday62().map(x => ({ title: x.title, state: x.status === "done" ? "done" : x.status === "pending" ? "pending" : "progress", pct: +x.pct || 0, from: x.pfrom || "", to: x.pto || "", wk: x.id }));
+    const given = myWk62().filter(x => x.src !== "plan" && !["done", "cancelled"].includes(x.status) && !plan.some(p => p.wk === x.id)).map(x => ({ title: x.title, state: x.status === "pending" ? "pending" : "progress", pct: +x.pct || 0, from: "", to: "", wk: x.id, given: nm62(x.from), due: x.due || "" }));
+    const car = open.filter(o => !plan.some(p => p.title === o.title) && !given.some(g => g.title === o.title)).map(o => ({ title: o.title, state: "pending", pct: +o.pct || 0, from: "", to: "", wk: o.wk || "", carried: true, since: since(o.title) }));
+    items = [...given, ...car, ...plan];
+  }
+  W62.u65 = { day: todayISO(), items, remarks: d?.remarks || "" };
+  return items;
+};
+function win68() {
+  const now = hm62(), toM = s => +s.slice(0, 2) * 60 + +s.slice(3, 5), a = toM(OPEN68), b = toM(CLOSE68), n = toM(now);
+  const pct = Math.max(0, Math.min(100, Math.round((n - a) / (b - a) * 100))), left = b - n;
+  return { pct, left, soon: left > 0 && left <= 60, shut: left <= 0, label: left > 0 ? `${Math.floor(left / 60) ? Math.floor(left / 60) + "h " : ""}${left % 60}m left` : "Time over - you can still send" };
+}
+upd65 = function () {
+  const d = updMine65(), I = updItems65(), sent = !!d?.submittedAt, W = win68(), S = W62.u65;
+  const vis = I.filter(i => i.state !== "dropped"), tot = vis.reduce((a, i) => a + mins62(i.from, i.to), 0);
+  const dirty = sent && S.dirty68;
+  const pill = sent && !dirty ? `<span class="o68-pill ok">Submitted ${esc(t1268(String(d.submittedAt).slice(11, 16)))}</span>` : sent ? '<span class="o68-pill wait">Changes not sent</span>' : '<span class="o68-pill no">Not submitted</span>';
+  const giv = I.map((i, n) => [i, n]).filter(([i]) => i.given), car = I.map((i, n) => [i, n]).filter(([i]) => i.carried && !i.given), tod = I.map((i, n) => [i, n]).filter(([i]) => !i.carried && !i.given);
+  const pg = (i, n) => `<div class="o68-pg">${[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(p => `<button type="button" data-pp="${n}" data-p="${p}" class="${(+i.pct || 0) === p ? "on" : ""}" style="background:${pcol62(p)}">${p}</button>`).join("")}</div>`;
+  const st3 = (i, n) => `<div class="o68-st3">${[["done", "Completed"], ["progress", "In progress"], ["pending", "Pending"]].map(([k, l]) => `<button type="button" data-st="${n}" data-s="${k}" class="${i.state === k ? "on " + k : ""}">${l}</button>`).join("")}</div>`;
+  const tm = (i, n) => `<div class="o68-tm"><label><span>From</span><input type="time" data-tf="${n}" data-f="from" value="${esc(i.from || "")}"></label><label><span>To</span><input type="time" data-tf="${n}" data-f="to" value="${esc(i.to || "")}"></label><button class="o68-now" type="button" data-now="${n}" title="To = now">Now</button></div>`;
+  const row = ([i, n]) => { const st = i.state, sub = i.carried ? `Pending since ${esc(dmy62(i.since || ""))}${st === "dropped" ? " · dropped" : st === "done" ? " · completed today" : ""}` : st === "done" ? "Completed" : st === "progress" ? "In progress - carries to tomorrow" : "Pending - carries to tomorrow";
+    return `<div class="o68-task ${st === "done" ? "done" : st === "dropped" ? "dropped" : st === "progress" ? "prog" : "pend"}${i._need ? " need" : ""}" data-n="${n}">
+      <button class="o68-chk" type="button" data-chk="${n}" aria-label="Mark done">${CHECK68}</button>
+      <div class="o68-tt"><span class="o68-ttl" data-ttl="${n}" title="Tap to edit">${esc(i.title)}<i class="o68-pen">✎</i></span><small>${sub} <b class="o68-dur">${dur62(mins62(i.from, i.to))}</b></small>${st === "dropped" ? "" : st3(i, n) + (st === "done" ? "" : pg(i, n)) + tm(i, n)}</div>
+      <button class="o68-x" type="button" data-x="${n}" title="${i.carried ? "Drop (no longer needed)" : "Remove"}">×</button></div>`; };
+  const wk = ([i, n]) => { const p = i.state === "done" ? 100 : +i.pct || 0, w = BIZ.rows[i.wk], od = w?.due && String(w.due).slice(0, 10) < todayISO() && i.state !== "done";
+    return `<div class="o68-wk${i._need ? " need" : ""}" style="--c:${pcol62(p)}" data-n="${n}"><div class="o68-wkt"><span class="o68-ttl" data-ttl="${n}">${esc(i.title)}</span><span class="o68-wkp">${p}%</span></div>
+      <div class="o68-mini">From ${esc(i.given)}${w?.due ? ` · <span style="color:${od ? "#c0392b" : "inherit"}">due ${esc(dt62(w.due))}</span>` : ""}</div>${st3(i, n)}${i.state === "done" ? "" : pg(i, n)}${tm(i, n)}<div class="o68-wbar"><i style="width:${Math.max(p, 2)}%"></i></div></div>`; };
+  const H = (() => { const tv = adm62() || pg62("work.team"), hw = tv && W62.h66 ? W62.h66 : me28(); return { tv, hw, L: all28("wd").filter(x => x.who === hw && (x.day !== todayISO() || hw !== me28()) && x.items?.length).sort((a, b) => String(b.day).localeCompare(String(a.day))) }; })();
+  return `<div class="o68">
+    <div class="o68-card o68-win ${W.soon ? "soon" : W.shut ? "shut" : ""}"><div class="o68-winrow"><div style="flex:1;min-width:0"><div class="o68-h" style="margin:0">${esc(new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" }))}</div><div class="o68-muted">${hm62() < "12:00" ? "Good morning - add today's work with From and To time." : "Open now."} Submit before <b>${t1268(CLOSE68)}</b>.</div></div>${pill}</div>
+      <div class="o68-prog"><i style="width:${W.pct}%"></i></div><div class="o68-winfoot"><span>${t1268(OPEN68)}</span><b>${W.label}</b><span>${t1268(CLOSE68)}</span></div></div>
+    ${sent && !dirty ? `<div class="o68-card o68-ok"><b>Update submitted</b><span>Sent at ${esc(t1268(String(d.submittedAt).slice(11, 16)))}. You can still change it and send again.</span></div>` : ""}
+    ${giv.length ? `<div class="o68-card"><div class="o68-h">Work assigned to you <span class="o68-n">${giv.length}</span></div><div class="o68-muted">Choose Completed, In progress or Pending and set the % for each. Saved with your update.</div>${giv.map(wk).join("")}</div>` : ""}
+    ${car.length ? `<div class="o68-card"><div class="o68-h">Pending from earlier <span class="o68-n">${car.length}</span></div><div class="o68-muted">Tick what you finished today and add its time. Untouched items stay pending for tomorrow.</div>${car.map(row).join("")}</div>` : ""}
+    <div class="o68-card"><div class="o68-h">Today's work <span class="o68-n">${tod.length}</span></div>${tod.length ? tod.map(row).join("") : '<div class="o68-empty">Nothing added yet. Type your first work below.</div>'}
+      <form class="o68-add" id="o68f" autocomplete="off"><input id="u65n" placeholder="What did you work on?" maxlength="300" enterkeyhint="done">
+        <div class="o68-addrow"><label class="o68-tl"><span>From</span><input id="u65f" type="time" value="${esc(vis.map(i => i.to).filter(Boolean).sort().pop() || "")}"></label><label class="o68-tl"><span>To</span><input id="u65to" type="time"></label>
+          <div class="o68-seg" id="o68s">${[["done", "Completed"], ["progress", "In progress"], ["pending", "Pending"]].map(([k, l]) => `<button type="button" data-ns="${k}" class="${(S.ns || "done") === k ? "on" : ""}">${l}</button>`).join("")}</div><button class="o68-btn or o68-addbtn" id="u65a">+ Add</button></div>
+        <div class="o68-muted o68-hint">From and To time is needed for every work. "To" of one task fills "From" of the next.</div></form></div>
+    <div class="o68-card"><div class="o68-h">Remarks <span class="o68-muted" style="font-weight:400">(optional)</span></div><textarea id="u65r" maxlength="2000" placeholder="Problems, material needed, help required...">${esc(S.remarks || "")}</textarea><div class="o68-muted" id="u65k" style="margin-top:6px">Everything you type is kept</div></div>
+    ${H.L.length || H.tv ? `<div class="o68-card"><div class="o68-h" style="justify-content:space-between">My history ${H.tv ? `<select id="h66" aria-label="Whose updates">${[...new Map(all28("wd").map(x => [x.who, x.whoName || nm62(x.who)])).entries(), [me28(), AUTH.user?.name || "Me"]].filter((x, i, a) => a.findIndex(y => y[0] === x[0]) === i).sort((a, b) => String(a[1]).localeCompare(String(b[1]))).map(([e, nm]) => `<option value="${esc(e)}" ${e === H.hw ? "selected" : ""}>${esc(nm)}</option>`).join("")}</select>` : ""}</div>
+      ${H.L.slice(0, 40).map(h => `<div class="o68-hist"><div class="o68-hd"><b>${esc(dmy62(h.day))}</b>${h.submittedAt ? ` · sent ${esc(t1268(String(h.submittedAt).slice(11, 16)))}` : " · not sent"}${h.late ? ' <span style="color:#c0392b">late</span>' : ""}<button type="button" class="o68-x" data-eday="${h.id}" title="Edit this day">✎</button></div><ul>${h.items.map(i => `<li><span class="o68-dot ${i.state}"></span>${esc(i.title)}${i.from ? ` <small>${esc(i.from)}${i.to ? "–" + esc(i.to) : ""}</small>` : ""}${i.state !== "done" && i.pct != null ? ` <small style="color:${pcol62(i.pct)};font-weight:800">${+i.pct || 0}%</small>` : ""}</li>`).join("")}</ul>${h.remarks ? `<div class="o68-muted">Remarks: ${esc(h.remarks)}</div>` : ""}</div>`).join("") || '<div class="o68-empty">No earlier updates.</div>'}</div>` : ""}
+    <div class="o68-bar"><div class="o68-barrow"><div class="o68-sum"><span>Completed <b>${vis.filter(i => i.state === "done").length}</b></span><span>In progress <b>${vis.filter(i => i.state === "progress").length}</b></span><span>Pending <b>${vis.filter(i => i.state === "pending").length}</b></span><span>Time <b>${dur62(tot) || "0h"}</b></span></div>
+      <button class="o68-btn ghost" id="u65pdf" type="button" title="Today's work PDF">PDF</button><button class="o68-btn or" id="u65s" type="button">${sent ? (dirty ? "Send changes" : "Update submission") : "Submit update"}</button></div></div>
+  </div>`;
+};
+wireUpd65 = function (v) {
+  const S = W62.u65; if (!S || !$("#u65s", v)) return; const I = S.items;
+  const ch = () => { if (updMine65()?.submittedAt) S.dirty68 = 1; keep65(); };
+  const redraw = () => { const y = scrollY; render(); scrollTo(0, y); };
+  $$("[data-st]", v).forEach(b => b.onclick = () => { const i = I[+b.dataset.st], s = b.dataset.s; i.state = s; if (s === "done") i.pct = 100; else if (+i.pct >= 100) i.pct = 90; i._need = false; ch(); redraw(); });
+  $$("[data-pp]", v).forEach(b => b.onclick = () => { const i = I[+b.dataset.pp], p = +b.dataset.p; i.pct = p; i.state = p >= 100 ? "done" : p > 0 ? "progress" : i.state === "done" ? "pending" : i.state; ch(); redraw(); });
+  $$("[data-chk]", v).forEach(b => b.onclick = () => { const i = I[+b.dataset.chk]; if (i.state === "dropped") return; if (i.state === "done") { i.state = "pending"; if (+i.pct >= 100) i.pct = 90; } else { i.state = "done"; i.pct = 100; } i._need = false; ch(); redraw(); });
+  $$("[data-x]", v).forEach(b => b.onclick = () => { const n = +b.dataset.x, i = I[n]; if (i.carried || i.given) { i.state = i.state === "dropped" ? "pending" : "dropped"; } else { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Remove?"; b.style.fontSize = "12px"; return; } I.splice(n, 1); } ch(); redraw(); });
+  $$("[data-now]", v).forEach(b => b.onclick = () => { const i = I[+b.dataset.now]; i.to = hm62(); if (!i.from) { const prev = I.filter(x => x !== i && x.to && x.to < i.to).map(x => x.to).sort().pop(); if (prev) i.from = prev; } ch(); redraw(); });
+  $$("[data-tf]", v).forEach(inp => inp.onchange = () => { const i = I[+inp.dataset.tf]; i[inp.dataset.f] = inp.value; i._need = false; const d = inp.closest(".o68-task,.o68-wk")?.querySelector(".o68-dur"); if (d) d.textContent = dur62(mins62(i.from, i.to)); ch(); });
+  $$("[data-ttl]", v).forEach(sp => sp.onclick = () => { const i = I[+sp.dataset.ttl]; if (i.state === "dropped") return; const inp = document.createElement("input"); inp.className = "o68-ttlin"; inp.value = i.title; inp.maxLength = 300; sp.replaceWith(inp); inp.focus(); inp.setSelectionRange(inp.value.length, inp.value.length); let done = false;
+    const fin = ok => { if (done) return; done = true; const t = inp.value.trim().replace(/\s+/g, " "); if (ok && t && t !== i.title) { i.title = t; ch(); toast("Changed - it is kept"); } redraw(); };
+    inp.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); fin(true); } if (e.key === "Escape") fin(false); }; inp.onblur = () => fin(true); });
+  $$("[data-ns]", v).forEach(b => b.onclick = () => { S.ns = b.dataset.ns; $$("[data-ns]", v).forEach(x => x.classList.toggle("on", x === b)); });
+  const add = () => { const t = $("#u65n", v).value.trim().replace(/\s+/g, " "), f = $("#u65f", v).value, to = $("#u65to", v).value; if (!t) { $("#u65n", v).focus(); return true; } if (I.some(x => x.state !== "dropped" && x.title.toLowerCase() === t.toLowerCase())) { toast("Already in your list", "bad"); return false; } if (!f || !to) { toast("Add the From and To time for this work", "bad"); (f ? $("#u65to", v) : $("#u65f", v)).focus(); return false; } if (to <= f) { toast('"To" time must be after "From" time', "bad"); $("#u65to", v).focus(); return false; }
+    const s = S.ns || "done"; I.push({ title: t, state: s, pct: s === "done" ? 100 : 0, from: f, to }); ch(); render(); setTimeout(() => { $("#u65n")?.focus(); const nf = $("#u65f"); if (nf) nf.value = to; }, 30); return true; };
+  $("#o68f", v).onsubmit = e => { e.preventDefault(); add(); };
+  $("#u65r", v).oninput = e => { S.remarks = e.target.value; ch(); };
+  $("#u65pdf", v).onclick = () => dayPdf62();
+  $$("[data-eday]", v).forEach(b => b.onclick = () => { const r = BIZ.rows[b.dataset.eday]; if (r) dayEdit66(r); });
+  const hs = $("#h66", v); if (hs) hs.onchange = () => { W62.h66 = hs.value; render(); };
+  $("#u65s", v).onclick = async e => {
+    if ($("#u65n", v).value.trim() && !add()) return;
+    const vis = I.filter(i => i.state !== "dropped"); if (!vis.length && !(S.remarks || "").trim()) { toast("Add at least one work", "bad"); $("#u65n", v).focus(); return; }
+    let first = null; I.forEach(x => { x._need = false; if (x.state === "dropped") return; const needT = !((x.carried || x.given) && x.state === "pending"); const bad = (needT && (!x.from || !x.to)) || (x.from && x.to && x.to <= x.from); if (bad) { x._need = true; first = first || x; } });
+    if (first) { render(); const el = $(`[data-n="${I.indexOf(first)}"]`); el?.scrollIntoView({ behavior: "smooth", block: "center" }); setTimeout(() => el?.querySelector(first.from ? '[data-f="to"]' : '[data-f="from"]')?.focus(), 350); return toast(first.from && first.to ? '"To" time must be after "From" time' : `Add From and To time for "${first.title.slice(0, 40)}"`, "bad"); }
+    const recs = [];
+    I.forEach(i => { const w = i.wk && BIZ.rows[i.wk] ? { ...BIZ.rows[i.wk] } : null; if (!w) return; const st = i.state === "dropped" ? w.status : i.state, pc = i.state === "done" ? 100 : +i.pct || 0; let c = false;
+      if ((+w.pct || 0) !== pc) { w.pct = pc; c = true; } if (w.src === "plan" && (w.pfrom !== i.from || w.pto !== i.to || w.title !== i.title)) { Object.assign(w, { pfrom: i.from, pto: i.to, title: i.title }); c = true; }
+      if (w.status !== st && !(st === "progress" && w.status === "accepted")) { w.status = st; if (st === "done") w.doneAt = now62(); logAdd28(w, "Work update", `${st} ${pc}%`); c = true; } if (c) recs.push(w); });
+    const old = updMine65(), wd = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: I.filter(i => i.state !== "dropped").map(i => ({ title: i.title, state: i.state, pct: i.state === "done" ? 100 : +i.pct || 0, from: i.from || "", to: i.to || "", wk: i.wk || "", ...(i.carried ? { carried: true, since: i.since || "" } : {}), ...(i.given ? { given: i.given } : {}) })), remarks: (S.remarks || "").trim(), submittedAt: now62(), late: hm62() > CLOSE68, plannedAt: old?.plannedAt || now62() };
+    if (await save28(e.target, [...recs, wd], "Update sent. Thank you!")) { W62.u65 = null; render(); scrollTo(0, 0); }
+  };
+};
+/* keep65 also keeps the "from earlier" / "given" marks */
+keep65 = function () {
+  clearTimeout(W62.k65); W62.k65 = setTimeout(async () => { const S = W62.u65; if (!S || !S.items.length) return; const old = updMine65();
+    const wd = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: S.items.filter(i => i.state !== "dropped").map(i => ({ title: i.title, state: i.state, pct: +i.pct || 0, from: i.from || "", to: i.to || "", wk: i.wk || "", ...(i.carried ? { carried: true, since: i.since || "" } : {}), ...(i.given ? { given: i.given } : {}) })), remarks: (S.remarks || "").trim(), plannedAt: old?.plannedAt || now62() };
+    try { await bizPut28(wd); const c = $("#u65k"); if (c) c.textContent = "✓ Kept " + t1268(hm62()); } catch { const c = $("#u65k"); if (c) c.textContent = "Not saved - check internet"; } }, 2000);
+};
+document.head.insertAdjacentHTML("beforeend", `<style>
+.o68{--nv:#0b2a57;--or:#ec6f1c;--sk:#29a8e8;--gr:#1e8e3e;--rd:#c0392b;--ln:#dfe5ee;--mut:#5d6878;max-width:760px;margin:0 auto;padding-bottom:96px;font-size:15px;line-height:1.45}
+.o68-card{background:#fff;border:1px solid var(--ln);border-radius:12px;padding:14px;margin-bottom:12px;color:#1c2433}
+.o68-h{font-weight:700;color:var(--nv);font-size:15px;display:flex;align-items:center;gap:8px;margin-bottom:8px}.o68-n{background:#f2f5f9;color:var(--mut);font-size:12px;border-radius:10px;padding:1px 8px;font-weight:600}
+.o68-muted{color:var(--mut);font-size:13px}.o68-empty{color:var(--mut);font-size:14px;padding:6px 0}
+.o68-pill{display:inline-block;font-size:12px;font-weight:700;border-radius:20px;padding:3px 10px}.o68-pill.ok{background:#e6f4ea;color:var(--gr)}.o68-pill.no{background:#fdecea;color:var(--rd)}.o68-pill.wait{background:#fff3e8;color:var(--or)}
+.o68-winrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.o68-prog{height:6px;background:#f2f5f9;border-radius:4px;margin:12px 0 6px;overflow:hidden}.o68-prog i{display:block;height:100%;background:var(--gr);border-radius:4px}
+.o68-win.soon .o68-prog i{background:var(--or)}.o68-win.shut .o68-prog i{background:#9aa3af}.o68-winfoot{display:flex;justify-content:space-between;font-size:12px;color:var(--mut)}.o68-winfoot b{color:#1c2433}.o68-win.soon .o68-winfoot b{color:var(--or)}
+.o68-ok{background:#e6f4ea;border-color:#b7dfc3;color:#14532d;display:flex;flex-direction:column;gap:2px}.o68-ok span{font-size:13px}
+.o68-task{display:flex;gap:10px;align-items:flex-start;padding:10px 0;border-top:1px solid var(--ln)}.o68-h+.o68-muted+.o68-task,.o68-h+.o68-task{border-top:0}
+.o68-tt{flex:1;min-width:0;word-wrap:break-word}.o68-tt small{display:block;color:var(--mut);font-size:12px}.o68-task.done .o68-tt small{color:var(--gr);font-weight:600}.o68-task.dropped .o68-ttl{color:#9aa3af;text-decoration:line-through}
+.o68-chk{width:30px;height:30px;border-radius:50%;border:2px solid #b8c2d0;background:#fff;flex:none;display:flex;align-items:center;justify-content:center;cursor:pointer;padding:0}.o68-chk svg{width:16px;height:16px;opacity:0}
+.o68-task.done .o68-chk{background:var(--gr);border-color:var(--gr)}.o68-task.done .o68-chk svg{opacity:1}.o68-task.prog .o68-chk{border-color:#1971c2}.o68-task.dropped .o68-chk{background:#9aa3af;border-color:#9aa3af}
+.o68-x{background:none;border:0;color:#9aa3af;font-size:20px;line-height:1;padding:4px 6px;cursor:pointer;border-radius:6px}.o68-x:hover{background:#f2f5f9;color:var(--rd)}
+.o68-ttl{cursor:text;border-radius:6px;padding:1px 2px;margin:-1px -2px;font-weight:500}.o68-ttl:hover{background:#f2f6fb}.o68-pen{font-style:normal;color:#9aa3af;font-size:13px;margin-left:6px}
+.o68-ttlin{width:100%;border:1.5px solid var(--sk);border-radius:8px;padding:7px 9px;font-size:15px;background:#fff}
+.o68-st3{display:flex;gap:4px;margin-top:6px;flex-wrap:wrap}.o68-st3 button{border:1.5px solid var(--ln);background:#fff;border-radius:16px;padding:4px 10px;font-size:12px;font-weight:700;color:var(--mut);cursor:pointer}
+.o68-st3 button.on.done{background:var(--gr);border-color:var(--gr);color:#fff}.o68-st3 button.on.progress{background:#1971c2;border-color:#1971c2;color:#fff}.o68-st3 button.on.pending{background:var(--or);border-color:var(--or);color:#fff}
+.o68-pg{display:grid;grid-template-columns:repeat(11,1fr);gap:3px;margin-top:8px;max-width:440px}.o68-pg button{border:0;border-radius:5px;padding:6px 0;font-size:11px;font-weight:800;color:#fff;opacity:.45;cursor:pointer}.o68-pg button.on{opacity:1;outline:2px solid var(--nv);outline-offset:1px}
+.o68-tm{display:grid;grid-template-columns:1fr 1fr auto;gap:8px;margin-top:7px;align-items:end;max-width:380px}.o68-tm label{display:flex;flex-direction:column;gap:2px;font-size:11px;font-weight:700;color:var(--mut);min-width:0}
+.o68-tm input,.o68-tl input{border:1.5px solid var(--ln);border-radius:8px;padding:7px 3px 7px 6px;background:#fff;font-size:13.5px;min-width:0;width:100%}.o68-tl input{width:120px}
+.o68-now{border:1.5px solid var(--ln);background:#fff;border-radius:8px;padding:8px 10px;font-size:12px;font-weight:700;color:var(--nv);cursor:pointer}.o68-dur{font-size:12px;color:var(--gr);margin-left:4px}
+.o68-task.pend .o68-tm input{border-style:dashed}.o68-task.need,.o68-wk.need{background:#fff6f0;border-radius:10px;padding-left:6px;padding-right:6px}.o68-task.need .o68-tm input:placeholder-shown{border-color:var(--or);background:#fff3e8}
+.o68-add{margin-top:10px;border-top:1px dashed var(--ln);padding-top:12px}.o68-add>input{width:100%;border:1.5px solid var(--ln);border-radius:10px;padding:12px;background:#fff;font-size:15px}.o68-add>input:focus,.o68 textarea:focus,.o68-tm input:focus,.o68-tl input:focus{outline:none;border-color:var(--sk)}
+.o68-addrow{display:flex;gap:8px;align-items:center;margin-top:8px;flex-wrap:wrap}.o68-tl{display:flex;align-items:center;gap:5px;font-size:12px;font-weight:700;color:var(--mut)}
+.o68-seg{display:flex;border:1.5px solid var(--ln);border-radius:10px;overflow:hidden;height:40px}.o68-seg button{border:0;background:#fff;padding:0 11px;font-size:13px;font-weight:600;color:var(--mut);cursor:pointer}.o68-seg button.on{background:var(--nv);color:#fff}.o68-seg button[data-ns=progress].on{background:#1971c2}.o68-seg button[data-ns=pending].on{background:var(--or)}
+.o68-btn{border:0;border-radius:10px;padding:11px 16px;font-weight:700;cursor:pointer;background:var(--nv);color:#fff}.o68-btn.or{background:var(--or)}.o68-btn.ghost{background:#fff;color:var(--nv);border:1.5px solid var(--ln)}.o68-btn:disabled{opacity:.6}
+.o68-addbtn{height:40px;padding:0 18px;margin-left:auto}.o68-hint{margin-top:6px;font-size:12px}
+.o68 textarea{width:100%;border:1.5px solid var(--ln);border-radius:10px;padding:10px 12px;min-height:70px;resize:vertical;background:#fff;font:inherit}
+.o68-wk{border:1px solid var(--ln);border-left:5px solid var(--c);border-radius:10px;padding:10px 12px;margin-top:8px}.o68-wkt{display:flex;gap:8px;align-items:flex-start}.o68-wkt .o68-ttl{flex:1;min-width:0;font-weight:700}.o68-wkp{font-weight:800;color:var(--c);font-size:17px}
+.o68-mini{font-size:12px;color:var(--mut);margin-top:2px}.o68-wbar{height:6px;background:#eef1f5;border-radius:4px;margin-top:8px;overflow:hidden}.o68-wbar i{display:block;height:100%;background:var(--c)}
+.o68-hist{border-top:1px solid var(--ln);padding:8px 0}.o68-hd{display:flex;align-items:center;gap:6px;color:var(--nv)}.o68-hd .o68-x{margin-left:auto;font-size:15px}.o68-hist ul{padding-left:4px;margin:4px 0 0;list-style:none;font-size:14px}.o68-hist li{display:flex;gap:6px;align-items:baseline;padding:2px 0}.o68-hist small{color:var(--mut)}
+.o68-dot{width:9px;height:9px;border-radius:50%;flex:none;background:var(--or)}.o68-dot.done{background:var(--gr)}.o68-dot.progress{background:#1971c2}
+#h66{border:1.5px solid var(--ln);border-radius:8px;padding:5px 8px;font-size:13px}
+.o68-bar{position:fixed;left:0;right:0;bottom:0;background:#fff;border-top:1px solid var(--ln);padding:10px 14px calc(10px + env(safe-area-inset-bottom));z-index:30}
+.o68-barrow{max-width:760px;margin:auto;display:flex;gap:10px;align-items:center}.o68-barrow #u65s{flex:1;padding:14px;font-size:16px}.o68-sum{display:flex;gap:14px;font-size:13px;color:var(--mut)}.o68-sum b{color:#1c2433}
+@media(max-width:520px){.o68-addrow .o68-tl{flex:1 1 40%}.o68-addrow .o68-tl input{width:100%}.o68-addrow .o68-seg{flex:1 1 100%}.o68-addrow .o68-seg button{flex:1;padding:0 4px}.o68-addrow .o68-addbtn{flex:1 1 100%;margin-left:0}
+.o68-barrow{flex-wrap:wrap;gap:6px}.o68-sum{flex:1 1 100%;justify-content:space-between;font-size:12.5px}.o68-barrow #u65s{flex:1 1 70%;padding:12px}.o68-pg{grid-template-columns:repeat(6,1fr)}}
+</style>`);
+/* the page heading for this tab, like the old app */
+{ const _w = VIEWS.work; VIEWS.work = v => { _w(v); if (BIZ.ui.w62 === "upd") { const h = $(".topbar h1", v); if (h) h.textContent = "Daily Work Update"; const p = $(".topbar p", v); if (p) p.textContent = `${AUTH.user?.name || ""} · today's work with time, then Submit`; } }; }
+
 boot();
 
 </script>
