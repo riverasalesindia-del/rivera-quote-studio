@@ -10940,7 +10940,7 @@ function wireDu62(v) {
     if ($("#du62n", v).value.trim()) return toast('Tap "+ Add" for the work you typed, or clear it', "bad");
     if (!I.length) return toast("Add at least one work", "bad");
     const bad = I.find(i => !i.from || !i.to || i.to <= i.from); if (bad) return toast(!bad.from || !bad.to ? `Add From and To time for "${bad.title.slice(0, 40)}"` : `"To" must be after "From" for "${bad.title.slice(0, 40)}"`, "bad");
-    const old = duMine62(), r = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: I.map(i => ({ title: i.title, state: i.state, from: i.from, to: i.to, wk: i.wk || "" })), remarks: $("#du62r", v).value.trim(), submittedAt: now62(), late: hm62() > "18:30" };
+    const old = duMine62(), r = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: I.map(i => ({ title: i.title, state: i.state, pct: +i.pct || 0, from: i.from, to: i.to, wk: i.wk || "" })), remarks: $("#du62r", v).value.trim(), submittedAt: now62(), late: hm62() > "18:30" };
     const ups = I.filter(i => i.wk && BIZ.rows[i.wk]).map(i => { const w = { ...BIZ.rows[i.wk] }, s = i.state; if (w.status === s || (s === "done" && w.status === "done")) return null; w.status = s; if (s === "done") { w.pct = 100; w.doneAt = now62(); } logAdd28(w, "Daily update", s); return w; }).filter(Boolean);
     if (await save28(e.target, [r, ...ups], "Update sent. Thank you!")) { W62.draft = null; W62.duItems = null; render(); }
   };
@@ -11720,7 +11720,7 @@ const LOGINS64 = [
   ["production@rivera.co.in", "Rivera Production", ["prod"]], ["operations@rivera.co.in", "Rivera Operations", ["ops"]],
   ["agm@rivera.co.in", "AGM", ["mgmt"]], ["gm@rivera.co.in", "GM", ["mgmt"]]];
 {
-  TEAM16.splice(0, TEAM16.length, { email: "crm@rivera.co.in", name: "Rivera CRM (Admin + Security)", role: "admin", tag: "Admin" }, ...LOGINS64.map(([email, name, d]) => ({ email, name, role: DEPT63[d[0]].role, tag: name.split(" ").pop().slice(0, 4), dept: d })));
+  TEAM16.splice(0, TEAM16.length, { email: "crm@rivera.co.in", name: "Rivera CRM (Admin · Marketing · Security)", role: "admin", tag: "Admin" }, ...LOGINS64.map(([email, name, d]) => ({ email, name, role: DEPT63[d[0]].role, tag: name.split(" ").pop().slice(0, 4), dept: d })));
   /* creating or resetting one of these logins also gives it its department */
   const _c = AUTH.call;
   AUTH.call = function (action, body, ...a) {
@@ -11773,6 +11773,7 @@ function people65() {
   const m = new Map();
   (W62.team || []).forEach(u => m.set(u.email, { email: u.email, name: u.name }));
   (typeof LOGINS64 !== "undefined" ? LOGINS64 : []).forEach(([email, name]) => { if (!m.has(email)) m.set(email, { email, name }); });
+  if (!m.has("crm@rivera.co.in")) m.set("crm@rivera.co.in", { email: "crm@rivera.co.in", name: "Rivera CRM (Marketing / Security)" });
   (typeof TEAM28 !== "undefined" ? TEAM28 : []).forEach(([email, name]) => { if (/@/.test(email) && !m.has(email)) m.set(email, { email, name }); });
   return [...m.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
 }
@@ -11784,8 +11785,8 @@ function updItems65() {
   const d = updMine65(); let items;
   if (d?.items?.length) items = JSON.parse(JSON.stringify(d.items));
   else {
-    const plan = planToday62().map(x => ({ title: x.title, state: x.status === "done" ? "done" : "progress", from: x.pfrom || "", to: x.pto || "", wk: x.id }));
-    const given = myWk62().filter(x => x.src !== "plan" && !["done", "cancelled"].includes(x.status) && !plan.some(p => p.wk === x.id)).map(x => ({ title: x.title, state: x.status === "done" ? "done" : "progress", from: "", to: "", wk: x.id, given: nm62(x.from) }));
+    const plan = planToday62().map(x => ({ title: x.title, state: x.status === "done" ? "done" : x.status === "pending" ? "pending" : "progress", pct: +x.pct || 0, from: x.pfrom || "", to: x.pto || "", wk: x.id }));
+    const given = myWk62().filter(x => x.src !== "plan" && !["done", "cancelled"].includes(x.status) && !plan.some(p => p.wk === x.id)).map(x => ({ title: x.title, state: x.status === "done" ? "done" : x.status === "pending" ? "pending" : "progress", pct: +x.pct || 0, from: "", to: "", wk: x.id, given: nm62(x.from) }));
     items = [...plan, ...given];
   }
   W62.u65 = { day: todayISO(), items, remarks: d?.remarks || "" };
@@ -11794,39 +11795,44 @@ function updItems65() {
 function upd65() {
   const d = updMine65(), I = updItems65(), tot = I.reduce((a, i) => a + mins62(i.from, i.to), 0), sent = !!d?.submittedAt;
   const last = I.map(i => i.to).filter(Boolean).sort().pop() || "";
-  const H = all28("wd").filter(x => x.who === me28() && x.day !== todayISO() && x.items?.length).sort((a, b) => String(b.day).localeCompare(String(a.day)));
+  const tv = adm62() || pg62("work.team"), hw = tv && W62.h66 ? W62.h66 : me28(), H = all28("wd").filter(x => x.who === hw && (x.day !== todayISO() || hw !== me28()) && x.items?.length).sort((a, b) => String(b.day).localeCompare(String(a.day)));
   return `<section class="panel"><div class="body">
-    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><b style="font-size:1.05rem">${esc(dmy62(todayISO()))}</b><span class="chip ${sent ? "ok" : d ? "navy" : "warn"}">${sent ? "Update sent " + esc(dt62(d.submittedAt).split(", ").pop()) : d ? "Plan saved - send the update in the evening" : "Morning: write your plan with time"}</span><span class="chip">${I.filter(i => i.state === "done").length} completed · ${I.filter(i => i.state === "progress").length} in progress · ${I.filter(i => i.state === "pending").length} pending</span><span class="chip navy">Total ${dur62(tot) || "0h"}</span></div>
-    <div class="u65-h"><span>From</span><span>To</span><span>Work</span><span>Status</span><span></span></div>
-    <div class="stack" style="gap:6px">${I.map((i, n) => `<div class="u65 ${i.state}" data-n="${n}"><input type="time" data-f="from" value="${esc(i.from || "")}" aria-label="From"><input type="time" data-f="to" value="${esc(i.to || "")}" aria-label="To"><div class="u65-t"><input data-f="title" value="${esc(i.title)}" maxlength="300" aria-label="Work">${i.given ? `<small>given by ${esc(i.given)}</small>` : ""}</div><div class="seg62">${[["done", "Completed"], ["progress", "In progress"], ["pending", "Pending"]].map(([k, l]) => `<button type="button" class="${i.state === k ? "on " + k : ""}" data-st="${k}">${l}</button>`).join("")}</div><button type="button" class="btn sm" data-dx="${n}" title="Remove" aria-label="Remove">🗑️</button></div>`).join("") || '<div class="empty"><b>Nothing yet</b>Add what you will do today, with the time.</div>'}</div>
-    <div class="u65 u65-add"><input type="time" id="u65f" value="${esc(last)}" aria-label="From"><input type="time" id="u65to" aria-label="To"><div class="u65-t"><input id="u65n" placeholder="Add a work…" maxlength="300"></div><button type="button" class="btn sm primary" id="u65a">+ Add</button></div>
+    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><b style="font-size:1.05rem">${esc(dmy62(todayISO()))}</b><span class="chip ${sent ? "ok" : d ? "navy" : "warn"}">${sent ? "Update sent " + esc(dt62(d.submittedAt).split(", ").pop()) : d ? "Plan saved - send the update in the evening" : "Morning: write your plan with time"}</span><span class="chip">${I.filter(i => i.state === "done").length} completed · ${I.filter(i => i.state === "progress").length} in progress · ${I.filter(i => i.state === "pending").length} pending</span><span class="chip navy">Total ${dur62(tot) || "0h"}</span><span class="small muted" id="u65k" style="margin-left:auto">Everything you type is kept</span></div>
+    <div class="u65-h"><span>From</span><span>To</span><span>Work</span><span>Done %</span><span>Status</span><span></span></div>
+    <div class="stack" style="gap:6px">${I.map((i, n) => `<div class="u65 ${i.state}" data-n="${n}"><input type="time" data-f="from" value="${esc(i.from || "")}" aria-label="From"><input type="time" data-f="to" value="${esc(i.to || "")}" aria-label="To"><div class="u65-t"><input data-f="title" value="${esc(i.title)}" maxlength="300" aria-label="Work">${i.given ? `<small>given by ${esc(i.given)}</small>` : ""}</div><select data-f="pct" class="pc65" style="--c:${pcol62(i.pct)}" aria-label="Done %">${[0, 10, 20, 30, 40, 50, 60, 70, 80, 90, 100].map(p => `<option value="${p}" ${(+i.pct || 0) === p ? "selected" : ""}>${p}%</option>`).join("")}</select><div class="seg62">${[["done", "Completed"], ["progress", "In progress"], ["pending", "Pending"]].map(([k, l]) => `<button type="button" class="${i.state === k ? "on " + k : ""}" data-st="${k}">${l}</button>`).join("")}</div><button type="button" class="btn sm" data-dx="${n}" title="Remove" aria-label="Remove">🗑️</button></div>`).join("") || '<div class="empty"><b>Nothing yet</b>Add what you will do today, with the time.</div>'}</div>
+    <div class="u65 u65-add"><input type="time" id="u65f" value="${esc(last)}" aria-label="From"><input type="time" id="u65to" aria-label="To"><div class="u65-t"><input id="u65n" placeholder="Add a work…" maxlength="300"></div><span></span><button type="button" class="btn sm primary" id="u65a">+ Add</button></div>
     <label class="f" style="margin-top:10px">Remarks (optional)<textarea id="u65r" rows="2">${esc(W62.u65.remarks || "")}</textarea></label>
     <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn" id="u65p" style="flex:1;border-color:#7b3fa0;color:#7b3fa0">💾 Save plan (morning)</button><button type="button" class="btn primary" id="u65s" style="flex:1">${sent ? "Update and send again" : "📤 Send work update (evening)"}</button><button type="button" class="btn" id="u65pdf">📄 PDF</button></div>
     <p class="small muted">Morning: add each work with From and To time and tap Save plan - MD sir sees all plans at 10:45. Evening: mark Completed / In progress / Pending and tap Send - MD sir gets one report with the PDF at 6:35 PM.</p></div></section>
-    ${H.length ? `<section class="panel"><header><h2>Earlier days</h2><span class="small muted">${H.length} day${H.length === 1 ? "" : "s"}</span></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Date</th><th>Work</th><th>Time</th><th>Status</th></tr></thead><tbody>${H.slice(0, 60).map(h => h.items.map((i, k) => `<tr>${k === 0 ? `<td rowspan="${h.items.length}" style="vertical-align:top;white-space:nowrap"><b>${esc(dmy62(h.day))}</b>${h.late ? '<div class="small" style="color:#c0392b">late</div>' : ""}</td>` : ""}<td>${esc(i.title)}</td><td style="white-space:nowrap">${esc(i.from || "")}${i.to ? " - " + esc(i.to) : ""}</td><td>${{ done: "Completed", progress: "In progress", pending: "Pending" }[i.state] || esc(i.state || "")}</td></tr>`).join("")).join("")}</tbody></table></div></section>` : ""}`;
+    ${H.length || tv ? `<section class="panel"><header><h2>Earlier days</h2>${tv ? `<select id="h66" aria-label="Whose updates">${[...new Map(all28("wd").map(x => [x.who, x.whoName || nm62(x.who)])).entries(), [me28(), AUTH.user?.name || "Me"]].filter((x, i, a) => a.findIndex(y => y[0] === x[0]) === i).sort((a, b) => String(a[1]).localeCompare(String(b[1]))).map(([e, n]) => `<option value="${esc(e)}" ${e === hw ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>` : ""}<span class="small muted">${H.length} day${H.length === 1 ? "" : "s"}</span></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Date</th><th>Work</th><th>Time</th><th>Status</th></tr></thead><tbody>${H.slice(0, 60).map(h => h.items.map((i, k) => `<tr>${k === 0 ? `<td rowspan="${h.items.length}" style="vertical-align:top;white-space:nowrap"><b>${esc(dmy62(h.day))}</b>${h.late ? '<div class="small" style="color:#c0392b">late</div>' : ""}</td>` : ""}<td>${esc(i.title)}</td><td style="white-space:nowrap">${esc(i.from || "")}${i.to ? " - " + esc(i.to) : ""}</td><td>${{ done: "Completed", progress: "In progress", pending: "Pending" }[i.state] || esc(i.state || "")}${i.pct != null && i.state !== "done" ? ` <span class="chip" style="background:${pcol62(i.pct)};color:#fff">${+i.pct || 0}%</span>` : ""}</td></tr>`).join("")).join("")}</tbody></table></div></section>` : ""}`;
+}
+function keep65() {
+  clearTimeout(W62.k65); W62.k65 = setTimeout(async () => { const S = W62.u65; if (!S || !S.items.length) return; const old = updMine65();
+    const wd = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: S.items.map(i => ({ title: i.title, state: i.state, pct: +i.pct || 0, from: i.from || "", to: i.to || "", wk: i.wk || "" })), remarks: (S.remarks || "").trim(), plannedAt: old?.plannedAt || now62() };
+    try { await bizPut28(wd); const c = $("#u65k"); if (c) c.textContent = "✓ Saved " + hm62(); } catch { const c = $("#u65k"); if (c) c.textContent = "Not saved - check internet"; } }, 2500);
 }
 function wireUpd65(v) {
   const S = W62.u65; if (!S || !$("#u65s", v)) return; const I = S.items;
   $$(".u65[data-n]", v).forEach(row => { const n = +row.dataset.n;
-    $$("[data-f]", row).forEach(inp => inp.onchange = () => { I[n][inp.dataset.f] = inp.value; if (inp.dataset.f !== "title") render(); });
-    $$("[data-st]", row).forEach(b => b.onclick = () => { I[n].state = b.dataset.st; render(); }); });
-  $$("[data-dx]", v).forEach(b => b.onclick = () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Remove?"; return; } I.splice(+b.dataset.dx, 1); render(); });
-  const add = () => { const t = $("#u65n", v).value.trim(), f = $("#u65f", v).value, to = $("#u65to", v).value; if (!t) { $("#u65n", v).focus(); return false; } if (!f || !to) { toast("Add the From and To time for this work", "bad"); (f ? $("#u65to", v) : $("#u65f", v)).focus(); return false; } if (to <= f) { toast('"To" time must be after "From" time', "bad"); return false; } I.push({ title: t, state: "progress", from: f, to }); render(); setTimeout(() => $("#u65n")?.focus(), 50); return true; };
+    $$("[data-f]", row).forEach(inp => inp.onchange = () => { const k = inp.dataset.f; I[n][k] = k === "pct" ? +inp.value : inp.value; if (k === "pct") I[n].state = +inp.value >= 100 ? "done" : +inp.value > 0 ? "progress" : I[n].state === "done" ? "pending" : I[n].state; keep65(); if (k !== "title") render(); });
+    $$("[data-st]", row).forEach(b => b.onclick = () => { const s = b.dataset.st; I[n].state = s; if (s === "done") I[n].pct = 100; else if (+I[n].pct >= 100) I[n].pct = 90; keep65(); render(); }); });
+  $$("[data-dx]", v).forEach(b => b.onclick = () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Remove?"; return; } I.splice(+b.dataset.dx, 1); keep65(); render(); });
+  const add = () => { const t = $("#u65n", v).value.trim(), f = $("#u65f", v).value, to = $("#u65to", v).value; if (!t) { $("#u65n", v).focus(); return false; } if (!f || !to) { toast("Add the From and To time for this work", "bad"); (f ? $("#u65to", v) : $("#u65f", v)).focus(); return false; } if (to <= f) { toast('"To" time must be after "From" time', "bad"); return false; } I.push({ title: t, state: "progress", pct: 0, from: f, to }); keep65(); render(); setTimeout(() => $("#u65n")?.focus(), 50); return true; };
   $("#u65a", v).onclick = add; $("#u65n", v).onkeydown = e => { if (e.key === "Enter") add(); };
-  $("#u65r", v).oninput = e => { S.remarks = e.target.value; };
+  $("#u65r", v).oninput = e => { S.remarks = e.target.value; keep65(); };
   const check = () => { if ($("#u65n", v).value.trim() && !add()) return false; if (!I.length) { toast("Add at least one work with From and To time", "bad"); return false; } const bad = I.find(i => !i.title.trim() || !i.from || !i.to || i.to <= i.from); if (bad) { toast(!bad.from || !bad.to ? `Add From and To time for "${bad.title.slice(0, 40)}"` : `"To" must be after "From" for "${bad.title.slice(0, 40)}"`, "bad"); return false; } return true; };
   const save = async (btn, send) => {
     if (!check()) return;
     const recs = [];
     /* every row is a work on today's plan (so MD sees it at 10:45); a row from work given by someone keeps its own record */
-    I.forEach(i => { if (i.wk && BIZ.rows[i.wk]) { const w = { ...BIZ.rows[i.wk] }, ch = w.src === "plan" && (w.pfrom !== i.from || w.pto !== i.to || w.title !== i.title); if (ch) Object.assign(w, { pfrom: i.from, pto: i.to, title: i.title }); if (send && w.status !== i.state && !(i.state === "progress" && w.status === "accepted")) { w.status = i.state; if (i.state === "done") { w.pct = 100; w.doneAt = now62(); } logAdd28(w, "Work update", i.state); recs.push(w); } else if (ch) recs.push(w); }
-      else { const w = { kind: "wk", title: i.title, pfrom: i.from, pto: i.to, from: me28(), fromName: AUTH.user?.name || "", to: me28(), toName: AUTH.user?.name || "", src: "plan", day: todayISO(), status: send && i.state === "done" ? "done" : "accepted", pct: send && i.state === "done" ? 100 : 0, created: now62(), _tmp: Math.random().toString(36).slice(2) }; i._tmp = w._tmp; recs.push(w); } });
-    const old = updMine65(), wd = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: I.map(i => ({ title: i.title, state: i.state, from: i.from, to: i.to, wk: i.wk || "" })), remarks: (S.remarks || "").trim(), plannedAt: old?.plannedAt || now62() };
+    I.forEach(i => { if (i.wk && BIZ.rows[i.wk]) { const w = { ...BIZ.rows[i.wk] }, ch = w.src === "plan" && (w.pfrom !== i.from || w.pto !== i.to || w.title !== i.title); if (ch) Object.assign(w, { pfrom: i.from, pto: i.to, title: i.title }); const pc = +i.pct || 0, pch = (+w.pct || 0) !== pc; if (pch) w.pct = pc; if (send && w.status !== i.state && !(i.state === "progress" && w.status === "accepted")) { w.status = i.state; if (i.state === "done") { w.pct = 100; w.doneAt = now62(); } logAdd28(w, "Work update", `${i.state} ${pc}%`); recs.push(w); } else if (ch || pch) { if (pch) logAdd28(w, "Progress", pc + "%"); recs.push(w); } }
+      else { const w = { kind: "wk", title: i.title, pfrom: i.from, pto: i.to, from: me28(), fromName: AUTH.user?.name || "", to: me28(), toName: AUTH.user?.name || "", src: "plan", day: todayISO(), status: send && i.state === "done" ? "done" : "accepted", pct: +i.pct || 0, created: now62(), _tmp: Math.random().toString(36).slice(2) }; i._tmp = w._tmp; recs.push(w); } });
+    const old = updMine65(), wd = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: I.map(i => ({ title: i.title, state: i.state, pct: +i.pct || 0, from: i.from, to: i.to, wk: i.wk || "" })), remarks: (S.remarks || "").trim(), plannedAt: old?.plannedAt || now62() };
     if (send) { wd.submittedAt = now62(); wd.late = hm62() > "18:30"; }
     const out = await save28(btn, [...recs, wd], send ? "Work update sent. Thank you!" : "Plan saved - MD sir sees it at 10:45");
     if (!out) return;
     /* link new plan rows to their saved records */
-    const fresh = new Set(recs.filter(x => x._tmp && !x.id).map(x => x._tmp)), made = out.filter(x => x.kind === "wk" && fresh.has(x._tmp)); if (made.length) { made.forEach(m => { const i = I.find(z => z._tmp === m._tmp); if (i) { i.wk = m.id; delete i._tmp; } }); const w2 = out.find(x => x.kind === "wd"); if (w2) await save28(null, { ...w2, items: I.map(i => ({ title: i.title, state: i.state, from: i.from, to: i.to, wk: i.wk || "" })) }, send ? "Work update sent. Thank you!" : "Plan saved"); }
+    const fresh = new Set(recs.filter(x => x._tmp && !x.id).map(x => x._tmp)), made = out.filter(x => x.kind === "wk" && fresh.has(x._tmp)); if (made.length) { made.forEach(m => { const i = I.find(z => z._tmp === m._tmp); if (i) { i.wk = m.id; delete i._tmp; } }); const w2 = out.find(x => x.kind === "wd"); if (w2) await save28(null, { ...w2, items: I.map(i => ({ title: i.title, state: i.state, pct: +i.pct || 0, from: i.from, to: i.to, wk: i.wk || "" })) }, send ? "Work update sent. Thank you!" : "Plan saved"); }
     W62.u65 = null; render();
   };
   $("#u65p", v).onclick = e => save(e.target, false);
@@ -11955,13 +11961,36 @@ body.gs51 .main{max-width:none!important;margin:0!important}
 @media(max-width:1750px){.n51>.n51-d:not(.n51-u)>.n51-i svg,.n51>.n51-i svg{display:none}}
 @media(max-width:1450px){.n51-i{font-size:.78rem!important;padding:10px 5px!important}.n51-b{font-size:.82rem!important}}
 @media(max-width:1180px){.n51{flex-wrap:wrap!important}}
-.u65-h,.u65{display:grid;grid-template-columns:104px 104px minmax(0,1fr) auto 40px;gap:8px;align-items:center}.u65-h{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0 10px 4px}
-.u65{border:1px solid var(--line);border-left:4px solid #e8590c;border-radius:10px;padding:6px 10px}.u65.done{border-left-color:#1e8e3e}.u65.progress{border-left-color:#1a73e8}.u65-add{border-style:dashed;border-left:1px dashed var(--line);margin-top:8px;grid-template-columns:104px 104px minmax(0,1fr) auto}
+.u65-h,.u65{display:grid;grid-template-columns:104px 104px minmax(0,1fr) 78px auto 40px;gap:8px;align-items:center}.u65-h{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0 10px 4px}
+.u65{border:1px solid var(--line);border-left:4px solid #e8590c;border-radius:10px;padding:6px 10px}.u65.done{border-left-color:#1e8e3e}.u65.progress{border-left-color:#1a73e8}.u65-add{border-style:dashed;border-left:1px dashed var(--line);margin-top:8px;grid-template-columns:104px 104px minmax(0,1fr) 0 auto}
+.pc65{border:0;border-radius:8px;padding:7px 4px;font-weight:800;color:#fff;background:var(--c);text-align:center;cursor:pointer}.pc65 option{color:#111;background:#fff}
 .u65 input{width:100%}.u65-t{display:flex;flex-direction:column;min-width:0}.u65-t small{color:var(--muted);font-size:.75rem}
 .ppl65{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px}.ppl65 label{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer}.ppl65 label:hover{background:var(--surface-2,#f5f7fa)}.ppl65 span{display:flex;flex-direction:column;min-width:0}.ppl65 small{color:var(--muted);font-size:.76rem;overflow:hidden;text-overflow:ellipsis}.ppl65 input{width:17px;height:17px;flex:none}
 .r65 input{width:100%}.r65v{overflow:auto;padding:10px;background:#fff;border:1px solid var(--line);border-radius:10px}
-@media(max-width:760px){.u65-h{display:none}.u65,.u65-add{grid-template-columns:1fr 1fr}.u65-t,.u65 .seg62{grid-column:1/-1}}
+@media(max-width:760px){.u65-h{display:none}.u65,.u65-add{grid-template-columns:1fr 1fr 80px}.u65-t,.u65 .seg62{grid-column:1/-1}}
 </style>`);
+
+
+/* ===================== p66: Assign work shows everyone — logins, department mail boxes and every staff member of the old Work Board;
+   crm@ is Marketing (and Security, Admin); old Synology daily updates show under Work update ▸ Earlier days ===================== */
+team62 = async function (force) {
+  if (!force && W62.team.length && Date.now() - W62.t < 600000) return W62.team;
+  try { const d = await AUTH.call("work62", { op: "team" }); W62.team = d.team || []; W62.staff = d.staff || []; W62.md = d.md || W62.md; W62.t = Date.now(); } catch { if (!W62.team.length) W62.team = TEAM28.map(([email, name]) => ({ email, name })); }
+  W62.team.forEach(u => { if (!TEAM28.some(t => t[0] === u.email)) TEAM28.push([u.email, u.name]); });
+  (W62.staff || []).forEach(u => { if (!TEAM28.some(t => t[0] === u.email)) TEAM28.push([u.email, u.name]); });
+  return W62.team;
+};
+{
+  const _p = people65;
+  people65 = function () {
+    const L = _p(), m = new Map(L.map(u => [u.email, u]));
+    (W62.staff || []).forEach(s => { if (!m.has(s.email)) m.set(s.email, { email: s.email, name: s.name + (s.dept ? " · " + s.dept : "") }); else if (s.dept && !/·/.test(m.get(s.email).name)) m.get(s.email).name += " · " + s.dept; });
+    const c = m.get("crm@rivera.co.in"); m.set("crm@rivera.co.in", { email: "crm@rivera.co.in", name: (c && !/^rivera crm/i.test(c.name) ? c.name + " · " : "") + "Marketing / Security" });
+    return [...m.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  };
+  if (typeof TEAM16 !== "undefined" && TEAM16[0]?.email === "crm@rivera.co.in") TEAM16[0].name = "Rivera CRM (Marketing · Security · Admin)";
+}
+{ const _w = wireUpd65; wireUpd65 = function (v) { _w(v); const s = $("#h66", v); if (s) s.onchange = () => { W62.h66 = s.value; render(); }; }; }
 
 boot();
 

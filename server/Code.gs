@@ -1254,7 +1254,7 @@ function mails62(kind, x, before, r, me, mails) {
   var nm = esc(me.name || me.email);
   if (kind === "wk") {
     if (/@/.test(x.to || "") && x.to !== me.email && (!before || before.to !== x.to) && x.src !== "plan" && x.src !== "courier")
-      mails.push([x.to, "New work for you: " + clean(x.title, 110), "<p><b>" + nm + "</b> gave you this work:</p><p style='font-size:16px'><b>" + esc(x.title) + "</b></p>" + (x.details ? "<p>" + esc(x.details) + "</p>" : "") + (x.due ? "<p>Finish by <b>" + esc(String(x.due).replace("T", " ")) + "</b></p>" : "") + btn(link62("work"), "Open my work", "#02315B")]);
+      mails.push([x.to, "New work for you: " + clean(x.title, 110), "<p><b>" + nm + "</b> gave you this work:</p><p style='font-size:16px'><b>" + esc(x.title) + "</b></p>" + (x.details ? "<p>" + esc(x.details) + "</p>" : "") + (x.due ? "<p>Finish by <b>" + esc(String(x.due).replace("T", " ")) + "</b></p>" : "") + btn(SITE + "#plan", "Open my work", "#02315B")]);
     var md = md62();
     if (x.status === "done" && (!before || before.status !== "done") && /@/.test(x.from || "") && x.from !== me.email && x.from !== md && x.src !== "plan" && x.src !== "courier")
       mails.push([x.from, "Completed: " + clean(x.title, 110), "<p><b>" + nm + "</b> completed the work you gave:</p><p><b>" + esc(x.title) + "</b></p>" + btn(link62("work"), "Open", "#1e8e3e")]);
@@ -1274,6 +1274,8 @@ function mails62(kind, x, before, r, me, mails) {
     if (x.status === "approved") [x.emp, x.to].forEach(function (t) { if (/@/.test(t || "")) mails.push([t, "Handover approved: " + clean(x.empName || x.emp, 60) + " → " + clean(x.toName || x.to, 60), "<p>The handover is approved. Open work has moved to <b>" + esc(x.toName || x.to) + "</b>.</p>" + btn(link62("handover"), "Open", "#02315B")]); });
   }
 }
+/* everybody work can be given to (staff list from the old Work Board, kept by the admin) */
+function staff62() { try { return JSON.parse(props().getProperty("STAFF62") || "[]"); } catch (e) { return []; } }
 function crNotify62() { return String(props().getProperty("COURIER_NOTIFY") || "agm@rivera.co.in,purchase@rivera.co.in").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /@/.test(s); }); }
 function approvers62(tok) {
   var v = users().getDataRange().getValues(), out = [];
@@ -1306,7 +1308,7 @@ function workMorning62() {
     if (u.email === md) return;
     var L = open.filter(function (x) { return x.to === u.email; }), over = L.filter(function (x) { return x.due && String(x.due).slice(0, 10) < todayIST(); }).length;
     var html = "<p>Good morning " + esc(u.name) + ",</p><p style='font-size:15px'><b>Write today's work plan</b> - each work with its <b>From</b> and <b>To</b> time (e.g. 10:00 - 11:30). MD sir sees the plans at 10:45.</p>" + btn(SITE + "#plan", "Write today's plan", "#7b3fa0") +
-      (L.length ? "<p style='margin-top:16px'>Your open work" + (over ? " (<b style='color:#c0392b'>" + over + " overdue</b>)" : "") + ":</p><ul style='padding-left:18px'>" + L.slice(0, 25).map(wkLine62).join("") + "</ul>" + btn(link62("work"), "Open my work", "#02315B") : "");
+      (L.length ? "<p style='margin-top:16px'>Your open work" + (over ? " (<b style='color:#c0392b'>" + over + " overdue</b>)" : "") + ":</p><ul style='padding-left:18px'>" + L.slice(0, 25).map(wkLine62).join("") + "</ul>" + btn(SITE + "#plan", "Open my Work update", "#02315B") : "");
     try { mail(u.email, "Good morning - write today's plan with time" + (L.length ? " (" + L.length + " open work)" : ""), html); n++; } catch (e) { }
   });
   log("automation", "work-morning", n + " mails");
@@ -1331,7 +1333,7 @@ function workPlans62() {
 function workRemind62() {
   if (!workday62()) return;
   var t = todayIST(), done = rows62("wd").filter(function (x) { return x.day === t && x.submittedAt; }).map(function (x) { return x.who; }), n = 0;
-  team62().forEach(function (u) { if (u.email === md62() || done.indexOf(u.email) >= 0) return; try { mail(u.email, "Reminder: send today's work update", "<p>Hi " + esc(u.name) + ",</p><p>Please send today's daily work update before <b>6:30 PM</b>. Every work needs a From and To time.</p>" + btn(link62("work"), "Open daily update", "#E26A0C")); n++; } catch (e) { } });
+  team62().forEach(function (u) { if (u.email === md62() || done.indexOf(u.email) >= 0) return; try { mail(u.email, "Reminder: send today's work update", "<p>Hi " + esc(u.name) + ",</p><p>Please send today's daily work update before <b>6:30 PM</b>. Every work needs a From and To time.</p>" + btn(SITE + "#plan", "Open my Work update", "#E26A0C")); n++; } catch (e) { } });
   log("automation", "work-remind", n + " reminders");
 }
 /* 18:35 — one clean report to MD sir: who sent the update, every work with its time, work completed today, overdue work */
@@ -1342,7 +1344,7 @@ function workEvening62() {
   var sent = W.map(function (x) { return x.who; }), miss = team.filter(function (u) { return u.email !== md62() && sent.indexOf(u.email) < 0; });
   var ST = { done: ["Completed", "#1e8e3e"], progress: ["In progress", "#1a73e8"], pending: ["Pending", "#E26A0C"] }, mins = 0;
   var rows = W.map(function (w) {
-    var it = (w.items || []).map(function (i) { var a = String(i.from || ""), b = String(i.to || ""), m = a && b ? (Number(b.slice(0, 2)) * 60 + Number(b.slice(3, 5))) - (Number(a.slice(0, 2)) * 60 + Number(a.slice(3, 5))) : 0; if (m > 0) mins += m; var s = ST[i.state] || ["", "#555"]; return "<tr><td style='padding:4px 8px;border-bottom:1px solid #eef1f5'>" + esc(i.title) + "</td><td style='padding:4px 8px;border-bottom:1px solid #eef1f5;white-space:nowrap'>" + esc(a) + "–" + esc(b) + "</td><td style='padding:4px 8px;border-bottom:1px solid #eef1f5;color:" + s[1] + ";font-weight:bold'>" + s[0] + "</td></tr>"; }).join("");
+    var it = (w.items || []).map(function (i) { var a = String(i.from || ""), b = String(i.to || ""), m = a && b ? (Number(b.slice(0, 2)) * 60 + Number(b.slice(3, 5))) - (Number(a.slice(0, 2)) * 60 + Number(a.slice(3, 5))) : 0; if (m > 0) mins += m; var s = ST[i.state] || ["", "#555"]; return "<tr><td style='padding:4px 8px;border-bottom:1px solid #eef1f5'>" + esc(i.title) + "</td><td style='padding:4px 8px;border-bottom:1px solid #eef1f5;white-space:nowrap'>" + esc(a) + "–" + esc(b) + "</td><td style='padding:4px 8px;border-bottom:1px solid #eef1f5;color:" + s[1] + ";font-weight:bold'>" + s[0] + (i.pct != null && i.state !== "done" ? " · " + (Number(i.pct) || 0) + "%" : "") + "</td></tr>"; }).join("");
     return "<h3 style='margin:16px 0 4px;font-size:15px'>" + esc(w.whoName || w.who) + (w.late ? " <span style='color:#c0392b;font-size:12px'>(late)</span>" : "") + "</h3><table style='width:100%;border-collapse:collapse;font-size:13px'>" + it + "</table>" + (w.remarks ? "<p style='font-size:13px;color:#5d6878'>Remarks: " + esc(w.remarks) + "</p>" : "");
   }).join("");
   var html = "<p>Dear Sir,</p><p>Daily work report for <b>" + dmyS(t) + "</b>: <b>" + W.length + "/" + (W.length + miss.length) + "</b> sent the update · <b style='color:#1e8e3e'>" + done.length + "</b> work completed · <b style='color:#c0392b'>" + over.length + "</b> overdue · total time " + Math.floor(mins / 60) + "h " + (mins % 60) + "m.</p>"
@@ -1356,7 +1358,7 @@ function workEvening62() {
   log("automation", "work-evening", W.length + " updates");
 }
 function work62Api(d, me) {
-  if (d.op === "team") return { ok: true, team: team62(), md: md62(), courier: crNotify62() };
+  if (d.op === "team") return { ok: true, team: team62(), md: md62(), courier: crNotify62(), staff: staff62() };
   /* Reminder / pending-approval list: the person taps "Send to email" — it goes to MD sir only, as an image + table */
   if (d.op === "shareImg") {
     var b64 = String(d.b64 || ""); if (!b64 || b64.length > 7e6) throw "Image missing or too large";
@@ -1369,6 +1371,7 @@ function work62Api(d, me) {
   if (d.op === "state") { var on = false; try { on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === "workMorning62"; }); } catch (e) { } return { ok: true, on: on, md: md62() }; }
   if (d.op === "md") { var m = String(d.md || "").trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(m)) throw "Enter a valid email"; props().setProperty("WORK_MD", m); return { ok: true, md: m }; }
   if (d.op === "install") return work62Install();
+  if (d.op === "staff") { var sl = (Array.isArray(d.staff) ? d.staff : []).filter(function (s) { return s && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(String(s.email || "")); }).slice(0, 400).map(function (s) { return { email: String(s.email).trim().toLowerCase(), name: clean(s.name || s.email, 60), dept: clean(s.dept || "", 40) }; }); props().setProperty("STAFF62", JSON.stringify(sl)); return { ok: true, n: sl.length }; }
   if (d.op === "courier") { var cl = String(d.to || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(s); }); if (!cl.length) throw "Enter at least one email"; props().setProperty("COURIER_NOTIFY", cl.join(",")); return { ok: true, to: cl }; }
   if (d.op === "run") { var f = { morning: workMorning62, plans: workPlans62, remind: workRemind62, evening: workEvening62 }[d.job]; if (!f) throw "Unknown job"; f(); return { ok: true }; }
   throw "Unknown";
