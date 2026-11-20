@@ -51,7 +51,7 @@ function pub(u) { return { email: u.email, contact: u.contact || "", name: u.nam
 function userPages(u) { try { var p = JSON.parse(u.pages || "[]"); return Array.isArray(p) ? p.filter(function (x) { return /^[a-z0-9]+(\.[a-z0-9]+)?$/.test(x); }).slice(0, 120) : []; } catch (e) { return []; } }
 function setPerms(u, d) { if (d.pages !== undefined) { var L = Array.isArray(d.pages) ? d.pages : []; u.pages = L.length ? JSON.stringify(userPages({ pages: JSON.stringify(L) })) : ""; } if (d.access !== undefined) u.access = d.access === "view" ? "view" : ""; }
 function appUrl() { return ScriptApp.getService().getUrl(); }
-function mail(to, subject, html) { MailApp.sendEmail({ to: to, subject: subject, htmlBody: '<div style="font-family:Arial,sans-serif;font-size:14px;color:#02315B">' + html + '<p style="color:#888;font-size:12px;margin-top:24px">' + APP + ' · Rivera Coil Manufacturing (I) Pvt Ltd</p></div>', name: APP }); }
+function mail(to, subject, html, att) { var o = { to: to, subject: subject, htmlBody: '<div style="font-family:Arial,sans-serif;font-size:14px;color:#02315B">' + html + '<p style="color:#888;font-size:12px;margin-top:24px">' + APP + ' · Rivera Coil Manufacturing (I) Pvt Ltd</p></div>', name: APP }; if (att && att.length) o.attachments = att; MailApp.sendEmail(o); }
 function esc(s) { return String(s || "").replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 function actLink(action, email) { var exp = Date.now() + 14 * 864e5, body = action + "|" + email + "|" + exp; return appUrl() + "?a=" + action + "&e=" + encodeURIComponent(email) + "&x=" + exp + "&s=" + hmac(body); }
 function btn(href, label, color) { return '<a href="' + href + '" style="display:inline-block;padding:10px 18px;margin:4px 8px 4px 0;border-radius:6px;background:' + color + ';color:#fff;text-decoration:none;font-weight:bold">' + label + '</a>'; }
@@ -1182,7 +1182,7 @@ function recPut(d, me) {
     });
     writeTable(sh, RCH, all);
   } finally { lock.releaseLock(); }
-  mails.forEach(function (m) { try { mail(m[0], APP + " — " + m[1], m[2]); } catch (e) { } });
+  mails.forEach(function (m) { try { mail(m[0], APP + " — " + m[1], m[2], m[3]); } catch (e) { try { mail(m[0], APP + " — " + m[1], m[2]); } catch (e2) { } } });
   return { ok: true, recs: out };
 }
 function recDel(d, me) {
@@ -1252,13 +1252,18 @@ function link62(tab) { return SITE + "#" + (tab || "work"); }
 function mails62(kind, x, before, r, me, mails) {
   var nm = esc(me.name || me.email);
   if (kind === "wk") {
-    if (/@/.test(x.to || "") && x.to !== me.email && (!before || before.to !== x.to) && x.src !== "plan")
+    if (/@/.test(x.to || "") && x.to !== me.email && (!before || before.to !== x.to) && x.src !== "plan" && x.src !== "courier")
       mails.push([x.to, "New work for you: " + clean(x.title, 110), "<p><b>" + nm + "</b> gave you this work:</p><p style='font-size:16px'><b>" + esc(x.title) + "</b></p>" + (x.details ? "<p>" + esc(x.details) + "</p>" : "") + (x.due ? "<p>Finish by <b>" + esc(String(x.due).replace("T", " ")) + "</b></p>" : "") + btn(link62("work"), "Open my work", "#02315B")]);
     var md = md62();
-    if (x.status === "done" && (!before || before.status !== "done") && /@/.test(x.from || "") && x.from !== me.email && x.from !== md && x.src !== "plan")
+    if (x.status === "done" && (!before || before.status !== "done") && /@/.test(x.from || "") && x.from !== me.email && x.from !== md && x.src !== "plan" && x.src !== "courier")
       mails.push([x.from, "Completed: " + clean(x.title, 110), "<p><b>" + nm + "</b> completed the work you gave:</p><p><b>" + esc(x.title) + "</b></p>" + btn(link62("work"), "Open", "#1e8e3e")]);
   }
-  if (kind === "cr" && x.dir === "in" && /@/.test(x.forEmail || "") && x.forEmail !== me.email && (!before || before.forEmail !== x.forEmail))
+  if (kind === "cr" && x.dir === "in" && !before) {
+    var crTo = crNotify62().concat(/@/.test(x.forEmail || "") ? [String(x.forEmail).toLowerCase()] : []).filter(function (e, i, a) { return e && e !== me.email && e !== md62() && a.indexOf(e) === i; });
+    var crAtt = []; try { if (x.scan) { var fz = fileGet(x.scan); crAtt = [Utilities.newBlob(Utilities.base64Decode(fz.b64), fz.type || "image/jpeg", fz.name || (r.no + ".jpg"))]; } } catch (eA) { }
+    var crHtml = "<p>A courier has come to the office" + (x.forName ? " for <b>" + esc(x.forName) + "</b>" : "") + ".</p><table style='border-collapse:collapse;font-size:14px'>" + [["Courier no.", r.no], ["From", x.party], ["Place", x.place], ["Courier company", x.company], ["Docket / AWB", x.docket], ["Contents", x.contents], ["Reference", x.ref], ["Received", (x.date || "") + " " + (x.time || "")], ["Received by", x.handler]].filter(function (p) { return p[1]; }).map(function (p) { return "<tr><td style='padding:4px 12px 4px 0;color:#555'>" + p[0] + "</td><td style='padding:4px 0'><b>" + esc(p[1]) + "</b></td></tr>"; }).join("") + "</table>" + (crAtt.length ? "<p>The scan is attached.</p>" : "") + btn(link62("courier"), "Open courier register", "#02315B");
+    crTo.forEach(function (to) { mails.push([to, "Courier received: " + clean(x.party, 70) + (x.forName ? " for " + clean(x.forName, 40) : "") + " (" + r.no + ")", crHtml, crAtt]); });
+  }
     mails.push([x.forEmail, "Courier for you: " + clean(x.party, 80) + " (" + r.no + ")", "<p>A courier has come for you at the office.</p><p><b>" + esc(x.party) + "</b>" + (x.place ? ", " + esc(x.place) : "") + "<br>" + esc([x.company, x.docket, x.contents].filter(Boolean).join(" · ")) + "</p>" + btn(link62("courier"), "Acknowledge - I received it", "#1e8e3e")]);
   if (kind === "ho" && x.status !== (before && before.status)) {
     var who = esc(x.empName || x.emp);
@@ -1268,6 +1273,7 @@ function mails62(kind, x, before, r, me, mails) {
     if (x.status === "approved") [x.emp, x.to].forEach(function (t) { if (/@/.test(t || "")) mails.push([t, "Handover approved: " + clean(x.empName || x.emp, 60) + " → " + clean(x.toName || x.to, 60), "<p>The handover is approved. Open work has moved to <b>" + esc(x.toName || x.to) + "</b>.</p>" + btn(link62("handover"), "Open", "#02315B")]); });
   }
 }
+function crNotify62() { return String(props().getProperty("COURIER_NOTIFY") || "agm@rivera.co.in,purchase@rivera.co.in").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /@/.test(s); }); }
 function approvers62(tok) {
   var v = users().getDataRange().getValues(), out = [];
   for (var i = 1; i < v.length; i++) { var u = {}; UH.forEach(function (k, j) { u[k] = v[i][j]; }); if (u.status === "approved" && userPages(u).indexOf(tok) >= 0) out.push(String(u.email).toLowerCase()); }
@@ -1280,8 +1286,9 @@ function team62() {
   return out;
 }
 function work62Install() {
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (["workMorning62", "workRemind62", "workEvening62"].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (["workMorning62", "workPlans62", "workRemind62", "workEvening62"].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger("workMorning62").timeBased().atHour(9).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
+  ScriptApp.newTrigger("workPlans62").timeBased().atHour(10).nearMinute(45).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("workRemind62").timeBased().atHour(18).nearMinute(0).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("workEvening62").timeBased().atHour(18).nearMinute(35).everyDays(1).inTimezone("Asia/Kolkata").create();
   props().setProperty("WORK62_ON", new Date().toISOString());
@@ -1293,13 +1300,28 @@ function wkLine62(x) { return "<li style='margin:3px 0'><b>" + esc(x.title) + "<
 /* 9:30 — each person gets only their own open work */
 function workMorning62() {
   if (!workday62()) return;
-  var open = rows62("wk").filter(function (x) { return ["done", "cancelled"].indexOf(x.status) < 0; }), n = 0;
+  var open = rows62("wk").filter(function (x) { return ["done", "cancelled"].indexOf(x.status) < 0 && x.src !== "plan"; }), n = 0, md = md62();
   team62().forEach(function (u) {
-    var L = open.filter(function (x) { return x.to === u.email; }); if (!L.length) return;
-    var over = L.filter(function (x) { return x.due && String(x.due).slice(0, 10) < todayIST(); }).length;
-    try { mail(u.email, "Your work today - " + L.length + " open" + (over ? ", " + over + " overdue" : ""), "<p>Good morning " + esc(u.name) + ",</p><p>Your open work:</p><ul style='padding-left:18px'>" + L.slice(0, 25).map(wkLine62).join("") + "</ul>" + btn(link62("work"), "Open my work", "#02315B") + btn(link62("work"), "Write today's plan", "#7b3fa0")); n++; } catch (e) { }
+    if (u.email === md) return;
+    var L = open.filter(function (x) { return x.to === u.email; }), over = L.filter(function (x) { return x.due && String(x.due).slice(0, 10) < todayIST(); }).length;
+    var html = "<p>Good morning " + esc(u.name) + ",</p><p style='font-size:15px'><b>Write today's work plan</b> - each work with its <b>From</b> and <b>To</b> time (e.g. 10:00 - 11:30). MD sir sees the plans at 10:45.</p>" + btn(SITE + "#plan", "Write today's plan", "#7b3fa0") +
+      (L.length ? "<p style='margin-top:16px'>Your open work" + (over ? " (<b style='color:#c0392b'>" + over + " overdue</b>)" : "") + ":</p><ul style='padding-left:18px'>" + L.slice(0, 25).map(wkLine62).join("") + "</ul>" + btn(link62("work"), "Open my work", "#02315B") : "");
+    try { mail(u.email, "Good morning - write today's plan with time" + (L.length ? " (" + L.length + " open work)" : ""), html); n++; } catch (e) { }
   });
   log("automation", "work-morning", n + " mails");
+}
+/* 10:45 — MD sir: everyone's plan for today with From–To time, and who has not written one */
+function workPlans62() {
+  if (!workday62()) return;
+  var t = todayIST(), md = md62(), P = rows62("wk").filter(function (x) { return x.src === "plan" && x.day === t && x.status !== "cancelled"; }), team = team62().filter(function (u) { return u.email !== md; });
+  var miss = team.filter(function (u) { return !P.some(function (x) { return x.to === u.email; }); });
+  var sec = team.filter(function (u) { return P.some(function (x) { return x.to === u.email; }); }).map(function (u) {
+    var L = P.filter(function (x) { return x.to === u.email; }).sort(function (a, b) { return String(a.pfrom || "").localeCompare(String(b.pfrom || "")); });
+    return "<h3 style='margin:14px 0 4px;color:#02315B'>" + esc(u.name) + "</h3><table style='border-collapse:collapse;width:100%;font-size:13.5px'>" + L.map(function (x) { return "<tr><td style='padding:4px 8px;border-bottom:1px solid #eef1f5;white-space:nowrap;color:#5d6878'>" + esc((x.pfrom || "--") + " - " + (x.pto || "--")) + "</td><td style='padding:4px 8px;border-bottom:1px solid #eef1f5'>" + esc(x.title) + "</td></tr>"; }).join("") + "</table>";
+  }).join("");
+  var html = "<p>Dear Sir,</p><p>Today's work plans: <b>" + (team.length - miss.length) + " of " + team.length + "</b> sent.</p>" + (miss.length ? "<p style='color:#c0392b'>Not written yet: <b>" + miss.map(function (u) { return esc(u.name); }).join(", ") + "</b></p>" : "") + (sec || "<p>No plans yet.</p>") + btn(link62("work"), "Open Work Board", "#02315B");
+  try { mail(md, "Today's work plans - " + Utilities.formatDate(new Date(), "Asia/Kolkata", "dd MMM") + " (" + (team.length - miss.length) + "/" + team.length + ")", html); } catch (e) { }
+  log("automation", "work-plans", P.length + " plan items");
 }
 /* 18:00 — reminder to everyone who has not sent the daily update */
 function workRemind62() {
@@ -1329,11 +1351,12 @@ function workEvening62() {
   log("automation", "work-evening", W.length + " updates");
 }
 function work62Api(d, me) {
-  if (d.op === "team") return { ok: true, team: team62(), md: md62() };
+  if (d.op === "team") return { ok: true, team: team62(), md: md62(), courier: crNotify62() };
   if (me.role !== "admin" && me.email !== ADMIN) throw "Only the admin";
   if (d.op === "state") { var on = false; try { on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === "workMorning62"; }); } catch (e) { } return { ok: true, on: on, md: md62() }; }
   if (d.op === "md") { var m = String(d.md || "").trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(m)) throw "Enter a valid email"; props().setProperty("WORK_MD", m); return { ok: true, md: m }; }
   if (d.op === "install") return work62Install();
-  if (d.op === "run") { var f = { morning: workMorning62, remind: workRemind62, evening: workEvening62 }[d.job]; if (!f) throw "Unknown job"; f(); return { ok: true }; }
+  if (d.op === "courier") { var cl = String(d.to || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(s); }); if (!cl.length) throw "Enter at least one email"; props().setProperty("COURIER_NOTIFY", cl.join(",")); return { ok: true, to: cl }; }
+  if (d.op === "run") { var f = { morning: workMorning62, plans: workPlans62, remind: workRemind62, evening: workEvening62 }[d.job]; if (!f) throw "Unknown job"; f(); return { ok: true }; }
   throw "Unknown";
 }

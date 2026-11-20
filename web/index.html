@@ -11482,7 +11482,7 @@ document.head.insertAdjacentHTML("beforeend", `<style>
   if (!ROUTES.some(r => r[0] === "gs")) ROUTES.push(["gs", "Sales", "funnel28"]);
 
   /* department presets: the cards above + the pages behind them (so the server lets them read / save those records) */
-  const cardsOf = id => Object.values(MOD63.find(m => m.id === id).groups).flat().map(tok34);
+  const cardsOf = id => Object.values((MODS32.find(m => m.id === id) || { groups: {} }).groups).flat().map(tok34);
   const WORK = cardsOf("work").filter(t => t !== "work.team");
   window.DEPT63 = {
     sales: { name: "Sales", role: "sales", extra: ["crm", "quote", "register", "qfu", "purchase.so", "gs"] },
@@ -11540,6 +11540,218 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 }
 document.head.insertAdjacentHTML("beforeend", `<style>
 .dp63{border:2px solid var(--copper,#E26A0C);border-radius:12px;padding:10px 12px;margin:10px 0;display:flex;flex-direction:column;gap:6px}.dp63>div{display:flex;flex-wrap:wrap;gap:8px 16px}.dp63 label{display:inline-flex;gap:6px;align-items:center;font-weight:600;cursor:pointer}.dp63 input{width:18px;height:18px;accent-color:var(--copper,#E26A0C)}
+</style>`);
+
+
+/* ===================== p64: everyone on Work Board — Worklist with From / To time (morning mail opens it), courier scan for security
+   (photo → details filled → AGM + Purchase get it with the scan), Management / Operations / Production sections, QAP test calculator for Sales,
+   department logins created and mailed in one tap ===================== */
+
+/* ---------- Worklist (today's plan) with From / To time ---------- */
+const plnDraft64 = () => (W62.pl64 ||= []);
+plan62 = function () {
+  const P = planToday62().sort((a, b) => String(a.pfrom || "").localeCompare(String(b.pfrom || ""))), D = plnDraft64(), last = [...P.map(x => x.pto), ...D.map(x => x.to)].filter(Boolean).sort().pop() || "";
+  return `<section class="panel"><div class="body"><p class="small muted" style="margin-top:0">Write what you will do today - every work with its <b>From</b> and <b>To</b> time. MD sir sees the plans at 10:45; in the evening the Daily update is filled from here.</p>
+    ${P.length ? `<div class="stack" style="gap:6px;margin-bottom:12px">${P.map(x => `<div class="pl62" data-pid="${x.id}"><span class="chip navy" style="white-space:nowrap">${esc(x.pfrom || "--:--")} - ${esc(x.pto || "--:--")}</span><span class="pl62-t">${esc(x.title)}</span><span class="chip">${x.pct || 0}%</span>${x.status !== "done" ? `<button type="button" class="btn sm" data-pe="${x.id}" title="Edit">✏️</button><button type="button" class="btn sm" data-pd="${x.id}" title="Remove">🗑️</button>` : '<span class="chip ok">Completed</span>'}</div>`).join("")}</div>` : ""}
+    ${D.length ? `<div class="stack" style="gap:6px;margin-bottom:8px">${D.map((x, i) => `<div class="pl62" style="border-style:dashed"><span class="chip warn" style="white-space:nowrap">${esc(x.from)} - ${esc(x.to)}</span><span class="pl62-t">${esc(x.title)}</span><button type="button" class="btn sm" data-px="${i}" title="Remove">🗑️</button></div>`).join("")}</div>` : ""}
+    <div class="du62-add" style="margin-top:0;border-top:0;padding-top:0"><input id="pl64t" placeholder="Work you will do…" maxlength="200"><label>From<input type="time" id="pl64f" value="${esc(last)}"></label><label>To<input type="time" id="pl64to"></label><button type="button" class="btn sm" id="pl64a">+ Add</button></div>
+    <button type="button" class="btn primary block" id="pl62s" style="margin-top:10px;background:#7b3fa0">${P.length ? "Add to today's worklist" : "Send today's worklist"}${D.length ? ` (${D.length})` : ""}</button></div></section>`;
+};
+wirePlan62 = function (v) {
+  const s = $("#pl62s", v); if (!s) return; const D = plnDraft64();
+  const add = () => { const t = $("#pl64t", v).value.trim(), f = $("#pl64f", v).value, to = $("#pl64to", v).value; if (!t) { $("#pl64t", v).focus(); return false; } if (!f || !to) { toast("Add the From and To time for this work", "bad"); (f ? $("#pl64to", v) : $("#pl64f", v)).focus(); return false; } if (to <= f) { toast('"To" time must be after "From" time', "bad"); return false; } D.push({ title: t, from: f, to }); render(); setTimeout(() => $("#pl64t")?.focus(), 50); return true; };
+  $("#pl64a", v).onclick = add; $("#pl64t", v).onkeydown = e => { if (e.key === "Enter") add(); };
+  $$("[data-px]", v).forEach(b => b.onclick = () => { D.splice(+b.dataset.px, 1); render(); });
+  s.onclick = async () => {
+    if ($("#pl64t", v).value.trim() && !add()) return;
+    if (!D.length) return toast("Add at least one work with From and To time", "bad");
+    const recs = D.map(x => ({ kind: "wk", title: x.title, pfrom: x.from, pto: x.to, from: me28(), fromName: AUTH.user?.name || "", to: me28(), toName: AUTH.user?.name || "", src: "plan", day: todayISO(), status: "accepted", pct: 0, created: now62() }));
+    if (await save28(s, recs, `Today's worklist saved (${recs.length})`)) { W62.pl64 = []; render(); }
+  };
+  $$("[data-pe]", v).forEach(b => b.onclick = () => { const x = BIZ.rows[b.dataset.pe], row = b.closest(".pl62"); row.innerHTML = `<input type="time" class="pe64f" value="${esc(x.pfrom || "")}"><input type="time" class="pe64t" value="${esc(x.pto || "")}"><input class="pl62-i" maxlength="200" value="${esc(x.title)}"><button type="button" class="btn sm primary">Save</button>`; const i = $(".pl62-i", row); i.focus();
+    const go = async () => { const t = i.value.trim(), f = $(".pe64f", row).value, to = $(".pe64t", row).value; if (!t) return; if (!f || !to || to <= f) return toast("From and To time are needed (To after From)", "bad"); const r = { ...x, title: t, pfrom: f, pto: to }; logAdd28(r, "Edited", `${f}-${to} ${t}`); if (await save28(null, r, "Worklist updated")) render(); };
+    $("button", row).onclick = go; i.onkeydown = e => { if (e.key === "Enter") go(); }; });
+  $$("[data-pd]", v).forEach(b => b.onclick = async () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Remove?"; return; } const r = { ...BIZ.rows[b.dataset.pd], status: "cancelled" }; logAdd28(r, "Removed", "from today's worklist"); if (await save28(null, r, "Removed")) render(); });
+};
+duItems62 = function () {
+  const d = duMine62(); if (d && d.items) return JSON.parse(JSON.stringify(d.items));
+  if (W62.draft?.day === todayISO()) return W62.draft.items;
+  return planToday62().sort((a, b) => String(a.pfrom || "").localeCompare(String(b.pfrom || ""))).map(x => ({ title: x.title, state: x.status === "done" ? "done" : "progress", from: x.pfrom || "", to: x.pto || "", wk: x.id }));
+};
+/* the morning mail's button opens #plan → Work Board ▸ Worklist */
+ROUTES.push(["plan", "Worklist", "check28"]); if (typeof ALWAYS34 !== "undefined") ALWAYS34.push("plan");
+if (typeof ROLE_PAGES !== "undefined") Object.values(ROLE_PAGES).forEach(L => L.includes("plan") || L.push("plan"));
+VIEWS.plan = v => { BIZ.ui.w62 = "plan"; location.replace("#work"); };
+{ const _w = VIEWS.work; VIEWS.work = v => { _w(v); $$("[data-w62t]", v).forEach(b => { if (b.dataset.w62t === "plan") b.textContent = "Worklist"; }); if (BIZ.ui.w62 === "plan") { const h = $(".topbar h1", v); if (h) h.textContent = "Worklist - today's plan"; } }; }
+
+/* ---------- courier: scan → details filled → saved; AGM + Purchase get the mail with the scan ---------- */
+const CRKW64 = [["DTDC", /dtdc/i], ["Blue Dart", /blue\s?dart/i], ["Professional Couriers", /professional\s+courier|tpc\s?india|the professional/i], ["India Post / Speed Post", /india\s?post|speed\s?post|department of posts/i], ["ST Courier", /\bs\.?t\.?\s+courier/i], ["Trackon", /trackon/i], ["DHL", /\bdhl\b/i], ["FedEx", /fed\s?-?ex/i], ["Delhivery", /delhivery/i], ["First Flight", /first\s+flight/i]];
+const CRFOR64 = [[/purchase|procure|stores?\b/i, "purchase@rivera.co.in"], [/accounts?|finance|invoice|payment|bank|cheque/i, "finance@rivera.co.in"], [/\bh\.?r\.?\b|human resource|personnel|resume|curriculum/i, "hr@rivera.co.in"], [/quality|\bq\.?a\b|test certificate/i, "quality@rivera.co.in"], [/sales|marketing|enquiry|quotation|tender/i, "sales@rivera.co.in"], [/inventory|store\s?keeper/i, "inventory@rivera.co.in"], [/production|workshop/i, "production@rivera.co.in"], [/operations?/i, "operations@rivera.co.in"], [/\ba\.?g\.?m\b|asst\.? general manager|assistant general manager/i, "agm@rivera.co.in"], [/\bg\.?m\b|general manager/i, "gm@rivera.co.in"]];
+function parseCourier64(text) {
+  const o = {}, T = String(text || ""), lines = T.split(/\n/).map(s => s.trim()).filter(Boolean);
+  for (const [n, rx] of CRKW64) if (rx.test(T)) { o.company = n; break; }
+  let m = T.match(/(?:awb|a\.?\s?w\.?\s?b|docket|consignment|way\s*bill|waybill|tracking|c[-.]?\s?note|cn\s*no|con\s*no)\s*(?:no\.?|number)?\s*[:#-]?\s*([A-Z0-9][A-Z0-9 -]{5,18}[A-Z0-9])/i);
+  if (m) o.docket = m[1].replace(/\s+/g, "").replace(/^-|-$/g, "").toUpperCase(); else { m = T.match(/\b([A-Z]{0,3}\d{9,14})\b/); if (m) o.docket = m[1]; }
+  m = T.match(/\b(?:ref(?:erence)?|invoice|inv|p\.?\s?o|order)\.?\s*(?:no\.?|number)?\s*[:#]\s*([A-Z0-9][A-Z0-9\-/]{2,18})/i); if (m) o.ref = m[1].toUpperCase();
+  m = T.match(/(?:description|said\s*to\s*contain|commodity|contents?|particulars)\s*[:-]\s*(.+)/i); if (m) { const c = m[1].split(/\s{2,}|weight|pieces|qty/i)[0].replace(/^[\s:-]+|[\s:-]+$/g, ""); if (c.length > 2 && c.length < 80) o.contents = c; }
+  const ph = (T.match(/\b[6-9]\d{9}\b/g) || []).find(p => p !== o.docket && !String(o.docket || "").includes(p)); if (ph) o.phone = ph;
+  for (let i = 0; i < lines.length && !o.party; i++) { const l = lines[i]; if (/^(from|consignor|shipper|sender)\b/i.test(l)) { let a = l.includes(":") ? l.split(":").slice(1).join(":").trim() : ""; if (!a) a = lines.slice(i + 1, i + 4).find(Boolean) || ""; a = a.replace(/\(.*?\)/g, "").trim(); if (a && !/rivera/i.test(a) && a.length > 2 && a.length < 70 && !/^(to|consignee)\b/i.test(a)) o.party = a; } }
+  if (!o.party) { const co = lines.find(l => /\b(pvt|private|ltd|limited|llp|industries|engineering|enterprises|corporation|electricals?|traders|company)\b/i.test(l) && !/rivera/i.test(l) && l.length < 70); if (co) o.party = co.replace(/^(from|m\/s\.?)\s*[:.-]?\s*/i, ""); }
+  const pl = [...T.matchAll(/\b([A-Z][a-zA-Z]{3,})\s*[-–,]?\s*([1-9]\d{5})\b/g)].find(x => !/^(thindal|erode|perundurai)$/i.test(x[1])); if (pl) o.place = pl[1];
+  /* who is it for: a person's name on the slip, else the department word */
+  const toPart = (() => { const i = lines.findIndex(l => /^(to|consignee|deliver to|attn|kind attn)\b/i.test(l)); return i >= 0 ? lines.slice(i, i + 5).join(" ") : T; })();
+  const tm = W62.team.find(u => u.name && u.name.length > 3 && new RegExp(`\\b${u.name.split(" ")[0].replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}\\b`, "i").test(toPart) && !/^rivera$/i.test(u.name.split(" ")[0]));
+  if (tm) o.forEmail = tm.email; else for (const [rx, em] of CRFOR64) if (rx.test(toPart) && W62.team.some(u => u.email === em)) { o.forEmail = em; break; }
+  return o;
+}
+async function shrink64(file) {
+  if (!/^image\//.test(file.type)) return file;
+  try { const bm = await createImageBitmap(file), k = Math.min(1, 1800 / Math.max(bm.width, bm.height)), c = document.createElement("canvas"); c.width = Math.round(bm.width * k); c.height = Math.round(bm.height * k); c.getContext("2d").drawImage(bm, 0, 0, c.width, c.height); const b = await new Promise(ok => c.toBlob(ok, "image/jpeg", 0.82)); return b ? new File([b], (file.name || "courier").replace(/\.\w+$/, "") + ".jpg", { type: "image/jpeg" }) : file; } catch { return file; }
+}
+async function scanCourier64(file) {
+  if (!file) return;
+  const ov = document.createElement("div"); ov.className = "sc64"; ov.innerHTML = `<div><span class="spin"></span><b>Reading the courier slip…</b><small id="sc64s">Getting the photo ready</small></div>`; document.body.appendChild(ov);
+  const step = t => { const s = $("#sc64s"); if (s) s.textContent = t; };
+  let f = file, found = {};
+  try {
+    f = await shrink64(file); await team62();
+    if (/^image\//.test(f.type)) { step("Reading the text (first time takes ~20 s)"); const txt = await ocrImages([f], step); found = parseCourier64(txt); found.ocr = txt.slice(0, 1500); }
+  } catch (e) { toast("Could not read the slip - please type the details", "bad"); }
+  ov.remove();
+  const n = ["party", "company", "docket", "place", "contents", "forEmail"].filter(k => found[k]).length;
+  toast(n ? `Filled ${n} detail${n === 1 ? "" : "s"} from the scan - check and Save` : "Scan attached - please type the details");
+  crPanel62({ kind: "cr", dir: "in", date: todayISO(), time: hm62(), status: "Pending", byEmail: me28(), handler: AUTH.user?.name || "", ...found, _new64: 1 }, "in", f);
+}
+{
+  /* crPanel62 learns: (1) a ready scan file, (2) new records from a scan, (3) "for" name saved, (4) a work item for the person, done when they acknowledge */
+  const _cp = crPanel62;
+  crPanel62 = function (src, dir, scanFile) {
+    const isNew = !src || src._new64, base = src && src._new64 ? null : src;
+    _cp(base, dir || src?.dir);
+    const D = $("#dr26") || document;
+    if (src && src._new64) { const r = src; $$("[data-k]", D).forEach(i => { const k = i.dataset.k; if (r[k] != null && r[k] !== "") i.value = r[k]; }); }
+    if (scanFile) { const inp = $("#cr62f", D); try { const dt = new DataTransfer(); dt.items.add(scanFile); inp.files = dt.files; inp.dispatchEvent(new Event("change")); } catch { } const sec = inp?.closest(".dr26-sec"); if (sec && /^image/.test(scanFile.type)) sec.insertAdjacentHTML("beforeend", `<img src="${URL.createObjectURL(scanFile)}" alt="Courier slip" style="max-width:100%;max-height:260px;border-radius:8px;margin-top:8px;display:block">`); }
+    if (isNew && (dir || src?.dir) !== "out") { const h = $(".dr26-f, footer", D); const note = `<p class="small muted" style="margin:6px 0 0">On Save: AGM and Purchase get a mail with the scan${W62.team.length ? "" : ""}, and the person it is for gets it in their Work Board.</p>`; $(".fields", D)?.insertAdjacentHTML("afterend", note); }
+    const sv = $("#cr62s", D); if (sv) { const old = sv.onclick; sv.onclick = async e => {
+      const fe = $('[data-k="forEmail"]', D); const fn = fe ? (W62.team.find(u => u.email === fe.value)?.name || "") : "";
+      const before = new Set(all28("cr").map(x => x.id));
+      const _s = save28; let made = null;
+      save28 = async (btn, recs, msg) => { const L = Array.isArray(recs) ? recs : [recs]; L.forEach(x => { if (x.kind === "cr") { x.forName = fn; if (src?._new64 && src.ocr) x.ocr = src.ocr; } }); const out = await _s(btn, recs, msg); made = out; return out; };
+      try { await old(e); } finally { save28 = _s; }
+      const cr = (made || []).find?.(x => x.kind === "cr");
+      if (cr && isNew && cr.dir === "in" && /@/.test(cr.forEmail || "") && !before.has(cr.id)) await _s(null, [{ kind: "wk", title: `Collect courier from ${cr.party || "-"}${cr.docket ? " (" + cr.docket + ")" : ""}`, details: [cr.company, cr.contents].filter(Boolean).join(" · "), from: me28(), fromName: AUTH.user?.name || "", to: cr.forEmail, toName: fn, src: "courier", cr: cr.id, due: todayISO() + "T18:00", status: "new", pct: 0, created: now62() }], "");
+    }; }
+    const ak = $("#cr62a", D); if (ak) { const old = ak.onclick; ak.onclick = async e => { await old(e); const w = all28("wk").find(x => x.src === "courier" && x.cr === base?.id && x.status !== "done"); if (w) { const r = { ...w, status: "done", pct: 100, doneAt: now62() }; logAdd28(r, "Courier acknowledged", ""); await save28(null, r, ""); } }; }
+  };
+  const _cv = VIEWS.courier;
+  VIEWS.courier = v => {
+    _cv(v);
+    const bar = $(".topbar .row", v); if (!bar || $("#sc64b", v)) return;
+    bar.insertAdjacentHTML("afterbegin", `<label class="btn primary sc64b" id="sc64b">📷 Scan courier<input type="file" accept="image/*" capture="environment" hidden id="sc64i"></label>`);
+    $("#sc64i", v).onchange = e => { const f = e.target.files[0]; e.target.value = ""; scanCourier64(f); };
+    const p = $(".topbar p", v); if (p) p.textContent = "Security: tap Scan courier and take a photo of the slip - the details fill in. On Save, AGM and Purchase get a mail with the scan and the person it is for gets it on their Work Board.";
+  };
+}
+
+/* ---------- QAP test calculator (Sales uses it for quotations; from Rivera QAP R2 and the Electrical Testing QAP) ---------- */
+function calc64(un) {
+  const u = +un || 0, f = (x, d = 2) => (+x).toFixed(d).replace(/\.?0+$/, "");
+  return [["Surge comparison (intermediate & final)", `${f(1.7 * u + 2)} kV`, "1.7 × Un + 2 kV, rise time 0.2 µs ± 0.1 µs, 5 pulses", "Strand insulation not short-circuited"],
+    ["AC high voltage (slot portion, routine)", `${f(2 * u + 1)} kV for 1 min`, "(2 × Un + 1) kV", "No failure for 1 minute"],
+    ["AC HV type test", `${f(2 * u + 1)} kV 1 min, then ramp 1 kV/s to ${f(2 * (2 * u + 1))} kV`, "2 × (2 Un + 1) kV", "Breakdown value recorded"],
+    ["Insulation resistance", "5 kV DC for 1 min", "IEEE 43-2013", "≥ 300 MΩ (Rivera QAP)"],
+    ["Polarization index", "10 min / 1 min", "IEEE 43-2013", "Class B / F / H ≥ 2.0 (Class A ≥ 1.5)"],
+    ["Tan delta steps", [0.2, 0.4, 0.6, 0.8, 1.0, 1.2].map(k => `${f(k * u)} kV`).join(" · "), "0.2 Un to 1.2 Un", "< 2 % at 0.2 Un; Δ < 0.5 % per step; tip-up (0.6–0.2 Un) < 0.5 %"],
+    ["Partial discharge", [0.2, 0.4, 0.6, 0.8, 1.0, 1.2].map(k => `${f(k * u)} kV`).join(" · "), "IEC 60034-27-1", "As per approved procedure / OEM"],
+    ["Surge (IEC sample, SFI)", `${f(Math.max(3.5 * u, 5.6))} kV peak`, "3.5 Un, min 5.6 kV peak, ≥ 5 impulses", "No breakdown"],
+    ["DC resistance", "-", "Design", "As per design value"]];
+}
+{
+  const _q = VIEWS.quality;
+  VIEWS.quality = v => {
+    const all = [["tr", "Test reports"], ["qap", "QAP"], ["std", "Test standards"], ["reg", "Test register"], ["calc", "Test calculator"]].filter(([k]) => tabOk62("quality", k));
+    if (BIZ.ui.q62 !== "calc" && all.some(x => x[0] === BIZ.ui.q62)) { _q(v); const tb = $("[data-q62t]", v)?.parentElement; if (tb && tabOk62("quality", "calc") && !$('[data-q62t="calc"]', tb)) { tb.insertAdjacentHTML("beforeend", `<button type="button" class="${tb.firstElementChild?.className.replace(/\b(on|active)\b/g, "") || ""}" data-q62t="calc">Test calculator</button>`); $('[data-q62t="calc"]', tb).onclick = () => { BIZ.ui.q62 = "calc"; render(); }; } return; }
+    BIZ.ui.q62 = "calc"; const un = BIZ.ui.un64 ?? 6.6, R = calc64(un);
+    v.innerHTML = top62("Quality", "Test calculator (QAP R2)", "Type the rated voltage - every test value of the Rivera QAP comes out, ready for the quotation.", tabOk62("quality", "qap") ? `<button class="btn" id="c64q" type="button">${icon("doc")}Make QAP for a customer</button>` : "")
+      + (all.length > 1 ? tabs28("calc", all, "q62t") : "") + `<section class="panel" style="margin-top:12px"><div class="body"><div class="row" style="gap:10px;align-items:end;flex-wrap:wrap"><label class="f" style="width:200px">Rated voltage Un (kV)<input id="c64u" type="number" step="0.1" min="0.4" value="${esc(un)}"></label>${[3.3, 6.6, 11, 13.8, 15.75].map(x => `<button type="button" class="btn sm" data-un="${x}">${x} kV</button>`).join("")}<button type="button" class="btn sm" id="c64c">📋 Copy for quotation</button></div>
+      <div style="overflow:auto;margin-top:12px"><table class="t"><thead><tr><th>Test</th><th>Value for ${esc(un)} kV</th><th>Basis</th><th>Acceptance</th></tr></thead><tbody>${R.map(r => `<tr><td><b>${esc(r[0])}</b></td><td style="white-space:nowrap"><b>${esc(r[1])}</b></td><td>${esc(r[2])}</td><td>${esc(r[3])}</td></tr>`).join("")}</tbody></table></div>
+      <p class="small muted">Source: Rivera QAP R2 (QASC03, 01.07.26) and RIV/QAP/TEST/001 Rev 01. Standards: IEC 60034-15, IEC 60034-27-1/-3, IEEE 43-2013, IEEE 286-2000.</p></div></section>`;
+    $$("[data-q62t]", v).forEach(b => b.onclick = () => { BIZ.ui.q62 = b.dataset.q62t; render(); });
+    $("#c64u", v).onchange = e => { BIZ.ui.un64 = +e.target.value || 6.6; render(); };
+    $$("[data-un]", v).forEach(b => b.onclick = () => { BIZ.ui.un64 = +b.dataset.un; render(); });
+    $("#c64c", v).onclick = () => { const s = `Routine tests as per Rivera QAP R2 (Un = ${un} kV):\n` + R.map(r => `- ${r[0]}: ${r[1]} - acceptance ${r[3]}`).join("\n"); navigator.clipboard?.writeText(s).then(() => toast("Copied - paste it into the quotation"), () => toast(s)); };
+    $("#c64q", v) && ($("#c64q", v).onclick = () => qaPanel62(null));
+  };
+}
+
+/* ---------- Management, Operations, Production sections ---------- */
+{
+  const add = (m, after) => { if (MODS32.some(x => x.id === m.id)) return; const i = MODS32.findIndex(x => x.id === after); MODS32.splice(i >= 0 ? i + 1 : MODS32.length, 0, m); Object.values(m.groups).flat().forEach(c => { try { CARDMOD64.set(c, m.id); } catch { } }); };
+  window.CARDMOD64 = new WeakMap();
+  add({ id: "mgmt", name: "Management", icon: "dash29", tone: "#0b2a57", blurb: "Team work, handovers, couriers", groups: {
+    Transactions: [["Team work (all people)", "work", { w62: "dash" }, "Everyone's work, plans and daily updates"], ["Handover approvals", "handover", { ho62: "approve" }, "Check and approve handovers"], ["Courier register (all)", "courier", { cr62: "all" }, "Every courier in and out, with scans"]],
+    Masters: [], Reports: [["Today's work (PDF)", "work", { w62: "dash" }, "Open the dashboard ▸ Today's work"]] } }, "work");
+  add({ id: "ops", name: "Operations", icon: "flow53", tone: "#2f6fb0", blurb: "Orders, projects, site service", groups: {
+    Transactions: [["Order follow-up", "flow53", {}, "Where every order stands"], ["Projects", "projects", {}, "Milestones, BOQ, budget"], ["Service calls", "service", { svc: "calls" }, "Breakdown & preventive"], ["Delivery planner", "gs", { gs: "plan" }, "What goes out and when"]],
+    Masters: [["AMC contracts", "service", { svc: "amc" }, "Visits and renewals"], ["Customer equipment", "service", { svc: "eq" }, "Every machine's history"]],
+    Reports: [["Service reports", "service", { svc: "rep" }, "Response time, hours"]] } }, "quality");
+  add({ id: "prod", name: "Production", icon: "wrench28", tone: "#8a3b12", blurb: "Work orders and the shop floor", groups: {
+    Transactions: [["Work orders", "orders", {}, "Orders in the factory"], ["Repair jobs", "jobs", {}, "Inward to dispatch"], ["Material indent", "purchase", { pur: "ind" }, "Ask stores / purchase for material"], ["Electrical testing", "quality", { q62: "tr" }, "Test reports - pass / fail"]],
+    Masters: [], Reports: [["Workshop reports", "jobs", { jobs: "rep" }, "Turnaround, on time"]] } }, "ops");
+  const s = MODS32.find(m => m.id === "sales"); if (s && !s.groups.Transactions.some(c => c[1] === "quality")) s.groups.Transactions.push(["QAP & test values", "quality", { q62: "calc" }, "Test voltages from the Rivera QAP for the quote"]);
+  const q = MODS32.find(m => m.id === "quality"); if (q && !q.groups.Masters.some(c => c[2]?.q62 === "calc")) q.groups.Masters.push(["Test calculator", "quality", { q62: "calc" }, "All test values for a rated voltage"]);
+  Object.assign(DEPT63, {
+    mgmt: { name: "Management (AGM / GM)", role: "operation", extra: ["work.team"] },
+    ops: { name: "Operations", role: "operation", extra: ["purchase.so", "purchase.dn", "gs"] },
+    prod: { name: "Production", role: "operation", extra: ["purchase.stock"] }
+  });
+  DEPT63.sales.extra.push("quality.calc", "quality.qap");
+  /* the card → section map that keeps each login to its own section (p63) must know the new cards too */
+  const _co = cardOk32;
+  cardOk32 = function (c) { const D = myDepts63?.(), mid = c && CARDMOD64.get(c); if (D && D.length && mid && mid !== "work" && !D.includes(mid)) return false; return _co.apply(this, arguments); };
+  /* p63 hid cards of sections the login is not in by the original list only; a card shared by two sections (e.g. Service calls) must still show in the login's own one */
+  MODS32.forEach(m => Object.values(m.groups).flat().forEach(c => { if (!CARDMOD64.has(c)) CARDMOD64.set(c, m.id); }));
+}
+
+/* ---------- department logins: one list, created and mailed in one tap ---------- */
+const LOGINS64 = [
+  ["sales@rivera.co.in", "Rivera Sales", ["sales"]], ["purchase@rivera.co.in", "Rivera Purchase", ["purchase"]], ["inventory@rivera.co.in", "Rivera Store", ["store"]],
+  ["finance@rivera.co.in", "Rivera Accounts", ["accounts"]], ["hr@rivera.co.in", "Rivera HR", ["hr"]], ["quality@rivera.co.in", "Rivera Quality", ["quality"]],
+  ["production@rivera.co.in", "Rivera Production", ["prod"]], ["operations@rivera.co.in", "Rivera Operations", ["ops"]],
+  ["agm@rivera.co.in", "AGM", ["mgmt"]], ["gm@rivera.co.in", "GM", ["mgmt"]]];
+{
+  TEAM16.splice(0, TEAM16.length, { email: "crm@rivera.co.in", name: "Rivera CRM (Admin + Security)", role: "admin", tag: "Admin" }, ...LOGINS64.map(([email, name, d]) => ({ email, name, role: DEPT63[d[0]].role, tag: name.split(" ").pop().slice(0, 4), dept: d })));
+  /* creating or resetting one of these logins also gives it its department */
+  const _c = AUTH.call;
+  AUTH.call = function (action, body, ...a) {
+    if ((action === "createUser" || action === "setUser") && body?.email) { const L = LOGINS64.find(x => x[0] === String(body.email).toLowerCase()); if (L && (action === "createUser" || body.pw)) body = { ...body, role: DEPT63[L[2][0]].role, pages: deptTokens63(L[2]), access: "" }; }
+    return _c.call(this, action, body, ...a);
+  };
+}
+async function allLogins64(btn) {
+  const P = btn.closest("section"); let U = []; try { U = (await AUTH.call("users")).users || []; } catch (e) { return toast(e.message, "bad"); }
+  const todo = LOGINS64.filter(([em]) => !U.some(u => u.email === em));
+  if (!todo.length) return toast("Every department login is already made. Use \"New password\" on a card to send one again.");
+  if (!confirm(`Create ${todo.length} department logins and email each one their username, password and the app link?\n\n${todo.map(x => "• " + x[1] + " - " + x[0]).join("\n")}`)) return;
+  btn.disabled = true; const log = $("#al64o", P); let ok = 0;
+  for (const [email, name, d] of todo) {
+    log.insertAdjacentHTML("beforeend", `<div data-al="${esc(email)}">⏳ ${esc(name)} - ${esc(email)}</div>`); const row = $(`[data-al="${CSS.escape(email)}"]`, log);
+    try { const pw = strongPw16(name.split(" ").pop().slice(0, 4)), h = await AUTH.hash(pw, email); await AUTH.call("createUser", { email, name, contact: email, pw: h }); await AUTH.call("mailLogin", { email, pw }); row.textContent = `✅ ${name} - ${email} - login mailed`; ok++; }
+    catch (e) { row.textContent = `❌ ${name} - ${email} - ${e.message}`; }
+  }
+  btn.disabled = false; toast(`${ok} of ${todo.length} logins made and mailed`); render();
+}
+{
+  const _r = render;
+  render = function () { _r(); try { if (STATE.route !== "users" || !AUTH.isAdmin) return; const v = $("#view"); if (!v || $("#al64", v)) return; const host = $("#q58", v); if (!host) return;
+    host.insertAdjacentHTML("beforebegin", `<section class="panel" id="al64"><header><h2>Department logins</h2><button type="button" class="btn primary" id="al64b">${icon("mail")}Create all + email them</button></header><div class="body"><p class="small muted" style="margin-top:0">Each department gets one login with only its own section, Work Board, Handover and Courier. The mail has the username, a temporary password and the app link (website, Android, Windows); they set their own password at the first sign-in.</p><div class="al64g">${LOGINS64.map(([em, nm, d]) => `<span><b>${esc(nm)}</b><small>${esc(em)} · ${esc(d.map(x => DEPT63[x].name).join(", "))}</small></span>`).join("")}</div><div id="al64o" class="small" style="margin-top:8px"></div></div></section>`);
+    $("#al64b", v).onclick = e => allLogins64(e.target); } catch (e) { console.warn("p64", e); } };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.sc64{position:fixed;inset:0;background:rgba(2,49,91,.55);display:grid;place-items:center;z-index:9999}.sc64>div{background:var(--surface,#fff);border-radius:14px;padding:22px 26px;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:260px}.sc64 small{color:var(--muted)}
+.sc64b{font-size:1rem;padding:10px 16px}
+.al64g{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}.al64g span{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column}.al64g small{color:var(--muted)}
+.pe64f,.pe64t{width:110px}
 </style>`);
 
 boot();
