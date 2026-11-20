@@ -11283,7 +11283,7 @@ VIEWS.hrx = v => {
   bizSync28();
   const tabs = tabsFor62("hrx", "h62", [["form4", "Employee register (Form IV)"], ["cert", "Certificates"]]), t = BIZ.ui.h62, E = all28("emp").sort((a, b) => String(a.code || a.name).localeCompare(String(b.code || b.name)));
   const body = t === "form4" ? `<section class="panel"><header><h2>Form IV - Employee register</h2><button type="button" class="btn sm primary" id="f462p">🖨 Print Form IV</button></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Code</th><th>Name</th><th>Designation</th><th>DOJ</th><th>UAN / ESIC</th><th>Form IV details</th></tr></thead><tbody>${E.map(e => { const miss = ["gender", "father", "aadhaar", "addrPerm"].filter(k => !e[k]).length; return `<tr data-em="${e.id}" style="cursor:pointer"><td>${esc(e.code || e.no)}</td><td><b>${esc(e.name)}</b></td><td>${esc(e.designation || "")}</td><td>${esc(dmy62(e.doj))}</td><td>${esc([e.uan, e.esiNo].filter(Boolean).join(" / "))}</td><td><span class="chip ${miss ? "warn" : "ok"}">${miss ? miss + " to fill" : "Complete"}</span></td></tr>`; }).join("") || '<tr><td colspan="6" class="muted">Add employees in HR & Payroll ▸ Employees first.</td></tr>'}</tbody></table></div></section>`
-    : `<section class="panel"><div class="body"><div class="fields"><label class="f">Employee<select id="ce62e">${E.map(e => `<option value="${e.id}">${esc(e.name)} (${esc(e.code || e.no)})</option>`).join("")}</select></label><label class="f">Certificate<select id="ce62t">${CERT62.map(([k, l]) => `<option value="${k}">${l}</option>`).join("")}</select></label><label class="f">Date<input type="date" id="ce62d" value="${todayISO()}"></label><label class="f">Purpose / addressed to<input id="ce62p" placeholder="e.g. bank loan, passport, To whom it may concern"></label><label class="f" style="grid-column:1/-1">Extra line (optional)<input id="ce62x" placeholder="e.g. last working day, conduct"></label></div><button type="button" class="btn primary block" id="ce62g" style="margin-top:10px">🖨 Make certificate</button></div></section>
+    : `<section class="panel"><div class="body"><div class="fields"><label class="f">Employee<select id="ce62e">${E.map(e => `<option value="${e.id}">${esc(e.name)} (${esc(e.code || e.no)})</option>`).join("")}</select></label><label class="f">Certificate<select id="ce62t">${CERT62.map(([k, l]) => `<option value="${k}" ${BIZ.ui.ce === k ? "selected" : ""}>${l}</option>`).join("")}</select></label><label class="f">Date<input type="date" id="ce62d" value="${todayISO()}"></label><label class="f">Purpose / addressed to<input id="ce62p" placeholder="e.g. bank loan, passport, To whom it may concern"></label><label class="f" style="grid-column:1/-1">Extra line (optional)<input id="ce62x" placeholder="e.g. last working day, conduct"></label></div><button type="button" class="btn primary block" id="ce62g" style="margin-top:10px">🖨 Make certificate</button></div></section>
       <section class="panel"><header><h2>Issued</h2></header><div class="body"><table class="t"><thead><tr><th>No.</th><th>Date</th><th>Employee</th><th>Certificate</th></tr></thead><tbody>${all28("cert").sort((a, b) => String(b.date).localeCompare(String(a.date))).map(c => `<tr><td>${esc(c.no)}</td><td>${esc(dmy62(c.date))}</td><td>${esc(c.empName)}</td><td>${esc((CERT62.find(x => x[0] === c.type) || [0, c.type])[1])}</td></tr>`).join("") || '<tr><td colspan="4" class="muted">None yet.</td></tr>'}</tbody></table></div></section>`;
   v.innerHTML = top62("HR & Payroll", t === "form4" ? "Employee register (Form IV)" : "Certificates", "") + (loadNote28() || tabs28(t, tabs, "h62t") + `<div style="margin-top:12px">${body}</div>`);
   $$("[data-h62t]", v).forEach(b => b.onclick = () => { BIZ.ui.h62 = b.dataset.h62t; render(); });
@@ -11436,6 +11436,110 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .vs62{display:block;height:6px;background:#eef1f5;border-radius:4px;overflow:hidden;margin-top:4px}
 .qtr62 td,.qtr62 th{vertical-align:top;font-size:.8rem}.ok62{color:#1e8e3e;font-weight:700}.bad62{color:#c0392b;font-weight:700}
 @media(max-width:640px){.pct62{grid-template-columns:repeat(4,1fr)}.vt62r{flex-wrap:wrap}}
+</style>`);
+
+
+/* ===================== p63: one clean menu per department (from MD sir's list) — each login sees only its own department + Work Board ===================== */
+{
+  const W = { blurb: "" };
+  const MOD63 = [
+    { id: "work", name: "Work Board", icon: "check28", tone: "#0b2a57", blurb: "My work, worklist, daily update", groups: {
+      Transactions: [["My work", "work", { w62: "mine" }, "Work given to me - accept, update, complete"], ["Worklist", "work", { w62: "plan" }, "Today's plan - what I will do today"], ["Assign work", "work", { w62: "assign" }, "Give work to one or more people"], ["Daily update", "work", { w62: "du" }, "Evening update with From / To time"], ["Courier", "courier", { cr62: "mine" }, "Couriers for me / sent by me"], ["Handover", "handover", { ho62: "mine" }, "Hand over before leaving"]],
+      Masters: [["Work I gave", "work", { w62: "given" }, "Progress of work I gave"]],
+      Reports: [["Work dashboard", "work", { w62: "dash" }, "Open, overdue, completed + Today's work PDF"], ["Team work (all people)", "work", { w62: "team" }, "Admin / MD: everyone's work"]] } },
+    { id: "sales", name: "Sales", icon: "funnel28", tone: "#E26A0C", blurb: "Leads to order", groups: {
+      Transactions: [["Dashboard", "gs", { gs: "dash" }, "Alerts, today's follow-ups"], ["Worklist", "gs", { gs: "dash", gsd: "tasks" }, "My follow-ups and tasks today"], ["Approval", "gs", { gs: "dash", gsd: "approvals" }, "Quotes and orders waiting for approval"],
+        ["Leads", "gs", { gs: "lead" }, "Enquiries and next follow-up"], ["Quotation", "gs", { gs: "quote" }, "All quotations"], ["Order", "gs", { gs: "so" }, "Customer PO → sales order"], ["Auto quotation", "scan", {}, "Drop the enquiry → quotation in one tap"], ["Quote working", "workings", {}, "Costing for coils"], ["Quotation (letterhead)", "quote", {}, "Rivera letterhead quote"], ["Quote follow-up", "qfu", {}, "Sent quotes waiting for reply"], ["Order follow-up", "flow53", {}, "Where each order stands"], ["Work order", "orders", {}, "Orders in the factory"], ["Service calls", "service", { svc: "calls" }, "Breakdown & complaints"]],
+      Masters: [["Customers", "customers", {}, "Every customer"], ["Quotation register", "register", {}, "Every quote, every revision"], ["Rate card", "ratecard", {}, "Costing rates"]],
+      Reports: [["Quotation status", "gs", { gs: "qrep" }, "Conversion this year"], ["Lead analysis", "gs", { gs: "lrep" }, "Source, salesperson, lost reason"]] } },
+    { id: "purchase", name: "Purchase", icon: "orders", tone: "#2f8f5b", blurb: "Indent to purchase order", groups: {
+      Transactions: [["Purchase dashboard", "purchase", { pur: "dash" }, "Today's purchase work"], ["Purchase indent", "purchase", { pur: "ind" }, "Material requests"], ["RFQ (quotation)", "vendors", {}, "Ask suppliers for rates"], ["Competitive quote", "pur62", { pu62: "cmp" }, "Supplier rates side by side → PO"], ["Purchase order", "purchase", { pur: "po" }, "Approval, send to supplier"], ["Purchase return", "pur62", { pu62: "ret" }, "Debit note, stock goes down"]],
+      Masters: [["Suppliers & price book", "vendors", {}, "Vendors and best rates"], ["Supplier registration", "vendorforms", { vf: "reg" }, "New supplier form"]],
+      Reports: [["Purchase reports", "purchase", { pur: "prep" }, "By supplier, item, month"], ["Supplier evaluation", "vendorforms", { vf: "eval" }, "Score, grade A–D"]] } },
+    { id: "store", name: "Store", icon: "box28", tone: "#8a5a00", blurb: "Stock and assets", groups: {
+      Transactions: [["Receipt note", "purchase", { pur: "po", st45: "open" }, "Goods received against PO (GRN)"], ["Delivery note", "gs", { gs: "dn" }, "Material going out"], ["Stock adjust", "purchase", { pur: "stock" }, "Issue / adjust stock"]],
+      Masters: [["Asset register", "assets62", {}, "Every company asset, who has it"]],
+      Reports: [["Stock statement", "rep62", { r62: "stock" }, "Stock and value of every item"], ["Asset statement", "rep62", { r62: "asset" }, "Assets by category and value"], ["Stock movements", "purchase", { pur: "moves" }, "In, out, adjustments"]] } },
+    { id: "accounts", name: "Accounts", icon: "acc29", tone: "#6b4bb8", blurb: "Invoices, receipts, payments", groups: {
+      Transactions: [["Purchase invoice", "accounts", { acc: "bill" }, "Supplier bills"], ["Sale invoice", "accounts", { acc: "inv" }, "GST tax invoices"], ["Expenses", "accounts", { acc: "exp" }, "Day-to-day spends"], ["Receipts", "accounts", { acc: "rcpt" }, "Money received from customers"], ["Payments", "accounts", { acc: "bill", pay63: 1 }, "Pay supplier bills"]],
+      Masters: [["Tally connection", "accounts", { acc: "tally" }, "Send to Tally Prime"]],
+      Reports: [["Accounts payable", "rep62", { r62: "ap" }, "What we owe each supplier"], ["Accounts receivable", "accounts", { acc: "recv" }, "What customers owe us"]] } },
+    { id: "hr", name: "HR", icon: "hr29", tone: "#b03a5b", blurb: "People and salary", groups: {
+      Transactions: [["Employee register", "hrx", { h62: "form4" }, "Form IV - print"], ["Payslip", "hr", { hr: "pay", hp63: "slip" }, "Monthly payslips"], ["Salary certificate", "hrx", { h62: "cert", ce: "salary" }, "On letterhead"], ["Relieving certificate", "hrx", { h62: "cert", ce: "relieving" }, "On letterhead"], ["Experience certificate", "hrx", { h62: "cert", ce: "experience" }, "On letterhead"], ["NOC", "hrx", { h62: "cert", ce: "noc" }, "No objection certificate"], ["ESI / PF", "hr", { hr: "pay", hp63: "pf" }, "PF / ESI statement"], ["Attendance", "hr", { hr: "att" }, "Daily grid"], ["Leave", "hr", { hr: "leave" }, "Requests & approval"], ["Payroll", "hr", { hr: "pay" }, "Monthly salary"]],
+      Masters: [["Employees", "hr", { hr: "emp" }, "Details and salary structure"]], Reports: [] } },
+    { id: "quality", name: "Quality", icon: "doc", tone: "#0f766e", blurb: "QAP and electrical tests", groups: {
+      Transactions: [["QAP", "quality", { q62: "qap" }, "Quality assurance plan"], ["Electrical testing", "quality", { q62: "tr" }, "Surge, IR, AC HV, tan δ, DCR, PD - pass / fail"]],
+      Masters: [["Test standards", "quality", { q62: "std" }, "Acceptance limits"]],
+      Reports: [["Test register", "quality", { q62: "reg" }, "Every coil tested"]] } },
+    { id: "admin", name: "Admin", icon: "lock", tone: "#02315B", blurb: "Courier, handover, vault, users", groups: {
+      Transactions: [["Courier register (all)", "courier", { cr62: "all" }, "Every courier in and out"], ["Handover approvals", "handover", { ho62: "approve" }, "Admin check, then MD approval"], ["Activity", "activity", {}, "Who changed what"]],
+      Masters: [["Password vault", "vault", {}, "MD + Admin only, encrypted"], ["Users & access", "users", {}, "Logins and departments"], ["Synology & files", "storage", {}, "Shared folders"]],
+      Reports: [["Health & automation", "health", {}, "Mails, triggers, errors"]] } }
+  ];
+  /* Tenders and Workshop stay for the MD / admin login only (not in any department) */
+  const keep = MODS32.filter(m => ["tenders", "service"].includes(m.id));
+  MODS32.splice(0, MODS32.length, ...MOD63, ...keep);
+  if (!ROUTES.some(r => r[0] === "gs")) ROUTES.push(["gs", "Sales", "funnel28"]);
+
+  /* department presets: the cards above + the pages behind them (so the server lets them read / save those records) */
+  const cardsOf = id => Object.values(MOD63.find(m => m.id === id).groups).flat().map(tok34);
+  const WORK = cardsOf("work").filter(t => t !== "work.team");
+  window.DEPT63 = {
+    sales: { name: "Sales", role: "sales", extra: ["crm", "quote", "register", "qfu", "purchase.so", "gs"] },
+    purchase: { name: "Purchase", role: "operation", extra: ["purchase.stock"] },
+    store: { name: "Store", role: "operation", extra: ["purchase.so", "purchase.dn", "gs"] },
+    accounts: { name: "Accounts", role: "finance", extra: [] },
+    hr: { name: "HR", role: "finance", extra: [] },
+    quality: { name: "Quality", role: "operation", extra: [] },
+    admin: { name: "Admin department", role: "operation", extra: ["work.team"] }
+  };
+  const ONLY63 = { admin: ["courier.all", "handover.approve", "vault"] };
+  window.deptTokens63 = ids => [...new Set(ids.flatMap(id => ["dept." + id, ...cardsOf(id).filter(t => !ONLY63[id] || ONLY63[id].includes(t)), ...DEPT63[id].extra]).concat(WORK))];
+  const myDepts63 = () => { const T = myTokens34(); return T ? T.filter(t => t.startsWith("dept.")).map(t => t.slice(5)) : null; };
+  window.myDepts63 = myDepts63;
+
+  /* menus: a department login sees only Work Board + its own department(s) */
+  const CARDMOD63 = new WeakMap(); MODS32.forEach(m => Object.values(m.groups).flat().forEach(c => CARDMOD63.set(c, m.id)));
+  { const _co = cardOk32; cardOk32 = function (c) { const D = myDepts63(), mid = c && CARDMOD63.get(c); if (D && D.length && mid && mid !== "work" && !D.includes(mid)) return false; if (D && D.length && c?.[1] === "users") return false; if (c?.[1] === "work" && c[2]?.w62 === "team") { const T = myTokens34(); return !T || T.includes("work.team"); } return _co.apply(this, arguments); }; }
+
+  /* a department login opens on its own department first */
+  { const _ap = VIEWS.apps; VIEWS.apps = v => { const D = myDepts63(); if (D && D.length && !BIZ.ui.mod63) { BIZ.ui.mod = D[0]; BIZ.ui.mod63 = 1; } _ap(v); }; }
+  /* card extras: Sales dashboard tabs, Payments / Payslip / PF-ESI shortcuts */
+  const _g = go32;
+  go32 = function (route, ui) {
+    if (route === "gs" && ui?.gsd) { const G = GS(); G.dash = ui.gsd; }
+    else if (route === "gs") { const G = GS(); if (ui?.gs === "dash") G.dash = "alerts"; }
+    if (route === "purchase") BIZ.ui.st45 = ui?.st45 || "";
+    BIZ.ui.pay63 = route === "accounts" && ui?.pay63 ? 1 : 0; BIZ.ui.hp63 = route === "hr" ? ui?.hp63 || "" : "";
+    return _g.apply(this, arguments);
+  };
+  const _acc = VIEWS.accounts;
+  VIEWS.accounts = v => { _acc(v); if (BIZ.ui.pay63 && BIZ.ui.acc === "bill") { const h = $(".topbar h1", v); if (h) h.textContent = "Payments"; const p = $(".topbar p", v); if (p) p.textContent = "Open a supplier bill and tap Pay to record the payment."; } };
+  const _hr = VIEWS.hr;
+  VIEWS.hr = v => { _hr(v); const k = BIZ.ui.hp63; if (!k || BIZ.ui.hr !== "pay") return; const b = k === "pf" ? $("#py29pf", v) : $$("button", v).find(x => /payslip/i.test(x.textContent)); if (b) { b.classList.add("primary"); b.scrollIntoView({ block: "center" }); b.animate?.([{ boxShadow: "0 0 0 0 #e8590c" }, { boxShadow: "0 0 0 8px transparent" }], { duration: 900, iterations: 3 }); } BIZ.ui.hp63 = ""; };
+
+  /* Users & access ▸ Permissions: one tap per department */
+  const _pp = permPanel34;
+  permPanel34 = async function (email) {
+    await _pp.apply(this, arguments);
+    const D = $("#dr26") || document; const at = $("[data-tpl]", D)?.parentElement; if (!at || $("#dp63", D)) return;
+    let U = null; try { U = (await AUTH.call("users")).users.find(x => x.email === email); } catch { }
+    const cur = new Set((U?.pages || []).filter(t => t.startsWith("dept.")).map(t => t.slice(5)));
+    at.insertAdjacentHTML("beforebegin", `<div id="dp63" class="dp63"><b>Department</b><span class="small muted">Tick the department(s). Their menus are filled in for you; Work Board is for everyone.</span><div>${Object.entries(DEPT63).map(([k, d]) => `<label><input type="checkbox" data-dp="${k}" ${cur.has(k) ? "checked" : ""}> ${esc(d.name)}</label>`).join("")}</div></div>`);
+    const apply = () => { const ids = $$("[data-dp]:checked", D).map(x => x.dataset.dp); if (!ids.length) return; const T = new Set(deptTokens63(ids)); $$("[data-tok]", D).forEach(x => { x.checked = T.has(x.dataset.tok); }); $("#pm34r").value = DEPT63[ids[0]].role; $$("[data-tok]", D)[0]?.dispatchEvent(new Event("change")); };
+    $$("[data-dp]", D).forEach(x => x.onchange = apply);
+    /* save: department markers and hidden pages go along with the ticked cards */
+    const s = $("#pm34s", D); if (!s) return; const old = s.onclick;
+    s.onclick = async e => {
+      const ids = $$("[data-dp]:checked", D).map(x => x.dataset.dp); if (!ids.length) return old(e);
+      const pages = [...new Set([...$$("[data-tok]:checked", D).map(x => x.dataset.tok), ...ids.map(i => "dept." + i), ...ids.flatMap(i => DEPT63[i].extra), ...(ids.includes("store") ? [] : [])])];
+      e.target.disabled = true;
+      try { await AUTH.call("setUser", { email, role: $("#pm34r").value === "admin" ? DEPT63[ids[0]].role : $("#pm34r").value, access: $("#pm34a").value, pages }); toast("Saved — " + ids.map(i => DEPT63[i].name).join(" + ") + ". It applies the next time " + (U?.name || email) + " opens the app"); closeDrawer26(); render(); } catch (er) { toast(er.message, "bad"); e.target.disabled = false; }
+    };
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.dp63{border:2px solid var(--copper,#E26A0C);border-radius:12px;padding:10px 12px;margin:10px 0;display:flex;flex-direction:column;gap:6px}.dp63>div{display:flex;flex-wrap:wrap;gap:8px 16px}.dp63 label{display:inline-flex;gap:6px;align-items:center;font-weight:600;cursor:pointer}.dp63 input{width:18px;height:18px;accent-color:var(--copper,#E26A0C)}
 </style>`);
 
 boot();
