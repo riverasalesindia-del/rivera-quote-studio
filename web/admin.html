@@ -11795,7 +11795,7 @@ function updItems65() {
 function upd65() {
   const d = updMine65(), I = updItems65(), tot = I.reduce((a, i) => a + mins62(i.from, i.to), 0), sent = !!d?.submittedAt;
   const last = I.map(i => i.to).filter(Boolean).sort().pop() || "";
-  const H = all28("wd").filter(x => x.who === me28() && x.day !== todayISO() && x.items?.length).sort((a, b) => String(b.day).localeCompare(String(a.day)));
+  const tv = adm62() || pg62("work.team"), hw = tv && W62.h66 ? W62.h66 : me28(), H = all28("wd").filter(x => x.who === hw && (x.day !== todayISO() || hw !== me28()) && x.items?.length).sort((a, b) => String(b.day).localeCompare(String(a.day)));
   return `<section class="panel"><div class="body">
     <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><b style="font-size:1.05rem">${esc(dmy62(todayISO()))}</b><span class="chip ${sent ? "ok" : d ? "navy" : "warn"}">${sent ? "Update sent " + esc(dt62(d.submittedAt).split(", ").pop()) : d ? "Plan saved - send the update in the evening" : "Morning: write your plan with time"}</span><span class="chip">${I.filter(i => i.state === "done").length} completed · ${I.filter(i => i.state === "progress").length} in progress · ${I.filter(i => i.state === "pending").length} pending</span><span class="chip navy">Total ${dur62(tot) || "0h"}</span><span class="small muted" id="u65k" style="margin-left:auto">Everything you type is kept</span></div>
     <div class="u65-h"><span>From</span><span>To</span><span>Work</span><span>Done %</span><span>Status</span><span></span></div>
@@ -11804,7 +11804,7 @@ function upd65() {
     <label class="f" style="margin-top:10px">Remarks (optional)<textarea id="u65r" rows="2">${esc(W62.u65.remarks || "")}</textarea></label>
     <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn" id="u65p" style="flex:1;border-color:#7b3fa0;color:#7b3fa0">💾 Save plan (morning)</button><button type="button" class="btn primary" id="u65s" style="flex:1">${sent ? "Update and send again" : "📤 Send work update (evening)"}</button><button type="button" class="btn" id="u65pdf">📄 PDF</button></div>
     <p class="small muted">Morning: add each work with From and To time and tap Save plan - MD sir sees all plans at 10:45. Evening: mark Completed / In progress / Pending and tap Send - MD sir gets one report with the PDF at 6:35 PM.</p></div></section>
-    ${H.length ? `<section class="panel"><header><h2>Earlier days</h2><span class="small muted">${H.length} day${H.length === 1 ? "" : "s"}</span></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Date</th><th>Work</th><th>Time</th><th>Status</th></tr></thead><tbody>${H.slice(0, 60).map(h => h.items.map((i, k) => `<tr>${k === 0 ? `<td rowspan="${h.items.length}" style="vertical-align:top;white-space:nowrap"><b>${esc(dmy62(h.day))}</b>${h.late ? '<div class="small" style="color:#c0392b">late</div>' : ""}</td>` : ""}<td>${esc(i.title)}</td><td style="white-space:nowrap">${esc(i.from || "")}${i.to ? " - " + esc(i.to) : ""}</td><td>${{ done: "Completed", progress: "In progress", pending: "Pending" }[i.state] || esc(i.state || "")}${i.pct != null && i.state !== "done" ? ` <span class="chip" style="background:${pcol62(i.pct)};color:#fff">${+i.pct || 0}%</span>` : ""}</td></tr>`).join("")).join("")}</tbody></table></div></section>` : ""}`;
+    ${H.length || tv ? `<section class="panel"><header><h2>Earlier days</h2>${tv ? `<select id="h66" aria-label="Whose updates">${[...new Map(all28("wd").map(x => [x.who, x.whoName || nm62(x.who)])).entries(), [me28(), AUTH.user?.name || "Me"]].filter((x, i, a) => a.findIndex(y => y[0] === x[0]) === i).sort((a, b) => String(a[1]).localeCompare(String(b[1]))).map(([e, n]) => `<option value="${esc(e)}" ${e === hw ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>` : ""}<span class="small muted">${H.length} day${H.length === 1 ? "" : "s"}</span></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Date</th><th>Work</th><th>Time</th><th>Status</th></tr></thead><tbody>${H.slice(0, 60).map(h => h.items.map((i, k) => `<tr>${k === 0 ? `<td rowspan="${h.items.length}" style="vertical-align:top;white-space:nowrap"><b>${esc(dmy62(h.day))}</b>${h.late ? '<div class="small" style="color:#c0392b">late</div>' : ""}</td>` : ""}<td>${esc(i.title)}</td><td style="white-space:nowrap">${esc(i.from || "")}${i.to ? " - " + esc(i.to) : ""}</td><td>${{ done: "Completed", progress: "In progress", pending: "Pending" }[i.state] || esc(i.state || "")}${i.pct != null && i.state !== "done" ? ` <span class="chip" style="background:${pcol62(i.pct)};color:#fff">${+i.pct || 0}%</span>` : ""}</td></tr>`).join("")).join("")}</tbody></table></div></section>` : ""}`;
 }
 function keep65() {
   clearTimeout(W62.k65); W62.k65 = setTimeout(async () => { const S = W62.u65; if (!S || !S.items.length) return; const old = updMine65();
@@ -11969,6 +11969,28 @@ body.gs51 .main{max-width:none!important;margin:0!important}
 .r65 input{width:100%}.r65v{overflow:auto;padding:10px;background:#fff;border:1px solid var(--line);border-radius:10px}
 @media(max-width:760px){.u65-h{display:none}.u65,.u65-add{grid-template-columns:1fr 1fr 80px}.u65-t,.u65 .seg62{grid-column:1/-1}}
 </style>`);
+
+
+/* ===================== p66: Assign work shows everyone — logins, department mail boxes and every staff member of the old Work Board;
+   crm@ is Marketing (and Security, Admin); old Synology daily updates show under Work update ▸ Earlier days ===================== */
+team62 = async function (force) {
+  if (!force && W62.team.length && Date.now() - W62.t < 600000) return W62.team;
+  try { const d = await AUTH.call("work62", { op: "team" }); W62.team = d.team || []; W62.staff = d.staff || []; W62.md = d.md || W62.md; W62.t = Date.now(); } catch { if (!W62.team.length) W62.team = TEAM28.map(([email, name]) => ({ email, name })); }
+  W62.team.forEach(u => { if (!TEAM28.some(t => t[0] === u.email)) TEAM28.push([u.email, u.name]); });
+  (W62.staff || []).forEach(u => { if (!TEAM28.some(t => t[0] === u.email)) TEAM28.push([u.email, u.name]); });
+  return W62.team;
+};
+{
+  const _p = people65;
+  people65 = function () {
+    const L = _p(), m = new Map(L.map(u => [u.email, u]));
+    (W62.staff || []).forEach(s => { if (!m.has(s.email)) m.set(s.email, { email: s.email, name: s.name + (s.dept ? " · " + s.dept : "") }); else if (s.dept && !/·/.test(m.get(s.email).name)) m.get(s.email).name += " · " + s.dept; });
+    const c = m.get("crm@rivera.co.in"); m.set("crm@rivera.co.in", { email: "crm@rivera.co.in", name: (c && !/^rivera crm/i.test(c.name) ? c.name + " · " : "") + "Marketing / Security" });
+    return [...m.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  };
+  if (typeof TEAM16 !== "undefined" && TEAM16[0]?.email === "crm@rivera.co.in") TEAM16[0].name = "Rivera CRM (Marketing · Security · Admin)";
+}
+{ const _w = wireUpd65; wireUpd65 = function (v) { _w(v); const s = $("#h66", v); if (s) s.onchange = () => { W62.h66 = s.value; render(); }; }; }
 
 boot();
 
