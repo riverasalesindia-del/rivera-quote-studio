@@ -51,7 +51,7 @@ function pub(u) { return { email: u.email, contact: u.contact || "", name: u.nam
 function userPages(u) { try { var p = JSON.parse(u.pages || "[]"); return Array.isArray(p) ? p.filter(function (x) { return /^[a-z0-9]+(\.[a-z0-9]+)?$/.test(x); }).slice(0, 120) : []; } catch (e) { return []; } }
 function setPerms(u, d) { if (d.pages !== undefined) { var L = Array.isArray(d.pages) ? d.pages : []; u.pages = L.length ? JSON.stringify(userPages({ pages: JSON.stringify(L) })) : ""; } if (d.access !== undefined) u.access = d.access === "view" ? "view" : ""; }
 function appUrl() { return ScriptApp.getService().getUrl(); }
-function mail(to, subject, html, att) { var o = { to: to, subject: subject, htmlBody: '<div style="font-family:Arial,sans-serif;font-size:14px;color:#02315B">' + html + '<p style="color:#888;font-size:12px;margin-top:24px">' + APP + ' · Rivera Coil Manufacturing (I) Pvt Ltd</p></div>', name: APP }; if (att && att.length) o.attachments = att; MailApp.sendEmail(o); }
+function mail(to, subject, html, att, inline) { var o = { to: to, subject: subject, htmlBody: '<div style="font-family:Arial,sans-serif;font-size:14px;color:#02315B">' + html + '<p style="color:#888;font-size:12px;margin-top:24px">' + APP + ' · Rivera Coil Manufacturing (I) Pvt Ltd</p></div>', name: APP }; if (att && att.length) o.attachments = att; if (inline) o.inlineImages = inline; MailApp.sendEmail(o); }
 function esc(s) { return String(s || "").replace(/[&<>"]/g, function (c) { return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]; }); }
 function actLink(action, email) { var exp = Date.now() + 14 * 864e5, body = action + "|" + email + "|" + exp; return appUrl() + "?a=" + action + "&e=" + encodeURIComponent(email) + "&x=" + exp + "&s=" + hmac(body); }
 function btn(href, label, color) { return '<a href="' + href + '" style="display:inline-block;padding:10px 18px;margin:4px 8px 4px 0;border-radius:6px;background:' + color + ';color:#fff;text-decoration:none;font-weight:bold">' + label + '</a>'; }
@@ -1104,7 +1104,7 @@ function setup() { secret(); users(); sessions(); sheet("Log", ["time", "email",
 
 /* ================= p28: business records (GrowSmart-style) — leads & follow-ups, repair jobs, purchase orders, stock, tasks ================= */
 var RCH = ["id", "kind", "no", "data", "by", "at", "del"];
-var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN", cq: "CQ", sr: "RT", wk: "WK", wd: "DU", cr: "CR", ho: "HO", fa: "FA", vlt: "VL", qap: "QA", qtr: "TR", pret: "PR", pcs: "CS", cert: "CE" };
+var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN", cq: "CQ", sr: "RT", wk: "WK", wd: "DU", cr: "CR", ho: "HO", fa: "FA", vlt: "VL", qap: "QA", qtr: "TR", pret: "PR", pcs: "CS", cert: "CE", rm: "RM" };
 /* who may see / change each kind (admin always) — salaries and books stay with admin + finance */
 var REC_ACCESS = { vlt: ["-"], fa: ["finance", "operation"], qap: ["operation"], qtr: ["operation"], pret: ["operation", "finance"], pcs: ["operation", "finance"], cert: ["finance"], emp: ["finance"], att: ["finance"], sal: ["finance"], exp: ["finance"], bill: ["finance"], spay: ["finance"], inv: ["finance", "sales"], rcpt: ["finance", "sales"] };
 var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase", cq: "compq", sr: "salesret", fa: "assets62", vlt: "vault", qap: "quality", qtr: "quality", pret: "pur62", pcs: "pur62", cert: "hrx" };
@@ -1226,7 +1226,7 @@ function recDigest() {
 /* ================= p62: Work Board inside Quote Studio — work given to people, Today's plan, evening daily update (From / To time
    for every work), courier register, handover, asset register, password vault (encrypted in the browser), QAP & test reports,
    HR certificates, purchase comparative statement & purchase return. Each login sees only its own work; admin sees everything. ================= */
-var OPEN62 = ["wk", "wd", "cr", "ho"];
+var OPEN62 = ["wk", "wd", "cr", "ho", "rm"];
 function data62(r) { try { return JSON.parse(r.data || "{}"); } catch (e) { return {}; } }
 function md62() { return String(props().getProperty("WORK_MD") || "info@rivera.co.in").toLowerCase(); }
 /* who is part of a record: the giver and the receiver of a work, the writer of a daily update, the sender / receiver of a courier,
@@ -1237,6 +1237,7 @@ function own62(r, me) {
   if (r.kind === "wd") return x.who === e;
   if (r.kind === "cr") return x.forEmail === e || x.byEmail === e || r.by === e;
   if (r.kind === "ho") return x.emp === e || x.to === e;
+  if (r.kind === "rm") return x.who === e || r.by === e;
   return true;
 }
 function vis62(r, me) {
@@ -1245,7 +1246,7 @@ function vis62(r, me) {
   var P = userPages(me);
   if (r.kind === "cr" && P.indexOf("courier.all") >= 0) return true;
   if (r.kind === "ho" && P.indexOf("handover.approve") >= 0) return true;
-  if ((r.kind === "wk" || r.kind === "wd") && P.indexOf("work.dash") >= 0 && P.indexOf("work.team") >= 0) return true;
+  if ((r.kind === "wk" || r.kind === "wd" || r.kind === "rm") && P.indexOf("work.dash") >= 0 && P.indexOf("work.team") >= 0) return true;
   return own62(r, me);
 }
 function link62(tab) { return SITE + "#" + (tab || "work"); }
@@ -1313,7 +1314,10 @@ function workMorning62() {
 /* 10:45 — MD sir: everyone's plan for today with From–To time, and who has not written one */
 function workPlans62() {
   if (!workday62()) return;
-  var t = todayIST(), md = md62(), P = rows62("wk").filter(function (x) { return x.src === "plan" && x.day === t && x.status !== "cancelled"; }), team = team62().filter(function (u) { return u.email !== md; });
+  var t = todayIST(), md = md62(), P = rows62("wk").filter(function (x) { return x.src === "plan" && x.day === t && x.status !== "cancelled"; });
+  /* work given by someone that the person put in today's Work update with a time */
+  rows62("wd").filter(function (w) { return w.day === t; }).forEach(function (w) { (w.items || []).forEach(function (i) { if (i.title && !P.some(function (x) { return x.id === i.wk || (x.to === w.who && x.title === i.title); })) P.push({ id: i.wk || "", title: i.title, pfrom: i.from, pto: i.to, to: w.who }); }); });
+  var team = team62().filter(function (u) { return u.email !== md; });
   var miss = team.filter(function (u) { return !P.some(function (x) { return x.to === u.email; }); });
   var sec = team.filter(function (u) { return P.some(function (x) { return x.to === u.email; }); }).map(function (u) {
     var L = P.filter(function (x) { return x.to === u.email; }).sort(function (a, b) { return String(a.pfrom || "").localeCompare(String(b.pfrom || "")); });
@@ -1347,11 +1351,20 @@ function workEvening62() {
     + (done.length ? "<h3 style='margin:18px 0 4px;font-size:15px;color:#1e8e3e'>Work completed today</h3><ul style='padding-left:18px'>" + done.map(function (x) { return "<li>" + esc(x.title) + " — " + esc(x.toName || x.to) + "</li>"; }).join("") + "</ul>" : "")
     + (over.length ? "<h3 style='margin:18px 0 4px;font-size:15px;color:#c0392b'>Overdue work</h3><ul style='padding-left:18px'>" + over.slice(0, 40).map(function (x) { return "<li>" + esc(x.title) + " — " + esc(x.toName || x.to) + " (due " + dmyS(String(x.due).slice(0, 10)) + ", " + (x.pct || 0) + "%)</li>"; }).join("") + "</ul>" : "")
     + btn(link62("work"), "Open Work Board", "#02315B");
-  try { mail(md62(), "Daily work report - " + dmyS(t) + ": " + W.length + " updates, " + done.length + " completed", html); } catch (e) { }
+  var pdf = []; try { pdf = [Utilities.newBlob("<html><head><meta charset='utf-8'><style>body{font-family:Arial,sans-serif;font-size:12px;color:#111}table{border-collapse:collapse;width:100%}td,th{border:1px solid #bbb;padding:4px 6px;text-align:left}a{display:none}</style></head><body><h2 style='color:#02315B'>Rivera - Daily work report " + dmyS(t) + "</h2>" + html + "</body></html>", "text/html", "report.html").getAs("application/pdf").setName("Daily work report " + t + ".pdf")]; } catch (eP) { }
+  try { mail(md62(), "Daily work report - " + dmyS(t) + ": " + W.length + " updates, " + done.length + " completed", html, pdf); } catch (e) { try { mail(md62(), "Daily work report - " + dmyS(t), html); } catch (e2) { } }
   log("automation", "work-evening", W.length + " updates");
 }
 function work62Api(d, me) {
   if (d.op === "team") return { ok: true, team: team62(), md: md62(), courier: crNotify62() };
+  /* Reminder / pending-approval list: the person taps "Send to email" — it goes to MD sir only, as an image + table */
+  if (d.op === "shareImg") {
+    var b64 = String(d.b64 || ""); if (!b64 || b64.length > 7e6) throw "Image missing or too large";
+    var title = clean(d.title || "Pending approval list", 120), who = esc(me.name || me.email);
+    var img = Utilities.newBlob(Utilities.base64Decode(b64), "image/png", title.replace(/[^A-Za-z0-9 ._-]/g, "").slice(0, 80) + ".png");
+    mail(md62(), title + " - " + clean(me.name || me.email, 60), "<p>Dear Sir,</p><p><b>" + who + "</b> sent this:</p><img src='cid:rm62' style='max-width:100%;border:1px solid #ddd'>" + (d.html ? "<div style='margin-top:12px'>" + String(d.html).replace(/<(?!\/?(table|tr|td|th|tbody|thead|b|br)\b)[^>]*>/gi, "").slice(0, 20000) + "</div>" : "") + btn(link62("work"), "Open Work Board", "#02315B"), [img], { rm62: img });
+    log(me.email, "share-img", title); return { ok: true, to: md62() };
+  }
   if (me.role !== "admin" && me.email !== ADMIN) throw "Only the admin";
   if (d.op === "state") { var on = false; try { on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === "workMorning62"; }); } catch (e) { } return { ok: true, on: on, md: md62() }; }
   if (d.op === "md") { var m = String(d.md || "").trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(m)) throw "Enter a valid email"; props().setProperty("WORK_MD", m); return { ok: true, md: m }; }

@@ -10982,7 +10982,7 @@ VIEWS.courier = v => {
     `<button class="btn primary" id="cr62i" type="button">📥 Incoming</button><button class="btn" id="cr62o" type="button">📤 Outgoing</button>`)
     + (loadNote28() || `${tabs.length > 1 ? tabs28(U.cr62, tabs, "cr62t") : ""}
     <div class="kpi62">${[["Incoming today", A.filter(x => x.dir === "in" && x.date === t).length], ["Outgoing today", A.filter(x => x.dir === "out" && x.date === t).length], ["Waiting for me", A.filter(x => x.dir === "in" && x.status === "Pending" && x.forEmail === me).length], ["Not acknowledged", A.filter(x => x.dir === "in" && x.status === "Pending").length]].map(([l, n]) => `<div class="panel kpi"><b>${n}</b><small>${l}</small></div>`).join("")}</div>
-    <section class="panel"><div class="body"><div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">${[["", "All"], ["in", "Incoming"], ["out", "Outgoing"]].map(([k, l]) => `<button type="button" class="btn sm ${(U.cr62d || "") === k ? "primary" : ""}" data-crd="${k}">${l}</button>`).join("")}<input id="cr62q" type="search" placeholder="Search party, docket, contents…" value="${esc(U.cr62q || "")}" style="flex:1;min-width:180px"><button type="button" class="btn sm" id="cr62x">⬇ Excel</button></div>
+    <section class="panel"><div class="body"><div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">${[["", "All"], ["in", "Incoming"], ["out", "Outgoing"]].map(([k, l]) => `<button type="button" class="btn sm ${(U.cr62d || "") === k ? "primary" : ""}" data-crd="${k}">${l}</button>`).join("")}<input id="cr62q" type="search" placeholder="Search party, docket, contents…" value="${esc(U.cr62q || "")}" style="flex:1;min-width:180px"><button type="button" class="btn sm" id="cr62x">⬇ Sheet</button></div>
     <div style="overflow:auto"><table class="t"><thead><tr><th>No.</th><th>Date</th><th>Party</th><th>Courier / docket</th><th>Contents</th><th>For</th><th>Status</th></tr></thead><tbody>${L.map(x => `<tr data-cr="${x.id}" style="cursor:pointer"><td>${x.dir === "in" ? "📥" : "📤"} ${esc(x.no || "")}</td><td>${esc(dmy62(x.date))} ${esc(x.time || "")}</td><td><b>${esc(x.party)}</b><div class="small muted">${esc(x.place || "")}</div></td><td>${esc([x.company, x.docket].filter(Boolean).join(" · "))}</td><td>${esc(x.contents || "")}</td><td>${esc(nm62(x.forEmail) || x.dept || "")}</td><td><span class="chip ${x.status === "Pending" ? "warn" : "ok"}">${esc(x.status)}</span></td></tr>`).join("") || '<tr><td colspan="7" class="muted">No couriers yet.</td></tr>'}</tbody></table></div></div></section>`);
   $$("[data-cr62t]", v).forEach(b => b.onclick = () => { U.cr62 = b.dataset.cr62t; render(); });
   $$("[data-crd]", v).forEach(b => b.onclick = () => { U.cr62d = b.dataset.crd; render(); });
@@ -11087,7 +11087,7 @@ VIEWS.assets62 = v => {
   const L = A.filter(a => (!U.fa62c || a.category === U.fa62c) && (!U.fa62s || a.status === U.fa62s) && (!q || [a.tag, a.name, a.serial, a.regNo, a.location, a.dept, a.company, a.invoice, nm62(a.holder || "")].join(" ").toLowerCase().includes(q))).sort((a, b) => String(a.category + a.name).localeCompare(b.category + b.name));
   const soon = A.filter(a => a.warranty && a.warranty >= todayISO() && a.warranty <= new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10)).length;
   v.innerHTML = top62("Admin", "Asset register", `${A.length} assets · ${inr28(sum29(A, "value"))} · ${A.filter(a => a.holder).length} with people${soon ? ` · <b style="color:#c0392b">${soon} warranties ending in 30 days</b>` : ""}`,
-    `<button class="btn primary" id="fa62n" type="button">${icon("plus")}Add asset</button><label class="btn">⬆ Import Excel<input type="file" accept=".xlsx,.xls" id="fa62i" hidden></label><button class="btn" id="fa62x" type="button">⬇ Excel</button><button class="btn" id="fa62l" type="button">🏷 Labels</button>`)
+    `<button class="btn primary" id="fa62n" type="button">${icon("plus")}Add asset</button><label class="btn">⬆ Import sheet<input type="file" accept=".xlsx,.xls" id="fa62i" hidden></label><button class="btn" id="fa62x" type="button">⬇ Sheet</button><button class="btn" id="fa62l" type="button">🏷 Labels</button>`)
     + (loadNote28() || `<section class="panel"><div class="body"><div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px"><input id="fa62q" type="search" placeholder="Search name, tag, serial, person, vehicle no…" value="${esc(U.fa62q || "")}" style="flex:1;min-width:200px">
       <select id="fa62c"><option value="">All categories</option>${FACAT62.map(c => `<option ${c === U.fa62c ? "selected" : ""}>${c}</option>`).join("")}</select><select id="fa62s"><option value="">Any status</option>${FAST62.map(c => `<option ${c === U.fa62s ? "selected" : ""}>${c}</option>`).join("")}</select></div>
       <div style="overflow:auto"><table class="t"><thead><tr><th>Asset</th><th>Category</th><th>With</th><th>Location</th><th>Status</th><th style="text-align:right">Value</th></tr></thead><tbody>${L.slice(0, 1500).map(a => `<tr data-fa="${a.id}" style="cursor:pointer"><td><b>${esc(a.name)}</b><div class="small muted">${esc([a.tag, a.company, a.serial || a.regNo].filter(Boolean).join(" · "))}</div></td><td>${esc(a.category || "")}</td><td>${esc(a.holder ? nm62(a.holder) : "-")}</td><td>${esc(a.location || "")}</td><td><span class="chip ${a.status === "In use" ? "ok" : a.status === "Under repair" ? "warn" : ""}">${esc(a.status || "")}</span></td><td style="text-align:right">${a.value ? inr28(a.value) : "-"}</td></tr>`).join("") || '<tr><td colspan="6" class="muted">No assets. Add one, or import the asset register Excel from the Synology (ASSET / 00_Asset_Registers).</td></tr>'}</tbody></table></div></div></section>`);
@@ -11386,7 +11386,7 @@ VIEWS.rep62 = v => {
     html = `<div class="kpi62">${[["Assets", A.length], ["Value", inr28(sum29(A, "value"))], ["Under repair", A.filter(a => a.status === "Under repair").length]].map(([l, n]) => `<div class="panel kpi"><b>${n}</b><small>${l}</small></div>`).join("")}</div><table class="t"><thead><tr>${rows[0].map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${Object.entries(g).sort((a, b) => b[1].v - a[1].v).map(([k, x]) => `<tr><td><b>${esc(k)}</b></td><td>${x.n}</td><td>${x.held}</td><td>${inr28(x.v)}</td></tr>`).join("")}</tbody></table>`; }
   if (t === "ap") { const B = all28("bill"), P = all28("spay"), s = {}; B.forEach(b => { const paid = sum29(P.filter(p => p.bill === b.id), "amount"), due = (+b.total || 0) - paid; if (due <= 0.5) return; const k = b.supplier || "—", d = Math.floor((Date.now() - new Date(b.date || b.at).getTime()) / 864e5) - (+b.terms || 0); s[k] = s[k] || { due: 0, b: 0, a: [0, 0, 0, 0] }; s[k].due += due; s[k].b++; s[k].a[d <= 0 ? 0 : d <= 30 ? 1 : d <= 60 ? 2 : 3] += due; }); rows = [["Supplier", "Bills", "To pay", "Not due", "1-30 days late", "31-60", "60+"], ...Object.entries(s).map(([k, x]) => [k, x.b, Math.round(x.due), ...x.a.map(Math.round)])];
     html = `<div class="kpi62">${[["Suppliers to pay", Object.keys(s).length], ["Total payable", inr28(Object.values(s).reduce((a, x) => a + x.due, 0))], ["Overdue", inr28(Object.values(s).reduce((a, x) => a + x.a[1] + x.a[2] + x.a[3], 0))]].map(([l, n]) => `<div class="panel kpi"><b>${n}</b><small>${l}</small></div>`).join("")}</div><table class="t"><thead><tr>${rows[0].map(h => `<th>${h}</th>`).join("")}</tr></thead><tbody>${Object.entries(s).sort((a, b) => b[1].due - a[1].due).map(([k, x]) => `<tr><td><b>${esc(k)}</b></td><td>${x.b}</td><td><b>${inr28(x.due)}</b></td>${x.a.map((y, i) => `<td style="${i > 1 && y ? "color:#c0392b" : ""}">${y ? inr28(y) : "-"}</td>`).join("")}</tr>`).join("") || '<tr><td colspan="7" class="muted">Nothing to pay.</td></tr>'}</tbody></table>`; }
-  v.innerHTML = top62("Reports", { stock: "Stock statement", asset: "Asset statement", ap: "Accounts payable" }[t], "", `<button class="btn" id="r62x" type="button">⬇ Excel</button>`) + (loadNote28() || tabs28(t, tabs, "r62t") + `<section class="panel" style="margin-top:12px"><div class="body" style="overflow:auto">${html}</div></section>`);
+  v.innerHTML = top62("Reports", { stock: "Stock statement", asset: "Asset statement", ap: "Accounts payable" }[t], "", `<button class="btn" id="r62x" type="button">⬇ Sheet</button>`) + (loadNote28() || tabs28(t, tabs, "r62t") + `<section class="panel" style="margin-top:12px"><div class="body" style="overflow:auto">${html}</div></section>`);
   $$("[data-r62t]", v).forEach(b => b.onclick = () => { BIZ.ui.r62 = b.dataset.r62t; render(); });
   $("#r62x", v).onclick = () => csv62(t + "-statement.csv", rows);
 };
@@ -11752,6 +11752,215 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .sc64b{font-size:1rem;padding:10px 16px}
 .al64g{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}.al64g span{border:1px solid var(--line);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column}.al64g small{color:var(--muted)}
 .pe64f,.pe64t{width:110px}
+</style>`);
+
+
+/* ===================== p65: Work Board on one page — Dashboard · Given by me · Work update (morning plan + evening update in one list, From / To time) ·
+   Assign work (everyone's email) · Reminder (a small sheet → image + Excel → MD sir by email or WhatsApp, only when the person taps Send).
+   Full-width screen with the whole menu on one line. ===================== */
+const MD_WA65 = "917708549900";
+const W65 = [["dash", "Dashboard"], ["given", "Given by me"], ["upd", "Work update"], ["assign", "Assign work"], ["rem", "Reminder"]];
+const W65MAP = { mine: "dash", plan: "upd", du: "upd", team: "dash" };
+/* a login's work tabs, from its saved pages (old pages still work) */
+function workTabs65() {
+  const T = typeof tabsAllowed34 === "function" ? tabsAllowed34("work") : null;
+  if (!T) return W65.map(x => x[0]);
+  const has = k => T.includes(k);
+  return W65.map(x => x[0]).filter(k => k === "dash" ? has("dash") || has("mine") : k === "upd" ? has("plan") || has("du") || has("mine") || has("upd") : k === "rem" ? true : has(k));
+}
+/* everybody you can give work to: logins + department mail boxes + people the app knows */
+function people65() {
+  const m = new Map();
+  (W62.team || []).forEach(u => m.set(u.email, { email: u.email, name: u.name }));
+  (typeof LOGINS64 !== "undefined" ? LOGINS64 : []).forEach(([email, name]) => { if (!m.has(email)) m.set(email, { email, name }); });
+  (typeof TEAM28 !== "undefined" ? TEAM28 : []).forEach(([email, name]) => { if (/@/.test(email) && !m.has(email)) m.set(email, { email, name }); });
+  return [...m.values()].sort((a, b) => String(a.name).localeCompare(String(b.name)));
+}
+
+/* ---------- Work update: one list from morning (plan) to evening (update) ---------- */
+const updMine65 = (day = todayISO()) => all28("wd").find(x => x.who === me28() && x.day === day);
+function updItems65() {
+  if (W62.u65 && W62.u65.day === todayISO()) return W62.u65.items;
+  const d = updMine65(); let items;
+  if (d?.items?.length) items = JSON.parse(JSON.stringify(d.items));
+  else {
+    const plan = planToday62().map(x => ({ title: x.title, state: x.status === "done" ? "done" : "progress", from: x.pfrom || "", to: x.pto || "", wk: x.id }));
+    const given = myWk62().filter(x => x.src !== "plan" && !["done", "cancelled"].includes(x.status) && !plan.some(p => p.wk === x.id)).map(x => ({ title: x.title, state: x.status === "done" ? "done" : "progress", from: "", to: "", wk: x.id, given: nm62(x.from) }));
+    items = [...plan, ...given];
+  }
+  W62.u65 = { day: todayISO(), items, remarks: d?.remarks || "" };
+  return items;
+}
+function upd65() {
+  const d = updMine65(), I = updItems65(), tot = I.reduce((a, i) => a + mins62(i.from, i.to), 0), sent = !!d?.submittedAt;
+  const last = I.map(i => i.to).filter(Boolean).sort().pop() || "";
+  const H = all28("wd").filter(x => x.who === me28() && x.day !== todayISO() && x.items?.length).sort((a, b) => String(b.day).localeCompare(String(a.day)));
+  return `<section class="panel"><div class="body">
+    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:10px"><b style="font-size:1.05rem">${esc(dmy62(todayISO()))}</b><span class="chip ${sent ? "ok" : d ? "navy" : "warn"}">${sent ? "Update sent " + esc(dt62(d.submittedAt).split(", ").pop()) : d ? "Plan saved - send the update in the evening" : "Morning: write your plan with time"}</span><span class="chip">${I.filter(i => i.state === "done").length} completed · ${I.filter(i => i.state === "progress").length} in progress · ${I.filter(i => i.state === "pending").length} pending</span><span class="chip navy">Total ${dur62(tot) || "0h"}</span></div>
+    <div class="u65-h"><span>From</span><span>To</span><span>Work</span><span>Status</span><span></span></div>
+    <div class="stack" style="gap:6px">${I.map((i, n) => `<div class="u65 ${i.state}" data-n="${n}"><input type="time" data-f="from" value="${esc(i.from || "")}" aria-label="From"><input type="time" data-f="to" value="${esc(i.to || "")}" aria-label="To"><div class="u65-t"><input data-f="title" value="${esc(i.title)}" maxlength="300" aria-label="Work">${i.given ? `<small>given by ${esc(i.given)}</small>` : ""}</div><div class="seg62">${[["done", "Completed"], ["progress", "In progress"], ["pending", "Pending"]].map(([k, l]) => `<button type="button" class="${i.state === k ? "on " + k : ""}" data-st="${k}">${l}</button>`).join("")}</div><button type="button" class="btn sm" data-dx="${n}" title="Remove" aria-label="Remove">🗑️</button></div>`).join("") || '<div class="empty"><b>Nothing yet</b>Add what you will do today, with the time.</div>'}</div>
+    <div class="u65 u65-add"><input type="time" id="u65f" value="${esc(last)}" aria-label="From"><input type="time" id="u65to" aria-label="To"><div class="u65-t"><input id="u65n" placeholder="Add a work…" maxlength="300"></div><button type="button" class="btn sm primary" id="u65a">+ Add</button></div>
+    <label class="f" style="margin-top:10px">Remarks (optional)<textarea id="u65r" rows="2">${esc(W62.u65.remarks || "")}</textarea></label>
+    <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn" id="u65p" style="flex:1;border-color:#7b3fa0;color:#7b3fa0">💾 Save plan (morning)</button><button type="button" class="btn primary" id="u65s" style="flex:1">${sent ? "Update and send again" : "📤 Send work update (evening)"}</button><button type="button" class="btn" id="u65pdf">📄 PDF</button></div>
+    <p class="small muted">Morning: add each work with From and To time and tap Save plan - MD sir sees all plans at 10:45. Evening: mark Completed / In progress / Pending and tap Send - MD sir gets one report with the PDF at 6:35 PM.</p></div></section>
+    ${H.length ? `<section class="panel"><header><h2>Earlier days</h2><span class="small muted">${H.length} day${H.length === 1 ? "" : "s"}</span></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Date</th><th>Work</th><th>Time</th><th>Status</th></tr></thead><tbody>${H.slice(0, 60).map(h => h.items.map((i, k) => `<tr>${k === 0 ? `<td rowspan="${h.items.length}" style="vertical-align:top;white-space:nowrap"><b>${esc(dmy62(h.day))}</b>${h.late ? '<div class="small" style="color:#c0392b">late</div>' : ""}</td>` : ""}<td>${esc(i.title)}</td><td style="white-space:nowrap">${esc(i.from || "")}${i.to ? " - " + esc(i.to) : ""}</td><td>${{ done: "Completed", progress: "In progress", pending: "Pending" }[i.state] || esc(i.state || "")}</td></tr>`).join("")).join("")}</tbody></table></div></section>` : ""}`;
+}
+function wireUpd65(v) {
+  const S = W62.u65; if (!S || !$("#u65s", v)) return; const I = S.items;
+  $$(".u65[data-n]", v).forEach(row => { const n = +row.dataset.n;
+    $$("[data-f]", row).forEach(inp => inp.onchange = () => { I[n][inp.dataset.f] = inp.value; if (inp.dataset.f !== "title") render(); });
+    $$("[data-st]", row).forEach(b => b.onclick = () => { I[n].state = b.dataset.st; render(); }); });
+  $$("[data-dx]", v).forEach(b => b.onclick = () => { if (!b.dataset.sure) { b.dataset.sure = 1; b.textContent = "Remove?"; return; } I.splice(+b.dataset.dx, 1); render(); });
+  const add = () => { const t = $("#u65n", v).value.trim(), f = $("#u65f", v).value, to = $("#u65to", v).value; if (!t) { $("#u65n", v).focus(); return false; } if (!f || !to) { toast("Add the From and To time for this work", "bad"); (f ? $("#u65to", v) : $("#u65f", v)).focus(); return false; } if (to <= f) { toast('"To" time must be after "From" time', "bad"); return false; } I.push({ title: t, state: "progress", from: f, to }); render(); setTimeout(() => $("#u65n")?.focus(), 50); return true; };
+  $("#u65a", v).onclick = add; $("#u65n", v).onkeydown = e => { if (e.key === "Enter") add(); };
+  $("#u65r", v).oninput = e => { S.remarks = e.target.value; };
+  const check = () => { if ($("#u65n", v).value.trim() && !add()) return false; if (!I.length) { toast("Add at least one work with From and To time", "bad"); return false; } const bad = I.find(i => !i.title.trim() || !i.from || !i.to || i.to <= i.from); if (bad) { toast(!bad.from || !bad.to ? `Add From and To time for "${bad.title.slice(0, 40)}"` : `"To" must be after "From" for "${bad.title.slice(0, 40)}"`, "bad"); return false; } return true; };
+  const save = async (btn, send) => {
+    if (!check()) return;
+    const recs = [];
+    /* every row is a work on today's plan (so MD sees it at 10:45); a row from work given by someone keeps its own record */
+    I.forEach(i => { if (i.wk && BIZ.rows[i.wk]) { const w = { ...BIZ.rows[i.wk] }, ch = w.src === "plan" && (w.pfrom !== i.from || w.pto !== i.to || w.title !== i.title); if (ch) Object.assign(w, { pfrom: i.from, pto: i.to, title: i.title }); if (send && w.status !== i.state && !(i.state === "progress" && w.status === "accepted")) { w.status = i.state; if (i.state === "done") { w.pct = 100; w.doneAt = now62(); } logAdd28(w, "Work update", i.state); recs.push(w); } else if (ch) recs.push(w); }
+      else { const w = { kind: "wk", title: i.title, pfrom: i.from, pto: i.to, from: me28(), fromName: AUTH.user?.name || "", to: me28(), toName: AUTH.user?.name || "", src: "plan", day: todayISO(), status: send && i.state === "done" ? "done" : "accepted", pct: send && i.state === "done" ? 100 : 0, created: now62(), _tmp: Math.random().toString(36).slice(2) }; i._tmp = w._tmp; recs.push(w); } });
+    const old = updMine65(), wd = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: I.map(i => ({ title: i.title, state: i.state, from: i.from, to: i.to, wk: i.wk || "" })), remarks: (S.remarks || "").trim(), plannedAt: old?.plannedAt || now62() };
+    if (send) { wd.submittedAt = now62(); wd.late = hm62() > "18:30"; }
+    const out = await save28(btn, [...recs, wd], send ? "Work update sent. Thank you!" : "Plan saved - MD sir sees it at 10:45");
+    if (!out) return;
+    /* link new plan rows to their saved records */
+    const fresh = new Set(recs.filter(x => x._tmp && !x.id).map(x => x._tmp)), made = out.filter(x => x.kind === "wk" && fresh.has(x._tmp)); if (made.length) { made.forEach(m => { const i = I.find(z => z._tmp === m._tmp); if (i) { i.wk = m.id; delete i._tmp; } }); const w2 = out.find(x => x.kind === "wd"); if (w2) await save28(null, { ...w2, items: I.map(i => ({ title: i.title, state: i.state, from: i.from, to: i.to, wk: i.wk || "" })) }, send ? "Work update sent. Thank you!" : "Plan saved"); }
+    W62.u65 = null; render();
+  };
+  $("#u65p", v).onclick = e => save(e.target, false);
+  $("#u65s", v).onclick = e => save(e.target, true);
+  $("#u65pdf", v).onclick = () => dayPdf62();
+}
+
+/* ---------- Assign work: everybody's email, search, tick one or more ---------- */
+assign62 = function () {
+  const due = new Date(Date.now() + 864e5); due.setHours(18, 30, 0, 0); const P = people65().filter(u => u.email !== me28());
+  return `<section class="panel"><div class="body"><div class="fields">
+    <div class="f" style="grid-column:1/-1"><span>Give to - tick one or more <span class="small muted" id="as65n"></span></span><input id="as65q" type="search" placeholder="Search name or email…" style="margin:6px 0"><div class="ppl65">${P.map(u => `<label data-p65="${esc((u.name + " " + u.email).toLowerCase())}"><input type="checkbox" value="${esc(u.email)}" data-to62><span><b>${esc(u.name)}</b><small>${esc(u.email)}</small></span></label>`).join("") || '<span class="small muted">Loading the team…</span>'}</div></div>
+    <label class="f" style="grid-column:1/-1">Work *<input id="as62t" maxlength="200" placeholder="What has to be done?"></label>
+    <label class="f" style="grid-column:1/-1">Details (optional)<textarea id="as62d" rows="3" placeholder="Customer, quantity, place…"></textarea></label>
+    <label class="f">Finish by<input id="as62u" type="datetime-local" value="${new Date(due.getTime() - due.getTimezoneOffset() * 6e4).toISOString().slice(0, 16)}"></label>
+    <label class="f">Priority<select id="as62p"><option>Normal</option><option>High</option><option>Urgent</option></select></label></div>
+    <button type="button" class="btn primary block" id="as62s" style="margin-top:10px">Assign work</button><p class="small muted">Each person gets a mail at once and sees it on their Dashboard and in Work update. You follow it in Given by me.</p></div></section>`;
+};
+{ const _wa = wireAssign62; wireAssign62 = function (v) { _wa(v); const q = $("#as65q", v); if (!q) return; const cnt = () => { const n = $$("[data-to62]:checked", v).length; $("#as65n", v).textContent = n ? `(${n} ticked)` : ""; }; q.oninput = () => { const s = q.value.trim().toLowerCase(); $$("[data-p65]", v).forEach(l => { l.hidden = !!s && !l.dataset.p65.includes(s); }); }; $$("[data-to62]", v).forEach(c => c.onchange = cnt); }; }
+
+/* ---------- Reminder: a small sheet like the "Pending Approval List" — kept in the app, sent only when the person taps Send ---------- */
+const rmMine65 = () => all28("rm").filter(x => x.who === me28()).sort((a, b) => String(b.date || b.at).localeCompare(String(a.date || a.at)));
+function rmCur65() {
+  if (W62.r65) return W62.r65;
+  const last = rmMine65()[0], dept = AUTH.user?.name?.replace(/^Rivera\s+/i, "") || "";
+  W62.r65 = last && !last.sentAt ? JSON.parse(JSON.stringify(last)) : { kind: "rm", who: me28(), whoName: AUTH.user?.name || "", date: todayISO(), title: "Pending Approval List", rows: last?.rows?.length ? JSON.parse(JSON.stringify(last.rows)).map(r => ({ ...r })) : [{ dept, item: "" }] };
+  return W62.r65;
+}
+function rem65() {
+  const R = rmCur65(), L = rmMine65(), groups = rmGroups65(R.rows);
+  return `<section class="panel"><div class="body">
+    <div class="row" style="gap:10px;flex-wrap:wrap;align-items:end"><label class="f" style="flex:1;min-width:220px">Title<input id="r65t" value="${esc(R.title)}" maxlength="80"></label><label class="f" style="width:170px">As on<input id="r65d" type="date" value="${esc(R.date)}"></label></div>
+    <div style="overflow:auto;margin-top:10px"><table class="t r65"><thead><tr><th style="width:56px">S.No</th><th style="width:30%">Department</th><th>Pending for approval</th><th style="width:44px"></th></tr></thead><tbody>
+    ${R.rows.map((r, i) => `<tr><td>${groups.no[i]}</td><td><input data-ri="${i}" data-rf="dept" value="${esc(r.dept)}" list="r65dl" placeholder="Department"></td><td><input data-ri="${i}" data-rf="item" value="${esc(r.item)}" placeholder="What is pending…"></td><td><button type="button" class="btn sm" data-rx="${i}" title="Remove row">🗑️</button></td></tr>`).join("")}</tbody></table></div>
+    <datalist id="r65dl">${["Sales/Marketing", "Operation", "Purchase", "Accounts", "HR", "Store", "Quality", "Production", "Admin"].map(d => `<option value="${d}">`).join("")}</datalist>
+    <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="r65a">${icon("plus")}Add row</button><button type="button" class="btn sm" id="r65s">💾 Save</button><button type="button" class="btn sm" id="r65x">⬇ Sheet</button><button type="button" class="btn sm" id="r65n">New list</button></div>
+    <h3 style="margin:16px 0 6px;font-size:.95rem">Preview - this is what MD sir gets</h3><div id="r65v" class="r65v">${rmHtml65(R)}</div>
+    <div class="row" style="gap:10px;margin-top:12px;flex-wrap:wrap"><button type="button" class="btn primary" id="r65e" style="flex:1">${icon("mail")}Send to email (MD sir)</button><button type="button" class="btn" id="r65w" style="flex:1;background:#25D366;color:#fff;border-color:#25D366">${icon("wa")}Send to WhatsApp</button></div>
+    <p class="small muted">Nothing is sent by itself - it goes only when you tap a Send button. The list is kept here and in Excel.</p></div></section>
+    ${L.filter(x => x.sentAt).length ? `<section class="panel"><header><h2>Sent earlier</h2></header><div class="body"><table class="t"><thead><tr><th>Date</th><th>Title</th><th>Items</th><th>Sent</th><th></th></tr></thead><tbody>${L.filter(x => x.sentAt).slice(0, 30).map(x => `<tr><td>${esc(dmy62(x.date))}</td><td>${esc(x.title)}</td><td>${(x.rows || []).length}</td><td>${esc((x.sentBy || []).join(" + "))} · ${esc(dt62(x.sentAt))}</td><td><button type="button" class="btn sm" data-rc="${x.id}">Copy to new</button></td></tr>`).join("")}</tbody></table></div></section>` : ""}`;
+}
+function rmGroups65(rows) { const no = [], span = []; let n = 0; rows.forEach((r, i) => { const same = i > 0 && (r.dept || "").trim() && (r.dept || "").trim().toLowerCase() === (rows[i - 1].dept || "").trim().toLowerCase(); if (!same) n++; no.push(same ? "" : n); span.push(same ? 0 : 1); if (same) { let j = i - 1; while (span[j] === 0) j--; span[j]++; } }); return { no, span }; }
+function rmHtml65(R) {
+  const rows = R.rows.filter(r => (r.item || "").trim() || (r.dept || "").trim()), g = rmGroups65(rows), B = "border:1px solid #333;padding:8px 10px";
+  return `<table style="border-collapse:collapse;font-family:Calibri,Arial,sans-serif;font-size:15px;color:#000;background:#fff;min-width:520px"><tr><th colspan="3" style="${B};font-size:16px">${esc(R.title)} as on ${esc(String(R.date).split("-").reverse().join("."))}</th></tr><tr><th style="${B}">S.No</th><th style="${B}">Department</th><th style="${B}">Pending for Approval</th></tr>${rows.map((r, i) => `<tr>${g.span[i] ? `<td style="${B};text-align:center" rowspan="${g.span[i]}">${g.no[i]}</td><td style="${B};text-align:center" rowspan="${g.span[i]}">${esc(r.dept)}</td>` : ""}<td style="${B};text-align:center">${esc(r.item)}</td></tr>`).join("")}</table>`;
+}
+/* the table drawn as a picture (for the mail and WhatsApp) */
+async function rmPng65(R) {
+  const rows = R.rows.filter(r => (r.item || "").trim() || (r.dept || "").trim()), g = rmGroups65(rows), s = 2, W = [90, 260, 420], rowH = 44, w = W.reduce((a, b) => a + b, 0), h = rowH * (rows.length + 2);
+  const c = document.createElement("canvas"); c.width = (w + 2) * s; c.height = (h + 2) * s; const x = c.getContext("2d"); x.scale(s, s); x.fillStyle = "#fff"; x.fillRect(0, 0, w + 2, h + 2); x.strokeStyle = "#333"; x.lineWidth = 1; x.fillStyle = "#000"; x.textAlign = "center"; x.textBaseline = "middle";
+  const fit = (t, mw, bold) => { x.font = `${bold ? "bold " : ""}15px Calibri, Arial, sans-serif`; t = String(t || ""); while (t.length > 3 && x.measureText(t).width > mw - 12) t = t.slice(0, -2); return t; };
+  const cell = (cx, cy, cw, ch, t, bold) => { x.strokeRect(cx + .5, cy + .5, cw, ch); x.font = `${bold ? "bold " : ""}15px Calibri, Arial, sans-serif`; x.fillText(fit(t, cw, bold), cx + cw / 2, cy + ch / 2); };
+  cell(0, 0, w, rowH, `${R.title} as on ${String(R.date).split("-").reverse().join(".")}`, true);
+  ["S.No", "Department", "Pending for Approval"].reduce((cx, t, i) => { cell(cx, rowH, W[i], rowH, t, true); return cx + W[i]; }, 0);
+  rows.forEach((r, i) => { const y = rowH * (i + 2); if (g.span[i]) { cell(0, y, W[0], rowH * g.span[i], g.no[i]); cell(W[0], y, W[1], rowH * g.span[i], r.dept); } cell(W[0] + W[1], y, W[2], rowH, r.item); });
+  return await new Promise(ok => c.toBlob(ok, "image/png"));
+}
+async function rmXlsx65(R) {
+  await loadScript(LIBS.sheetjs); const X = window.XLSX, rows = R.rows.filter(r => (r.item || "").trim() || (r.dept || "").trim()), g = rmGroups65(rows);
+  const aoa = [[`${R.title} as on ${String(R.date).split("-").reverse().join(".")}`, "", ""], ["S.No", "Department", "Pending for Approval"], ...rows.map((r, i) => [g.no[i] || "", g.span[i] ? r.dept : "", r.item])];
+  const ws = X.utils.aoa_to_sheet(aoa); ws["!cols"] = [{ wch: 7 }, { wch: 24 }, { wch: 46 }]; ws["!merges"] = [{ s: { r: 0, c: 0 }, e: { r: 0, c: 2 } }]; rows.forEach((r, i) => { if (g.span[i] > 1) { ws["!merges"].push({ s: { r: i + 2, c: 0 }, e: { r: i + 1 + g.span[i], c: 0 } }, { s: { r: i + 2, c: 1 }, e: { r: i + 1 + g.span[i], c: 1 } }); } });
+  const wb = X.utils.book_new(); X.utils.book_append_sheet(wb, ws, "Reminder"); return X.write(wb, { type: "base64", bookType: "xlsx" });
+}
+function wireRem65(v) {
+  const R = rmCur65(); if (!$("#r65e", v)) return;
+  const pv = () => { $("#r65v", v).innerHTML = rmHtml65(R); };
+  $("#r65t", v).oninput = e => { R.title = e.target.value; pv(); }; $("#r65d", v).onchange = e => { R.date = e.target.value || todayISO(); pv(); };
+  $$("[data-ri]", v).forEach(i => i.oninput = () => { R.rows[+i.dataset.ri][i.dataset.rf] = i.value; pv(); });
+  $$("[data-ri]", v).forEach(i => i.onchange = () => render());
+  $$("[data-rx]", v).forEach(b => b.onclick = () => { R.rows.splice(+b.dataset.rx, 1); if (!R.rows.length) R.rows.push({ dept: "", item: "" }); render(); });
+  $("#r65a", v).onclick = () => { R.rows.push({ dept: R.rows[R.rows.length - 1]?.dept || "", item: "" }); render(); setTimeout(() => { const L = $$('[data-rf="item"]'); L[L.length - 1]?.focus(); }, 50); };
+  $("#r65n", v).onclick = () => { W62.r65 = { kind: "rm", who: me28(), whoName: AUTH.user?.name || "", date: todayISO(), title: R.title || "Pending Approval List", rows: [{ dept: R.rows[0]?.dept || "", item: "" }] }; render(); };
+  $$("[data-rc]", v).forEach(b => b.onclick = () => { const s = BIZ.rows[b.dataset.rc]; W62.r65 = { kind: "rm", who: me28(), whoName: AUTH.user?.name || "", date: todayISO(), title: s.title, rows: JSON.parse(JSON.stringify(s.rows || [])) }; render(); });
+  const ok = () => { if (!R.rows.some(r => (r.item || "").trim())) { toast("Write at least one pending item", "bad"); return false; } return true; };
+  const store = async (btn, extra, msg) => { const out = await save28(btn, { ...R, who: me28(), whoName: AUTH.user?.name || "", ...extra }, msg); if (out?.[0]) { Object.assign(R, out[0]); } return out; };
+  $("#r65s", v).onclick = async e => { if (!ok()) return; await store(e.target, {}, "Saved"); render(); };
+  $("#r65x", v).onclick = async () => { if (!ok()) return; try { const b64 = await rmXlsx65(R), a = document.createElement("a"); a.href = "data:application/vnd.openxmlformats-officedocument.spreadsheetml.sheet;base64," + b64; a.download = `${R.title} ${R.date}.xlsx`; a.click(); } catch (er) { toast("Excel: " + er.message, "bad"); } };
+  const sent = async (how) => { const by = [...new Set([...(R.sentBy || []), how])]; await store(null, { sentAt: now62(), sentBy: by }, ""); W62.r65 = null; render(); };
+  $("#r65e", v).onclick = async e => {
+    if (!ok()) return; const b = e.target; b.disabled = true; const t0 = b.innerHTML; b.textContent = "Sending…";
+    try { const png = await rmPng65(R), b64 = await b6462(png); await AUTH.call("work62", { op: "shareImg", b64, title: `${R.title} as on ${String(R.date).split("-").reverse().join(".")}`, html: rmHtml65(R) }, 60000); toast("Sent to MD sir by email"); await sent("Email"); }
+    catch (er) { toast(er.message, "bad"); b.disabled = false; b.innerHTML = t0; }
+  };
+  $("#r65w", v).onclick = async () => {
+    if (!ok()) return; const png = await rmPng65(R), name = `${R.title} ${R.date}.png`.replace(/[^\w .-]/g, ""), file = new File([png], name, { type: "image/png" });
+    const text = `${R.title} as on ${String(R.date).split("-").reverse().join(".")} - ${AUTH.user?.name || ""}`;
+    try { if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], text }); await sent("WhatsApp"); return; } } catch (er) { if (er.name === "AbortError") return; }
+    /* computer: the picture is copied (or downloaded) and WhatsApp opens on MD sir's chat - paste it there */
+    let how = "downloaded"; try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); how = "copied"; } catch { const a = document.createElement("a"); a.href = URL.createObjectURL(png); a.download = name; a.click(); }
+    const wa = `https://wa.me/${MD_WA65}?text=${encodeURIComponent(text)}`; if (typeof openLink === "function") openLink(wa); else window.open(wa, "_blank");
+    toast(how === "copied" ? "Picture copied - in WhatsApp press Ctrl+V and Send" : "Picture saved - attach it in WhatsApp and Send"); await sent("WhatsApp");
+  };
+}
+
+/* ---------- the Work Board page ---------- */
+VIEWS.work = v => {
+  bizSync28(); team62().then(() => { if (STATE.route === "work" && !v.dataset.t62) { v.dataset.t62 = 1; render(); } });
+  const U = BIZ.ui; U.w62 = W65MAP[U.w62] || U.w62; const ok = workTabs65(); if (!ok.includes(U.w62)) U.w62 = ok.includes("upd") && hm62() < "12:00" ? "upd" : ok[0] || "dash"; const t = U.w62;
+  const me = me28(), K = all28("wk"), open = myWk62().filter(x => !["done", "cancelled"].includes(x.status)), team = adm62() || pg62("work.team");
+  const body = {
+    dash: () => `${dash62()}<h3 style="margin:16px 0 8px;font-size:1rem">Work given to me <span class="small muted">· ${open.length} open</span></h3>${list62(myWk62().filter(x => x.src !== "plan"), true)}`,
+    given: () => list62(K.filter(x => x.from === me && x.to !== me && x.src !== "plan"), false), upd: upd65, assign: assign62, rem: rem65
+  }[t] || (() => "");
+  const sub = { dash: team ? "Everyone's work, plans and updates" : `${open.length} open · ${open.filter(x => x.due && String(x.due).slice(0, 10) < todayISO()).length} overdue`, given: "Work you gave and how far it has gone", upd: "Morning: your plan with From and To time · Evening: mark the status and send", assign: "Give work to anyone - they get a mail", rem: "Pending list for MD sir - sent only when you tap Send" }[t];
+  v.innerHTML = top62("Work Board", W65.find(x => x[0] === t)?.[1] || "Work", esc(sub || ""), `<button class="btn" id="w62r" type="button">${icon("spark")}${BIZ.busy ? "Syncing…" : "Refresh"}</button>`)
+    + (loadNote28() || `${tabs28(t, W65.filter(x => ok.includes(x[0])), "w62t")}<div id="w62b" style="margin-top:12px">${body()}</div>`);
+  $$("[data-w62t]", v).forEach(b => b.onclick = () => { U.w62 = b.dataset.w62t; render(); });
+  $("#w62r", v).onclick = () => { W62.u65 = null; bizSync28(true); };
+  $$("[data-wk]", v).forEach(b => b.onclick = () => wkPanel62(BIZ.rows[b.dataset.wk]));
+  ({ assign: wireAssign62, upd: wireUpd65, dash: wireDash62, rem: wireRem65 }[t] || (() => { }))(v);
+  const f = $("#w62f", v); if (f) f.oninput = () => { U.w62q = f.value; clearTimeout(W62.ft); W62.ft = setTimeout(() => { render(); const i = $("#w62f"); i?.focus(); i?.setSelectionRange(i.value.length, i.value.length); }, 250); };
+  $$("[data-w62s]", v).forEach(b => b.onclick = () => { U.w62s = b.dataset.w62s; render(); });
+};
+VIEWS.plan = v => { BIZ.ui.w62 = "upd"; location.replace("#work"); };
+/* the Work Board menu: five cards, same pages as before so every saved login keeps working */
+{
+  const w = MODS32.find(m => m.id === "work");
+  if (w) w.groups = { Transactions: [["Dashboard", "work", { w62: "dash" }, "My work, team work, today's PDF"], ["Work update", "work", { w62: "plan" }, "Morning plan + evening update, From / To time"], ["Assign work", "work", { w62: "assign" }, "Give work to anyone"], ["Reminder", "work", { w62: "rem" }, "Pending list → MD sir by email / WhatsApp"], ["Courier", "courier", { cr62: "mine" }, "Couriers for me / sent by me"], ["Handover", "handover", { ho62: "mine" }, "Hand over before leaving"]], Masters: [["Given by me", "work", { w62: "given" }, "Work you gave"]], Reports: [["Team work (all people)", "work", { w62: "team" }, "Admin / MD: everyone's work"]] };
+  if (w) Object.values(w.groups).flat().forEach(c => { try { CARDMOD64.set(c, "work"); } catch { } });
+  const _co = cardOk32; cardOk32 = function (c) { if (c?.[1] === "work" && c[2]?.w62 === "rem") { const T = myTokens34(); return !T || T.some(t => t.startsWith("work")); } return _co.apply(this, arguments); };
+  const _g = go32; go32 = function (route, ui) { if (route === "work" && ui?.w62) ui = { ...ui, w62: W65MAP[ui.w62] || ui.w62 }; return _g.call(this, route, ui); };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+body.gs51 .main{max-width:none!important;margin:0!important}
+.n51{flex-wrap:nowrap!important}.n51-i{padding:10px 7px!important;max-width:none!important}.n51-b{padding-right:8px!important;white-space:nowrap}
+@media(max-width:1750px){.n51>.n51-d:not(.n51-u)>.n51-i svg,.n51>.n51-i svg{display:none}}
+@media(max-width:1450px){.n51-i{font-size:.78rem!important;padding:10px 5px!important}.n51-b{font-size:.82rem!important}}
+@media(max-width:1180px){.n51{flex-wrap:wrap!important}}
+.u65-h,.u65{display:grid;grid-template-columns:104px 104px minmax(0,1fr) auto 40px;gap:8px;align-items:center}.u65-h{font-size:.72rem;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);padding:0 10px 4px}
+.u65{border:1px solid var(--line);border-left:4px solid #e8590c;border-radius:10px;padding:6px 10px}.u65.done{border-left-color:#1e8e3e}.u65.progress{border-left-color:#1a73e8}.u65-add{border-style:dashed;border-left:1px dashed var(--line);margin-top:8px;grid-template-columns:104px 104px minmax(0,1fr) auto}
+.u65 input{width:100%}.u65-t{display:flex;flex-direction:column;min-width:0}.u65-t small{color:var(--muted);font-size:.75rem}
+.ppl65{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:6px;max-height:260px;overflow:auto;border:1px solid var(--line);border-radius:10px;padding:8px}.ppl65 label{display:flex;gap:8px;align-items:center;padding:6px 8px;border-radius:8px;cursor:pointer}.ppl65 label:hover{background:var(--surface-2,#f5f7fa)}.ppl65 span{display:flex;flex-direction:column;min-width:0}.ppl65 small{color:var(--muted);font-size:.76rem;overflow:hidden;text-overflow:ellipsis}.ppl65 input{width:17px;height:17px;flex:none}
+.r65 input{width:100%}.r65v{overflow:auto;padding:10px;background:#fff;border:1px solid var(--line);border-radius:10px}
+@media(max-width:760px){.u65-h{display:none}.u65,.u65-add{grid-template-columns:1fr 1fr}.u65-t,.u65 .seg62{grid-column:1/-1}}
 </style>`);
 
 boot();
