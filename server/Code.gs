@@ -1274,6 +1274,8 @@ function mails62(kind, x, before, r, me, mails) {
     if (x.status === "approved") [x.emp, x.to].forEach(function (t) { if (/@/.test(t || "")) mails.push([t, "Handover approved: " + clean(x.empName || x.emp, 60) + " → " + clean(x.toName || x.to, 60), "<p>The handover is approved. Open work has moved to <b>" + esc(x.toName || x.to) + "</b>.</p>" + btn(link62("handover"), "Open", "#02315B")]); });
   }
 }
+/* everybody work can be given to (staff list from the old Work Board, kept by the admin) */
+function staff62() { try { return JSON.parse(props().getProperty("STAFF62") || "[]"); } catch (e) { return []; } }
 function crNotify62() { return String(props().getProperty("COURIER_NOTIFY") || "agm@rivera.co.in,purchase@rivera.co.in").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /@/.test(s); }); }
 function approvers62(tok) {
   var v = users().getDataRange().getValues(), out = [];
@@ -1356,7 +1358,7 @@ function workEvening62() {
   log("automation", "work-evening", W.length + " updates");
 }
 function work62Api(d, me) {
-  if (d.op === "team") return { ok: true, team: team62(), md: md62(), courier: crNotify62() };
+  if (d.op === "team") return { ok: true, team: team62(), md: md62(), courier: crNotify62(), staff: staff62() };
   /* Reminder / pending-approval list: the person taps "Send to email" — it goes to MD sir only, as an image + table */
   if (d.op === "shareImg") {
     var b64 = String(d.b64 || ""); if (!b64 || b64.length > 7e6) throw "Image missing or too large";
@@ -1369,6 +1371,7 @@ function work62Api(d, me) {
   if (d.op === "state") { var on = false; try { on = ScriptApp.getProjectTriggers().some(function (t) { return t.getHandlerFunction() === "workMorning62"; }); } catch (e) { } return { ok: true, on: on, md: md62() }; }
   if (d.op === "md") { var m = String(d.md || "").trim().toLowerCase(); if (!/^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(m)) throw "Enter a valid email"; props().setProperty("WORK_MD", m); return { ok: true, md: m }; }
   if (d.op === "install") return work62Install();
+  if (d.op === "staff") { var sl = (Array.isArray(d.staff) ? d.staff : []).filter(function (s) { return s && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(String(s.email || "")); }).slice(0, 400).map(function (s) { return { email: String(s.email).trim().toLowerCase(), name: clean(s.name || s.email, 60), dept: clean(s.dept || "", 40) }; }); props().setProperty("STAFF62", JSON.stringify(sl)); return { ok: true, n: sl.length }; }
   if (d.op === "courier") { var cl = String(d.to || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(s); }); if (!cl.length) throw "Enter at least one email"; props().setProperty("COURIER_NOTIFY", cl.join(",")); return { ok: true, to: cl }; }
   if (d.op === "run") { var f = { morning: workMorning62, plans: workPlans62, remind: workRemind62, evening: workEvening62 }[d.job]; if (!f) throw "Unknown job"; f(); return { ok: true }; }
   throw "Unknown";
