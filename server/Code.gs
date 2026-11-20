@@ -353,7 +353,7 @@ function writeTableRaw(sh, H, rows) {
   var last = sh.getLastRow(); if (last > 1) sh.getRange(2, 1, last - 1, H.length).clearContent();
   if (!rows.length) return;
   if (sh.getMaxRows() < rows.length + 1) sh.insertRowsAfter(sh.getMaxRows(), rows.length + 1 - sh.getMaxRows());
-  sh.getRange(2, 1, rows.length, H.length).setNumberFormat("@").setValues(rows.map(function (r) { return H.map(function (k) { var x = r[k]; return x === undefined || x === null ? "" : String(x).slice(0, 1000); }); }));
+  sh.getRange(2, 1, rows.length, H.length).setNumberFormat("@").setValues(rows.map(function (r) { return H.map(function (k) { var x = r[k]; return x === undefined || x === null ? "" : String(x).slice(0, 49000); }); }));
 }
 function tstatus(r, today) { if (/cancel/i.test(r.status || "")) return "cancelled"; return r.closing && String(r.closing) < today ? "closed" : "live"; }
 function clean(s, n) { return String(s || "").replace(/\s+/g, " ").trim().slice(0, n || 300); }
