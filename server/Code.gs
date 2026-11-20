@@ -1254,7 +1254,7 @@ function mails62(kind, x, before, r, me, mails) {
   var nm = esc(me.name || me.email);
   if (kind === "wk") {
     if (/@/.test(x.to || "") && x.to !== me.email && (!before || before.to !== x.to) && x.src !== "plan" && x.src !== "courier")
-      mails.push([x.to, "New work for you: " + clean(x.title, 110), "<p><b>" + nm + "</b> gave you this work:</p><p style='font-size:16px'><b>" + esc(x.title) + "</b></p>" + (x.details ? "<p>" + esc(x.details) + "</p>" : "") + (x.due ? "<p>Finish by <b>" + esc(String(x.due).replace("T", " ")) + "</b></p>" : "") + btn(link62("work"), "Open my work", "#02315B")]);
+      mails.push([x.to, "New work for you: " + clean(x.title, 110), "<p><b>" + nm + "</b> gave you this work:</p><p style='font-size:16px'><b>" + esc(x.title) + "</b></p>" + (x.details ? "<p>" + esc(x.details) + "</p>" : "") + (x.due ? "<p>Finish by <b>" + esc(String(x.due).replace("T", " ")) + "</b></p>" : "") + btn(SITE + "#plan", "Open my work", "#02315B")]);
     var md = md62();
     if (x.status === "done" && (!before || before.status !== "done") && /@/.test(x.from || "") && x.from !== me.email && x.from !== md && x.src !== "plan" && x.src !== "courier")
       mails.push([x.from, "Completed: " + clean(x.title, 110), "<p><b>" + nm + "</b> completed the work you gave:</p><p><b>" + esc(x.title) + "</b></p>" + btn(link62("work"), "Open", "#1e8e3e")]);
@@ -1308,7 +1308,7 @@ function workMorning62() {
     if (u.email === md) return;
     var L = open.filter(function (x) { return x.to === u.email; }), over = L.filter(function (x) { return x.due && String(x.due).slice(0, 10) < todayIST(); }).length;
     var html = "<p>Good morning " + esc(u.name) + ",</p><p style='font-size:15px'><b>Write today's work plan</b> - each work with its <b>From</b> and <b>To</b> time (e.g. 10:00 - 11:30). MD sir sees the plans at 10:45.</p>" + btn(SITE + "#plan", "Write today's plan", "#7b3fa0") +
-      (L.length ? "<p style='margin-top:16px'>Your open work" + (over ? " (<b style='color:#c0392b'>" + over + " overdue</b>)" : "") + ":</p><ul style='padding-left:18px'>" + L.slice(0, 25).map(wkLine62).join("") + "</ul>" + btn(link62("work"), "Open my work", "#02315B") : "");
+      (L.length ? "<p style='margin-top:16px'>Your open work" + (over ? " (<b style='color:#c0392b'>" + over + " overdue</b>)" : "") + ":</p><ul style='padding-left:18px'>" + L.slice(0, 25).map(wkLine62).join("") + "</ul>" + btn(SITE + "#plan", "Open my Work update", "#02315B") : "");
     try { mail(u.email, "Good morning - write today's plan with time" + (L.length ? " (" + L.length + " open work)" : ""), html); n++; } catch (e) { }
   });
   log("automation", "work-morning", n + " mails");
