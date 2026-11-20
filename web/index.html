@@ -11963,6 +11963,81 @@ body.gs51 .main{max-width:none!important;margin:0!important}
 @media(max-width:760px){.u65-h{display:none}.u65,.u65-add{grid-template-columns:1fr 1fr}.u65-t,.u65 .seg62{grid-column:1/-1}}
 </style>`);
 
+
+/* ===================== p66: Work update keeps everything — % with colour for every work (Completed / In progress / Pending follow it),
+   saved as you type (this device at once, the server a few seconds later), so the evening mail opens the same page with the morning work in it ===================== */
+const PCTS66 = [0, 25, 50, 75, 100];
+const ukey66 = () => `rqs.u66.${me28()}.${todayISO()}`;
+const stOf66 = p => +p >= 100 ? "done" : +p > 0 ? "progress" : "pending";
+const pctOf66 = i => i.pct != null && i.pct !== "" ? +i.pct : i.state === "done" ? 100 : i.state === "progress" ? 50 : 0;
+{
+  const _items = updItems65;
+  updItems65 = function () {
+    if (W62.u65 && W62.u65.day === todayISO()) return W62.u65.items;
+    const srv = updMine65(); let loc = null; try { loc = JSON.parse(localStorage.getItem(ukey66()) || "null"); } catch { }
+    /* this device's copy wins when it is newer than what the server has */
+    if (loc?.items?.length && (!srv || String(loc.at || "") > String(srv.savedAt || srv.submittedAt || srv.plannedAt || ""))) { W62.u65 = { day: todayISO(), items: loc.items, remarks: loc.remarks || "" }; }
+    else _items();
+    /* work given later in the day joins the list */
+    const have = new Set(W62.u65.items.map(i => i.wk).filter(Boolean));
+    myWk62().filter(x => x.src !== "plan" && !["done", "cancelled"].includes(x.status) && !have.has(x.id)).forEach(x => W62.u65.items.push({ title: x.title, state: "progress", pct: +x.pct || 0, from: "", to: "", wk: x.id, given: nm62(x.from) }));
+    W62.u65.items.forEach(i => { if (i.pct == null) { const w = i.wk && BIZ.rows[i.wk]; i.pct = w && w.pct != null ? +w.pct : pctOf66(i); } i.state = i.state === "done" || i.pct >= 100 ? (i.pct = 100, "done") : i.state; });
+    return W62.u65.items;
+  };
+}
+let auto66 = 0;
+function autosave66(now) {
+  const S = W62.u65; if (!S) return; const at = new Date().toISOString();
+  try { localStorage.setItem(ukey66(), JSON.stringify({ at, items: S.items, remarks: S.remarks || "" })); } catch { }
+  clearTimeout(auto66);
+  auto66 = setTimeout(async () => {
+    const old = updMine65(), wd = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: S.items.map(i => ({ title: i.title, state: i.state, pct: pctOf66(i), from: i.from || "", to: i.to || "", wk: i.wk || "" })), remarks: (S.remarks || "").trim(), savedAt: at };
+    try { await bizPut28(wd); const n = $("#u66s"); if (n) n.textContent = "Saved " + new Date().toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }); } catch { const n = $("#u66s"); if (n) n.textContent = "Saved on this device"; }
+  }, now ? 50 : 3500);
+}
+{
+  const _upd = upd65;
+  upd65 = function () {
+    let h = _upd(); const I = W62.u65.items;
+    /* % buttons with colour, after the status buttons of each row */
+    I.forEach((i, n) => {
+      const p = pctOf66(i), seg = `<div class="pc66" role="group" aria-label="Percent done">${PCTS66.map(k => `<button type="button" data-pc="${k}" class="${p === k ? "on" : ""}" style="--c:${pcol62(k)}" aria-pressed="${p === k}">${k}%</button>`).join("")}</div>`;
+      h = h.replace(new RegExp(`(<div class="u65 [a-z]* ?" data-n="${n}">[\\s\\S]*?<div class="seg62">[\\s\\S]*?</div>)`), `$1${seg}`);
+    });
+    h = h.replace('<div class="u65-h"><span>From</span><span>To</span><span>Work</span><span>Status</span><span></span></div>', '<div class="u65-h"><span>From</span><span>To</span><span>Work</span><span>Status</span><span>Done %</span><span></span></div>');
+    h = h.replace(/(<b style="font-size:1\.05rem">[^<]*<\/b>)/, '$1<span class="small muted" id="u66s">Saves by itself</span>');
+    return h;
+  };
+  const _w = wireUpd65;
+  wireUpd65 = function (v) {
+    _w(v); const S = W62.u65; if (!S || !$("#u65s", v)) return; const I = S.items;
+    $$(".u65[data-n]", v).forEach(row => { const n = +row.dataset.n, i = I[n]; row.style.setProperty("--pc", pcol62(pctOf66(i)));
+      $$("[data-pc]", row).forEach(b => b.onclick = () => { i.pct = +b.dataset.pc; i.state = stOf66(i.pct); autosave66(); render(); });
+      /* status buttons move the % to match */
+      $$("[data-st]", row).forEach(b => { const o = b.onclick; b.onclick = () => { const s = b.dataset.st; i.pct = s === "done" ? 100 : s === "pending" ? (pctOf66(i) >= 100 ? 0 : pctOf66(i)) : (pctOf66(i) === 0 || pctOf66(i) >= 100 ? 50 : pctOf66(i)); o(); autosave66(); }; });
+      $$("[data-f]", row).forEach(inp => { const o = inp.onchange; inp.onchange = () => { o && o(); autosave66(); }; inp.oninput = () => { I[n][inp.dataset.f] = inp.value; autosave66(); }; }); });
+    $$("[data-dx]", v).forEach(b => { const o = b.onclick; b.onclick = () => { o(); if (b.dataset.sure && !b.textContent.includes("?")) autosave66(); else if (!b.isConnected) autosave66(); }; });
+    const r = $("#u65r", v); if (r) { const o = r.oninput; r.oninput = e => { o(e); autosave66(); }; }
+    const a = $("#u65a", v); if (a) { const o = a.onclick; a.onclick = () => { const n0 = I.length; o(); if (I.length > n0) { I[I.length - 1].pct = 0; I[I.length - 1].state = "pending"; autosave66(true); render(); } }; }
+    /* Save plan / Send: carry the % to the work records */
+    const push = () => I.forEach(i => { const w = i.wk && BIZ.rows[i.wk]; if (w && +w.pct !== pctOf66(i)) BIZ.rows[i.wk] = { ...w, pct: pctOf66(i) }; });
+    ["#u65p", "#u65s"].forEach(id => { const b = $(id, v); if (!b) return; const o = b.onclick; b.onclick = async e => { I.forEach(i => { i.pct = pctOf66(i); i.state = stOf66(i.pct) === "done" ? "done" : i.state === "done" ? stOf66(i.pct) : i.state; }); const pr = I.map(i => ({ wk: i.wk, pct: i.pct })); const _s = save28; save28 = async (btn, recs, msg) => { const L = [].concat(recs).map(x => { if (x.kind === "wk") { const it = I.find(i => i.wk === x.id || (i._tmp && i._tmp === x._tmp)); if (it) x = { ...x, pct: it.pct, status: id === "#u65s" ? (it.pct >= 100 ? "done" : it.state === "pending" ? "pending" : "progress") : x.status }; } if (x.kind === "wd") x = { ...x, items: (x.items || []).map((z, k) => ({ ...z, pct: pr.find(p => p.wk && p.wk === z.wk)?.pct ?? I[k]?.pct ?? 0 })), savedAt: new Date().toISOString() }; return x; }); const extra = id === "#u65s" ? I.filter(i => i.wk && BIZ.rows[i.wk] && +BIZ.rows[i.wk].pct !== i.pct && !L.some(x => x.id === i.wk)).map(i => ({ ...BIZ.rows[i.wk], pct: i.pct })) : []; return _s(btn, [...L, ...extra], msg); }; try { await o(e); } finally { save28 = _s; } try { localStorage.removeItem(ukey66()); } catch { } push(); }; });
+  };
+}
+/* the list and the cards show the % in colour */
+{
+  const _card = wkCard62; wkCard62 = function (x, mine) { return _card(x, mine); };
+}
+/* crm@ is Marketing + Security (and admin) */
+{ const c = TEAM16.find(m => m.email === "crm@rivera.co.in"); if (c) c.name = "Rivera CRM - Marketing & Security (Admin)"; if (typeof LOGINS64 !== "undefined" && !LOGINS64.some(x => x[0] === "crm@rivera.co.in")) { } }
+document.head.insertAdjacentHTML("beforeend", `<style>
+.u65-h,.u65{grid-template-columns:104px 104px minmax(0,1fr) auto auto 40px}.u65-add{grid-template-columns:104px 104px minmax(0,1fr) auto!important}
+.u65[data-n]{border-left-color:var(--pc,#e8590c)!important;border-left-width:6px}
+.pc66{display:flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}.pc66 button{border:0;background:none;padding:6px 7px;font:inherit;font-size:.78rem;font-weight:700;color:var(--c);cursor:pointer;min-width:42px}.pc66 button.on{background:var(--c);color:#fff}.pc66 button:hover{background:color-mix(in srgb,var(--c) 15%,transparent)}.pc66 button.on:hover{background:var(--c)}
+#u66s{margin-left:4px}
+@media(max-width:760px){.u65 .pc66{grid-column:1/-1}.pc66 button{flex:1}}
+</style>`);
+
 boot();
 
 </script>
