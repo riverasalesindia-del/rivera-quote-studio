@@ -1303,13 +1303,19 @@ function wkLine62(x) { return "<li style='margin:3px 0'><b>" + esc(x.title) + "<
 /* 9:30 — each person gets only their own open work */
 function workMorning62() {
   if (!workday62()) return;
-  var open = rows62("wk").filter(function (x) { return ["done", "cancelled"].indexOf(x.status) < 0 && x.src !== "plan"; }), n = 0, md = md62();
+  var t = todayIST(), open = rows62("wk").filter(function (x) { return ["done", "cancelled"].indexOf(x.status) < 0 && x.src !== "plan"; }), WD = rows62("wd"), n = 0, md = md62();
+  var col = function (p) { return ["#b71c1c", "#d84315", "#ef6c00", "#b8860b", "#827717", "#558b2f", "#2e7d32", "#00838f", "#1565c0", "#4527a0", "#1b5e20"][Math.max(0, Math.min(10, Math.round((Number(p) || 0) / 10)))]; };
   team62().forEach(function (u) {
     if (u.email === md) return;
-    var L = open.filter(function (x) { return x.to === u.email; }), over = L.filter(function (x) { return x.due && String(x.due).slice(0, 10) < todayIST(); }).length;
-    var html = "<p>Good morning " + esc(u.name) + ",</p><p style='font-size:15px'><b>Write today's work plan</b> - each work with its <b>From</b> and <b>To</b> time (e.g. 10:00 - 11:30). MD sir sees the plans at 10:45.</p>" + btn(SITE + "#plan", "Write today's plan", "#7b3fa0") +
-      (L.length ? "<p style='margin-top:16px'>Your open work" + (over ? " (<b style='color:#c0392b'>" + over + " overdue</b>)" : "") + ":</p><ul style='padding-left:18px'>" + L.slice(0, 25).map(wkLine62).join("") + "</ul>" + btn(SITE + "#plan", "Open my Work update", "#02315B") : "");
-    try { mail(u.email, "Good morning - write today's plan with time" + (L.length ? " (" + L.length + " open work)" : ""), html); n++; } catch (e) { }
+    /* only what is still pending: the last update's not-completed work + work given to them that is not finished */
+    var prev = WD.filter(function (w) { return w.who === u.email && w.day < t && (w.items || []).length; }).sort(function (a, b) { return String(b.day).localeCompare(String(a.day)); })[0];
+    var P = prev ? prev.items.filter(function (i) { return i.title && ["done", "dropped"].indexOf(i.state) < 0; }) : [];
+    var L = open.filter(function (x) { return x.to === u.email && !P.some(function (i) { return i.wk && i.wk === x.id; }); }), over = L.filter(function (x) { return x.due && String(x.due).slice(0, 10) < t; }).length;
+    var html = "<p>Good morning " + esc(u.name) + ",</p><p style='font-size:15px'>Open <b>Work update</b> and add today's work with <b>From</b> and <b>To</b> time. MD sir sees the plans at 10:45.</p>" + btn(SITE + "#plan", "Open my Work update", "#7b3fa0") +
+      (P.length ? "<p style='margin-top:16px'><b>Still pending</b> from " + esc(prev.day.split("-").reverse().join(".")) + " (" + P.length + "):</p><table style='border-collapse:collapse;font-size:14px'>" + P.slice(0, 30).map(function (i) { var p = Number(i.pct) || 0; return "<tr><td style='padding:4px 8px 4px 0'>" + esc(i.title) + "</td><td style='padding:4px 0;white-space:nowrap'><b style='color:" + col(p) + "'>" + p + "%</b> · " + (i.state === "progress" ? "In progress" : "Pending") + "</td></tr>"; }).join("") + "</table>" : "<p style='margin-top:16px;color:#1e8e3e'>Nothing pending from your last update.</p>") +
+      (L.length ? "<p style='margin-top:12px'><b>Work given to you</b>" + (over ? " (<b style='color:#c0392b'>" + over + " overdue</b>)" : "") + ":</p><ul style='padding-left:18px'>" + L.slice(0, 25).map(wkLine62).join("") + "</ul>" : "");
+    var cnt = P.length + L.length;
+    try { mail(u.email, "Good morning - " + (cnt ? cnt + " pending" : "write today's plan") + " · add today's work with time", html); n++; } catch (e) { }
   });
   log("automation", "work-morning", n + " mails");
 }

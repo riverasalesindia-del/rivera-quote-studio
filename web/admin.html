@@ -12221,6 +12221,71 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 @media(max-width:520px){.q69{flex:1 1 100%}.q69 button{flex:1}}
 </style>`);
 
+
+/* ===================== p70: nothing typed is ever lost, completed work is never counted as pending.
+   - Saving first looks at the server copy: anything added / changed on another phone or PC (or an old open tab) is merged in, never overwritten.
+   - Dashboard counts Completed / In progress / Pending from each person's Work update (old "Save plan" entries are not open work).
+   - "Sent" means really sent (a draft is "Filling"). ===================== */
+const key70 = t => String(t || "").trim().toLowerCase().replace(/\s+/g, " ");
+const sig70 = i => JSON.stringify([i.state, +i.pct || 0, i.from || "", i.to || "", i.title]);
+function snap70() { const S = W62.u65; if (!S) return; const d = updMine65(); S.at70 = d?.at || ""; S.snap70 = Object.fromEntries((d?.items || []).map(i => [key70(i.title), sig70(i)])); }
+/* merge the server copy into what is on this screen; returns how many things came from elsewhere */
+async function merge70() {
+  const S = W62.u65; if (!S) return 0;
+  let srv = null; try { const r = await AUTH.call("recList", { kinds: ["wd"] }, 30000); srv = (r.rows || []).find(x => x.kind === "wd" && x.who === me28() && x.day === todayISO()); if (srv) BIZ.rows[srv.id] = srv; } catch { return 0; }
+  if (!srv || !srv.at || srv.at === S.at70) return 0;
+  const snap = S.snap70 || {}, I = S.items, have = new Map(I.map((i, n) => [key70(i.title), n])); let n = 0;
+  (srv.items || []).forEach(si => { const k = key70(si.title), was = snap[k];
+    if (!have.has(k)) { if (was === undefined) { I.push({ ...si }); n++; } return; }          /* added elsewhere → add; removed here → keep removed */
+    const li = I[have.get(k)]; if (was !== undefined && sig70(li) === was && sig70(si) !== was) { Object.assign(li, si); n++; } });   /* changed only elsewhere → take it */
+  if ((srv.remarks || "") && !(S.remarks || "").includes(srv.remarks)) { if (!S.remarks) { S.remarks = srv.remarks; n++; } }
+  S.at70 = srv.at; S.snap70 = Object.fromEntries((srv.items || []).map(i => [key70(i.title), sig70(i)]));
+  return n;
+}
+{
+  const _i = updItems65;
+  updItems65 = function () { const fresh = !(W62.u65 && W62.u65.day === todayISO()), I = _i.apply(this, arguments); if (fresh && W62.u65) snap70(); return I; };
+  /* quiet save = merge first, then save, then remember what the server has */
+  keep65 = function () {
+    try { const S = W62.u65; if (S) localStorage.setItem(`rqs.u69.${me28()}.${todayISO()}`, JSON.stringify({ at: Date.now(), items: S.items, remarks: S.remarks || "" })); } catch { }
+    clearTimeout(W62.k65); W62.k65 = setTimeout(async () => {
+      const S = W62.u65; if (!S || !S.items.length) return; const c = () => $("#u65k");
+      const got = await merge70(); if (got && STATE.route === "work" && BIZ.ui.w62 === "upd") { render(); toast(`${got} change${got > 1 ? "s" : ""} from your other device added`); }
+      const old = updMine65();
+      const wd = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: S.items.filter(i => i.state !== "dropped").map(i => ({ title: i.title, state: i.state, pct: +i.pct || 0, from: i.from || "", to: i.to || "", wk: i.wk || "", ...(i.carried ? { carried: true, since: i.since || "" } : {}), ...(i.given ? { given: i.given } : {}) })), remarks: (S.remarks || "").trim(), plannedAt: old?.plannedAt || now62() };
+      try { const out = await bizPut28(wd); const r = out?.[0]; if (r) { S.at70 = r.at; S.snap70 = Object.fromEntries((r.items || []).map(i => [key70(i.title), sig70(i)])); } if (c()) c().textContent = "✓ Kept " + t1268(hm62()); }
+      catch { if (c()) c().innerHTML = '<b style="color:#ec6f1c">● No internet</b> - kept on this device, sent when the internet is back'; }
+    }, 2000);
+  };
+  const _w = wireUpd65;
+  wireUpd65 = function (v) {
+    _w(v); const b = $("#u65s", v); if (!b) return; const send = b.onclick;
+    b.onclick = async e => { b.disabled = true; const got = await merge70(); b.disabled = false; if (got) { render(); toast(`${got} change${got > 1 ? "s" : ""} from your other device added - check and tap Submit again`); return; } await send(e); const S = W62.u65; if (!S) snap70(); };
+    /* "Pending from earlier": say how many are still pending */
+    const car = $$(".o68-card", v).find(c => /Pending from earlier/.test(c.querySelector(".o68-h")?.textContent || "")); if (car) { const S = W62.u65, C = S.items.filter(i => i.carried && !i.given), left = C.filter(i => !["done", "dropped"].includes(i.state)).length, dn = C.filter(i => i.state === "done").length; const nEl = $(".o68-n", car); if (nEl) nEl.textContent = left + " pending" + (dn ? ` · ${dn} done today` : ""); }
+  };
+}
+/* Dashboard from the Work update itself */
+dash62 = function () {
+  const t = todayISO(), all = adm62() || pg62("work.team"), WD = all28("wd"), K = all28("wk");
+  const people = (all ? W62.team : W62.team.filter(u => u.email === me28())).filter(u => u.email !== (W62.md || ""));
+  const rows = people.map(u => {
+    const d = WD.find(x => x.who === u.email && x.day === t), prev = WD.filter(x => x.who === u.email && x.day < t && x.items?.length).sort((a, b) => String(b.day).localeCompare(String(a.day)))[0];
+    const I = d?.items?.length ? d.items : (prev?.items || []).filter(i => !["done", "dropped"].includes(i.state));
+    const given = K.filter(x => x.to === u.email && x.src !== "plan" && !["done", "cancelled"].includes(x.status) && !I.some(i => i.wk === x.id));
+    const done = d ? I.filter(i => i.state === "done").length : 0, prog = I.filter(i => i.state === "progress").length + given.filter(x => +x.pct > 0).length, pend = I.filter(i => i.state === "pending").length + given.filter(x => !(+x.pct > 0)).length;
+    const mins = d ? I.reduce((a, i) => a + mins62(i.from, i.to), 0) : 0, open = I.filter(i => i.state !== "done"), avg = open.length ? Math.round(open.reduce((a, i) => a + (+i.pct || 0), 0) / open.length) : 100;
+    return { u, d, done, prog, pend, mins, avg, over: given.filter(x => x.due && String(x.due).slice(0, 10) < t).length };
+  });
+  const st = r => r.d?.submittedAt ? `<span class="chip ok">Sent ${esc(tAt68(r.d.submittedAt))}</span>` : r.d ? '<span class="chip navy">Filling</span>' : '<span class="chip warn">Not started</span>';
+  const sum = k => rows.reduce((a, r) => a + r[k], 0);
+  return `<div class="kpi62">${[["Completed today", sum("done"), "#1e8e3e"], ["In progress", sum("prog"), "#1971c2"], ["Pending", sum("pend"), "#ec6f1c"], ["Updates sent", rows.filter(r => r.d?.submittedAt).length + "/" + rows.length, "#0b2a57"]].map(([l, n, c]) => `<div class="panel kpi" style="border-top:4px solid ${c}"><b style="color:${c}">${n}</b><small>${l}</small></div>`).join("")}</div>
+    <section class="panel"><header><h2>${all ? "Every department - today" : "Me - today"}</h2><button type="button" class="btn sm primary" id="pdf62">📄 Today's work (PDF)</button></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Person</th><th>Completed</th><th>In progress</th><th>Pending</th><th>Time</th><th>Avg % (open)</th><th>Work update</th></tr></thead><tbody>
+    ${rows.map(r => `<tr${all ? ` data-who70="${esc(r.u.email)}" style="cursor:pointer"` : ""}><td><b>${esc(r.u.name)}</b>${r.over ? ` <span class="chip bad">${r.over} overdue</span>` : ""}</td><td style="color:#1e8e3e;font-weight:700">${r.done}</td><td style="color:#1971c2;font-weight:700">${r.prog}</td><td style="color:#ec6f1c;font-weight:700">${r.pend}</td><td>${dur62(r.mins) || "-"}</td><td><span class="chip" style="background:${pcol62(r.avg)};color:#fff">${r.avg}%</span></td><td>${st(r)}</td></tr>`).join("") || '<tr><td colspan="7" class="muted">No people yet.</td></tr>'}</tbody></table>
+    <p class="small muted">From each person's Work update: Completed counts only today; Pending = not started or carried from earlier; work given to them that is not finished is included.${all ? " Tap a person to see their updates." : ""}</p></div></section>`;
+};
+{ const _wd = wireDash62; wireDash62 = function (v) { _wd(v); $$("[data-who70]", v).forEach(r => r.onclick = () => { W62.h66 = r.dataset.who70; BIZ.ui.w62 = "upd"; render(); setTimeout(() => $("#h66")?.closest(".o68-card")?.scrollIntoView({ behavior: "smooth" }), 300); }); }; }
+
 boot();
 
 </script>
