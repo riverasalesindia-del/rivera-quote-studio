@@ -1267,7 +1267,7 @@ function mails62(kind, x, before, r, me, mails) {
   }
   if (kind === "vis" && !before) {
     var vh = "<p><b>" + esc(x.name || "A visitor") + "</b>" + (x.org ? " from " + esc(x.org) : "") + " is at the gate" + (x.purpose ? " for " + esc(x.purpose) : "") + ".</p><p>Mobile: " + esc(x.mobile || "-") + (x.appt ? " · has an appointment" : "") + "</p>" + btn(link62("visitors"), "Open visitors", "#02315B");
-    [x.host, ADMIN].filter(function (e, i, a) { return /@/.test(e || "") && a.indexOf(e) === i; }).forEach(function (to) { mails.push([to, "Visitor at the gate: " + clean(x.name, 40) + (x.org ? " (" + clean(x.org, 40) + ")" : ""), vh]); });
+    [x.host, ADMIN].concat(lvApprovers71()).filter(function (e, i, a) { return /@/.test(e || "") && a.indexOf(e) === i; }).forEach(function (to) { mails.push([to, "Visitor at the gate: " + clean(x.name, 40) + (x.org ? " (" + clean(x.org, 40) + ")" : ""), vh]); });
   }
   if (kind === "wk") {
     if (/@/.test(x.to || "") && x.to !== me.email && (!before || before.to !== x.to) && x.src !== "plan" && x.src !== "courier")
@@ -1293,7 +1293,7 @@ function mails62(kind, x, before, r, me, mails) {
 }
 /* everybody work can be given to (staff list from the old Work Board, kept by the admin) */
 function staff62() { try { return JSON.parse(props().getProperty("STAFF62") || "[]"); } catch (e) { return []; } }
-function crNotify62() { return String(props().getProperty("COURIER_NOTIFY") || "agm@rivera.co.in,purchase@rivera.co.in").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /@/.test(s); }); }
+function crNotify62() { var L = String(props().getProperty("COURIER_NOTIFY") || "agm@rivera.co.in,purchase@rivera.co.in").split(",").concat(["agm@rivera.co.in", "hr@rivera.co.in"]).map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /@/.test(s); }); return L.filter(function (e, i) { return L.indexOf(e) === i; }); }
 function lvApprovers71() { return String(props().getProperty("LEAVE_APPROVERS") || "agm@rivera.co.in,hr@rivera.co.in").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /@/.test(s); }); }
 function pubKey71(kind) { return hmac("pub71|" + kind).replace(/[^A-Za-z0-9]/g, "").slice(0, 20); }
 /* no-login forms: new employee (onb) and visitor (vis) — only with the key printed in the link / QR */

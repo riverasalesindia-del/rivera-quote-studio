@@ -13273,6 +13273,29 @@ body.gf74{background:#f0ebe4;margin:0;font-family:Roboto,Arial,sans-serif;color:
 @media(max-width:560px){.gf-card,.gf-q{padding:18px 16px}.gf-title h1{font-size:24px}.gf-ban{min-height:96px;padding:14px}.gf-ban img{width:56px;height:56px}.gf-ban b{font-size:17px}.gf-sec{padding:9px 16px}}
 </style>`);
 
+
+/* ===================== p75: Work update edit box — Enter starts a new update line with today's date (like "21.11.26 - "), Shift+Enter = plain new line;
+   the later lines show as indented sub-points under the work ===================== */
+const stamp75 = () => { const d = new Date(); return [d.getDate(), d.getMonth() + 1, d.getFullYear() % 100].map(n => String(n).padStart(2, "0")).join(".") + " - "; };
+addEventListener("keydown", e => {
+  const t = e.target; if (!t || !t.classList?.contains("o72-ta") || e.key !== "Enter" || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  if (e.shiftKey) return;
+  e.preventDefault(); const a = t.selectionStart, b = t.selectionEnd, ins = "\n    " + stamp75();
+  t.value = t.value.slice(0, a) + ins + t.value.slice(b); t.selectionStart = t.selectionEnd = a + ins.length; t.dispatchEvent(new Event("input"));
+}, true);
+{
+  const _w = wireUpd65;
+  wireUpd65 = function (v) {
+    _w.apply(this, arguments);
+    $$(".o68-ttl", v).forEach(sp => { const pen = sp.querySelector(".o68-pen"), txt = [...sp.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join(""); const L = txt.split("\n"); if (L.length < 2) return;
+      sp.innerHTML = esc(L[0]) + L.slice(1).filter(l => l.trim()).map(l => `<span class="o75-sub">${esc(l.trim())}</span>`).join("") + (pen ? pen.outerHTML : ""); });
+    const h = $(".o72-h", v); if (h) h.textContent = "Enter = new line with today's date · Shift+Enter = plain new line · tap outside or Ctrl+Enter = save · Esc = cancel";
+  };
+  /* the hint is added when the box opens - keep it in step */
+  new MutationObserver(() => $$(".o72-h").forEach(h => { if (!/today's date/.test(h.textContent)) h.textContent = "Enter = new line with today's date · Shift+Enter = plain new line · tap outside or Ctrl+Enter = save · Esc = cancel"; })).observe(document.body, { childList: true, subtree: true });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.o75-sub{display:block;margin:3px 0 0 18px;padding-left:10px;border-left:3px solid #f4c7a6;font-weight:400;color:#3c4043}.o68-ttl{white-space:normal}</style>`);
+
 boot();
 
 </script>
