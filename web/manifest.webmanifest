@@ -1,7 +1,7 @@
 {
-  "name": "Rivera Quote Studio",
-  "short_name": "Rivera Quotes",
-  "description": "Rivera Coil Manufacturing sales app: scan enquiries and vendor quotations, build quote workings, issue quotations and file jobs to Synology.",
+  "name": "Rivera ERP",
+  "short_name": "Rivera ERP",
+  "description": "Rivera Group ERP: work board, sales, purchase, store, accounts, HR, production, quality, courier and visitors.",
   "id": "./",
   "start_url": "./#home",
   "scope": "./",
@@ -9,15 +9,60 @@
   "orientation": "any",
   "background_color": "#EEF1F0",
   "theme_color": "#02315B",
-  "categories": ["business", "productivity"],
+  "categories": [
+    "business",
+    "productivity"
+  ],
   "icons": [
-    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
-    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
-    { "src": "icons/maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+    {
+      "src": "icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "icons/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
   ],
   "shortcuts": [
-    { "name": "Smart Scan", "url": "./#scan", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Quote Workings", "url": "./#workings", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] },
-    { "name": "Register", "url": "./#register", "icons": [{ "src": "icons/icon-192.png", "sizes": "192x192" }] }
+    {
+      "name": "Smart Scan",
+      "url": "./#scan",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Quote Workings",
+      "url": "./#workings",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    },
+    {
+      "name": "Register",
+      "url": "./#register",
+      "icons": [
+        {
+          "src": "icons/icon-192.png",
+          "sizes": "192x192"
+        }
+      ]
+    }
   ]
 }

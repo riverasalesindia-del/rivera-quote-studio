@@ -147,7 +147,7 @@ function setupAutoUpdate() {
   au.on("update-downloaded", info => {
     if (win && !win.isVisible()) { app.isQuitting = true; au.quitAndInstall(true, true); return; } /* running in the tray: update quietly and come back */
     const { dialog } = require("electron");
-    dialog.showMessageBox(win, { type: "info", buttons: ["Restart now", "Later"], defaultId: 0, cancelId: 1, title: "Update ready", message: `Rivera Quote Studio ${info.version} is ready.`, detail: "Restart now to use it, or it will be installed when you close the app." }).then(r => { if (r.response === 0) { app.isQuitting = true; au.quitAndInstall(); } }).catch(() => {});
+    dialog.showMessageBox(win, { type: "info", buttons: ["Restart now", "Later"], defaultId: 0, cancelId: 1, title: "Update ready", message: `Rivera ERP ${info.version} is ready.`, detail: "Restart now to use it, or it will be installed when you close the app." }).then(r => { if (r.response === 0) { app.isQuitting = true; au.quitAndInstall(); } }).catch(() => {});
   });
   au.on("error", () => {});
   const check = () => au.checkForUpdates().catch(() => {});
@@ -164,9 +164,9 @@ function showWin() { if (!win) return; if (win.isMinimized()) win.restore(); win
 function setupTray() {
   try {
     const img = nativeImage.createFromPath(path.join(__dirname, "icon.png")).resize({ width: 16, height: 16 });
-    tray = new Tray(img); tray.setToolTip("Rivera Quote Studio — running");
+    tray = new Tray(img); tray.setToolTip("Rivera ERP — running");
     const menu = () => Menu.buildFromTemplate([
-      { label: "Open Rivera Quote Studio", click: showWin },
+      { label: "Open Rivera ERP", click: showWin },
       { type: "separator" },
       { label: "Start with Windows", type: "checkbox", checked: prefs().autoStart !== false, click: m => { setAutoStart(m.checked); tray.setContextMenu(menu()); } },
       { label: "Check for updates", click: () => { try { require("electron-updater").autoUpdater.checkForUpdates(); } catch (e) {} } },
@@ -180,7 +180,7 @@ function setupTray() {
 function createWindow() {
   win = new BrowserWindow({
     width: 1440, height: 920, minWidth: 900, minHeight: 600,
-    title: "Rivera Quote Studio", icon: path.join(__dirname, "icon.png"),
+    title: "Rivera ERP", icon: path.join(__dirname, "icon.png"),
     backgroundColor: "#EEF1F0", autoHideMenuBar: true,
     show: !HIDDEN, webPreferences: { contextIsolation: true, sandbox: true, spellcheck: true, backgroundThrottling: false }
   });

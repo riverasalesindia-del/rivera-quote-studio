@@ -5,7 +5,7 @@
  * Passwords are hashed in the browser (PBKDF2-SHA256, 150k rounds) and again here (salted SHA-256 x 500).
  */
 var ADMIN = "crm@rivera.co.in";
-var APP = "Rivera Quote Studio";
+var APP = "Rivera ERP";
 var TOKEN_DAYS = 400, MAX_FAIL = 5, LOCK_MIN = 15, CHUNK = 45000;
 
 function props() { return PropertiesService.getScriptProperties(); }
@@ -1357,7 +1357,7 @@ function work62Install() {
   ScriptApp.newTrigger("workMorning62").timeBased().atHour(9).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("hrDates71").timeBased().atHour(8).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("regs71").timeBased().atHour(19).nearMinute(15).everyDays(1).inTimezone("Asia/Kolkata").create();
-  ScriptApp.newTrigger("workPlans62").timeBased().atHour(10).nearMinute(45).everyDays(1).inTimezone("Asia/Kolkata").create();
+  /* no 10:45 plans mail to MD any more - MD gets one combined report in the evening */
   ScriptApp.newTrigger("workRemind62").timeBased().atHour(18).nearMinute(0).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("workEvening62").timeBased().atHour(18).nearMinute(35).everyDays(1).inTimezone("Asia/Kolkata").create();
   props().setProperty("WORK62_ON", new Date().toISOString());
