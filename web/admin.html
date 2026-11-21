@@ -13103,6 +13103,46 @@ button.s64-hot{cursor:pointer;border-color:var(--copper,#E26A0C);background:rgba
 @media (max-width:560px){.s64-i{min-width:calc(50% - 4px)}}
 </style>`);
 
+/* ===================== p73: Tender search — your search words are highlighted in every row (buyer, item, city…) so the right tender is seen at a glance,
+   and the next page is fetched quietly in the background, so "Next ›" opens instantly (Tender247-style speed). Client-side only — no server change ===================== */
+{
+  const esc73 = w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  function hl73(B, q) {
+    const words = [...new Set(String(q || "").toLowerCase().split(/[\s,]+/).map(w => w.trim()).filter(w => w.length >= 3))].slice(0, 8);
+    if (!words.length) return;
+    const tb = $("table.t tbody", B); if (!tb || tb.dataset.hl73) return; tb.dataset.hl73 = "1";
+    const re = new RegExp("(" + words.sort((a, b) => b.length - a.length).map(esc73).join("|") + ")", "gi");
+    const tw = document.createTreeWalker(tb, NodeFilter.SHOW_TEXT, { acceptNode: n => n.nodeValue.trim() && !n.parentElement.closest("button:not(.b41),select,option,input,textarea,.chip,mark") ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT });
+    const nodes = []; while (tw.nextNode()) nodes.push(tw.currentNode);
+    nodes.forEach(n => {
+      const t = n.nodeValue; re.lastIndex = 0; if (!re.test(t)) return; re.lastIndex = 0;
+      const fr = document.createDocumentFragment(); let last = 0;
+      t.replace(re, (m, _g, at) => { if (at > last) fr.append(t.slice(last, at)); const k = document.createElement("mark"); k.className = "m73"; k.textContent = m; fr.append(k); last = at + m.length; return m; });
+      if (last < t.length) fr.append(t.slice(last));
+      n.replaceWith(fr);
+    });
+  }
+  function pre73(S) {
+    const d = S.cache["q:" + JSON.stringify({ ...S.f, page: S.page, size: 50 })]?.d; if (!d || !(d.total > d.page * d.size)) return;
+    const body = { ...S.f, page: S.page + 1, size: 50 }, key = "q:" + JSON.stringify(body); if (S.cache[key]) return;
+    clearTimeout(S._p73); S._p73 = setTimeout(async () => {
+      if (S.cache[key] || STATE.route !== "tdb" || S.tab !== "search" || "q:" + JSON.stringify({ ...S.f, page: S.page + 1, size: 50 }) !== key) return;
+      S.cache[key] = { loading: true, at: Date.now() };
+      try { const x = await AUTH.call("tdbQuery", body, 60000); S.cache[key] = { at: Date.now(), d: x }; } catch (e) { delete S.cache[key]; }
+    }, 1500);
+  }
+  const _tdb73 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb73(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
+    try { hl73(B, S.f.q); } catch (e) { console.warn("p73 hl", e); }
+    try { pre73(S); } catch (e) { console.warn("p73 pre", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+mark.m73{background:#fff3c4;color:inherit;padding:0 1px;border-radius:3px;box-shadow:0 0 0 1px #f3d36b inset}
+</style>`);
+
 boot();
 
 </script>
