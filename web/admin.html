@@ -13338,6 +13338,33 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .o76-add,.o76-ok{border:1px solid #dfe5ee;background:#fff;border-radius:7px;padding:5px 10px;font-weight:700;font-size:12.5px;color:#0b2a57;cursor:pointer}.o76-ok{background:#1971c2;color:#fff;border-color:#1971c2}
 </style>`);
 
+
+/* ===================== p77: bring back what people typed — every device keeps a copy of each day's Work update (rqs.u69.<email>.<day>).
+   On opening the app, anything in those copies that the server does not have is added back to that day's update and saved. ===================== */
+async function recover77() {
+  const me = me28(); if (!me || window.__rec77 === me) return; window.__rec77 = me;
+  const pre = `rqs.u69.${me}.`, days = []; try { for (let i = 0; i < localStorage.length; i++) { const k = localStorage.key(i); if (k && k.startsWith(pre)) days.push(k.slice(pre.length)); } } catch { return; }
+  if (!days.length) return;
+  let srv = []; try { srv = (await AUTH.call("recList", { kinds: ["wd"] }, 60000)).rows || []; } catch { window.__rec77 = ""; return; }
+  srv.forEach(r => { if (r.kind === "wd") BIZ.rows[r.id] = r; });
+  const recs = []; let n = 0;
+  for (const day of days.sort()) {
+    let b = null; try { b = JSON.parse(localStorage.getItem(pre + day) || "null"); } catch { } if (!b || !Array.isArray(b.items) || !b.items.length) continue;
+    const d = srv.find(r => r.kind === "wd" && r.who === me && r.day === day);
+    const f1 = t => key70(String(t).split("\n")[0]), have = new Set((d?.items || []).map(i => key70(i.title))), first = new Set((d?.items || []).map(i => f1(i.title))), add = b.items.filter(i => i && i.title && i.state !== "dropped" && !have.has(key70(i.title)) && !first.has(f1(i.title)));
+    /* also lines typed under a work that the server copy lost (same first line, fewer lines) */
+    const longer = (d?.items || []).map(si => { const li = b.items.find(i => i && key70(String(i.title).split("\n")[0]) === key70(String(si.title).split("\n")[0])); return li && String(li.title).length > String(si.title).length && String(li.title).startsWith(String(si.title).split("\n")[0]) ? [si, li] : null; }).filter(Boolean);
+    if (!add.length && !longer.length && !(!d && b.items.length)) continue;
+    const items = (d?.items || []).map(si => { const L = longer.find(x => x[0] === si); return L ? { ...si, title: L[1].title } : si; }).concat(add.map(i => ({ title: i.title, state: i.state || "pending", pct: +i.pct || 0, from: i.from || "", to: i.to || "", wk: i.wk || "", ...(i.carried ? { carried: true, since: i.since || "" } : {}), ...(i.given ? { given: i.given } : {}) })));
+    recs.push({ ...(d || { kind: "wd", who: me, whoName: AUTH.user?.name || "", day, plannedAt: now62() }), items, remarks: d?.remarks || b.remarks || "", recovered77: now62() });
+    n += add.length + longer.length;
+  }
+  if (!recs.length) return;
+  try { await bizPut28(recs); toast(`✓ Brought back ${n} work item${n > 1 ? "s" : ""} you had typed (${recs.map(r => dmy62(r.day)).join(", ")})`); if (W62.u65 && W62.u65.day === todayISO()) { W62.u65 = null; } if (STATE.route === "work") render(); }
+  catch (e) { window.__rec77 = ""; console.warn("recover77", e); }
+}
+{ const _r = render; render = function () { _r.apply(this, arguments); try { if (signed26() && AUTH.api && !window.__rec77) setTimeout(recover77, 2500); } catch { } }; }
+
 boot();
 
 </script>
