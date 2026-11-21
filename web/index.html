@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Rivera Quote Studio</title>
+<title>Rivera ERP</title>
 <meta name="description" content="Rivera Coil Manufacturing sales app — scan quotations, build quote workings, issue quotations, file to Synology.">
 <meta name="theme-color" content="#02315B">
 <meta name="mobile-web-app-capable" content="yes">
@@ -357,7 +357,7 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--sunk)}
 <script>window.__RIVERA_LINKS__ = {"site":"https://riverasalesindia-del.github.io/rivera-quote-studio/","apk":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio.apk","win":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Setup.exe","winPortable":"https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraQuoteStudio-Portable.exe"};window.__RIVERA_AUTH__ = {"api":"https://script.google.com/macros/s/AKfycbyQ2QR_G9qbU7KaCBVa6gO9w0hRkVeaSiqqCNOVAjQaVolGdUmgfy0FWQis14vo_By3/exec"};</script>
 <script>
 "use strict";
-/* ========= Rivera Quote Studio — core ========= */
+/* ========= Rivera ERP — core ========= */
 const LIBS = {
   jszip: "https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js",
   pdflib: "https://cdnjs.cloudflare.com/ajax/libs/pdf-lib/1.17.1/pdf-lib.min.js",
@@ -1317,7 +1317,7 @@ async function buildXlsx(sheets) {
   const names = sheets.map((s, i) => (s.name || "Sheet" + (i + 1)).replace(/[\\\/?*\[\]:]/g, " ").slice(0, 31));
   z.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>${sheets.map((_, i) => `<Override PartName="/xl/worksheets/sheet${i + 1}.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>`).join("")}<Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/></Types>`);
   z.file("_rels/.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/></Relationships>`);
-  z.file("docProps/core.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:creator>Rivera Quote Studio</dc:creator><dc:title>Rivera Quote Workings</dc:title><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString().slice(0, 19)}Z</dcterms:created></cp:coreProperties>`);
+  z.file("docProps/core.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><cp:coreProperties xmlns:cp="http://schemas.openxmlformats.org/package/2006/metadata/core-properties" xmlns:dc="http://purl.org/dc/elements/1.1/" xmlns:dcterms="http://purl.org/dc/terms/" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"><dc:creator>Rivera ERP</dc:creator><dc:title>Rivera Quote Workings</dc:title><dcterms:created xsi:type="dcterms:W3CDTF">${new Date().toISOString().slice(0, 19)}Z</dcterms:created></cp:coreProperties>`);
   z.file("xl/workbook.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets>${names.map((n, i) => `<sheet name="${xesc(n)}" sheetId="${i + 1}" r:id="rId${i + 1}"/>`).join("")}</sheets><calcPr calcId="191029" fullCalcOnLoad="1"/></workbook>`);
   z.file("xl/_rels/workbook.xml.rels", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${sheets.map((_, i) => `<Relationship Id="rId${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet${i + 1}.xml"/>`).join("")}<Relationship Id="rId${sheets.length + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>`);
   z.file("xl/styles.xml", XLSX_STYLES);
@@ -1362,7 +1362,7 @@ function workingsSheet(w) {
   if (num(w.gst)) { const g = R(r); put(r, 0, { v: `GST ${num(w.gst)}%`, s: 5 }); for (let i = 1; i < 5; i++) put(r, i, { v: "", s: 5 }); put(r, 5, { f: `F${qt}*${num(w.gst) / 100}`, v: c.gstAmt, s: 4 }); r++; put(r, 0, { v: "Grand Total incl. GST", s: 5 }); for (let i = 1; i < 5; i++) put(r, i, { v: "", s: 5 }); put(r, 5, { f: `F${qt}+F${g}`, v: c.grand, s: 6 }); r++; }
   if (w.currency !== "INR") { fxRef = R(r); put(r, 0, { v: `${w.currency} - ${num(w.fx)}`, s: 5 }); for (let i = 1; i < 4; i++) put(r, i, { v: "", s: 5 }); put(r, 4, { v: num(w.fx), s: 8 }); put(r, 5, { f: `F${qr}/E${fxRef}`, v: c.quotedFx, s: 6 }); r++; put(r, 0, { v: `${w.currency} Total`, s: 5 }); for (let i = 1; i < 5; i++) put(r, i, { v: "", s: 5 }); put(r, 5, { f: `F${fxRef}*${num(w.qty)}`, v: c.totalFx, s: 6 }); r++; }
   if (c.kgTotal) { put(r, 0, { v: "Price / kg copper", s: 3 }); for (let i = 1; i < 5; i++) put(r, i, { v: "", s: 3 }); put(r, 5, { f: `F${qr}/${c.kgTotal}`, v: c.perKg, s: 4 }); r++; }
-  r++; put(r, 0, { v: `Prepared in Rivera Quote Studio · ${dmy(todayISO())} · Margin ${c.margin.toFixed(1)}% on cost`, s: 11 }); merges.push(`A${R(r)}:F${R(r)}`);
+  r++; put(r, 0, { v: `Prepared in Rivera ERP · ${dmy(todayISO())} · Margin ${c.margin.toFixed(1)}% on cost`, s: 11 }); merges.push(`A${R(r)}:F${R(r)}`);
   // right-hand tools: tape calc + insulation table
   let rr = 3; const T = w.tape || {};
   if (num(T.h) && num(T.l)) {
@@ -1599,7 +1599,7 @@ const ROUTES = [["home", "Dashboard", "home"], ["scan", "Smart Scan", "scan"], [
 const LOGO_SVG = `<img src="${RIVERA_MARK}" alt="Rivera" width="40" height="40" style="width:40px;height:40px;object-fit:contain">`;
 function renderRailBrand() {
   const mark = SETTINGS.logo ? `<img src="${esc(SETTINGS.logo)}" alt="Rivera logo">` : LOGO_SVG;
-  const h = `${mark}<div><b>RIVERA<sup>™</sup></b><small>Quote Studio</small></div>`;
+  const h = `${mark}<div><b>RIVERA<sup>™</sup></b><small>ERP</small></div>`;
   $("#brandRail").innerHTML = h; $("#brandMobile").innerHTML = h;
 }
 function renderNav() {
@@ -2386,7 +2386,7 @@ async function officeBoot() {
   if (window.RiveraAndroid) { setSync("local", "Android app · saved on this phone"); return; }
   if (!window.RiveraAndroid && "serviceWorker" in navigator && /^https?:/.test(location.protocol)) navigator.serviceWorker.register("sw.js").catch(() => { });
   window.addEventListener("beforeinstallprompt", e => { e.preventDefault(); STATE.installEvt = e; showInstall(); if (STATE.route === "home") render(); });
-  window.addEventListener("appinstalled", () => { STATE.installEvt = null; showInstall(); toast("Rivera Quote Studio installed"); });
+  window.addEventListener("appinstalled", () => { STATE.installEvt = null; showInstall(); toast("Rivera ERP installed"); });
   showInstall();
   if ("showDirectoryPicker" in window) {
     const h = await IDB.get("dir");
@@ -2400,7 +2400,7 @@ function showInstall() {
   else b?.remove();
 }
 
-/* ========= Rivera Quote Studio — orders, tenders, vendors, share hub, automation ========= */
+/* ========= Rivera ERP — orders, tenders, vendors, share hub, automation ========= */
 IC.orders = '<path d="M21 8 12 3 3 8v8l9 5 9-5z"/><path d="M3 8l9 5 9-5M12 13v8"/>';
 IC.tender = '<path d="M4 21h16M6 17l6-6M14 3l7 7M10 7l7 7M12 5l2-2 7 7-2 2"/>';
 IC.vendor = '<path d="M3 7h11v9H3zM14 10h4l3 3v3h-7"/><circle cx="7" cy="18" r="1.8"/><circle cx="17" cy="18" r="1.8"/>';
@@ -3121,7 +3121,7 @@ function showLogin(o = {}) {
     if (mode === "pending") body = `<div class="note warn"><b>${esc(email)}</b> is registered and waiting for the admin to approve access. An email has gone to <b>crm@rivera.co.in</b>. You'll get an email once approved — then sign in.</div><button class="btn block" data-m="login" style="margin-top:14px">Back to sign in</button>`;
     if (mode === "server") body = `${f("aS", "Sign-in server URL (Google Apps Script web app)", "url", `value="${esc(AUTH.api)}" placeholder="https://script.google.com/macros/s/…/exec"`)}<button class="btn primary block" id="aGo">Save & test</button><div class="auth-links"><a href="#" data-m="login">Back</a></div>`;
     ov.innerHTML = `<div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="aT">
-      <div class="auth-brand"><img src="${RIVERA_MARK}" alt=""><div><b>RIVERA<sup>™</sup></b><small>Quote Studio</small></div></div>
+      <div class="auth-brand"><img src="${RIVERA_MARK}" alt=""><div><b>RIVERA<sup>™</sup></b><small>ERP</small></div></div>
       <h2 id="aT">${T}</h2>${msg ? `<div class="note ${kind || "warn"}" style="margin-bottom:12px">${esc(msg)}</div>` : ""}
       <form class="stack" id="aForm" onsubmit="return false">${body}</form>
       <div class="auth-foot"><span>${icon("lock")} Private to Rivera Coil Manufacturing (I) Pvt Ltd</span>${mode !== "server" ? '<a href="#" data-m="server">Server</a>' : ""}</div></div>`;
@@ -3487,9 +3487,9 @@ VIEWS.health = async v => {
   </div></section>`;
   $("#hRe").onclick = render;
   $$("[data-hfix]").forEach(b => b.onclick = () => doFix(H[+b.dataset.hfix].fix));
-  const rep = () => `Rivera Quote Studio error report\n${new Date().toString()}\n${navigator.userAgent}\n\n` + er.map(x => `[${ERR_CATS[x.cat].l}] ${new Date(x.t).toISOString()} ${x.msg}${x.src ? " (" + x.src + ")" : ""}${x.n > 1 ? " x" + x.n : ""}`).join("\n");
+  const rep = () => `Rivera ERP error report\n${new Date().toString()}\n${navigator.userAgent}\n\n` + er.map(x => `[${ERR_CATS[x.cat].l}] ${new Date(x.t).toISOString()} ${x.msg}${x.src ? " (" + x.src + ")" : ""}${x.n > 1 ? " x" + x.n : ""}`).join("\n");
   $("#hCopy")?.addEventListener("click", () => navigator.clipboard?.writeText(rep()).then(() => toast("Error report copied")));
-  $("#hMail")?.addEventListener("click", () => openLink("mailto:crm@rivera.co.in?subject=" + encodeURIComponent("Rivera Quote Studio - error report") + "&body=" + encodeURIComponent(rep().slice(0, 1800))));
+  $("#hMail")?.addEventListener("click", () => openLink("mailto:crm@rivera.co.in?subject=" + encodeURIComponent("Rivera ERP - error report") + "&body=" + encodeURIComponent(rep().slice(0, 1800))));
   $("#hClr")?.addEventListener("click", () => { ERRLOG.clear(); render(); });
   $$("[data-auto]").forEach(el => el.onchange = async () => {
     const k = el.dataset.auto; Auto.cfg[k] = el.type === "checkbox" ? el.checked : Math.max(num(el.min), Math.min(num(el.max), num(el.value))); Auto.save();
@@ -3534,7 +3534,7 @@ const Auto = {
     if (!("Notification" in window) || Notification.permission !== "granted") return;
     const day = todayISO(); if (LS.get("notifiedDay", "") === day) return;
     const { fu, tc, od } = this.counts(); if (!fu.length && !tc.length && !od.length) return;
-    try { new Notification("Rivera Quote Studio — today", { body: `${fu.length} follow-ups due · ${tc.length} tenders closing · ${od.length} deliveries due`, icon: "icons/icon-192.png", tag: "rivera-daily" }); LS.set("notifiedDay", day); } catch { }
+    try { new Notification("Rivera ERP — today", { body: `${fu.length} follow-ups due · ${tc.length} tenders closing · ${od.length} deliveries due`, icon: "icons/icon-192.png", tag: "rivera-daily" }); LS.set("notifiedDay", day); } catch { }
   },
   digest() {
     const { fu, tc, od } = this.counts(), t = todayISO();
@@ -3894,7 +3894,7 @@ function drawBid() {
     (t.appr ||= {})[k] = rec; audit(t, `${k} ${okv ? "approved" : "rejected"}${rec.price ? " at ₹" + fmt(rec.price, "INR", 0) : ""}`);
     if (k === "bid" && !okv) t.status = "not_attended"; await save(); drawBid();
   });
-  $$("[data-ask]", o).forEach(b => b.onclick = () => { const k = b.dataset.ask; audit(t, "Approval requested: " + k); save(); openLink("mailto:crm@rivera.co.in?subject=" + encodeURIComponent(`Approve ${k} — GeM ${B.bid}`) + "&body=" + encodeURIComponent(`Please approve the ${k} for GeM bid ${B.bid} (${B.org || ""}).\nReadiness: ${rd.pct}%\nBid end: ${B.endRaw || ""}\n${k === "price" ? "Proposed price: ₹" + fmt(num($("#bdPrice").value), "INR", 0) + "\n" : ""}\nOpen Rivera Quote Studio → GeM Bid Desk.`)); });
+  $$("[data-ask]", o).forEach(b => b.onclick = () => { const k = b.dataset.ask; audit(t, "Approval requested: " + k); save(); openLink("mailto:crm@rivera.co.in?subject=" + encodeURIComponent(`Approve ${k} — GeM ${B.bid}`) + "&body=" + encodeURIComponent(`Please approve the ${k} for GeM bid ${B.bid} (${B.org || ""}).\nReadiness: ${rd.pct}%\nBid end: ${B.endRaw || ""}\n${k === "price" ? "Proposed price: ₹" + fmt(num($("#bdPrice").value), "INR", 0) + "\n" : ""}\nOpen Rivera ERP → GeM Bid Desk.`)); });
   const kit = () => buildDocx(annexureBlocks(t), brandLogo()), cover = () => buildDocx(coverBlocks(t, B, rows), brandLogo()), mx = () => buildXlsx(matrixSheet(t, B, rows, el));
   $("#bdKit").onclick = async () => saveFile(`ANNEXURES_${safeName(B.bid)}.docx`, await kit());
   $("#bdCover").onclick = async () => saveFile(`COVER_LETTER_${safeName(B.bid)}.docx`, await cover());
@@ -4034,7 +4034,7 @@ showLogin = function (o = {}) {
     if (mode === "reset") body = `${f("aC", "6-digit code", "text", 'inputmode="numeric" maxlength="6"')}${pw("aP", "New password", "new-password")}${pw("aP2", "Repeat new password", "new-password")}<button class="btn primary block" id="aGo">Set password</button><div class="auth-links"><a href="#" data-m="login">Back to sign in</a></div>`;
     if (mode === "server") body = `${f("aS", "Sign-in server URL (Google Apps Script web app)", "url", `value="${esc(AUTH.api)}" placeholder="https://script.google.com/macros/s/…/exec"`)}<button class="btn primary block" id="aGo">Save & test</button><div class="auth-links"><a href="#" data-m="login">Back</a></div>`;
     ov.innerHTML = `<div class="auth-card" role="dialog" aria-modal="true" aria-labelledby="aT">
-      <div class="auth-brand"><img src="${RIVERA_MARK}" alt=""><div><b>RIVERA<sup>™</sup></b><small>Quote Studio</small></div></div>
+      <div class="auth-brand"><img src="${RIVERA_MARK}" alt=""><div><b>RIVERA<sup>™</sup></b><small>ERP</small></div></div>
       <h2 id="aT">${T}${ADMIN_PAGE && mode === "login" ? ' <span class="chip">Admin</span>' : ""}</h2>${msg ? `<div class="note ${kind || "warn"}" style="margin-bottom:12px">${esc(msg)}</div>` : ""}
       <form class="stack" id="aForm" onsubmit="return false" autocomplete="on">${body}</form>
       <div class="auth-foot"><span>${icon("lock")} Private to Rivera Coil Manufacturing (I) Pvt Ltd</span>${ADMIN_PAGE && mode !== "server" ? '<a href="#" data-m="server">Server</a>' : ""}</div></div>`;
@@ -4158,13 +4158,13 @@ VIEWS.users = v => {
       $$("[data-ss]").forEach(b => b.onclick = async () => { b.disabled = true; try { await AUTH.call("setSession", { sid: b.dataset.sid, status: b.dataset.ss }); toast({ approved: "Sign-in approved — they're in", rejected: "Sign-in rejected", revoked: "Device signed out" }[b.dataset.ss]); load(); } catch (e) { toast(e.message, "bad"); b.disabled = false; } });
       $$("[data-st]").forEach(b => b.onclick = async () => { b.disabled = true; try { await AUTH.call("setUser", { email: b.dataset.u, status: b.dataset.st }); toast(b.dataset.st === "approved" ? "Login enabled" : "Login disabled — all their devices are signed out"); load(); } catch (e) { toast(e.message, "bad"); b.disabled = false; } });
       $$("[data-role]").forEach(s => s.onchange = async () => { try { await AUTH.call("setUser", { email: s.dataset.role, role: s.value }); toast("Role updated"); } catch (e) { toast(e.message, "bad"); load(); } });
-      $$("[data-rp]").forEach(b => b.onclick = async () => { const id = b.dataset.rp, np = genPw(); if (!confirm(`Reset the password for ${id}?\n\nNew password: ${np}\n\nIt is copied so you can send it to them.`)) return; try { await AUTH.call("setUser", { email: id, pw: await AUTH.hash(np, id) }); navigator.clipboard?.writeText(`Rivera Quote Studio\n${location.origin + location.pathname}\nUsername: ${id}\nPassword: ${np}`).catch(() => { }); toast("Password reset — details copied"); } catch (e) { toast(e.message, "bad"); } });
+      $$("[data-rp]").forEach(b => b.onclick = async () => { const id = b.dataset.rp, np = genPw(); if (!confirm(`Reset the password for ${id}?\n\nNew password: ${np}\n\nIt is copied so you can send it to them.`)) return; try { await AUTH.call("setUser", { email: id, pw: await AUTH.hash(np, id) }); navigator.clipboard?.writeText(`Rivera ERP\n${location.origin + location.pathname}\nUsername: ${id}\nPassword: ${np}`).catch(() => { }); toast("Password reset — details copied"); } catch (e) { toast(e.message, "bad"); } });
       $$("[data-del]").forEach(b => b.onclick = async () => { if (!confirm("Delete the login " + b.dataset.del + "?")) return; try { await AUTH.call("deleteUser", { email: b.dataset.del }); load(); } catch (e) { toast(e.message, "bad"); } });
     } catch (e) { if (!$("#uTbl")) return; $("#uTbl").innerHTML = `<div class="note bad" style="margin:16px">${esc(e.message)}</div>`; }
   };
   load(); $("#uRef").onclick = load;
   $("#nuG").onclick = () => { $("#nuP").value = genPw(); };
-  const details = () => `Rivera Quote Studio\n${location.origin + location.pathname}\nUsername: ${$("#nuU").value.trim().toLowerCase()}\nPassword: ${$("#nuP").value}`;
+  const details = () => `Rivera ERP\n${location.origin + location.pathname}\nUsername: ${$("#nuU").value.trim().toLowerCase()}\nPassword: ${$("#nuP").value}`;
   $("#nuCopy").onclick = () => navigator.clipboard?.writeText(details()).then(() => toast("Login details copied"), () => toast(details()));
   $("#nuGo").onclick = async () => {
     const id = $("#nuU").value.trim().toLowerCase(), n = $("#nuN").value.trim(), p = $("#nuP").value;
@@ -5054,7 +5054,7 @@ async function buildCompleteDoc(t, B, rows, el, onStep) {
   }
   if (cover.getPageCount() > 1) { offset = cover.getPageCount(); cover = await PDFLib.PDFDocument.create(); const A3 = await lhAssets(cover), w3 = await lhWriter(cover, A3); await drawCover(w3, t, B, entries, offset, today, 2); }
   const out = await PDFLib.PDFDocument.create();
-  out.setTitle(`GeM Bid ${B.bid || t.bid} — ${LEGAL.name}`); out.setAuthor(LEGAL.name); out.setCreator("Rivera Quote Studio"); out.setCreationDate(new Date());
+  out.setTitle(`GeM Bid ${B.bid || t.bid} — ${LEGAL.name}`); out.setAuthor(LEGAL.name); out.setCreator("Rivera ERP"); out.setCreationDate(new Date());
   (await out.copyPages(cover, cover.getPageIndices())).forEach(pg => out.addPage(pg));
   (await out.copyPages(doc, doc.getPageIndices())).forEach(pg => out.addPage(pg));
   const bytes = await out.save();
@@ -5593,10 +5593,10 @@ function linksPanel16() {
     ${row("winPortable", "Windows app (portable)", L.winPortable, "No install — run the .exe")}
   </tbody></table></div></section>`;
 }
-function linksText16() { const L = LINKS16; return `Rivera Quote Studio\nSign in: ${L.site}\nAdmin: ${L.admin}${L.apk ? "\nAndroid app: " + L.apk : ""}${L.win ? "\nWindows app: " + L.win : ""}`; }
+function linksText16() { const L = LINKS16; return `Rivera ERP\nSign in: ${L.site}\nAdmin: ${L.admin}${L.apk ? "\nAndroid app: " + L.apk : ""}${L.win ? "\nWindows app: " + L.win : ""}`; }
 function bindLinks16() {
   $$("[data-lcp]").forEach(b => b.onclick = () => navigator.clipboard?.writeText(b.dataset.lcp).then(() => toast("Link copied"), () => toast(b.dataset.lcp)));
-  $("#lnkShare")?.addEventListener("click", async () => { const t = linksText16(); if (navigator.share) { try { await navigator.share({ title: "Rivera Quote Studio", text: t }); return; } catch { } } navigator.clipboard?.writeText(t).then(() => toast("All links copied"), () => toast(t)); });
+  $("#lnkShare")?.addEventListener("click", async () => { const t = linksText16(); if (navigator.share) { try { await navigator.share({ title: "Rivera ERP", text: t }); return; } catch { } } navigator.clipboard?.writeText(t).then(() => toast("All links copied"), () => toast(t)); });
 }
 function teamPanel16() {
   return `<section class="panel" id="team16"><header><h2>Rivera team logins</h2><span class="muted small">Admin is <b>crm@rivera.co.in</b></span></header><div class="body stack">
@@ -5659,7 +5659,7 @@ function mustPw16() {
   $("#mp16go").onclick = async () => {
     const p = $("#mp16a").value, bad = pwRules(p); if (p.length < 10) bad.push("10+ characters"); if (!/[^A-Za-z0-9]/.test(p)) bad.push("a symbol");
     if (bad.length) return toast("Password needs " + [...new Set(bad)].join(", "), "bad"); if (p !== $("#mp16b").value) return toast("Passwords don't match", "bad");
-    try { $("#mp16go").disabled = true; const d = await AUTH.call("firstPassword", { pw: await AUTH.hash(p, AUTH.user.email) }); const s = AUTH.s; s.user = { ...s.user, ...(d.user || {}), mustChange: false }; AUTH.s = s; $("#mustPw16").remove(); toast("Password saved — welcome to Rivera Quote Studio"); }
+    try { $("#mp16go").disabled = true; const d = await AUTH.call("firstPassword", { pw: await AUTH.hash(p, AUTH.user.email) }); const s = AUTH.s; s.user = { ...s.user, ...(d.user || {}), mustChange: false }; AUTH.s = s; $("#mustPw16").remove(); toast("Password saved — welcome to Rivera ERP"); }
     catch (e) { toast(e.message, "bad"); $("#mp16go").disabled = false; }
   };
 }
@@ -6437,7 +6437,7 @@ function appbar26() {
   if (!bar) { main.insertAdjacentHTML("afterbegin", `<header id="appbar26" class="ab26"></header>`); bar = $("#appbar26"); }
   const r = ROUTES.find(x => x[0] === STATE.route) || ["home", "Dashboard"], u = AUTH.user || {}, n = NEW26.total;
   if (canTdb26() && !NEW26.at && !NEW26.busy) setTimeout(() => newTenders26(true), 800);
-  bar.innerHTML = `<div class="ab26-t"><span>Rivera Quote Studio</span><b>${esc(r[1])}</b></div>
+  bar.innerHTML = `<div class="ab26-t"><span>Rivera ERP</span><b>${esc(r[1])}</b></div>
     <button class="ab26-s" id="ab26s" type="button" aria-label="Search everything">${icon("search")}<span>Search tenders, quotations, documents…</span><kbd>Ctrl K</kbd></button>
     <div class="ab26-r">
       ${canTdb26() ? `<button class="ab26-ib" id="ab26n" type="button" aria-label="${n} new tenders" title="New tenders for Rivera since you last looked">${icon("bell26")}${n ? `<i>${n > 99 ? "99+" : n}</i>` : ""}</button>` : ""}
@@ -8072,7 +8072,7 @@ function tallyView32(v) {
   const t = todayISO(), invNew = all28("inv").filter(i => i.status !== "cancelled" && !i.tally), rcNew = all28("rcpt").filter(p => !p.tally);
   const body = `<div class="grid28" style="grid-template-columns:minmax(0,1.2fr) minmax(0,1fr)">
     <section class="panel"><header><h2>Send to Tally Prime</h2><span class="chip ${inApp32() ? "ok" : "warn"}">${inApp32() ? "Windows app — can connect" : "Browser — use the Windows app"}</span></header><div class="body stack" style="gap:10px">
-      ${inApp32() ? "" : `<div class="note warn small">Tally only answers programs on its own PC or office network. Open <b>Rivera Quote Studio for Windows</b> on the PC where TallyPrime runs and come to Accounts ▸ Tally. From here you can still download the Tally file (GST tab) and import it by hand.</div>`}
+      ${inApp32() ? "" : `<div class="note warn small">Tally only answers programs on its own PC or office network. Open <b>Rivera ERP for Windows</b> on the PC where TallyPrime runs and come to Accounts ▸ Tally. From here you can still download the Tally file (GST tab) and import it by hand.</div>`}
       <div class="row" style="gap:16px;align-items:flex-end;flex-wrap:wrap"><label class="f" style="width:180px">Month<input type="month" id="t32m" value="${month29(t)}"></label><div><div class="small muted">Not yet in Tally</div><b>${invNew.length} invoices · ${rcNew.length} receipts</b></div></div>
       <div class="row" style="gap:8px;flex-wrap:wrap"><button class="btn primary" id="t32inv" type="button" ${inApp32() ? "" : "disabled"}>${icon("tally32")}Send sales invoices</button><button class="btn" id="t32rc" type="button" ${inApp32() ? "" : "disabled"}>Send receipts</button><button class="btn" id="t32test" type="button" ${inApp32() ? "" : "disabled"}>Test connection</button><button class="btn" id="t32out" type="button" ${inApp32() ? "" : "disabled"}>Compare outstanding</button></div>
       <div id="t32res"></div>
@@ -8118,7 +8118,7 @@ function authSide32() {
   let s = $("#authSide32");
   if (!on) { s?.remove(); return; }
   if (s) return;
-  document.body.insertAdjacentHTML("beforeend", `<aside id="authSide32" class="as32" aria-hidden="true"><div class="as32-in"><div class="as32-brand"><img src="${RIVERA_MARK}" alt=""><div><b>RIVERA<sup>™</sup></b><small>Quote Studio</small></div></div>
+  document.body.insertAdjacentHTML("beforeend", `<aside id="authSide32" class="as32" aria-hidden="true"><div class="as32-in"><div class="as32-brand"><img src="${RIVERA_MARK}" alt=""><div><b>RIVERA<sup>™</sup></b><small>ERP</small></div></div>
     <h1>Software that helps Rivera grow <em>faster</em> and <em>smarter</em></h1>
     <div class="as32-mods">${["Sales", "Tenders", "Service", "Purchase", "Stock", "Accounts", "HR"].map(x => `<span>${x}</span>`).join("")}</div>
     <ul><li>Enquiry → quotation → order → delivery → invoice → payment</li><li>GeM, CPPP & PSU tenders with results and L1</li><li>Connected to Tally Prime</li></ul>
@@ -8492,7 +8492,7 @@ async function enquiryPack38(s, quoteNo) {
   if (gaps.length) c.text("Will follow separately: " + gaps.join("; ") + ".", { size: 9.6, after: 8 });
   c.text("Thanking you,", { after: 2 }); c.text("Yours faithfully,", { after: 4 }); c.signBlock("", today);
   const out = await PDFLib.PDFDocument.create();
-  out.setTitle(`Documents for ${cust}`); out.setAuthor(LEGAL.name); out.setCreator("Rivera Quote Studio");
+  out.setTitle(`Documents for ${cust}`); out.setAuthor(LEGAL.name); out.setCreator("Rivera ERP");
   (await out.copyPages(cover, [0])).forEach(p => out.addPage(p));
   if (body.getPageCount()) (await out.copyPages(body, body.getPageIndices())).forEach(p => out.addPage(p));
   return { blob: new Blob([await out.save()], { type: "application/pdf" }), pages: out.getPageCount(), entries, gaps, name: `RCM documents — ${String(cust).replace(/[\\/:*?"<>|]+/g, " ").slice(0, 50)}${quoteNo ? " — " + quoteNo.replace(/\//g, "-") : ""}.pdf` };
@@ -10359,7 +10359,7 @@ function oneTap58(v) {
       else await AUTH.call("createUser", { email: m.email, name: m.name, role: m.role, contact: m.email, pw: h });
       try { U = (await AUTH.call("users")).users || U; } catch { }
       draw();
-      const txt = `Rivera Quote Studio — ${adm58(m) ? "admin" : "your"} login\n\nOpen: ${site58(m)}\nUsername: ${m.email}\nPassword: ${pw}\n\nYou will be asked to set your own password at the first sign-in.${LINKS16.apk ? "\nAndroid app: " + LINKS16.apk : ""}`;
+      const txt = `Rivera ERP — ${adm58(m) ? "admin" : "your"} login\n\nOpen: ${site58(m)}\nUsername: ${m.email}\nPassword: ${pw}\n\nYou will be asked to set your own password at the first sign-in.${LINKS16.apk ? "\nAndroid app: " + LINKS16.apk : ""}`;
       $("#q58o", P).innerHTML = `<div class="note ok q58-r"><b>${esc(m.name)} — login ready. This password is shown only now.</b>
         <div class="q58-kv"><span>Username</span><code>${esc(m.email)}</code><span>Password</span><code class="q58-pw">${esc(pw)}</code></div>
         <div class="row" style="gap:8px;flex-wrap:wrap"><button type="button" class="btn primary" id="q58c">Copy login + link</button>${adm58(m) ? "" : `<button type="button" class="btn" id="q58w">${icon("wa")}WhatsApp</button>`}<button type="button" class="btn" id="q58e">${icon("mail")}Email it to ${esc(m.email)}</button></div>
@@ -13295,6 +13295,48 @@ addEventListener("keydown", e => {
   new MutationObserver(() => $$(".o72-h").forEach(h => { if (!/today's date/.test(h.textContent)) h.textContent = "Enter = new line with today's date · Shift+Enter = plain new line · tap outside or Ctrl+Enter = save · Esc = cancel"; })).observe(document.body, { childList: true, subtree: true });
 }
 document.head.insertAdjacentHTML("beforeend", `<style>.o75-sub{display:block;margin:3px 0 0 18px;padding-left:10px;border-left:3px solid #f4c7a6;font-weight:400;color:#3c4043}.o68-ttl{white-space:normal}</style>`);
+
+
+/* ===================== p76: Work update edit — each line is its own box: Enter opens a new box under it (dated), every box can be edited;
+   Backspace on an empty box removes it; tap outside saves. Timeline warnings (not filled / overlap) taken away for a clean page ===================== */
+{
+  const _w = wireUpd65;
+  wireUpd65 = function (v) {
+    _w.apply(this, arguments); const S = W62.u65; if (!S) return; const I = S.items;
+    $$("[data-ttl]", v).forEach(sp => sp.onclick = () => {
+      const i = I[+sp.dataset.ttl]; if (!i || i.state === "dropped") return;
+      const lines = String(i.title).split("\n").map(l => l.trim()).filter((l, k) => l || k === 0);
+      const box = document.createElement("div"); box.className = "o76";
+      const row = (txt, k) => `<div class="o76-r${k ? " sub" : ""}"><input class="o76-in" value="${esc(txt)}" placeholder="${k ? "Add an update…" : "Work"}" maxlength="400"></div>`;
+      box.innerHTML = lines.map(row).join("") + `<div class="o76-bar"><button type="button" class="o76-add">＋ Add line</button><span>Enter = new line · tap outside = save · Esc = cancel</span><button type="button" class="o76-ok">✓ Save</button></div>`;
+      sp.replaceWith(box);
+      let done = false;
+      const fin = ok => { if (done) return; done = true; const L = $$(".o76-in", box).map(x => x.value.trim().replace(/\s+/g, " ")).filter(Boolean), t = L.join("\n");
+        if (ok && t && t !== i.title) { i.title = t; if (updMine65()?.submittedAt) S.dirty68 = 1; keep65(); toast("Saved"); }
+        const y = scrollY; render(); scrollTo(0, y); };
+      const addAfter = (r, val) => { r.insertAdjacentHTML("afterend", row(val, 1)); const n = r.nextElementSibling.querySelector("input"); n.focus(); n.setSelectionRange(n.value.length, n.value.length); };
+      box.addEventListener("keydown", e => { const inp = e.target.closest?.(".o76-in"); if (!inp) return; const r = inp.parentElement, all = $$(".o76-in", box), k = all.indexOf(inp);
+        if (e.key === "Enter") { e.preventDefault(); e.stopPropagation(); if (e.ctrlKey || e.metaKey) return fin(true); addAfter(r, stamp75()); }
+        else if (e.key === "Escape") { e.preventDefault(); fin(false); }
+        else if (e.key === "Backspace" && k > 0 && (inp.value === "" || inp.value === stamp75()) && inp.selectionStart === inp.value.length) { e.preventDefault(); const p = all[k - 1]; r.remove(); p.focus(); p.setSelectionRange(p.value.length, p.value.length); }
+        else if (e.key === "ArrowDown" && all[k + 1]) { e.preventDefault(); all[k + 1].focus(); }
+        else if (e.key === "ArrowUp" && all[k - 1]) { e.preventDefault(); all[k - 1].focus(); } });
+      $(".o76-add", box).onmousedown = e => e.preventDefault(); $(".o76-add", box).onclick = () => addAfter($$(".o76-r", box).pop(), stamp75());
+      $(".o76-ok", box).onmousedown = e => e.preventDefault(); $(".o76-ok", box).onclick = () => fin(true);
+      box.addEventListener("focusout", () => setTimeout(() => { if (!box.contains(document.activeElement)) fin(true); }, 120));
+      const f = $(".o76-in", box); f.focus(); f.setSelectionRange(f.value.length, f.value.length);
+    });
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.t69-warn,.t69-ok{display:none!important}
+.o76{border:1.5px solid #1971c2;border-radius:10px;padding:6px 8px;background:#fff;box-shadow:0 0 0 3px rgba(25,113,194,.12)}
+.o76-r{margin:2px 0}.o76-r.sub{margin-left:18px;padding-left:10px;border-left:3px solid #f4c7a6}
+.o76-in{width:100%;box-sizing:border-box;border:1px solid transparent;border-radius:7px;padding:7px 9px;font:inherit;font-size:15px;background:#f7f9fc}.o76-r:first-child .o76-in{font-weight:600}
+.o76-in:focus{outline:0;border-color:#1971c2;background:#fff}
+.o76-bar{display:flex;align-items:center;gap:10px;margin-top:6px;font-size:11.5px;color:#5d6878;flex-wrap:wrap}.o76-bar span{flex:1}
+.o76-add,.o76-ok{border:1px solid #dfe5ee;background:#fff;border-radius:7px;padding:5px 10px;font-weight:700;font-size:12.5px;color:#0b2a57;cursor:pointer}.o76-ok{background:#1971c2;color:#fff;border-color:#1971c2}
+</style>`);
 
 boot();
 

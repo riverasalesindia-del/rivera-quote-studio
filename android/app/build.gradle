@@ -24,7 +24,7 @@ android {
     productFlavors {
         full {
             dimension 'app'
-            resValue 'string', 'app_name', 'Rivera Quotes'
+            resValue 'string', 'app_name', 'Rivera ERP'
             buildConfigField 'String', 'START_PAGE', '"index.html#home"'
         }
         courier {
