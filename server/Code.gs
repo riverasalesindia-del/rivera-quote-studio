@@ -942,6 +942,7 @@ function api(d) {
     return { ok: true };
   }
   /* ---- private document store (seeded once from Dropbox with a short-lived key) ---- */
+  if (a === "pubSubmit" || a === "pubFile") return pub71(d);
   if (a === "filePut" && d.seed) { if (!seedOk(d.seed)) throw "Seed key expired"; return filePut(d, "dropbox-seed", true); }
   if (a === "fileList" && d.seed) { if (!seedOk(d.seed)) throw "Seed key expired"; return { ok: true, files: fileList() }; }
   /* ---- signed-in actions ---- */
@@ -1104,10 +1105,10 @@ function setup() { secret(); users(); sessions(); sheet("Log", ["time", "email",
 
 /* ================= p28: business records (GrowSmart-style) — leads & follow-ups, repair jobs, purchase orders, stock, tasks ================= */
 var RCH = ["id", "kind", "no", "data", "by", "at", "del"];
-var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN", cq: "CQ", sr: "RT", wk: "WK", wd: "DU", cr: "CR", ho: "HO", fa: "FA", vlt: "VL", qap: "QA", qtr: "TR", pret: "PR", pcs: "CS", cert: "CE", rm: "RM" };
+var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN", cq: "CQ", sr: "RT", wk: "WK", wd: "DU", cr: "CR", ho: "HO", fa: "FA", vlt: "VL", qap: "QA", qtr: "TR", pret: "PR", pcs: "CS", cert: "CE", rm: "RM", lv: "LVR", onb: "NE", vis: "VS", appt: "AP", tqs: "TQ", cw: "CW", pl: "PL", mg: "MG", vr: "VR", mkt: "MK", dc: "DC" };
 /* who may see / change each kind (admin always) — salaries and books stay with admin + finance */
 var REC_ACCESS = { vlt: ["-"], fa: ["finance", "operation"], qap: ["operation"], qtr: ["operation"], pret: ["operation", "finance"], pcs: ["operation", "finance"], cert: ["finance"], emp: ["finance"], att: ["finance"], sal: ["finance"], exp: ["finance"], bill: ["finance"], spay: ["finance"], inv: ["finance", "sales"], rcpt: ["finance", "sales"] };
-var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase", cq: "compq", sr: "salesret", fa: "assets62", vlt: "vault", qap: "quality", qtr: "quality", pret: "pur62", pcs: "pur62", cert: "hrx" };
+var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase", cq: "compq", sr: "salesret", fa: "assets62", vlt: "vault", qap: "quality", qtr: "quality", pret: "pur62", pcs: "pur62", cert: "hrx", onb: "hrx", tqs: "tqs71", cw: "coil71", pl: "coil71", mg: "gate71", vr: "vreg71", mkt: "mkt71", dc: "docs71" };
 function recCan(kind, me) {
   if (me.role === "admin" || me.email === ADMIN) return true;
   if (OPEN62.indexOf(kind) >= 0) return true;
@@ -1115,7 +1116,7 @@ function recCan(kind, me) {
   if (P.length) { var pg = KIND_PAGE[kind]; if (!pg) return true; return P.some(function (x) { return x === pg || x.indexOf(pg + ".") === 0; }) || (kind === "item" || kind === "move") && P.some(function (x) { return /^jobs|^purchase/.test(x); }) || kind === "inv" && P.some(function (x) { return x.indexOf("purchase.so") === 0 || x.indexOf("purchase.dn") === 0; }); }
   var a = REC_ACCESS[kind]; return !a || a.indexOf(me.role) >= 0;
 }
-var REC_NO = { cr: "RCM/CR/", pret: "RCM/PR/", pcs: "RCM/CS/", qtr: "RCM/TR/", qap: "RCM/QAP/", ho: "HO/", po: "RCM/PO/", job: "RJ/", inv: "RCM/INV/", svc: "SR/", proj: "PRJ/", sal: "SAL/", so: "RCM/SO/", dn: "RCM/DN/", sr: "RCM/CN/" };
+var REC_NO = { mg: "RCM/GP/", vr: "VR/", pl: "PL/", lv: "LV/", vis: "VS/", onb: "NE/", appt: "AP/", tqs: "RCM/TQ/", cr: "RCM/CR/", pret: "RCM/PR/", pcs: "RCM/CS/", qtr: "RCM/TR/", qap: "RCM/QAP/", ho: "HO/", po: "RCM/PO/", job: "RJ/", inv: "RCM/INV/", svc: "SR/", proj: "PRJ/", sal: "SAL/", so: "RCM/SO/", dn: "RCM/DN/", sr: "RCM/CN/" };
 function recSheet() { var sh = sheet("Records", RCH); tdbFmt(sh, RCH.length); return sh; }
 function recRows() { return fastRead("Records", RCH, recSheet); }
 function recOut(r) { var o = {}; try { o = JSON.parse(r.data || "{}"); } catch (e) { } o.id = r.id; o.kind = r.kind; o.no = r.no; o.by = r.by; o.at = r.at; return o; }
@@ -1226,7 +1227,7 @@ function recDigest() {
 /* ================= p62: Work Board inside Quote Studio — work given to people, Today's plan, evening daily update (From / To time
    for every work), courier register, handover, asset register, password vault (encrypted in the browser), QAP & test reports,
    HR certificates, purchase comparative statement & purchase return. Each login sees only its own work; admin sees everything. ================= */
-var OPEN62 = ["wk", "wd", "cr", "ho", "rm"];
+var OPEN62 = ["wk", "wd", "cr", "ho", "rm", "lv", "vis", "appt"];
 function data62(r) { try { return JSON.parse(r.data || "{}"); } catch (e) { return {}; } }
 function md62() { return String(props().getProperty("WORK_MD") || "info@rivera.co.in").toLowerCase(); }
 /* who is part of a record: the giver and the receiver of a work, the writer of a daily update, the sender / receiver of a courier,
@@ -1238,20 +1239,33 @@ function own62(r, me) {
   if (r.kind === "cr") return x.forEmail === e || x.byEmail === e || r.by === e;
   if (r.kind === "ho") return x.emp === e || x.to === e;
   if (r.kind === "rm") return x.who === e || r.by === e;
+  if (r.kind === "lv") return x.who === e || r.by === e || lvApprovers71().indexOf(e) >= 0 || (x.handTo || []).indexOf(e) >= 0;
+  if (r.kind === "vis" || r.kind === "appt") return x.host === e || r.by === e;
   return true;
 }
 function vis62(r, me) {
+  if (r.kind === "dc" && /^HR/.test(data62(r).folder || "")) return me.role === "admin" || me.email === ADMIN || me.role === "finance" || userPages(me).some(function (p) { return /^hrx/.test(p); });
   if (OPEN62.indexOf(r.kind) < 0) return true;
   if (me.role === "admin" || me.email === ADMIN || me.role === "viewer" || me.email === md62()) return true;
   var P = userPages(me);
   if (r.kind === "cr" && P.indexOf("courier.all") >= 0) return true;
   if (r.kind === "ho" && P.indexOf("handover.approve") >= 0) return true;
+  if ((r.kind === "vis" || r.kind === "appt") && P.indexOf("courier.all") >= 0) return true;
   if ((r.kind === "wk" || r.kind === "wd" || r.kind === "rm") && P.indexOf("work.dash") >= 0 && P.indexOf("work.team") >= 0) return true;
   return own62(r, me);
 }
 function link62(tab) { return SITE + "#" + (tab || "work"); }
 function mails62(kind, x, before, r, me, mails) {
   var nm = esc(me.name || me.email);
+  if (kind === "lv") {
+    var days = esc(x.from) + (x.to && x.to !== x.from ? " to " + esc(x.to) : "") + (x.half ? " (half day)" : "");
+    if (x.status === "applied" && (!before || before.status !== "applied")) lvApprovers71().filter(function (a) { return a !== me.email; }).forEach(function (a) { mails.push([a, "Leave request: " + clean(x.whoName || x.who, 40) + " · " + clean(x.from, 12), "<p><b>" + esc(x.whoName || x.who) + "</b> asks for <b>" + esc(x.type || "leave") + "</b> on <b>" + days + "</b>.</p><p>Reason: " + esc(x.reason || "-") + "</p>" + btn(link62("leave"), "Approve / reject", "#1e8e3e")]); });
+    if (before && before.status !== x.status && (x.status === "approved" || x.status === "rejected") && /@/.test(x.who || "") && x.who !== me.email) mails.push([x.who, "Leave " + x.status + ": " + clean(x.from, 12), "<p>Your leave on <b>" + days + "</b> was <b style='color:" + (x.status === "approved" ? "#1e8e3e" : "#c0392b") + "'>" + x.status + "</b> by " + nm + ".</p>" + (x.status === "approved" ? "<p>Now hand over your work for those days to someone in another department.</p>" + btn(link62("leave"), "Hand over my work", "#02315B") : (x.note ? "<p>Note: " + esc(x.note) + "</p>" : ""))]);
+  }
+  if (kind === "vis" && !before) {
+    var vh = "<p><b>" + esc(x.name || "A visitor") + "</b>" + (x.org ? " from " + esc(x.org) : "") + " is at the gate" + (x.purpose ? " for " + esc(x.purpose) : "") + ".</p><p>Mobile: " + esc(x.mobile || "-") + (x.appt ? " · has an appointment" : "") + "</p>" + btn(link62("visitors"), "Open visitors", "#02315B");
+    [x.host, ADMIN].filter(function (e, i, a) { return /@/.test(e || "") && a.indexOf(e) === i; }).forEach(function (to) { mails.push([to, "Visitor at the gate: " + clean(x.name, 40) + (x.org ? " (" + clean(x.org, 40) + ")" : ""), vh]); });
+  }
   if (kind === "wk") {
     if (/@/.test(x.to || "") && x.to !== me.email && (!before || before.to !== x.to) && x.src !== "plan" && x.src !== "courier")
       mails.push([x.to, "New work for you: " + clean(x.title, 110), "<p><b>" + nm + "</b> gave you this work:</p><p style='font-size:16px'><b>" + esc(x.title) + "</b></p>" + (x.details ? "<p>" + esc(x.details) + "</p>" : "") + (x.due ? "<p>Finish by <b>" + esc(String(x.due).replace("T", " ")) + "</b></p>" : "") + btn(SITE + "#plan", "Open my work", "#02315B")]);
@@ -1277,6 +1291,53 @@ function mails62(kind, x, before, r, me, mails) {
 /* everybody work can be given to (staff list from the old Work Board, kept by the admin) */
 function staff62() { try { return JSON.parse(props().getProperty("STAFF62") || "[]"); } catch (e) { return []; } }
 function crNotify62() { return String(props().getProperty("COURIER_NOTIFY") || "agm@rivera.co.in,purchase@rivera.co.in").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /@/.test(s); }); }
+function lvApprovers71() { return String(props().getProperty("LEAVE_APPROVERS") || "agm@rivera.co.in,hr@rivera.co.in").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /@/.test(s); }); }
+function pubKey71(kind) { return hmac("pub71|" + kind).replace(/[^A-Za-z0-9]/g, "").slice(0, 20); }
+/* no-login forms: new employee (onb) and visitor (vis) — only with the key printed in the link / QR */
+function pub71(d) {
+  var kind = d.kind === "vis" ? "vis" : d.kind === "onb" ? "onb" : ""; if (!kind || !eq(String(d.k || ""), pubKey71(kind))) throw "This link is not valid. Ask the office for a new one.";
+  var cache = CacheService.getScriptCache(), ck = "pub71:" + kind + ":" + String(d.who || "").slice(0, 40), n = Number(cache.get(ck) || 0); if (n > 30) throw "Too many tries. Please wait a few minutes.";
+  cache.put(ck, String(n + 1), 600);
+  if (d.action === "pubFile") { var b = String(d.b64 || ""); if (!b || b.length > 7e6) throw "Each file must be under 5 MB"; var id = "pub_" + kind + "_" + Utilities.getUuid().replace(/-/g, "").slice(0, 16); filePut({ id: id, name: String(d.name || "file").slice(0, 120), type: String(d.type || "application/octet-stream").slice(0, 80), b64: b }, "public-" + kind, false); return { ok: true, id: id }; }
+  var x = d.data || {}; if (!String(x.name || "").trim()) throw "Write your name";
+  ["id", "no", "by", "at", "_del", "del"].forEach(function (k) { delete x[k]; });
+  if (kind === "vis") { var okHost = team62().map(function (u) { return u.email; }).concat(staff62().map(function (u) { return u.email; })); if (okHost.indexOf(String(x.host || "").toLowerCase()) < 0) x.host = ""; }
+  Object.keys(x).forEach(function (k) { if (typeof x[k] === "string") x[k] = x[k].slice(0, 2000); });
+  x.kind = kind; x.src = "public"; x.at71 = new Date().toISOString(); if (kind === "vis") { x.status = "waiting"; x.inAt = x.at71; } else x.status = "submitted";
+  var sys = { email: "public@rivera.form", name: String(x.name).slice(0, 60) + " (form)", role: "admin" };
+  var out = recPut({ recs: [x] }, sys);
+  if (kind === "onb") { var hr = String(props().getProperty("HR_MAIL") || "hr@rivera.co.in"); try { mail(hr, APP + " — New employee form: " + clean(x.name, 50), "<p><b>" + esc(x.name) + "</b> filled the joining form" + (x.designation ? " (" + esc(x.designation) + ")" : "") + ".</p>" + btn(link62("hrx"), "Open HR ▸ New employees", "#02315B")); } catch (e) { } }
+  return { ok: true, no: (out.recs && out.recs[0] && out.recs[0].no) || "" };
+}
+/* every record type as a readable Excel-style register (Google Sheet "Rivera ERP registers", one tab per type) — refreshed every evening and on demand */
+var REG71 = { lead: "Leads", so: "Sales orders", dn: "Delivery notes", inv: "Invoices", rcpt: "Receipts", po: "Purchase orders", item: "Stock items", move: "Stock movements", job: "Repair jobs", wk: "Work", wd: "Daily work updates", cr: "Courier register", ho: "Handovers", fa: "Asset register", qtr: "Test reports", tqs: "Sales test sheets", emp: "Employees", onb: "New employees", lv: "Leave", vis: "Visitors", appt: "Appointments", cw: "Coil calculations", pl: "Production log", mg: "Material gate pass", vr: "Vendor registration", mkt: "Marketing", dc: "Documents", bill: "Supplier bills", exp: "Expenses", svc: "Service calls", pret: "Purchase returns", pcs: "Comparative statements", cert: "Certificates" };
+function regs71() {
+  var id = props().getProperty("REG71_SS"), ss = null; try { if (id) ss = SpreadsheetApp.openById(id); } catch (e) { ss = null; }
+  if (!ss) { ss = SpreadsheetApp.create("Rivera ERP registers"); props().setProperty("REG71_SS", ss.getId()); }
+  var all = recRows().filter(function (r) { return r.del !== "1"; }), n = 0;
+  Object.keys(REG71).forEach(function (k) {
+    var L = all.filter(function (r) { return r.kind === k; }).map(recOut); if (!L.length) return;
+    var cols = ["no", "at", "by"], seen = {}; L.forEach(function (o) { Object.keys(o).forEach(function (c) { if (["id", "kind", "no", "at", "by", "log", "vault", "enc", "b64"].indexOf(c) < 0 && !seen[c]) { seen[c] = 1; cols.push(c); } }); });
+    cols = cols.slice(0, 60);
+    var rows = [cols].concat(L.map(function (o) { return cols.map(function (c) { var v = o[c]; if (v === undefined || v === null) return ""; if (typeof v === "object") v = Array.isArray(v) ? v.map(function (z) { return typeof z === "object" ? (z.title || z.name || z.desc || z.item || JSON.stringify(z)) : z; }).join("; ") : JSON.stringify(v); return String(v).slice(0, 4000); }); }));
+    var sh = ss.getSheetByName(REG71[k]) || ss.insertSheet(REG71[k]); sh.clear(); sh.getRange(1, 1, rows.length, cols.length).setValues(rows); sh.getRange(1, 1, 1, cols.length).setFontWeight("bold").setBackground("#dbe7f3"); sh.setFrozenRows(1); n++;
+  });
+  var F = fileList(); if (F.length) { var fs = ss.getSheetByName("Files") || ss.insertSheet("Files"); fs.clear(); var fr = [["id", "name", "type", "size KB", "kind", "updated"]].concat(F.map(function (f) { return [f.id, f.name, f.type, Math.round(f.size / 1024), f.kind, f.updated]; })); fs.getRange(1, 1, fr.length, 6).setValues(fr); fs.getRange(1, 1, 1, 6).setFontWeight("bold").setBackground("#dbe7f3"); fs.setFrozenRows(1); }
+  var d1 = ss.getSheetByName("Sheet1"); if (d1 && ss.getSheets().length > 1) ss.deleteSheet(d1);
+  log("automation", "registers", n + " registers");
+  return { ok: true, url: ss.getUrl(), n: n };
+}
+/* 8:30 — AGM and HR: birthdays and wedding anniversaries today */
+function hrDates71() {
+  var md = Utilities.formatDate(new Date(), "Asia/Kolkata", "MM-dd"), E = rows62("emp").filter(function (e) { return e.status !== "left"; });
+  var b = E.filter(function (e) { return String(e.dob || "").slice(5, 10) === md; }), a = E.filter(function (e) { return e.marital === "Married" && String(e.marDate || "").slice(5, 10) === md; });
+  if (!b.length && !a.length) return;
+  var li = function (L, f) { return L.map(function (e) { return "<li><b>" + esc(e.name) + "</b>" + (e.designation ? " · " + esc(e.designation) : "") + (e.dept ? " · " + esc(e.dept) : "") + (f(e) ? " · " + f(e) : "") + "</li>"; }).join(""); };
+  var yrs = function (d) { var y = Number(String(d || "").slice(0, 4)); return y ? (new Date().getFullYear() - y) + " years" : ""; };
+  var html = (b.length ? "<h3 style='color:#E26A0C'>🎂 Birthday today</h3><ul>" + li(b, function (e) { return yrs(e.dob); }) + "</ul>" : "") + (a.length ? "<h3 style='color:#7b3fa0'>💐 Wedding anniversary today</h3><ul>" + li(a, function (e) { return yrs(e.marDate); }) + "</ul>" : "");
+  String(props().getProperty("HRDATE_TO") || "agm@rivera.co.in,hr@rivera.co.in").split(",").forEach(function (to) { to = to.trim(); if (/@/.test(to)) try { mail(to, "Today: " + (b.length ? b.length + " birthday" + (b.length > 1 ? "s" : "") : "") + (b.length && a.length ? " & " : "") + (a.length ? a.length + " anniversar" + (a.length > 1 ? "ies" : "y") : ""), html); } catch (e) { } });
+  log("automation", "hr-dates", b.length + " birthdays, " + a.length + " anniversaries");
+}
 function approvers62(tok) {
   var v = users().getDataRange().getValues(), out = [];
   for (var i = 1; i < v.length; i++) { var u = {}; UH.forEach(function (k, j) { u[k] = v[i][j]; }); if (u.status === "approved" && userPages(u).indexOf(tok) >= 0) out.push(String(u.email).toLowerCase()); }
@@ -1289,8 +1350,10 @@ function team62() {
   return out;
 }
 function work62Install() {
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (["workMorning62", "workPlans62", "workRemind62", "workEvening62"].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (["workMorning62", "workPlans62", "workRemind62", "workEvening62", "hrDates71", "regs71"].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger("workMorning62").timeBased().atHour(9).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
+  ScriptApp.newTrigger("hrDates71").timeBased().atHour(8).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
+  ScriptApp.newTrigger("regs71").timeBased().atHour(19).nearMinute(15).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("workPlans62").timeBased().atHour(10).nearMinute(45).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("workRemind62").timeBased().atHour(18).nearMinute(0).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("workEvening62").timeBased().atHour(18).nearMinute(35).everyDays(1).inTimezone("Asia/Kolkata").create();
@@ -1365,6 +1428,9 @@ function workEvening62() {
 }
 function work62Api(d, me) {
   if (d.op === "team") return { ok: true, team: team62(), md: md62(), courier: crNotify62(), staff: staff62() };
+  if (d.op === "pubkeys") { if (!(me.role === "admin" || me.email === ADMIN || userPages(me).some(function (p) { return /^(hrx|courier\.all)/.test(p); }))) throw "Only admin, HR or security"; return { ok: true, onb: pubKey71("onb"), vis: pubKey71("vis") }; }
+  if (d.op === "lvappr") return { ok: true, list: lvApprovers71() };
+  if (d.op === "regs") { if (!(me.role === "admin" || me.email === ADMIN || me.role === "finance")) throw "Only admin"; return regs71(); }
   /* Reminder / pending-approval list: the person taps "Send to email" — it goes to MD sir only, as an image + table */
   if (d.op === "shareImg") {
     var b64 = String(d.b64 || ""); if (!b64 || b64.length > 7e6) throw "Image missing or too large";
@@ -1379,6 +1445,6 @@ function work62Api(d, me) {
   if (d.op === "install") return work62Install();
   if (d.op === "staff") { var sl = (Array.isArray(d.staff) ? d.staff : []).filter(function (s) { return s && /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/i.test(String(s.email || "")); }).slice(0, 400).map(function (s) { return { email: String(s.email).trim().toLowerCase(), name: clean(s.name || s.email, 60), dept: clean(s.dept || "", 40) }; }); props().setProperty("STAFF62", JSON.stringify(sl)); return { ok: true, n: sl.length }; }
   if (d.op === "courier") { var cl = String(d.to || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(s); }); if (!cl.length) throw "Enter at least one email"; props().setProperty("COURIER_NOTIFY", cl.join(",")); return { ok: true, to: cl }; }
-  if (d.op === "run") { var f = { morning: workMorning62, plans: workPlans62, remind: workRemind62, evening: workEvening62 }[d.job]; if (!f) throw "Unknown job"; f(); return { ok: true }; }
+  if (d.op === "run") { var f = { morning: workMorning62, plans: workPlans62, remind: workRemind62, evening: workEvening62, hrdates: hrDates71 }[d.job]; if (!f) throw "Unknown job"; f(); return { ok: true }; }
   throw "Unknown";
 }

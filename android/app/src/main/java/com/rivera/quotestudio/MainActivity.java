@@ -48,7 +48,7 @@ import java.util.List;
  */
 public class MainActivity extends Activity {
     private static final String HOST = "appassets.androidplatform.net";
-    private static final String START = "https://" + HOST + "/assets/www/index.html#home";
+    private static final String START = "https://" + HOST + "/assets/www/" + BuildConfig.START_PAGE;
     private static final int REQ_FILES = 1001;
     private static final long MAX_SHARE_BYTES = 30L * 1024 * 1024;
 
