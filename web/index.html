@@ -13172,6 +13172,130 @@ body.pub73{background:linear-gradient(#02315B,#02315B) top / 100% 210px no-repea
 /* the company visited also shows on the visitor list and gate pass */
 { const _g = gatePass71; gatePass71 = async function (x) { if (x.company && !/Company visiting/.test(x.purpose || "")) x = { ...x, org: x.org, designation: x.designation, purpose: (x.purpose || "") + " · Company visiting: " + x.company + (x.district ? " · From: " + x.district + (x.state ? ", " + x.state : "") : "") }; return _g.call(this, x); }; }
 
+
+/* ===================== p74: the QR / link forms look and work like a Google Form — banner, title card, one card per question,
+   radio choices, underline answers, "* Indicates required question", Submit + Clear form; typed answers kept on the phone ===================== */
+pubPage71 = async function () {
+  const P = PUB71, onb = P.kind === "onb", KEEP = "rqs.pub74." + P.kind;
+  document.title = onb ? "Rivera Group - New employee joining form" : "Rivera Group - Visitor entry";
+  document.body.className = "pub71 gf74";
+  let r = {}; try { r = JSON.parse(localStorage.getItem(KEEP) || "{}") || {}; } catch { }
+  r = { nationality: "Indian", ...r };
+  /* question types: text tel email number date textarea select radio state district */
+  const VQ = [
+    ["sec", "Company"],
+    ["company", "Company you are visiting", "radio", CO73, 1],
+    ["sec", "Your details"],
+    ["name", "Full name", "text", null, 1], ["mobile", "Mobile number", "tel", null, 1, "10-digit mobile"], ["org", "Your company / organisation", "text", null, 1], ["designation", "Designation", "text"], ["email", "Email", "email"],
+    ["state", "State", "state", null, 1], ["district", "District", "district", null, 1], ["town", "City / town", "text"], ["nationality", "Nationality", "text"],
+    ["sec", "Visit details"],
+    ["type", "You are a", "radio", VTYPE71, 1], ["dept", "Whom do you want to meet?", "select", [...DEPT71.map(x => x[0]), "MD sir"], 1], ["meet", "Person's name (if you know)", "text"], ["purpose", "Purpose of visit", "textarea", null, 1], ["persons", "Number of persons with you", "number"], ["appt", "Appointment number (if any)", "text"],
+    ["sec", "Vehicle, items & photo"],
+    ["vehicle", "Vehicle number", "text"], ["asset", "Laptop / pen drive / tools you are carrying", "text"], ["photo", "Your photo", "photo"]];
+  const OQ = [["sec", "Company"], ["company", "Joining company", "radio", CO73, 1], ...ONBF71.flatMap(([h, F]) => [["sec", h], ...F.map(([k, l, t, o]) => [k, l.replace(/ \*$/, ""), t === "select" ? "select" : t, t === "select" ? (o || []).filter(z => (Array.isArray(z) ? z[0] : z) !== "") : o, / \*$/.test(l) ? 1 : 0])]), ["sec", "Documents"], ...DOCS71.map(([k, l]) => ["doc:" + k, l.replace(/ \*$/, ""), "doc", null, / \*$/.test(l) ? 1 : 0])];
+  const Q = onb ? OQ : VQ;
+  const opt = o => Array.isArray(o) ? o : [o, o];
+  const qh = q => { const [k, l, t, o, req, ph] = q, v = r[k] ?? "", L = `<div class="gf-l">${esc(l)}${req ? ' <span class="gf-r">*</span>' : ""}</div>`;
+    if (k === "sec") return `<div class="gf-sec">${esc(l)}</div>`;
+    let inner;
+    if (t === "radio") inner = `<div class="gf-rad">${o.map(x => { const [ov, ol] = opt(x); return `<label><input type="radio" name="gf_${k}" value="${esc(ov)}" ${String(v) === String(ov) ? "checked" : ""}><i></i><span>${esc(ol)}</span></label>`; }).join("")}</div>`;
+    else if (t === "select") inner = `<select class="gf-in gf-sel" data-k="${k}"><option value="">Choose</option>${o.map(x => { const [ov, ol] = opt(x); return `<option value="${esc(ov)}" ${String(v) === String(ov) ? "selected" : ""}>${esc(ol)}</option>`; }).join("")}</select>`;
+    else if (t === "state") inner = `<select class="gf-in gf-sel" data-k="${k}" data-st71="1"><option value="">Choose</option>${ST71.map(s => `<option ${s === v ? "selected" : ""}>${esc(s)}</option>`).join("")}</select>`;
+    else if (t === "district") inner = `<select class="gf-in gf-sel" data-k="${k}" data-di71="1"><option value="">${r.state ? "Choose" : "Choose the state first"}</option>${dist71(r.state).map(s => `<option ${s === v ? "selected" : ""}>${esc(s)}</option>`).join("")}</select>`;
+    else if (t === "textarea") inner = `<textarea class="gf-in" data-k="${k}" rows="1" placeholder="Your answer">${esc(v)}</textarea>`;
+    else if (t === "photo" || t === "doc") inner = `<label class="gf-up"><input type="file" accept="${t === "photo" ? "image/*" : "image/*,.pdf"}" ${t === "photo" ? 'capture="user"' : ""} data-up="${k}" ${/edu|exp|other/.test(k) ? "multiple" : ""} hidden><span>⤒ Add file</span><small data-upn="${k}">${t === "photo" ? "Take a selfie with your phone" : "Photo or PDF, under 5 MB"}</small></label>`;
+    else inner = `<input class="gf-in" data-k="${k}" type="${t === "number" ? "number" : t === "date" ? "date" : t === "tel" ? "tel" : t === "email" ? "email" : "text"}" ${t === "tel" ? 'inputmode="numeric" maxlength="14"' : ""} value="${esc(v)}" placeholder="${esc(ph || "Your answer")}">`;
+    return `<div class="gf-q" data-q="${k}">${L}${inner}<div class="gf-err">This is a required question</div></div>`; };
+  document.body.innerHTML = `<div class="gf-w"><div class="gf-ban"><img src="${LOGO73}" alt=""><div><b>RIVERA GROUP OF COMPANIES</b><span>Rivera Coil Manufacturing (I) Pvt Ltd · Rivera Coil Rewinding</span></div></div>
+    <div class="gf-card gf-title"><h1>${onb ? "New Employee Joining Form" : "Visitor Entry Form"}</h1><p>${onb ? "FORM IV - Employee register [See rule 51(3)]. Fill every detail and upload your documents at the end. HR will check and call you." : "Welcome to Rivera. Please fill this form before entering. Security will check your details and give your gate pass."}</p><div class="gf-meta"><span id="gf74c"></span><span class="gf-r">* Indicates required question</span></div></div>
+    <form id="gf74f" autocomplete="on" onsubmit="return false">${Q.map(qh).join("")}
+      <div class="gf-q gf-agree" data-q="agree"><label class="gf-chk"><input type="checkbox" id="gf74ag"><i></i><span>${onb ? "I declare that the details given above are true." : "I will follow the safety rules, wear the visitor card and stay with my host inside."} <span class="gf-r">*</span></span></label><div class="gf-err">Please tick this box</div></div>
+      <div class="gf-act"><button type="button" class="gf-sub" id="gf74s">Submit</button><button type="button" class="gf-clr" id="gf74x">Clear form</button></div><p class="gf-net" id="gf74n"></p></form>
+    <p class="gf-foot">Rivera Group of Companies · Your details are used only for ${onb ? "employment records" : "entry and safety records"}.</p><div id="toasts"></div></div>`;
+  const F = $("#gf74f");
+  const clk = () => { const c = $("#gf74c"); if (c) c.textContent = new Date().toLocaleString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit" }); }; clk(); setInterval(clk, 20000);
+  $$("[data-st71]", F).forEach(s => s.addEventListener("change", () => { const d = $("[data-di71]", F); if (d) { const L = dist71(s.value); d.innerHTML = `<option value="">Choose</option>` + L.map(x => `<option>${esc(x)}</option>`).join(""); } }));
+  $$("textarea.gf-in", F).forEach(t => { const g = () => { t.style.height = "auto"; t.style.height = t.scrollHeight + "px"; }; t.addEventListener("input", g); g(); });
+  const collect = () => { const x = readForm28(F, {}); delete x[""]; Q.filter(q => q[2] === "radio").forEach(([k]) => { x[k] = $(`input[name="gf_${k}"]:checked`, F)?.value || ""; }); return x; };
+  const keep = () => { try { localStorage.setItem(KEEP, JSON.stringify(collect())); } catch { } };
+  F.addEventListener("input", keep); F.addEventListener("change", e => { keep(); const q = e.target.closest(".gf-q"); if (q) q.classList.remove("bad"); });
+  $$("[data-up]", F).forEach(i => i.onchange = () => { const n = $(`[data-upn="${i.dataset.up}"]`, F); n.textContent = [...i.files].map(f => (f.size > 5e6 ? "⚠ too big: " : "✓ ") + f.name).join(", ") || "No file"; i.closest(".gf-q").classList.remove("bad"); });
+  const net = () => { $("#gf74n").textContent = navigator.onLine ? "" : "No internet right now - your answers are kept on this phone. Tap Submit when the signal is back."; }; net(); addEventListener("online", net); addEventListener("offline", net);
+  $("#gf74x").onclick = () => { if (!confirm("Clear all your answers?")) return; try { localStorage.removeItem(KEEP); } catch { } r = { nationality: "Indian" }; pubPage71(); };
+  const call = async (a, body, t) => { for (let k = 0; ; k++) { try { return await AUTH.call(a, body, t); } catch (e) { if (k >= 2 || !/internet|responding|reach/i.test(e.message)) throw e; await new Promise(z => setTimeout(z, 2500 * (k + 1))); } } };
+  $("#gf74s").onclick = async e => {
+    const btn = e.target, x = collect(); let first = null;
+    $$(".gf-q", F).forEach(q => q.classList.remove("bad"));
+    Q.forEach(([k, , t, , req]) => { if (!req || k === "sec") return; const ok = t === "doc" || t === "photo" ? $(`[data-up="${k}"]`, F).files.length : String(x[k] || "").trim(); if (!ok) { const q = $(`[data-q="${CSS.escape(k)}"]`, F); q.classList.add("bad"); first ||= q; } });
+    const mob = String(x.mobile || x.phone || "").replace(/\D/g, ""); if (mob && mob.slice(-10).length < 10) { const q = $(`[data-q="${x.mobile !== undefined ? "mobile" : "phone"}"]`, F); q.classList.add("bad"); $(".gf-err", q).textContent = "Write a 10-digit mobile number"; first ||= q; }
+    if (!$("#gf74ag").checked) { const q = $('[data-q="agree"]', F); q.classList.add("bad"); first ||= q; }
+    if (first) { first.scrollIntoView({ behavior: "smooth", block: "center" }); return; }
+    if (!navigator.onLine) return toast("No internet - your answers are kept. Tap Submit when the signal is back.", "bad");
+    btn.disabled = true; btn.textContent = "Sending…";
+    try {
+      const up = async (f, label) => { const fl = await shrink71(f, 1600); if (fl.size > 5e6) throw new Error(f.name + " is bigger than 5 MB"); const d = await call("pubFile", { kind: P.kind, k: P.k, who: x.mobile || x.phone || x.name, name: fl.name, type: fl.type, b64: await b6462(fl) }, 120000); return { id: d.id, label, name: fl.name, type: fl.type }; };
+      if (onb) { x.files = []; for (const [k, l] of DOCS71) for (const f of $(`[data-up="doc:${k}"]`, F).files) { btn.textContent = "Uploading " + l.replace(" *", "") + "…"; x.files.push({ doc: k, ...(await up(f, l.replace(" *", ""))) }); } }
+      else { const p = $('[data-up="photo"]', F).files[0]; if (p) { btn.textContent = "Sending photo…"; x.photo = (await up(p, "Photo")).id; } const d = DEPT71.find(z => z[0] === x.dept); x.host = d ? d[1] : x.dept === "MD sir" ? "info@rivera.co.in" : ""; x.hostName = x.meet || x.dept; }
+      btn.textContent = "Submitting…"; const d = await call("pubSubmit", { kind: P.kind, k: P.k, who: x.mobile || x.phone || x.name, data: x }, 60000);
+      try { localStorage.removeItem(KEEP); } catch { }
+      const when = new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+      F.outerHTML = `<div class="gf-card gf-done"><h2>${onb ? "Your joining form has been submitted" : "Your entry has been recorded"}</h2>${onb ? `<p>Thank you, <b>${esc(x.name)}</b>. Form <b>${esc(d.no || "")}</b> for <b>${esc(x.company)}</b> reached HR.</p>` : `<p>Thank you, <b>${esc(x.name)}</b>. Please show this to security at the gate.</p><div class="p73-pass"><small>ENTRY NO.</small><b>${esc(d.no || "")}</b><span>${esc(x.company)}</span><span>To meet: ${esc(x.hostName || "")}</span><span>${esc(when)}</span></div>`}<a href="${esc(location.href)}" class="gf-again">Submit another response</a></div>`;
+      scrollTo(0, 0);
+    } catch (er) { toast(er.message + " - your answers are kept, tap Submit again", "bad"); btn.disabled = false; btn.textContent = "Submit"; }
+  };
+};
+document.head.insertAdjacentHTML("beforeend", `<style>
+body.gf74{background:#f0ebe4;margin:0;font-family:Roboto,Arial,sans-serif;color:#202124}
+.gf-w{max-width:680px;margin:0 auto;padding:12px 12px 30px}
+.gf-ban{background:linear-gradient(120deg,#02315B 0%,#0b4a85 70%,#E26A0C 140%);border-radius:10px;min-height:120px;display:flex;align-items:center;gap:16px;padding:18px 20px;color:#fff;margin-bottom:12px}
+.gf-ban img{width:72px;height:72px;background:#fff;border-radius:16px;padding:5px;flex:0 0 auto}.gf-ban b{display:block;font-size:21px;letter-spacing:.6px}.gf-ban span{font-size:13px;opacity:.9}
+.gf-card,.gf-q{background:#fff;border:1px solid #dadce0;border-radius:8px;padding:22px 24px;margin-bottom:12px}
+.gf-title{border-top:10px solid #E26A0C;padding-top:20px}.gf-title h1{margin:0 0 10px;font-size:30px;font-weight:400;color:#202124}.gf-title p{margin:0;font-size:14px;line-height:1.5;color:#3c4043}
+.gf-meta{display:flex;justify-content:space-between;gap:10px;flex-wrap:wrap;border-top:1px solid #dadce0;margin-top:14px;padding-top:12px;font-size:13px;color:#5f6368}
+.gf-r{color:#d93025}
+.gf-sec{background:#02315B;color:#fff;border-radius:8px 8px 0 0;padding:10px 24px;font-size:15px;font-weight:500;margin:20px 0 0;display:inline-block}
+.gf-sec+.gf-q{border-top-left-radius:0}
+.gf-l{font-size:16px;font-weight:400;margin-bottom:14px;line-height:1.4}
+.gf-in{width:100%;box-sizing:border-box;border:0;border-bottom:1px solid #dadce0;padding:6px 0;font:inherit;font-size:15px;background:transparent;outline:0;transition:border-color .2s;resize:none;overflow:hidden}
+.gf-in:focus{border-bottom:2px solid #02315B;padding-bottom:5px}.gf-in::placeholder{color:#80868b}
+.gf-sel{max-width:320px;border:1px solid #dadce0;border-radius:4px;padding:10px 12px;background:#fff}.gf-sel:focus{border:2px solid #02315B;padding:9px 11px}
+.gf-rad{display:flex;flex-direction:column;gap:2px}.gf-rad label,.gf-chk{display:flex;align-items:center;gap:12px;cursor:pointer;padding:8px 0;font-size:15px}
+.gf-rad input,.gf-chk input{position:absolute;opacity:0}.gf-rad i{width:20px;height:20px;border:2px solid #5f6368;border-radius:50%;flex:0 0 auto;box-sizing:border-box;display:grid;place-items:center}
+.gf-rad input:checked+i{border-color:#02315B}.gf-rad input:checked+i::after{content:"";width:10px;height:10px;border-radius:50%;background:#02315B}
+.gf-chk i{width:20px;height:20px;border:2px solid #5f6368;border-radius:3px;flex:0 0 auto;box-sizing:border-box;display:grid;place-items:center}.gf-chk input:checked+i{background:#02315B;border-color:#02315B}.gf-chk input:checked+i::after{content:"✓";color:#fff;font-size:14px;font-weight:700}
+.gf-up span{display:inline-block;border:1px solid #dadce0;border-radius:4px;padding:9px 18px;color:#02315B;font-weight:500;cursor:pointer}.gf-up small{display:block;color:#5f6368;margin-top:8px;font-size:13px}
+.gf-err{display:none;color:#d93025;font-size:12.5px;margin-top:10px}.gf-q.bad{border-color:#d93025}.gf-q.bad .gf-err{display:block}.gf-q.bad .gf-in{border-bottom-color:#d93025}
+.gf-act{display:flex;justify-content:space-between;align-items:center;margin-top:8px}
+.gf-sub{background:#02315B;color:#fff;border:0;border-radius:4px;padding:11px 26px;font-size:15px;font-weight:500;cursor:pointer;box-shadow:0 1px 2px rgba(0,0,0,.2)}.gf-sub:disabled{opacity:.7}
+.gf-clr{background:none;border:0;color:#02315B;font-size:14px;font-weight:500;cursor:pointer;padding:10px}
+.gf-net{color:#d93025;font-size:13px;margin:10px 0 0}.gf-foot{text-align:center;color:#5f6368;font-size:12px;margin-top:20px}
+.gf-done{border-top:10px solid #1e8e3e}.gf-done h2{font-weight:400;font-size:24px;margin:0 0 10px}.gf-again{display:inline-block;margin-top:16px;color:#02315B}
+@media(max-width:560px){.gf-card,.gf-q{padding:18px 16px}.gf-title h1{font-size:24px}.gf-ban{min-height:96px;padding:14px}.gf-ban img{width:56px;height:56px}.gf-ban b{font-size:17px}.gf-sec{padding:9px 16px}}
+</style>`);
+
+
+/* ===================== p75: Work update edit box — Enter starts a new update line with today's date (like "21.11.26 - "), Shift+Enter = plain new line;
+   the later lines show as indented sub-points under the work ===================== */
+const stamp75 = () => { const d = new Date(); return [d.getDate(), d.getMonth() + 1, d.getFullYear() % 100].map(n => String(n).padStart(2, "0")).join(".") + " - "; };
+addEventListener("keydown", e => {
+  const t = e.target; if (!t || !t.classList?.contains("o72-ta") || e.key !== "Enter" || e.ctrlKey || e.metaKey || e.altKey || e.isComposing) return;
+  if (e.shiftKey) return;
+  e.preventDefault(); const a = t.selectionStart, b = t.selectionEnd, ins = "\n    " + stamp75();
+  t.value = t.value.slice(0, a) + ins + t.value.slice(b); t.selectionStart = t.selectionEnd = a + ins.length; t.dispatchEvent(new Event("input"));
+}, true);
+{
+  const _w = wireUpd65;
+  wireUpd65 = function (v) {
+    _w.apply(this, arguments);
+    $$(".o68-ttl", v).forEach(sp => { const pen = sp.querySelector(".o68-pen"), txt = [...sp.childNodes].filter(n => n.nodeType === 3).map(n => n.nodeValue).join(""); const L = txt.split("\n"); if (L.length < 2) return;
+      sp.innerHTML = esc(L[0]) + L.slice(1).filter(l => l.trim()).map(l => `<span class="o75-sub">${esc(l.trim())}</span>`).join("") + (pen ? pen.outerHTML : ""); });
+    const h = $(".o72-h", v); if (h) h.textContent = "Enter = new line with today's date · Shift+Enter = plain new line · tap outside or Ctrl+Enter = save · Esc = cancel";
+  };
+  /* the hint is added when the box opens - keep it in step */
+  new MutationObserver(() => $$(".o72-h").forEach(h => { if (!/today's date/.test(h.textContent)) h.textContent = "Enter = new line with today's date · Shift+Enter = plain new line · tap outside or Ctrl+Enter = save · Esc = cancel"; })).observe(document.body, { childList: true, subtree: true });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.o75-sub{display:block;margin:3px 0 0 18px;padding-left:10px;border-left:3px solid #f4c7a6;font-weight:400;color:#3c4043}.o68-ttl{white-space:normal}</style>`);
+
 boot();
 
 </script>
