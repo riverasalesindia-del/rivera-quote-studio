@@ -17,6 +17,24 @@ android {
         versionName "1.0.${runNo}"
     }
 
+    buildFeatures { buildConfig true }
+
+    /* two apps from one code: the full Rivera app, and a Rivera Courier app for security (opens straight on the courier / visitor gate) */
+    flavorDimensions 'app'
+    productFlavors {
+        full {
+            dimension 'app'
+            resValue 'string', 'app_name', 'Rivera Quotes'
+            buildConfigField 'String', 'START_PAGE', '"index.html#home"'
+        }
+        courier {
+            dimension 'app'
+            applicationIdSuffix '.courier'
+            resValue 'string', 'app_name', 'Rivera Courier'
+            buildConfigField 'String', 'START_PAGE', '"index.html?app=courier#courier"'
+        }
+    }
+
     signingConfigs {
         release {
             if (ksPath) {
