@@ -13096,6 +13096,82 @@ const GATE72 = () => adm62() || ["agm@rivera.co.in", "hr@rivera.co.in"].includes
   R.forEach(r => { const _v = VIEWS[r]; VIEWS[r] = v => { if (!GATE72()) { v.innerHTML = top62("Work Board", r === "courier" ? "Courier" : "Visitors", "") + `<section class="panel"><div class="empty"><b>Only Admin, AGM and HR</b>Courier and Visitors are kept with Admin (security), AGM and HR. Ask them if a courier or visitor is for you.</div></section>`; return; } _v(v); }; });
 }
 
+
+/* ===================== p73: the no-login visitor / joining forms look professional — Rivera Group logo, live date & time,
+   which company (Rivera Coil Manufacturing / Rivera Coil Rewinding), State → District, works on any network (kept on the phone and sent when the internet is back) ===================== */
+const CO73 = ["Rivera Coil Manufacturing (I) Pvt Ltd", "Rivera Coil Rewinding"];
+const LOGO73 = "icons/icon-512.png";
+pubPage71 = async function () {
+  const P = PUB71, onb = P.kind === "onb", KEEP = "rqs.pub73." + P.kind;
+  document.title = onb ? "Rivera Group - New employee joining form" : "Rivera Group - Visitor entry";
+  document.body.className = "pub71 pub73";
+  document.body.innerHTML = `<div class="pub71-w"><header class="p73-h"><img src="${LOGO73}" alt="Rivera" class="p73-logo"><div class="p73-ht"><b>RIVERA GROUP OF COMPANIES</b><span>Rivera Coil Manufacturing (I) Pvt Ltd · Rivera Coil Rewinding</span></div><div class="p73-clock" id="p73c"></div></header>
+    <div class="p73-title"><h1>${onb ? "New Employee Joining Form" : "Visitor Entry"}</h1><p>${onb ? "FORM IV · Employee register [See rule 51(3)]" : "Fill your details · Security will give your gate pass"}</p></div><div id="pub71b"></div>
+    <footer class="p73-f">© Rivera Group of Companies · Your details are used only for entry and safety records.</footer><div id="toasts"></div></div>`;
+  const clk = () => { const c = $("#p73c"); if (c) c.innerHTML = `<b>${new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}</b><span>${new Date().toLocaleDateString("en-IN", { weekday: "short", day: "2-digit", month: "short", year: "numeric" })}</span>`; }; clk(); setInterval(clk, 15000);
+  let r = {}; try { r = JSON.parse(localStorage.getItem(KEEP) || "{}").r || {}; } catch { }
+  r = { nationality: "Indian", ...(onb ? {} : { type: "Customer" }), ...r };
+  const B = $("#pub71b"), coSel = `<label class="f p73-co">${onb ? "Joining company *" : "Company you are visiting *"}<div class="p73-cos">${CO73.map(c => `<label class="p73-c"><input type="radio" name="co73" value="${esc(c)}" ${r.company === c ? "checked" : ""}><span><img src="${LOGO73}" alt=""><b>${esc(c)}</b></span></label>`).join("")}</div></label>`;
+  const sec = (n, h, inner) => `<section class="p73-s"><h2><i>${n}</i>${esc(h)}</h2>${inner}</section>`;
+  if (!onb) {
+    B.innerHTML = `<div class="pub71-f">${sec(1, "Which company", coSel)}
+      ${sec(2, "Your details", `<div class="fields">${[["name", "Full name *", "text"], ["mobile", "Mobile *", "tel"], ["org", "Company / organisation *", "text"], ["designation", "Designation", "text"], ["email", "Email", "email"], ["nationality", "Nationality", "text"], ["state", "State *", "state"], ["district", "District *", "district"], ["town", "City / town", "text"]].map(f => pubField71(f, r)).join("")}</div>`)}
+      ${sec(3, "Visit details", `<div class="fields">${[["type", "You are a", "select", VTYPE71], ["dept", "Whom to meet (department) *", "select", ["", ...DEPT71.map(x => x[0]), "MD sir"]], ["meet", "Person's name (if you know)", "text"], ["purpose", "Purpose of visit *", "text"], ["persons", "No. of persons with you", "number"], ["appt", "Appointment no. (if any)", "text"]].map(f => pubField71(f, r)).join("")}</div>`)}
+      ${sec(4, "Vehicle, items & photo", `<div class="fields">${[["vehicle", "Vehicle no.", "text"], ["asset", "Laptop / pen drive / tools with you", "text"]].map(f => pubField71(f, r)).join("")}</div><label class="btn pub71-ph">📷 Take your photo<input type="file" accept="image/*" capture="user" id="pub71ph" hidden></label> <span id="pub71phn" class="small muted"></span>`)}
+      <label class="pub71-ok"><input type="checkbox" id="pub71ag"> I will follow the safety rules, wear the visitor card and stay with my host inside.</label>
+      <button type="button" class="btn primary pub71-s" id="pub71s">Submit entry</button><p class="p73-net" id="p73n"></p></div>`;
+  } else {
+    B.innerHTML = `<div class="pub71-f"><p class="pub71-n">Welcome to Rivera! Please fill this form fully, upload your documents at the end and tap Submit. HR will check it.</p>${sec(1, "Joining company", coSel)}
+      ${ONBF71.map(([h, F], k) => sec(k + 2, h, `<div class="fields">${F.map(f => pubField71(f, r)).join("")}</div>`)).join("")}
+      ${sec(ONBF71.length + 2, "Upload documents", `<p class="small muted" style="margin-top:0">Photo or PDF, each under 5 MB. Take a clear photo with your phone.</p><div class="pub71-docs">${DOCS71.map(([k, l]) => `<label class="pub71-doc"><span>${esc(l)}</span><input type="file" accept="image/*,.pdf" data-doc="${k}" ${["edu", "other", "exp"].includes(k) ? "multiple" : ""}><small data-docn="${k}"></small></label>`).join("")}</div>`)}
+      <label class="pub71-ok"><input type="checkbox" id="pub71ag"> I declare that the details given above are true.</label>
+      <button type="button" class="btn primary pub71-s" id="pub71s">Submit</button><p class="p73-net" id="p73n"></p></div>`;
+    $$("[data-doc]", B).forEach(i => i.onchange = () => { $(`[data-docn="${i.dataset.doc}"]`, B).textContent = [...i.files].map(f => f.name + (f.size > 5e6 ? " (too big!)" : "")).join(", "); });
+  }
+  enh71(B); $$("[data-st71]", B).forEach(wireState71);
+  /* everything typed is kept on the phone, so a weak network never loses it */
+  const keep = () => { try { const x = readForm28(B, {}); x.company = $('input[name="co73"]:checked', B)?.value || ""; localStorage.setItem(KEEP, JSON.stringify({ r: x, at: Date.now() })); } catch { } };
+  B.addEventListener("input", keep); B.addEventListener("change", keep);
+  const net = () => { const n = $("#p73n"); if (n) n.innerHTML = navigator.onLine ? "" : "● No internet right now - your details are kept on this phone. Submit when the signal is back."; }; net(); addEventListener("online", net); addEventListener("offline", net);
+  const ph = $("#pub71ph", B); if (ph) ph.onchange = () => { $("#pub71phn").textContent = ph.files[0] ? "✓ " + ph.files[0].name : ""; };
+  const call = async (a, body, t) => { for (let k = 0; ; k++) { try { return await AUTH.call(a, body, t); } catch (e) { if (k >= 2 || !/internet|responding|reach/i.test(e.message)) throw e; await new Promise(z => setTimeout(z, 2500 * (k + 1))); } } };
+  $("#pub71s", B).onclick = async e => {
+    const btn = e.target, x = readForm28(B, {}); delete x[""]; x.company = $('input[name="co73"]:checked', B)?.value || "";
+    if (!x.company) { toast(onb ? "Choose the joining company" : "Choose the company you are visiting", "bad"); $(".p73-cos", B).scrollIntoView({ block: "center" }); return; }
+    const need = onb ? [["name", "name"], ["gender", "gender"], ["father", "father's / spouse name"], ["dob", "date of birth"], ["marital", "married / unmarried"], ["phone", "mobile"], ["addrNow", "present address"], ["state", "state"], ["district", "district"], ["aadhaar", "Aadhaar no."], ["bank", "bank account"]] : [["name", "name"], ["mobile", "mobile"], ["org", "company / organisation"], ["state", "state"], ["district", "district"], ["dept", "whom to meet"], ["purpose", "purpose"]];
+    const miss = need.find(([k]) => !String(x[k] || "").trim()); if (miss) { toast("Please fill: " + miss[1], "bad"); const el = $(`[data-k="${miss[0]}"]`, B); el?.focus(); el?.scrollIntoView({ block: "center" }); return; }
+    if (!/^\d{10}$/.test(String(x.mobile || x.phone || "").replace(/\D/g, "").slice(-10))) return toast("Write a 10-digit mobile number", "bad");
+    if (!$("#pub71ag", B).checked) return toast("Tick the box at the end", "bad");
+    if (onb && !$('[data-doc="photo"]', B).files.length) return toast("Add your photo", "bad");
+    if (!navigator.onLine) return toast("No internet - your details are kept. Tap Submit when the signal is back.", "bad");
+    btn.disabled = true; btn.textContent = "Sending…";
+    try {
+      const up = async (f, label) => { const fl = await shrink71(f, 1600); if (fl.size > 5e6) throw new Error(f.name + " is bigger than 5 MB"); const d = await call("pubFile", { kind: P.kind, k: P.k, who: x.mobile || x.phone || x.name, name: fl.name, type: fl.type, b64: await b6462(fl) }, 120000); return { id: d.id, label, name: fl.name, type: fl.type }; };
+      if (onb) { x.files = []; for (const [k, l] of DOCS71) for (const f of $(`[data-doc="${k}"]`, B).files) { btn.textContent = "Uploading " + l.replace(" *", "") + "…"; x.files.push({ doc: k, ...(await up(f, l.replace(" *", ""))) }); } }
+      else { if (ph?.files[0]) { btn.textContent = "Sending photo…"; x.photo = (await up(ph.files[0], "Photo")).id; } const d = DEPT71.find(z => z[0] === x.dept); x.host = d ? d[1] : x.dept === "MD sir" ? "info@rivera.co.in" : ""; x.hostName = x.meet || x.dept; }
+      btn.textContent = "Saving…"; const d = await call("pubSubmit", { kind: P.kind, k: P.k, who: x.mobile || x.phone || x.name, data: x }, 60000);
+      try { localStorage.removeItem(KEEP); } catch { }
+      const when = new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
+      B.innerHTML = `<div class="pub71-f pub71-done"><img src="${LOGO73}" alt="" style="width:72px"><div style="font-size:46px">✅</div><h2>Thank you, ${esc(x.name)}!</h2>${onb ? `<p>Your joining form <b>${esc(d.no || "")}</b> for <b>${esc(x.company)}</b> reached HR. HR will call you if anything is missing.</p>` : `<div class="p73-pass"><small>ENTRY NO.</small><b>${esc(d.no || "")}</b><span>${esc(x.company)}</span><span>To meet: ${esc(x.hostName || "")}</span><span>${esc(when)}</span></div><p>Please show this screen at the security gate.</p>`}</div>`;
+    } catch (er) { toast(er.message + " - your details are kept, try Submit again", "bad"); btn.disabled = false; btn.textContent = "Submit"; }
+  };
+};
+document.head.insertAdjacentHTML("beforeend", `<style>
+body.pub73{background:linear-gradient(#02315B,#02315B) top / 100% 210px no-repeat,#eef2f7;min-height:100vh}
+.p73-h{display:flex;align-items:center;gap:12px;color:#fff;padding:6px 2px 14px}.p73-logo{width:56px;height:56px;background:#fff;border-radius:14px;padding:4px;flex:0 0 auto}
+.p73-ht{flex:1;min-width:0;display:flex;flex-direction:column}.p73-ht b{font-size:17px;letter-spacing:.6px}.p73-ht span{font-size:12px;opacity:.85}
+.p73-clock{text-align:right;display:flex;flex-direction:column;font-size:11px;opacity:.95}.p73-clock b{font-size:18px}
+.p73-title{color:#fff;margin:0 2px 12px}.p73-title h1{margin:0;font-size:24px}.p73-title p{margin:2px 0 0;opacity:.85;font-size:13.5px}
+.p73-s{border:1px solid #e3e9f1;border-radius:12px;padding:12px 14px 14px;margin-bottom:12px}.p73-s h2{margin:0 0 10px;font-size:15px;color:#02315B;display:flex;align-items:center;gap:8px}.p73-s h2 i{font-style:normal;background:#E26A0C;color:#fff;border-radius:50%;width:24px;height:24px;display:inline-grid;place-items:center;font-size:13px}
+.p73-cos{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:6px}.p73-c{cursor:pointer}.p73-c input{position:absolute;opacity:0}.p73-c span{display:flex;align-items:center;gap:10px;border:2px solid #cfd8e3;border-radius:12px;padding:12px;font-weight:600;color:#02315B;min-height:58px}.p73-c img{width:34px;height:34px}
+.p73-c input:checked+span{border-color:#E26A0C;background:#fff4ec;box-shadow:0 0 0 3px rgba(226,106,12,.15)}.p73-co{font-weight:700}
+@media(max-width:520px){.p73-cos{grid-template-columns:1fr}.p73-title h1{font-size:21px}.p73-ht b{font-size:15px}}
+.p73-net{color:#c0392b;font-size:13px;text-align:center;margin:8px 0 0}.p73-f{text-align:center;font-size:11.5px;color:#7a8595;margin:14px 0 24px}
+.p73-pass{border:2px dashed #02315B;border-radius:14px;padding:14px;margin:12px auto;max-width:320px;display:flex;flex-direction:column;gap:3px}.p73-pass small{color:#5d6878;letter-spacing:1px}.p73-pass b{font-size:26px;color:#E26A0C}
+</style>`);
+/* the company visited also shows on the visitor list and gate pass */
+{ const _g = gatePass71; gatePass71 = async function (x) { if (x.company && !/Company visiting/.test(x.purpose || "")) x = { ...x, org: x.org, designation: x.designation, purpose: (x.purpose || "") + " · Company visiting: " + x.company + (x.district ? " · From: " + x.district + (x.state ? ", " + x.state : "") : "") }; return _g.call(this, x); }; }
+
 boot();
 
 </script>
