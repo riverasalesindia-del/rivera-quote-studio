@@ -12521,7 +12521,7 @@ const pubUrl71 = (kind, key) => `${(window.__RIVERA_LINKS__ || {}).site || "http
 async function pubKeys71() { if (W71.keys) return W71.keys; W71.keys = await AUTH.call("work62", { op: "pubkeys" }); return W71.keys; }
 let QR71 = null;
 async function qr71(text, size = 220) { try { if (!window.QRious) { QR71 ||= loadScript("https://cdnjs.cloudflare.com/ajax/libs/qrious/4.0.2/qrious.min.js"); await QR71; } return new window.QRious({ value: text, size, level: "M" }).toDataURL(); } catch { return ""; } }
-const canGate71 = () => adm62() || pg62("courier.all") || pg62("visitors");
+let canGate71 = () => adm62() || pg62("courier.all") || pg62("visitors");
 VIEWS.visitors = v => {
   bizSync28(); team62();
   const U = BIZ.ui, t = todayISO(), me = me28(), gate = canGate71(), q = U.vs71q || "";
@@ -13057,6 +13057,44 @@ function recPanel71(x) {
     tb.insertAdjacentHTML("afterend", `<div class="note" id="ca71" style="margin:0 0 12px">📱 <b>Rivera Courier app</b> for the security phone: <a href="${esc(u)}" target="_blank" rel="noopener">download the APK</a> · it opens straight on Courier, with Visitors one tap away. <button type="button" class="btn sm" data-copy="${esc(u)}">Copy link</button></div>`); } catch { } };
 }
 
+
+
+/* ===================== p72: Work update - editing a work is a multi-line box (Enter = new line);
+   Courier and Visitors only for Admin, AGM and HR; each department sees only Work Board + its own section ===================== */
+{
+  const _w = wireUpd65;
+  wireUpd65 = function (v) {
+    _w.apply(this, arguments); const S = W62.u65; if (!S) return; const I = S.items;
+    $$("[data-ttl]", v).forEach(sp => sp.onclick = () => {
+      const i = I[+sp.dataset.ttl]; if (!i || i.state === "dropped") return;
+      const ta = document.createElement("textarea"); ta.className = "o68-ttlin o72-ta"; ta.value = i.title; ta.maxLength = 1500; ta.dataset.enterOwn = "1";
+      const hint = document.createElement("small"); hint.className = "o72-h"; hint.textContent = "Enter = new line · tap outside or Ctrl+Enter = save · Esc = cancel";
+      sp.replaceWith(ta); ta.after(hint);
+      const grow = () => { ta.style.height = "auto"; ta.style.height = Math.max(64, ta.scrollHeight + 2) + "px"; }; grow(); ta.addEventListener("input", grow);
+      ta.focus(); ta.setSelectionRange(ta.value.length, ta.value.length);
+      let done = false;
+      const fin = ok => { if (done) return; done = true;
+        const t = ta.value.split("\n").map(l => l.trim().replace(/[ \t]+/g, " ")).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+        if (ok && t && t !== i.title) { i.title = t; if (updMine65()?.submittedAt) S.dirty68 = 1; keep65(); toast("Changed - it is kept"); }
+        const y = scrollY; render(); scrollTo(0, y); };
+      ta.onkeydown = e => { if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) { e.preventDefault(); fin(true); } else if (e.key === "Escape") { e.preventDefault(); fin(false); } };
+      ta.onblur = () => fin(true);
+    });
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.o68-ttl{white-space:pre-line}.o72-ta{min-height:64px;resize:vertical;font:inherit;line-height:1.45;display:block}.o72-h{display:block;color:#5d6878;font-size:11.5px;margin-top:3px}</style>`);
+
+/* Courier + Visitors & appointments: Admin, AGM and HR only */
+const GATE72 = () => adm62() || ["agm@rivera.co.in", "hr@rivera.co.in"].includes(me28()) || (myDepts63?.() || []).includes("hr");
+{
+  const R = ["courier", "visitors"];
+  const k = ALWAYS34.indexOf("visitors"); if (k >= 0) ALWAYS34.splice(k, 1);
+  DEPT63.hr.extra.push("courier.all", "visitors"); DEPT63.mgmt.extra.push("visitors");
+  const _co = cardOk32; cardOk32 = function (c) { if (c && R.includes(c[1])) return GATE72() && _co.apply(this, arguments); return _co.apply(this, arguments); };
+  const _al = allowed21; allowed21 = function (r) { if (R.includes(r)) return GATE72(); return _al.apply(this, arguments); };
+  canGate71 = () => GATE72();
+  R.forEach(r => { const _v = VIEWS[r]; VIEWS[r] = v => { if (!GATE72()) { v.innerHTML = top62("Work Board", r === "courier" ? "Courier" : "Visitors", "") + `<section class="panel"><div class="empty"><b>Only Admin, AGM and HR</b>Courier and Visitors are kept with Admin (security), AGM and HR. Ask them if a courier or visitor is for you.</div></section>`; return; } _v(v); }; });
+}
 
 boot();
 
