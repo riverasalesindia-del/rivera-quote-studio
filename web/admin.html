@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>Rivera ERP · Admin</title>
+<title>Rivera Quote Studio · Admin</title>
 <meta name="description" content="Rivera Coil Manufacturing sales app — scan quotations, build quote workings, issue quotations, file to Synology.">
 <meta name="theme-color" content="#02315B">
 <meta name="mobile-web-app-capable" content="yes">
@@ -11745,7 +11745,7 @@ async function allLogins64(btn) {
   const _r = render;
   render = function () { _r(); try { if (STATE.route !== "users" || !AUTH.isAdmin) return; const v = $("#view"); if (!v || $("#al64", v)) return; const host = $("#q58", v); if (!host) return;
     host.insertAdjacentHTML("beforebegin", `<section class="panel" id="al64"><header><h2>Department logins</h2><button type="button" class="btn primary" id="al64b">${icon("mail")}Create all + email them</button></header><div class="body"><p class="small muted" style="margin-top:0">Each department gets one login with only its own section, Work Board, Handover and Courier. The mail has the username, a temporary password and the app link (website, Android, Windows); they set their own password at the first sign-in.</p><div class="al64g">${LOGINS64.map(([em, nm, d]) => `<span><b>${esc(nm)}</b><small>${esc(em)} · ${esc(d.map(x => DEPT63[x].name).join(", "))}</small></span>`).join("")}</div><div id="al64o" class="small" style="margin-top:8px"></div></div></section>`);
-    $("#al64b", v).onclick = e => allLogins64(e.target); } catch (e) { console.warn("p64", e); } };
+    $("#al64b", v).onclick = e => allLogins64(e.target); } catch (e) { console.warn("p78", e); } };
 }
 document.head.insertAdjacentHTML("beforeend", `<style>
 .sc64{position:fixed;inset:0;background:rgba(2,49,91,.55);display:grid;place-items:center;z-index:9999}.sc64>div{background:var(--surface,#fff);border-radius:14px;padding:22px 26px;display:flex;flex-direction:column;align-items:center;gap:8px;min-width:260px}.sc64 small{color:var(--muted)}
@@ -13057,7 +13057,7 @@ function recPanel71(x) {
     tb.insertAdjacentHTML("afterend", `<div class="note" id="ca71" style="margin:0 0 12px">📱 <b>Rivera Courier app</b> for the security phone: <a href="${esc(u)}" target="_blank" rel="noopener">download the APK</a> · it opens straight on Courier, with Visitors one tap away. <button type="button" class="btn sm" data-copy="${esc(u)}">Copy link</button></div>`); } catch { } };
 }
 
-/* ===================== p72: Tender search — "On this page" summary strip (Tender247-style: total value, EMD, closing in 3 days, strong matches, already tracked;
+/* ===================== p78 (was p72 on this branch): Tender search — "On this page" summary strip (Tender247-style: total value, EMD, closing in 3 days, strong matches, already tracked;
    tap "closing in 3 days" to sort by closing) + press "/" on any tender page to jump straight to its search box (speed). Client-side only — no server change ===================== */
 function tdbSum64(B, S) {
   if ($(".s64", B)) return;
@@ -13084,7 +13084,7 @@ function tdbSum64(B, S) {
   VIEWS.tdb = v => {
     _tdb64(v);
     const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
-    try { tdbSum64(B, S); } catch (e) { console.warn("p64", e); }
+    try { tdbSum64(B, S); } catch (e) { console.warn("p78", e); }
   };
   addEventListener("keydown", e => {
     if (e.key !== "/" || e.ctrlKey || e.metaKey || e.altKey) return;
@@ -13103,7 +13103,7 @@ button.s64-hot{cursor:pointer;border-color:var(--copper,#E26A0C);background:rgba
 @media (max-width:560px){.s64-i{min-width:calc(50% - 4px)}}
 </style>`);
 
-/* ===================== p73: Tender search — your search words are highlighted in every row (buyer, item, city…) so the right tender is seen at a glance,
+/* ===================== p79 (was p73 on this branch): Tender search — your search words are highlighted in every row (buyer, item, city…) so the right tender is seen at a glance,
    and the next page is fetched quietly in the background, so "Next ›" opens instantly (Tender247-style speed). Client-side only — no server change ===================== */
 {
   const esc73 = w => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -13135,8 +13135,8 @@ button.s64-hot{cursor:pointer;border-color:var(--copper,#E26A0C);background:rgba
   VIEWS.tdb = v => {
     _tdb73(v);
     const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
-    try { hl73(B, S.f.q); } catch (e) { console.warn("p73 hl", e); }
-    try { pre73(S); } catch (e) { console.warn("p73 pre", e); }
+    try { hl73(B, S.f.q); } catch (e) { console.warn("p79 hl", e); }
+    try { pre73(S); } catch (e) { console.warn("p79 pre", e); }
   };
 }
 document.head.insertAdjacentHTML("beforeend", `<style>
@@ -13450,8 +13450,45 @@ async function recover77() {
 }
 { const _r = render; render = function () { _r.apply(this, arguments); try { if (signed26() && AUTH.api && !window.__rec77) setTimeout(recover77, 2500); } catch { } }; }
 
-boot();
+/* ===================== p80: Tender search speed — a small copy button next to every bid / tender no. (one tap copies it to paste on GeM / CPPP),
+   and ← / → keys open the Previous / Next page of results (when no box is being typed in). Client-side only — no server change ===================== */
+{
+  const copy80 = t => {
+    const ok = () => toast("Copied " + t);
+    if (navigator.clipboard?.writeText) return navigator.clipboard.writeText(t).then(ok, () => toast(t));
+    try { const a = document.createElement("textarea"); a.value = t; a.style.position = "fixed"; a.style.opacity = "0"; document.body.appendChild(a); a.select(); document.execCommand("copy"); a.remove(); ok(); } catch { toast(t); }
+  };
+  function cp80(B, S) {
+    const d = S.cache["q:" + JSON.stringify({ ...S.f, page: S.page, size: 50 })]?.d; if (!d?.rows?.length) return;
+    const trs = $$("table.t tbody > tr", B); if (trs.length !== d.rows.length) return;
+    trs.forEach((tr, i) => {
+      const r = d.rows[i], td = tr.children[1]; if (!r?.bid || !td || td.querySelector(".c80")) return;
+      const b = document.createElement("button"); b.type = "button"; b.className = "c80"; b.title = "Copy " + r.bid; b.setAttribute("aria-label", "Copy bid number " + r.bid); b.textContent = "⧉";
+      b.addEventListener("click", e => { e.preventDefault(); e.stopPropagation(); copy80(String(r.bid)); });
+      td.appendChild(b);
+    });
+  }
+  const _tdb80 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb80(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
+    try { cp80(B, S); } catch (e) { console.warn("p80", e); }
+  };
+  addEventListener("keydown", e => {
+    if ((e.key !== "ArrowLeft" && e.key !== "ArrowRight") || e.ctrlKey || e.metaKey || e.altKey || e.shiftKey) return;
+    if (STATE.route !== "tdb" || TDB().tab !== "search") return;
+    const t = e.target, tag = (t?.tagName || "").toLowerCase();
+    if (tag === "input" || tag === "textarea" || tag === "select" || t?.isContentEditable || document.querySelector("dialog[open],.modal.open")) return;
+    const btn = $(e.key === "ArrowLeft" ? "#tpv" : "#tnx"); if (!btn || btn.disabled || btn.offsetParent === null) return;
+    e.preventDefault(); btn.click(); scrollTo({ top: 0 });
+  });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+button.c80{margin-left:6px;padding:0 5px;border:1px solid var(--line,#e5e7eb);border-radius:6px;background:var(--soft,#f4f6f9);color:var(--muted,#6b7280);font-size:.8rem;line-height:1.4;cursor:pointer;vertical-align:middle}
+button.c80:hover{color:var(--copper,#E26A0C);border-color:var(--copper,#E26A0C)}
+</style>`);
 
+boot();
 </script>
 </body>
 </html>
