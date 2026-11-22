@@ -5,7 +5,7 @@
  * Passwords are hashed in the browser (PBKDF2-SHA256, 150k rounds) and again here (salted SHA-256 x 500).
  */
 var ADMIN = "crm@rivera.co.in";
-var APP = "Rivera Quote Studio";
+var APP = "Rivera ERP";
 var TOKEN_DAYS = 400, MAX_FAIL = 5, LOCK_MIN = 15, CHUNK = 45000;
 
 function props() { return PropertiesService.getScriptProperties(); }
@@ -353,7 +353,7 @@ function writeTableRaw(sh, H, rows) {
   var last = sh.getLastRow(); if (last > 1) sh.getRange(2, 1, last - 1, H.length).clearContent();
   if (!rows.length) return;
   if (sh.getMaxRows() < rows.length + 1) sh.insertRowsAfter(sh.getMaxRows(), rows.length + 1 - sh.getMaxRows());
-  sh.getRange(2, 1, rows.length, H.length).setNumberFormat("@").setValues(rows.map(function (r) { return H.map(function (k) { var x = r[k]; return x === undefined || x === null ? "" : String(x).slice(0, 1000); }); }));
+  sh.getRange(2, 1, rows.length, H.length).setNumberFormat("@").setValues(rows.map(function (r) { return H.map(function (k) { var x = r[k]; return x === undefined || x === null ? "" : String(x).slice(0, 49000); }); }));
 }
 function tstatus(r, today) { if (/cancel/i.test(r.status || "")) return "cancelled"; return r.closing && String(r.closing) < today ? "closed" : "live"; }
 function clean(s, n) { return String(s || "").replace(/\s+/g, " ").trim().slice(0, n || 300); }
@@ -1109,6 +1109,9 @@ var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task:
 /* who may see / change each kind (admin always) — salaries and books stay with admin + finance */
 var REC_ACCESS = { vlt: ["-"], fa: ["finance", "operation"], qap: ["operation"], qtr: ["operation"], pret: ["operation", "finance"], pcs: ["operation", "finance"], cert: ["finance"], emp: ["finance"], att: ["finance"], sal: ["finance"], exp: ["finance"], bill: ["finance"], spay: ["finance"], inv: ["finance", "sales"], rcpt: ["finance", "sales"] };
 var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase", cq: "compq", sr: "salesret", fa: "assets62", vlt: "vault", qap: "quality", qtr: "quality", pret: "pur62", pcs: "pur62", cert: "hrx", onb: "hrx", tqs: "tqs71", cw: "coil71", pl: "coil71", mg: "gate71", vr: "vreg71", mkt: "mkt71", dc: "docs71" };
+/* a department login (pages ticked) may still save what its role could save before pages were ticked - pages decide what it sees, not what breaks */
+function roleCan74(kind, me) { if (me.role === "viewer" || kind === "vlt") return false; var a = REC_ACCESS[kind]; return !a || a.indexOf(me.role) >= 0; }
+var KN74 = { lead: "lead", job: "work order", po: "purchase order / indent", item: "stock item", move: "stock entry", svc: "service call", inv: "invoice", rcpt: "receipt", exp: "expense", bill: "supplier bill", emp: "employee", so: "sales order", dn: "delivery note", wk: "work", wd: "work update", cr: "courier", ho: "handover", lv: "leave", vis: "visitor", appt: "appointment", qtr: "test report", tqs: "test sheet", mg: "gate pass", dc: "document", onb: "joining form" };
 function recCan(kind, me) {
   if (me.role === "admin" || me.email === ADMIN) return true;
   if (OPEN62.indexOf(kind) >= 0) return true;
@@ -1157,10 +1160,10 @@ function recPut(d, me) {
     list.forEach(function (rec) {
       var kind = rec.kind; if (!REC_KINDS[kind]) throw "Unknown record type";
       if (kind === "lead" && ["admin", "sales"].indexOf(me.role) < 0) throw "Only sales can change leads";
-      if (!recCan(kind, me) && !handoffOk(rec, all, me)) throw "Your login can't change this";
+      if (!recCan(kind, me) && !roleCan74(kind, me) && !handoffOk(rec, all, me)) { log(me.email, "denied", "save " + kind + " " + (rec.id || "new")); throw "Your login can't save " + (KN74[kind] || kind) + " - ask Admin to give this page"; }
       var r = rec.id ? all.filter(function (x) { return x.id === rec.id; })[0] : null, before = null;
       if (r) { try { before = JSON.parse(r.data || "{}"); } catch (e) { before = {}; } }
-      if (r && OPEN62.indexOf(kind) >= 0 && !vis62(r, me)) throw "Your login can't change this";
+      if (r && OPEN62.indexOf(kind) >= 0 && !vis62(r, me)) { log(me.email, "denied", "change " + kind + " " + r.id); throw "This " + (KN74[kind] || kind) + " belongs to someone else - only they (or Admin) can change it"; }
       if (!r) {
         var fy = fyShort(), pre = REC_NO[kind] ? REC_NO[kind] + fy + "/" : REC_KINDS[kind] + "-", seq = 0;
         all.forEach(function (x) { if (x.kind === kind && String(x.no).indexOf(pre) === 0) seq = Math.max(seq, Number(String(x.no).slice(pre.length)) || 0); });
@@ -1264,7 +1267,7 @@ function mails62(kind, x, before, r, me, mails) {
   }
   if (kind === "vis" && !before) {
     var vh = "<p><b>" + esc(x.name || "A visitor") + "</b>" + (x.org ? " from " + esc(x.org) : "") + " is at the gate" + (x.purpose ? " for " + esc(x.purpose) : "") + ".</p><p>Mobile: " + esc(x.mobile || "-") + (x.appt ? " · has an appointment" : "") + "</p>" + btn(link62("visitors"), "Open visitors", "#02315B");
-    [x.host, ADMIN].filter(function (e, i, a) { return /@/.test(e || "") && a.indexOf(e) === i; }).forEach(function (to) { mails.push([to, "Visitor at the gate: " + clean(x.name, 40) + (x.org ? " (" + clean(x.org, 40) + ")" : ""), vh]); });
+    [x.host, ADMIN].concat(lvApprovers71()).filter(function (e, i, a) { return /@/.test(e || "") && a.indexOf(e) === i; }).forEach(function (to) { mails.push([to, "Visitor at the gate: " + clean(x.name, 40) + (x.org ? " (" + clean(x.org, 40) + ")" : ""), vh]); });
   }
   if (kind === "wk") {
     if (/@/.test(x.to || "") && x.to !== me.email && (!before || before.to !== x.to) && x.src !== "plan" && x.src !== "courier")
@@ -1290,7 +1293,7 @@ function mails62(kind, x, before, r, me, mails) {
 }
 /* everybody work can be given to (staff list from the old Work Board, kept by the admin) */
 function staff62() { try { return JSON.parse(props().getProperty("STAFF62") || "[]"); } catch (e) { return []; } }
-function crNotify62() { return String(props().getProperty("COURIER_NOTIFY") || "agm@rivera.co.in,purchase@rivera.co.in").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /@/.test(s); }); }
+function crNotify62() { var L = String(props().getProperty("COURIER_NOTIFY") || "agm@rivera.co.in,purchase@rivera.co.in").split(",").concat(["agm@rivera.co.in", "hr@rivera.co.in"]).map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /@/.test(s); }); return L.filter(function (e, i) { return L.indexOf(e) === i; }); }
 function lvApprovers71() { return String(props().getProperty("LEAVE_APPROVERS") || "agm@rivera.co.in,hr@rivera.co.in").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /@/.test(s); }); }
 function pubKey71(kind) { return hmac("pub71|" + kind).replace(/[^A-Za-z0-9]/g, "").slice(0, 20); }
 /* no-login forms: new employee (onb) and visitor (vis) — only with the key printed in the link / QR */
@@ -1354,7 +1357,7 @@ function work62Install() {
   ScriptApp.newTrigger("workMorning62").timeBased().atHour(9).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("hrDates71").timeBased().atHour(8).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("regs71").timeBased().atHour(19).nearMinute(15).everyDays(1).inTimezone("Asia/Kolkata").create();
-  ScriptApp.newTrigger("workPlans62").timeBased().atHour(10).nearMinute(45).everyDays(1).inTimezone("Asia/Kolkata").create();
+  /* no 10:45 plans mail to MD any more - MD gets one combined report in the evening */
   ScriptApp.newTrigger("workRemind62").timeBased().atHour(18).nearMinute(0).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("workEvening62").timeBased().atHour(18).nearMinute(35).everyDays(1).inTimezone("Asia/Kolkata").create();
   props().setProperty("WORK62_ON", new Date().toISOString());
