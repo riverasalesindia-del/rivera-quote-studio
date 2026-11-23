@@ -13647,6 +13647,40 @@ function coil3d80(c) {
 }
 document.head.insertAdjacentHTML("beforeend", `<style>.c80{fill:none;stroke-linecap:round;stroke-linejoin:round}.c80s{margin-bottom:10px}</style>`);
 
+
+/* ===================== p81: visitor QR = 3 screens — 1) full-screen Welcome (auto, no button) 2) the form 3) full-screen Thank you;
+   printed gate pass fills the whole A4 page ===================== */
+{
+  const _pp = pubPage71;
+  pubPage71 = async function () {
+    if (!PUB71 || PUB71.kind !== "vis" || window.__w78) return _pp.apply(this, arguments);
+    document.title = "Welcome - Rivera Group of Companies"; document.body.className = "s81b";
+    document.body.innerHTML = `<div class="s81" id="s81"><img src="${LOGO73}" alt="Rivera"><p class="s81-k">WELCOME TO</p><h1>Rivera Group of Companies</h1><p class="s81-s">Rivera Coil Manufacturing (I) Pvt Ltd<br>Rivera Coil Rewinding</p><div class="s81-dots"><i></i><i></i><i></i></div></div>`;
+    const go = () => { if (window.__w78) return; window.__w78 = 1; document.body.className = ""; _pp.apply(this, arguments).then(() => scrollTo(0, 0)); };
+    $("#s81").onclick = go; setTimeout(go, 2600);
+  };
+  /* after submit: a full-screen thank-you page */
+  new MutationObserver(() => { const d = $(".d78"); if (!d || $("#t81")) return; const no = $(".d78-p b", d)?.textContent || "", when = $(".d78-p span", d)?.textContent || "", nm = (d.querySelector(".d78-t")?.textContent.match(/Companies, (.+)\.$/) || [])[1] || "";
+    document.body.className = "s81b"; document.body.innerHTML = `<div class="s81" id="t81"><div class="t81-i">✓</div><h1 class="t81-h">Your submission has been recorded.</h1><p class="t81-p">Thank you${nm ? ", <b>" + esc(nm) + "</b>" : ""} for visiting <b>Rivera Group of Companies</b>.</p>
+      ${no ? `<div class="t81-pass"><small>GATE PASS NO.</small><b>${esc(no)}</b><span>${esc(when)}</span></div>` : ""}<p class="t81-n">Thank you for visiting us. For everyone's safety, please wear your visitor card and stay with your host inside.<br>Our team has been informed. Have a pleasant visit.</p><img src="${LOGO73}" alt="" class="t81-l"></div>`; }).observe(document.documentElement, { childList: true, subtree: true });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+body.s81b{margin:0;background:radial-gradient(120% 90% at 50% 30%,#0b4a85 0%,#02315B 55%,#011d38 100%);min-height:100vh;font-family:Roboto,Arial,sans-serif}
+.s81{min-height:100vh;min-height:100dvh;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;color:#fff;padding:24px 20px;animation:f81 .6s ease}
+.s81 img{width:120px;height:120px;background:#fff;border-radius:28px;padding:10px;box-shadow:0 14px 40px rgba(0,0,0,.35)}.s81-k{letter-spacing:6px;font-size:14px;opacity:.8;margin:30px 0 6px}
+.s81 h1{font-size:34px;line-height:1.15;margin:0 0 12px;font-weight:700;max-width:520px}.s81-s{opacity:.85;font-size:15px;line-height:1.6;margin:0}
+.s81-dots{display:flex;gap:8px;margin-top:36px}.s81-dots i{width:8px;height:8px;border-radius:50%;background:#E26A0C;animation:d81 1s infinite alternate}.s81-dots i:nth-child(2){animation-delay:.2s}.s81-dots i:nth-child(3){animation-delay:.4s}
+.t81-i{width:84px;height:84px;border-radius:50%;background:#1e8e3e;font-size:46px;line-height:84px;box-shadow:0 0 0 10px rgba(30,142,62,.18)}.t81-h{margin-top:26px!important;font-size:26px!important}
+.t81-p{font-size:17px;opacity:.95;margin:0 0 18px;max-width:480px}.t81-pass{display:flex;flex-direction:column;border:2px dashed rgba(255,255,255,.55);border-radius:14px;padding:12px 28px;margin:0 0 20px}.t81-pass small{letter-spacing:2px;opacity:.75}.t81-pass b{font-size:26px;color:#ffb37a}.t81-pass span{font-size:13px;opacity:.8}
+.t81-n{font-size:14.5px;line-height:1.6;opacity:.85;max-width:460px;margin:0}.s81 .t81-l{width:56px;height:56px;border-radius:14px;padding:5px;margin-top:30px;box-shadow:none}
+@keyframes f81{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}@keyframes d81{from{opacity:.25}to{opacity:1}}
+</style>`);
+/* gate pass print fills the whole page */
+{
+  const _g = gatePass71;
+  gatePass71 = async function (x) { const o = printHtml28; printHtml28 = (t, inner) => o(t, inner.replace("<style>@page{size:A4;margin:12mm}", `<style>@page{size:A4;margin:10mm}.gp9{height:272mm;font-size:15px!important}.gp9 td{padding:10px 12px!important}.gp9 tr{height:11mm}.gp9 img[style*="110px;height:130px"]{width:150px!important;height:180px!important}.gp9 img[style*="110px;height:110px"]{width:150px!important;height:150px!important}`)); try { return await _g.apply(this, arguments); } finally { printHtml28 = o; } };
+}
+
 boot();
 
 </script>
