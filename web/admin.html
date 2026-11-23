@@ -13647,6 +13647,48 @@ function coil3d80(c) {
 }
 document.head.insertAdjacentHTML("beforeend", `<style>.c80{fill:none;stroke-linecap:round;stroke-linejoin:round}.c80s{margin-bottom:10px}</style>`);
 
+
+/* ===================== p81: visitor QR in 3 screens — 1) Welcome (dark, centred, opens the form by itself) 2) the form
+   3) dark centred Thank-you after Submit. Gate pass print fills the whole A4 page. ===================== */
+{
+  const _pp = pubPage71;
+  pubPage71 = async function () {
+    if (!PUB71 || PUB71.kind !== "vis" || window.__w78) return _pp();
+    document.title = "Welcome - Rivera Group of Companies"; document.body.className = "pub71 w81b";
+    document.body.innerHTML = `<div class="w81"><img src="${LOGO73}" alt="Rivera" class="w81-l"><p class="w81-k">WELCOME TO</p><h1>Rivera Group of Companies</h1><p class="w81-s">Rivera Coil Manufacturing (I) Pvt Ltd<br>Rivera Coil Rewinding</p><div class="w81-bar"><i></i></div><p class="w81-n">Opening the visitor entry…</p></div>`;
+    let gone = false; const go = async () => { if (gone) return; gone = true; window.__w78 = 1; await pubPage71(); scrollTo(0, 0); };
+    document.body.onclick = go; setTimeout(go, 2600);
+  };
+}
+/* thank-you screen: full dark page, centred */
+new MutationObserver(() => { const d = document.querySelector(".gf-done"); if (!d || d.dataset.w81 || PUB71?.kind !== "vis") return; d.dataset.w81 = 1;
+  const no = d.querySelector(".d78-p b")?.textContent || d.querySelector(".p73-pass b")?.textContent || "", nm = d.querySelector("p b")?.textContent || "";
+  document.body.className = "pub71 w81b";
+  document.body.innerHTML = `<div class="w81"><div class="w81-ok">✓</div><h1 class="w81-h">Your submission has been recorded</h1><p class="w81-t">Thank you for visiting us${nm ? ", " + esc(nm) : ""}.</p>
+    <p class="w81-m">For everyone's safety, please wear your visitor card and stay with your host inside the premises.</p>
+    ${no ? `<div class="w81-p"><small>GATE PASS NO.</small><b>${esc(no)}</b><span>${esc(new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }))}</span></div>` : ""}
+    <img src="${LOGO73}" alt="" class="w81-l sm"><p class="w81-s">Rivera Group of Companies</p></div>`; }).observe(document.documentElement, { childList: true, subtree: true });
+document.head.insertAdjacentHTML("beforeend", `<style>
+body.w81b{margin:0;min-height:100vh;background:radial-gradient(circle at 50% 30%,#0b4a85 0%,#02315B 55%,#011a33 100%) fixed;color:#fff;font-family:Roboto,Arial,sans-serif}
+.w81{min-height:100vh;box-sizing:border-box;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px 20px}
+.w81-l{width:112px;height:112px;background:#fff;border-radius:26px;padding:9px;box-shadow:0 14px 40px rgba(0,0,0,.35);animation:w81p .7s ease-out}.w81-l.sm{width:56px;height:56px;border-radius:14px;padding:5px;margin-top:28px;box-shadow:none;animation:none}
+.w81-k{letter-spacing:5px;font-size:13px;opacity:.85;margin:26px 0 6px}.w81 h1{font-size:34px;line-height:1.15;margin:0 0 10px;font-weight:700}.w81-s{opacity:.85;font-size:14.5px;line-height:1.5;margin:0}
+.w81-bar{width:160px;height:4px;border-radius:4px;background:rgba(255,255,255,.18);overflow:hidden;margin:34px 0 10px}.w81-bar i{display:block;height:100%;width:40%;background:#E26A0C;border-radius:4px;animation:w81b 1.2s ease-in-out infinite}.w81-n{font-size:12.5px;opacity:.7;margin:0}
+.w81-ok{width:84px;height:84px;border-radius:50%;background:#1e8e3e;font-size:46px;line-height:84px;box-shadow:0 10px 30px rgba(0,0,0,.3);animation:w81p .6s ease-out}
+.w81-h{font-size:27px!important;margin-top:22px!important}.w81-t{font-size:18px;margin:0 0 14px}.w81-m{max-width:420px;font-size:14.5px;line-height:1.55;opacity:.85;margin:0 0 20px}
+.w81-p{display:flex;flex-direction:column;gap:2px;border:2px dashed rgba(255,255,255,.55);border-radius:14px;padding:12px 26px}.w81-p small{letter-spacing:2px;opacity:.75;font-size:11px}.w81-p b{font-size:26px;color:#ffb06a}.w81-p span{font-size:12.5px;opacity:.8}
+@keyframes w81b{0%{transform:translateX(-100%)}100%{transform:translateX(260%)}}@keyframes w81p{from{transform:scale(.8);opacity:0}to{transform:none;opacity:1}}
+</style>`);
+
+/* gate pass print: same layout, filling the full A4 page */
+{
+  const _g = gatePass71;
+  gatePass71 = async function (x) {
+    const _p = printHtml28; printHtml28 = (t, inner) => _p(t, `<style>@page{size:A4 portrait;margin:8mm}html,body{height:100%;margin:0!important}.gp9{height:268mm;width:100%!important;table-layout:fixed;box-sizing:border-box;font-size:15px!important}.gp9 td{padding:10px 12px!important}.gp9 img[style*="130px"]{width:150px!important;height:180px!important}.gp9 img[style*="110px;height:110px"]{width:140px!important;height:140px!important}.gp9 b[style*="15px"]{font-size:20px!important}.gp9 span[style*="16px"]{font-size:20px!important;font-weight:700}</style>` + inner);
+    try { return await _g.apply(this, arguments); } finally { printHtml28 = _p; }
+  };
+}
+
 boot();
 
 </script>
