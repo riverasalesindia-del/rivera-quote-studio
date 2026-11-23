@@ -14547,6 +14547,33 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .q85{margin:14px 0}.q85 header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.q85 header .btn{margin-left:auto}
 </style>`);
 
+/* ===================== p86: completed work never comes back as pending - every Work update line linked to a Work Board work that is already
+   Completed (or cancelled) is treated as completed everywhere (carry-forward, "Pending from earlier", counts, dashboards); a line finished on an
+   earlier day under the same name is not carried again. Only really pending work is shown. ===================== */
+const nt86 = s => String(s || "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+function fix86() {
+  const W = all28("wd"); if (!W.length) return;
+  const doneBy = {}; W.slice().sort((a, b) => String(a.day).localeCompare(String(b.day))).forEach(w => (w.items || []).forEach(i => { if (i.state === "done") { const k = w.who + "|" + nt86(i.title); (doneBy[k] ||= []).push(w.day); } }));
+  W.forEach(w => (w.items || []).forEach(i => {
+    if (i.state === "done" || i.state === "dropped") return;
+    const wk = i.wk && BIZ.rows[i.wk];
+    if (wk && ["done", "cancelled"].includes(wk.status)) { i.state = "done"; i.pct = 100; i._auto86 = wk.status; return; }
+    if (+i.pct >= 100) { i.state = "done"; i._auto86 = "100"; return; }
+    if (i.carried) { const d = doneBy[w.who + "|" + nt86(i.title)] || []; if (d.some(x => x >= (i.since || "0") && x < w.day)) { i.state = "done"; i.pct = 100; i._auto86 = "earlier"; } }
+  }));
+}
+{
+  const _u = updItems65;
+  updItems65 = function () {
+    const cached = W62.u65 && W62.u65.day === todayISO(); fix86();
+    const L = _u.apply(this, arguments); if (cached || !Array.isArray(L)) return L;
+    const doneEarlier = i => { const wk = i.wk && BIZ.rows[i.wk]; return (wk && ["done", "cancelled"].includes(wk.status) && String(wk.doneAt || "").slice(0, 10) < todayISO()) || i._auto86 === "earlier"; };
+    for (let n = L.length - 1; n >= 0; n--) { const i = L[n]; if ((i.carried || i.given) && (i._auto86 || doneEarlier(i)) && !(i.wk && String(BIZ.rows[i.wk]?.doneAt || "").slice(0, 10) === todayISO())) L.splice(n, 1); }
+    return L;
+  };
+  const _r = render; render = function () { try { fix86(); } catch (e) { console.warn("p86", e); } return _r.apply(this, arguments); };
+}
+
 boot();
 
 </script>
