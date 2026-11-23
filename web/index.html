@@ -12549,7 +12549,7 @@ VIEWS.visitors = v => {
   $("#vs71n", v) && ($("#vs71n", v).onclick = () => visPanel71(null)); $("#vs71a", v).onclick = () => apPanel71(null); $("#vs71o", v) && ($("#vs71o", v).onclick = () => scanPass71());
   wireSrch71(v, U); ["vs71f", "vs71t"].forEach(k => { const i = $("#" + k, v); if (i) i.onchange = () => { U[k] = i.value; render(); }; });
   $("#vs71x", v) && ($("#vs71x", v).onclick = () => xlsx71("visitor-register.xlsx", [["Pass no", "Name", "Designation", "Company", "Mobile", "Email", "Nationality", "Type", "Purpose", "To meet", "Vehicle", "IT asset", "Helmet", "Goggles", "Safety shoes", "In", "Out", "Status", "Appointment"], ...V.map(x => [x.passNo || x.no, x.name, x.designation, x.org, x.mobile, x.email, x.nationality, x.type, x.purpose, nm62(x.host) || x.hostName, x.vehicle, x.asset, x.helmet, x.goggles, x.shoes, dt62(x.inAt || x.at), x.outAt ? dt62(x.outAt) : "", VST71[x.status]?.[0] || x.status, x.appt])], "Visitors"));
-  if (U.vs71 === "qr") pubKeys71().then(async K => { const url = pubUrl71("vis", K.vis), img = await qr71(url, 280), b = $("#vs71qr"); if (b) b.innerHTML = `<div class="row" style="gap:18px;align-items:center;flex-wrap:wrap">${img ? `<img src="${img}" alt="Gate QR" style="width:220px;height:220px;border:1px solid #ddd;border-radius:8px">` : ""}<div><b>Link:</b> <span class="mono small" style="word-break:break-all">${esc(url)}</span><br><button type="button" class="btn sm" data-copy="${esc(url)}" style="margin-top:6px">Copy link</button></div></div>`; $("#vs71pp") && ($("#vs71pp").onclick = () => printHtml28("Visitor entry", `<div style="text-align:center;margin-top:30px"><h1 style="font-size:34px">VISITORS - PLEASE SCAN</h1><p style="font-size:18px">Scan with your phone camera, fill your entry and show the gate pass to security.</p>${img ? `<img src="${img}" style="width:340px;height:340px;margin:20px auto;display:block">` : ""}<p style="font-size:16px">வருகையாளர்கள் - QR ஸ்கேன் செய்து உங்கள் விவரங்களை நிரப்பவும்</p><p class="small">${esc(url)}</p></div>`)); }).catch(e => { const b = $("#vs71qr"); if (b) b.textContent = e.message + " - the server needs the new version."; });
+  if (U.vs71 === "qr") pubKeys71().then(async K => { const url = pubUrl71("vis", K.vis), img = await qr71(url, 280), b = $("#vs71qr"); if (b) b.innerHTML = `<div class="row" style="gap:18px;align-items:center;flex-wrap:wrap">${img ? `<img src="${img}" alt="Gate QR" style="width:220px;height:220px;border:1px solid #ddd;border-radius:8px">` : ""}<div><b>Link:</b> <span class="mono small" style="word-break:break-all">${esc(url)}</span><br><button type="button" class="btn sm" data-copy="${esc(url)}" style="margin-top:6px">Copy link</button></div></div>`; $("#vs71pp") && ($("#vs71pp").onclick = () => printHtml28("Visitor entry", `<div style="text-align:center;margin-top:30px"><h1 style="font-size:34px">VISITORS - PLEASE SCAN</h1><p style="font-size:18px">Scan with your phone camera, fill your entry and show the gate pass to security.</p>${img ? `<img src="${img}" style="width:340px;height:340px;margin:20px auto;display:block">` : ""}<p class="small">${esc(url)}</p></div>`)); }).catch(e => { const b = $("#vs71qr"); if (b) b.textContent = e.message + " - the server needs the new version."; });
   clearTimeout(W71.live); if (U.vs71 === "live") W71.live = setTimeout(() => { if (STATE.route === "visitors" && !$(".dr26-ov")) { BIZ.t = 0; bizSync28(true).then(() => STATE.route === "visitors" && !$(".dr26-ov") && render()); } }, 20000);
 };
 function aptab71(L, gate) { return `<div style="overflow:auto"><table class="t"><thead><tr><th>No.</th><th>Date / time</th><th>Visitor</th><th>Purpose</th><th>With</th><th>Status</th>${gate ? "<th></th>" : ""}</tr></thead><tbody>${L.map(x => `<tr data-ap="${x.id}" style="cursor:pointer"><td>${esc(x.no || "")}</td><td><b>${esc(dmy62(x.date))}</b> ${esc(t1268(x.time || ""))}</td><td><b>${esc(x.name)}</b><div class="small muted">${esc([x.org, x.mobile].filter(Boolean).join(" · "))}</div></td><td>${esc(x.purpose || "")}</td><td>${esc(nm62(x.host))}</td><td><span class="chip ${x.status === "arrived" ? "ok" : x.status === "cancelled" ? "bad" : "warn"}">${esc(x.status === "arrived" ? "Arrived" : x.status === "cancelled" ? "Cancelled" : "Expected")}</span></td>${gate ? `<td>${x.status !== "arrived" && x.status !== "cancelled" ? `<button type="button" class="btn sm primary" data-arr="${x.id}">✓ Arrived - allow in</button>` : ""}</td>` : ""}</tr>`).join("") || `<tr><td colspan="${gate ? 7 : 6}" class="muted">No appointments.</td></tr>`}</tbody></table></div>`; }
@@ -12617,7 +12617,7 @@ async function pubPage71() {
   document.body.className = "pub71"; document.body.innerHTML = `<div class="pub71-w"><header class="pub71-h"><b>RIVERA COIL MANUFACTURING (I) PVT LTD</b><span>${onb ? "FORM IV · Employee register · New employee joining form" : "Visitor entry · Gate pass"}</span></header><div id="pub71b"></div><div id="toasts"></div></div>`;
   const B = $("#pub71b"), r = onb ? { nationality: "Indian" } : { nationality: "Indian", type: "Customer" };
   if (!onb) {
-    B.innerHTML = `<div class="pub71-f"><p class="pub71-n">Welcome! Please fill your details. Security will check and give your gate pass.<br><small>வருக! உங்கள் விவரங்களை நிரப்பவும்.</small></p><div class="fields">
+    B.innerHTML = `<div class="pub71-f"><p class="pub71-n">Welcome! Please fill your details. Security will check and give your gate pass.</p><div class="fields">
       ${[["name", "Your name *", "text"], ["mobile", "Mobile *", "tel"], ["org", "Company / organisation", "text"], ["designation", "Designation", "text"], ["email", "Email", "email"], ["type", "You are a", "select", VTYPE71], ["dept", "Whom to meet (department) *", "select", ["", ...DEPT71.map(x => x[0]), "MD sir"]], ["meet", "Person's name (if you know)", "text"], ["purpose", "Purpose of visit *", "text"], ["vehicle", "Vehicle no.", "text"], ["asset", "Laptop / IT items with you", "text"], ["persons", "No. of persons with you", "number"], ["appt", "Appointment no. (if any)", "text"], ["nationality", "Nationality", "text"]].map(f => pubField71(f, r)).join("")}</div>
       <label class="btn pub71-ph">📷 Take your photo<input type="file" accept="image/*" capture="user" id="pub71ph" hidden></label><span id="pub71phn" class="small muted"></span>
       <label class="pub71-ok"><input type="checkbox" id="pub71ag"> I will follow the safety rules and wear the visitor card inside.</label>
@@ -13447,8 +13447,7 @@ if (new URLSearchParams(location.search).get("app") === "courier") {
     document.body.innerHTML = `<div class="w78"><div class="w78-hero"><img src="${LOGO73}" alt="Rivera"><p class="w78-k">WELCOME TO</p><h1>Rivera Group of Companies</h1><p class="w78-s">Rivera Coil Manufacturing (I) Pvt Ltd &nbsp;·&nbsp; Rivera Coil Rewinding</p></div>
       <div class="w78-card"><p>Thank you for visiting us. For everyone's safety, please fill a short visitor entry - it takes about a minute.</p>
         <div class="w78-row"><div><b>1</b>Your details</div><div><b>2</b>Whom you meet</div><div><b>3</b>A quick photo</div></div>
-        <button type="button" class="w78-go" id="w78go">Start visitor entry →</button>
-        <p class="w78-t">வணக்கம்! உங்கள் வருகைக்கு நன்றி.</p></div>
+        <button type="button" class="w78-go" id="w78go">Start visitor entry →</button></div>
       <p class="w78-f">Stator coils · Roebel bars · Rewinding · Insulation</p></div>`;
     $("#w78go").onclick = async () => { window.__w78 = 1; await _pp(); cam78(); scrollTo(0, 0); };
   };
@@ -13537,6 +13536,66 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .k78-s .k{fill:none;stroke:#b8650c;stroke-width:5;stroke-linejoin:round;stroke-linecap:round}.k78-s .k2{fill:none;stroke:#e8a052;stroke-width:2.2}.k78-s .k3{stroke:#8a4b08;stroke-width:1.6}
 @media(max-width:420px){.k78-g{grid-template-columns:1fr}}
 </style>`);
+
+
+/* ===================== p79: coil drawing exactly like our drawings (plan view + side view + section, copper colour);
+   gate pass print like the L&T pass (logo, face photo, QR, host block, visitor block, employee + security sign) ===================== */
+CWF71.diamond.push(["span", "Span c/c (from drawing)"], ["lead", "Lead length"], ["oh", "Overhang height"], ["pin", "Loop pin dia"]);
+COILS78[0].calc = { ...COILS78[0].calc, span: 275, lead: 200, oh: 130, pin: 25 };
+COILS78[1].calc = { ...COILS78[1].calc, span: 382, lead: 100, oh: 60, pin: 20 };
+COILS78[2].calc = { ...COILS78[2].calc, span: 250, lead: 220, oh: 120, pin: 20 };
+function cwPlan79(R, c) {
+  const n = v => +v || 0, a1 = n(c.a1), a2 = n(c.a2) || a1, b1 = n(c.b1), b2 = n(c.b2) || b1, B = Math.max(b1, b2), span = n(c.span) || Math.round(Math.max(a1, a2) * 1.4) || 200,
+    lead = n(c.lead) || Math.round((a1 + B + a2) * .14), oh = n(c.oh) || Math.round(Math.max(a1, a2) * .65), pin = n(c.pin) || 20, L = a1 + B + a2;
+  if (!b1 || !a1) return "";
+  const W = 760, ox = 70 + 0, avail = W - 40 - 130, sc = Math.min(avail / (L + lead), 240 / span), X = x => 40 + (lead + x) * sc, oy = 100, Y = y => oy + y * sc;
+  const f = v => fmt(v, "INR", 0), mid = span / 2, k = 6 / sc;
+  const xT0 = a1 + (B - b2) / 2, xT1 = xT0 + b2, xB0 = a1 + (B - b1) / 2, xB1 = xB0 + b1, nx = L, r = pin / 2;
+  /* coil centre line: CE lead (top) → top side → NCE nose loop → bottom side → CE lead (bottom) */
+  const path = `M${X(-lead)} ${Y(mid - k * 1.2)} L${X(0)} ${Y(mid - k * 1.2)} Q${X(a1 * .12)} ${Y(mid - k * 1.2)} ${X(xT0 - a1 * .12)} ${Y(k)} Q${X(xT0)} ${Y(0)} ${X(xT0 + k * 2)} ${Y(0)} L${X(xT1 - k * 2)} ${Y(0)} Q${X(xT1)} ${Y(0)} ${X(xT1 + a2 * .12)} ${Y(k * 1.5)} L${X(nx - r * 1.4)} ${Y(mid - r * 1.2)} A${r * sc * 1.5} ${r * sc * 1.5} 0 1 1 ${X(nx - r * 1.4)} ${Y(mid + r * 1.2)} L${X(xB1 + a2 * .12)} ${Y(span - k * 1.5)} Q${X(xB1)} ${Y(span)} ${X(xB1 - k * 2)} ${Y(span)} L${X(xB0 + k * 2)} ${Y(span)} Q${X(xB0)} ${Y(span)} ${X(xB0 - a1 * .12)} ${Y(span - k)} Q${X(a1 * .12)} ${Y(mid + k * 1.2)} ${X(0)} ${Y(mid + k * 1.2)} L${X(-lead)} ${Y(mid + k * 1.2)}`;
+  const sw = Math.max(7, Math.min(16, (n(c.w) || 8) * sc * 2.2));
+  const T = (x, y, s, a = "middle", cl = "p79-t") => `<text x="${x}" y="${y}" text-anchor="${a}" class="${cl}">${esc(s)}</text>`;
+  const dH = (x1, x2, y, s, up = true) => `<line class="p79-d" x1="${x1}" y1="${y}" x2="${x2}" y2="${y}" marker-start="url(#p79a)" marker-end="url(#p79a)"/><line class="p79-e" x1="${x1}" y1="${y - 6}" x2="${x1}" y2="${y + 6}"/><line class="p79-e" x1="${x2}" y1="${y - 6}" x2="${x2}" y2="${y + 6}"/>${T((x1 + x2) / 2, up ? y - 5 : y + 14, s)}`;
+  const dV = (x, y1, y2, s) => `<line class="p79-d" x1="${x}" y1="${y1}" x2="${x}" y2="${y2}" marker-start="url(#p79a)" marker-end="url(#p79a)"/>${T(x + 6, (y1 + y2) / 2 + 4, s, "start")}`;
+  /* side view */
+  const sy = Y(span) + 160, sh = Math.min(60, oh * sc), side = `<path class="p79-side" d="M${X(xT0)} ${sy} L${X(xT1)} ${sy} Q${X(xT1 + a2 * .35)} ${sy} ${X(nx - r * 2)} ${sy - sh} " /><path class="p79-side" d="M${X(xT0)} ${sy} Q${X(a1 * .55)} ${sy} ${X(a1 * .12)} ${sy - sh}"/><circle class="p79-pin" cx="${X(nx - r * 1.6)}" cy="${sy - sh}" r="${Math.max(4, r * sc * 1.4)}"/>${dV(X(nx) + 24, sy - sh, sy, `OH ${f(oh)}`)}${T(X(xT0 + b2 / 2), sy + 18, "SIDE VIEW", "middle", "p79-h")}`;
+  const H = sy + 40;
+  return `<svg class="cw71-svg p79" viewBox="0 0 ${W} ${H}" role="img" aria-label="Coil drawing"><defs><marker id="p79a" viewBox="0 0 10 10" refX="5" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#0b2a57"/></marker>
+    <linearGradient id="p79g" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f3b46b"/><stop offset=".5" stop-color="#c96f1e"/><stop offset="1" stop-color="#8a4509"/></linearGradient></defs>
+    ${T(W / 2, 22, "PLAN VIEW", "middle", "p79-h")}
+    <path d="${path}" class="p79-tape" style="stroke-width:${sw + 5}px"/><path d="${path}" class="p79-cu" style="stroke-width:${sw}px"/><path d="${path}" class="p79-hi" style="stroke-width:${Math.max(1.5, sw * .22)}px"/>
+    <circle class="p79-pin" cx="${X(nx - r * 1.4) + r * sc * 1.5}" cy="${Y(mid)}" r="${Math.max(3, r * sc)}"/>
+    ${T(X(-lead) - 4, Y(mid) + 4, "CE", "end", "p79-h")}${T(X(nx) + 14, Y(mid) + 4, "NCE", "start", "p79-h")}${T(X(xT0 + b2 / 2), Y(0) + 22, "TOP SIDE", "middle", "p79-s")}${T(X(xB0 + b1 / 2), Y(span) - 12, "BOTTOM SIDE", "middle", "p79-s")}
+    ${dH(X(0), X(nx), 52, `OVERALL COIL LENGTH ${f(L)}`)}${dH(X(xT0), X(xT1), Y(0) - 16, `STRAIGHT LENGTH TOP ${f(b2)}`)}${dH(X(xB0), X(xB1), Y(span) + 24, `STRAIGHT LENGTH BOTTOM ${f(b1)}`, false)}
+    ${dH(X(0), X(xB0), Y(span) + 56, `CE EXT. ${f(a1)}`, false)}${dH(X(xB1), X(nx), Y(span) + 56, `NCE EXT. ${f(a2)}`, false)}${dH(X(-lead), X(0), Y(mid) - 26, `LEAD ${f(lead)}`)}${dV(X(nx) + 46, Y(0), Y(span), `SPAN ${f(span)}`)}
+    ${side}${T(10, H - 8, `Drawn to scale from your sizes · ${f(R.e || 0)} turns × ${f(R.par || 1)} · conductor ${c.t || "-"} × ${c.w || "-"} mm`, "start", "p79-s")}</svg>`;
+}
+{
+  const _d = cwDraw71;
+  cwDraw71 = function (R) { try { const c = BIZ.ui.cw71 || {}; if ((R.m || c.model) === "diamond" && STATE.route === "coil71") { const s = cwPlan79(R, c); if (s) return s; } } catch (e) { console.warn("p79 draw", e); } return _d.apply(this, arguments); };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.p79{background:#fff}.p79-tape{fill:none;stroke:#5b2c0f;stroke-linejoin:round;stroke-linecap:round;opacity:.9}.p79-cu{fill:none;stroke:url(#p79g);stroke:#c96f1e;stroke-linejoin:round;stroke-linecap:round}
+.p79-hi{fill:none;stroke:#f6c58c;stroke-linejoin:round;stroke-linecap:round;opacity:.8}.p79-pin{fill:#fff;stroke:#0b2a57;stroke-width:1.5}.p79-side{fill:none;stroke:#c96f1e;stroke-width:8;stroke-linecap:round}
+.p79-d{stroke:#0b2a57;stroke-width:1}.p79-e{stroke:#0b2a57;stroke-width:.8}.p79-t{font:600 11px Arial;fill:#0b2a57}.p79-h{font:700 12px Arial;fill:#02315B;letter-spacing:.5px}.p79-s{font:10.5px Arial;fill:#5d6878}
+</style>`);
+
+/* gate pass print - same layout as the L&T pass, Rivera logo, face photo, QR; no visitor sign */
+gatePass71 = async function (x) {
+  const qr = await qr71(`RIVERA GATE PASS ${x.passNo || x.no} | ${x.name} | ${x.mobile || ""}`, 200), ph = x.photo ? await fileUrl71(x.photo) : "", when = dt62(x.inAt || x.at), logo = new URL(LOGO73, location.href).href;
+  const v = s => esc(s || "");
+  printHtml28("Gate pass " + (x.passNo || x.no), `<style>@page{size:A4;margin:12mm}.gp9{border-collapse:collapse;width:100%;font:13px Arial}.gp9 td{border:1.5px solid #222;padding:6px 8px;vertical-align:top}.gp9 .h{font-weight:700;width:17%}.gp9 .c{text-align:center}.gp9 .sec{text-align:center;font-weight:700;text-decoration:underline}.hd{display:none}</style>
+    <table class="gp9">
+      <tr><td class="c" style="width:22%"><img src="${logo}" style="width:70px;height:70px"><div style="font-weight:700;font-size:11px">RIVERA GROUP</div></td><td class="c" colspan="2"><b style="font-size:15px">Visitor Management System</b><br>Rivera Group of Companies<br>${v(x.company || "Rivera Coil Manufacturing (I) Pvt Ltd")}</td><td class="c" style="width:22%">${qr ? `<img src="${qr}" style="width:110px;height:110px">` : ""}</td></tr>
+      <tr><td class="c">${ph ? `<img src="${ph}" style="width:110px;height:130px;object-fit:cover">` : '<div style="height:130px;line-height:130px;color:#888">Photo</div>'}<div><b>Batch No.:</b> 1</div></td><td colspan="2" class="c">Valid on the day of issue between 08:30 am to 06:00 pm to see the person(s) mentioned below only</td><td class="c"><b>Gate Pass No:</b><br><span style="font-size:16px">${v(x.passNo || x.no)}</span><br>${v(when)}</td></tr>
+      <tr><td colspan="4" class="sec">Host/Employee Information</td></tr>
+      <tr><td class="h">Host/Employee</td><td colspan="2">${v(nm62(x.host) || x.hostName || x.dept)}${x.meet ? " (" + v(x.meet) + ")" : ""}</td><td rowspan="3"><b>Employee Sign:</b></td></tr>
+      <tr><td class="h">Location</td><td colspan="2">${v(x.company || "Rivera Coil Manufacturing (I) Pvt Ltd")}</td></tr>
+      <tr><td class="h">Contact</td><td colspan="2">${v(x.host)}</td></tr>
+      <tr><td colspan="4" class="sec">Visitor's Information</td></tr>
+      ${[["Name", x.name, "Designation", x.designation], ["Org.", x.org, "Mobile", x.mobile], ["Nationality", x.nationality, "Email", x.email], ["Type", x.type, "Purpose", x.purpose], ["From", [x.town, x.district, x.state].filter(Boolean).join(", "), "Vehicle No.:", x.vehicle], ["Goggles:", x.goggles || "No", "IT Asset", x.asset], ["Helmet:", x.helmet || "No", "Persons", x.persons]].map(r => `<tr><td class="h">${r[0]}</td><td>${v(r[1])}</td><td class="h">${r[2]}</td><td>${v(r[3])}</td></tr>`).join("")}
+      <tr><td colspan="3" style="height:46px"></td><td><b>Security Sign:</b></td></tr></table>`);
+};
 
 boot();
 
