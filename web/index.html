@@ -13597,6 +13597,56 @@ gatePass71 = async function (x) {
       <tr><td colspan="3" style="height:46px"></td><td><b>Security Sign:</b></td></tr></table>`);
 };
 
+
+/* ===================== p80: realistic 3D coil picture (taped straight sides, mica-taped end windings rising to the nose,
+   bare copper leads, shading and shadow) above the dimensioned plan view ===================== */
+function coil3d80(c) {
+  const n = v => +v || 0, a1 = n(c.a1), a2 = n(c.a2) || a1, b1 = n(c.b1), b2 = n(c.b2) || b1, B = Math.max(b1, b2), span = n(c.span) || Math.round(Math.max(a1, a2) * 1.4) || 200,
+    lead = n(c.lead) || Math.round((a1 + B + a2) * .14), oh = n(c.oh) || Math.round(Math.max(a1, a2) * .65), L = a1 + B + a2, mid = span / 2, dz = Math.max(18, span * .08);
+  if (!b1 || !a1) return "";
+  const xT0 = a1 + (B - b2) / 2, xT1 = xT0 + b2, xB0 = a1 + (B - b1) / 2, xB1 = xB0 + b1;
+  /* oblique projection: x along the coil, y across (span) goes back-right, z up */
+  const W = 760, H = 340, kx = .38, ky = .78, sx = Math.min((W - 60) / (L + lead + span * kx), (H - 80) / (span * ky + oh + dz)), ox = 24 + lead * sx + Math.max(0, (W - 60 - (L + lead + span * kx) * sx) / 2), oy = 34 + oh * sx;
+  const P = ([x, y, z]) => [ox + (x + y * kx) * sx, oy + (y * ky - z) * sx];
+  const bez = (p0, p1, p2, p3, k = 18) => [...Array(k + 1)].map((_, i) => { const t = i / k, u = 1 - t; return [0, 1, 2].map(j => u * u * u * p0[j] + 3 * u * u * t * p1[j] + 3 * u * t * t * p2[j] + t * t * t * p3[j]); });
+  const d = pts => pts.map((p, i) => (i ? "L" : "M") + P(p).map(v => v.toFixed(1)).join(" ")).join("");
+  const kn = 10 / sx;
+  /* pieces, back to front */
+  const topY = 0, botY = span, zt = 0, zb = -dz;
+  const seg = {
+    leadT: [[-lead, mid - 6 / sx * 1.2, oh], [0, mid - 6 / sx * 1.2, oh]],
+    ceT: bez([0, mid - 6 / sx * 1.2, oh], [a1 * .35, mid * .55, oh], [xT0 - a1 * .3, topY + kn, zt + kn], [xT0, topY, zt]),
+    top: [[xT0, topY, zt], [xT1, topY, zt]],
+    nceT: bez([xT1, topY, zt], [xT1 + a2 * .3, topY + kn, zt + kn], [L - a2 * .35, mid * .55, oh], [L, mid - 4 / sx, oh]),
+    nceB: bez([L, mid + 4 / sx, oh], [L - a2 * .35, mid + mid * .45, oh], [xB1 + a2 * .3, botY - kn, zb + kn], [xB1, botY, zb]),
+    bot: [[xB1, botY, zb], [xB0, botY, zb]],
+    ceB: bez([xB0, botY, zb], [xB0 - a1 * .3, botY - kn, zb + kn], [a1 * .35, mid + mid * .45, oh], [0, mid + 6 / sx * 1.2, oh]),
+    leadB: [[0, mid + 6 / sx * 1.2, oh], [-lead, mid + 6 / sx * 1.2, oh]] };
+  const w = Math.max(14, Math.min(26, (n(c.w) || 8) * sx * 5));
+  const tube = (pts, paint, hi, lw = w) => { const p = d(pts); return `<path d="${p}" transform="translate(0 ${lw * .45})" stroke="#2b1405" stroke-width="${lw + 2}" class="c80"/><path d="${p}" transform="translate(0 ${lw * .38})" stroke="${paint[0]}" stroke-width="${lw}" class="c80"/><path d="${p}" stroke="#2b1405" stroke-width="${lw + 2}" class="c80"/><path d="${p}" stroke="${paint[1]}" stroke-width="${lw * .82}" class="c80"/><path d="${p}" transform="translate(0 ${-lw * .22})" stroke="${hi}" stroke-width="${Math.max(1.4, lw * .18)}" class="c80" opacity=".75"/>`; };
+  const nose = P([L + 3 / sx, mid, oh]), nr = Math.max(5, w * .62);
+  const TAPE = ["#5a2a0c", "url(#t80)"], ENDW = ["#7a4a12", "url(#e80)"], CU = ["#8a4509", "#e08a3c"];
+  const sh = [P([0, mid, zb - 4]), P([L, mid, zb - 4])];
+  const H2 = Math.min(H, Math.round(P([xB1, botY, zb])[1] + w * 1.6 + 30));
+  return `<svg class="cw71-svg c80s" viewBox="0 0 ${W} ${H2}" role="img" aria-label="Coil 3D view"><defs>
+    <pattern id="t80" width="9" height="9" patternUnits="userSpaceOnUse" patternTransform="rotate(35)"><rect width="9" height="9" fill="#9b4a18"/><rect width="4" height="9" fill="#b8642a"/></pattern>
+    <pattern id="e80" width="8" height="8" patternUnits="userSpaceOnUse" patternTransform="rotate(-40)"><rect width="8" height="8" fill="#c9923e"/><rect width="3.5" height="8" fill="#ddb064"/></pattern>
+    <linearGradient id="cu80" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#ffd2a0"/><stop offset=".45" stop-color="#e08a3c"/><stop offset="1" stop-color="#9a4f12"/></linearGradient>
+    <radialGradient id="sh80"><stop offset="0" stop-color="#000" stop-opacity=".22"/><stop offset="1" stop-color="#000" stop-opacity="0"/></radialGradient>
+    <linearGradient id="bg80" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#f7f9fc"/><stop offset="1" stop-color="#e6ebf2"/></linearGradient></defs>
+    <rect width="${W}" height="${H2}" fill="url(#bg80)"/>
+    <ellipse cx="${(sh[0][0] + sh[1][0]) / 2 + span * kx * sx / 2}" cy="${Math.min(H2 - 14, P([0, span, zb])[1] + w * 1.6)}" rx="${(sh[1][0] - sh[0][0]) / 1.6}" ry="14" fill="url(#sh80)"/>
+    ${tube(seg.bot, TAPE, "#d98a4c")}${tube(seg.ceB, ENDW, "#f3d18f")}${tube(seg.nceB, ENDW, "#f3d18f")}${tube(seg.leadB, CU, "#fff1dc", w * .7)}
+    <circle cx="${nose[0]}" cy="${nose[1]}" r="${nr + 2}" fill="#2b1405"/><circle cx="${nose[0]}" cy="${nose[1]}" r="${nr}" fill="url(#e80)"/><circle cx="${nose[0]}" cy="${nose[1]}" r="${nr * .42}" fill="#eef2f7" stroke="#7a4a12"/>
+    ${tube(seg.top, TAPE, "#e3995a")}${tube(seg.ceT, ENDW, "#f6dca0")}${tube(seg.nceT, ENDW, "#f6dca0")}${tube(seg.leadT, CU, "#fff1dc", w * .7)}
+    <text x="14" y="22" class="p79-h">3D VIEW</text><text x="${W - 14}" y="22" text-anchor="end" class="p79-s">Straight sides: main-wall tape · ends: overhang tape · leads: bare copper</text></svg>`;
+}
+{
+  const _d = cwDraw71;
+  cwDraw71 = function (R) { const out = _d.apply(this, arguments); try { const c = BIZ.ui.cw71 || {}; if ((R.m || c.model) === "diamond" && STATE.route === "coil71") { const s = coil3d80(c); if (s) return s + out; } } catch (e) { console.warn("p80", e); } return out; };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.c80{fill:none;stroke-linecap:round;stroke-linejoin:round}.c80s{margin-bottom:10px}</style>`);
+
 boot();
 
 </script>
