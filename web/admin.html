@@ -13647,6 +13647,119 @@ function coil3d80(c) {
 }
 document.head.insertAdjacentHTML("beforeend", `<style>.c80{fill:none;stroke-linecap:round;stroke-linejoin:round}.c80s{margin-bottom:10px}</style>`);
 
+
+/* ===================== p81: visitor flow = 1 welcome splash (centred, opens the form by itself) → 2 Google-style form → 3 dark thank-you screen;
+   gate pass fills a full A4 page; Rivera Courier app needs no login (one-time setup code from Admin / AGM / HR) ===================== */
+
+/* ---------- 1. welcome splash, then the form by itself ---------- */
+{
+  const _pp = pubPage71;
+  pubPage71 = async function () {
+    if (!PUB71 || PUB71.kind !== "vis" || window.__w81) return _pp();
+    window.__w81 = 1; window.__w78 = 1;
+    document.title = "Welcome - Rivera Group of Companies"; document.body.className = "pub71 s81b";
+    document.body.innerHTML = `<div class="s81" id="s81"><img src="${LOGO73}" alt="Rivera"><p class="s81-k">WELCOME TO</p><h1>Rivera Group<br>of Companies</h1><p class="s81-s">Rivera Coil Manufacturing (I) Pvt Ltd<br>Rivera Coil Rewinding</p><div class="s81-dots"><i></i><i></i><i></i></div></div>`;
+    let gone = false; const go = async () => { if (gone) return; gone = true; $("#s81")?.classList.add("out"); await new Promise(r => setTimeout(r, 350)); await _pp(); cam78(); scrollTo(0, 0); };
+    $("#s81").onclick = go; setTimeout(go, 2600);
+  };
+}
+/* ---------- 3. dark, centred thank-you screen after submit ---------- */
+addEventListener("click", e => { if (e.target?.id === "gf74s") window.__nm81 = (document.querySelector('[data-k="name"]')?.value || "").trim(); }, true);
+new MutationObserver(() => { const d = document.querySelector(".gf-done .d78, .gf-done"); if (!d || !PUB71 || PUB71.kind !== "vis" || document.querySelector(".t81")) return;
+  const no = $(".d78-p b")?.textContent || $(".p73-pass b")?.textContent || "", nm = window.__nm81 || ($(".d78-t")?.textContent.match(/Companies, (.+)\.$/) || [])[1] || "";
+  document.body.className = "pub71 s81b"; document.body.innerHTML = `<div class="s81 t81"><div class="t81-i">✓</div><h1>Thank you${nm ? ", " + esc(nm) : ""}!</h1><p class="t81-m">Your submission has been recorded.</p>${no ? `<div class="t81-p"><small>GATE PASS NO.</small><b>${esc(no)}</b><span>${esc(new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }))}</span></div>` : ""}<p class="t81-s">Thank you for visiting <b>Rivera Group of Companies</b>.<br>Our team has been informed. Have a pleasant visit.</p><img src="${LOGO73}" alt="" class="t81-l"></div><div id="toasts"></div>`;
+  scrollTo(0, 0); }).observe(document.documentElement, { childList: true, subtree: true });
+document.head.insertAdjacentHTML("beforeend", `<style>
+body.s81b{margin:0;min-height:100vh;background:radial-gradient(120% 90% at 50% 20%,#0d4f8f 0%,#02315B 55%,#01203d 100%) fixed;font-family:Roboto,Arial,sans-serif;color:#fff}
+.s81{min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:24px;box-sizing:border-box;transition:opacity .35s;cursor:pointer}.s81.out{opacity:0}
+.s81>img{width:118px;height:118px;background:#fff;border-radius:28px;padding:10px;box-shadow:0 18px 50px rgba(0,0,0,.35);animation:p81 .7s ease both}
+.s81-k{letter-spacing:6px;font-size:14px;opacity:.85;margin:30px 0 6px;animation:f81 .7s .15s both}.s81 h1{font-size:38px;line-height:1.12;margin:0 0 14px;font-weight:700;animation:f81 .7s .25s both}.s81-s{opacity:.85;font-size:15px;line-height:1.6;margin:0;animation:f81 .7s .35s both}
+.s81-dots{display:flex;gap:7px;margin-top:34px}.s81-dots i{width:8px;height:8px;border-radius:50%;background:#E26A0C;animation:d81 1s infinite}.s81-dots i:nth-child(2){animation-delay:.15s}.s81-dots i:nth-child(3){animation-delay:.3s}
+.t81{cursor:default}.t81-i{width:84px;height:84px;border-radius:50%;background:#1e8e3e;font-size:46px;line-height:84px;box-shadow:0 0 0 10px rgba(30,142,62,.2);animation:p81 .6s ease both}
+.t81 h1{margin:26px 0 8px}.t81-m{font-size:18px;margin:0 0 22px;opacity:.95}.t81-p{display:flex;flex-direction:column;border:2px dashed rgba(255,255,255,.55);border-radius:14px;padding:12px 26px;margin-bottom:22px}.t81-p small{letter-spacing:2px;opacity:.75}.t81-p b{font-size:26px;color:#ffb36b}.t81-p span{font-size:13px;opacity:.8}
+.t81-s{font-size:15px;line-height:1.6;opacity:.9;margin:0}.s81>img.t81-l{width:54px;height:54px;box-shadow:none;animation:none;background:#fff;border-radius:14px;padding:5px;margin-top:30px;opacity:.95}
+@keyframes p81{from{transform:scale(.7);opacity:0}to{transform:none;opacity:1}}@keyframes f81{from{transform:translateY(12px);opacity:0}to{transform:none;opacity:1}}@keyframes d81{0%,100%{opacity:.3}50%{opacity:1}}
+</style>`);
+
+/* ---------- 2. gate pass print fills the whole A4 page ---------- */
+{
+  const _g = gatePass71;
+  gatePass71 = async function (x) {
+    const _p = printHtml28; printHtml28 = (t, inner) => _p(t, inner.replace("@page{size:A4;margin:12mm}", "@page{size:A4;margin:9mm}html,body{height:100%}").replace(".gp9{border-collapse:collapse;width:100%;font:13px Arial}", ".gp9{border-collapse:collapse;width:100%;height:276mm;font:15px Arial}.gp9 tr{height:1px}.gp9 tr:last-child{height:auto}").replace(/width:110px;height:130px/, "width:150px;height:180px").replace(/width:110px;height:110px/, "width:150px;height:150px").replace(/width:70px;height:70px/, "width:90px;height:90px").replace(".gp9 td{border:1.5px solid #222;padding:6px 8px;", ".gp9 td{border:1.5px solid #222;padding:10px 12px;").replace("vertical-align:top}", "vertical-align:middle}"));
+    try { return await _g.apply(this, arguments); } finally { printHtml28 = _p; }
+  };
+}
+
+/* ---------- 4. Rivera Courier app: no login - one-time setup code, then only the courier register ---------- */
+const CK81 = "rqs.ck81";
+async function kiosk81() {
+  document.title = "Rivera Courier"; document.body.className = "k81b";
+  const key = (() => { try { return localStorage.getItem(CK81) || ""; } catch { return ""; } })();
+  if (!key) return setup81();
+  const guard = (() => { try { return localStorage.getItem(CK81 + ".g") || ""; } catch { return ""; } })();
+  document.body.innerHTML = `<div class="k81"><header class="k81-h"><img src="${LOGO73}" alt=""><div><b>Rivera Courier</b><span>Security gate${guard ? " · " + esc(guard) : ""}</span></div><button type="button" id="k81r" title="Refresh">⟳</button></header>
+    <div class="k81-a"><button type="button" class="k81-in" data-dir="in">📥<b>Incoming courier</b></button><button type="button" class="k81-out" data-dir="out">📤<b>Outgoing courier</b></button></div>
+    <input type="search" id="k81q" class="k81-q" placeholder="Search party, docket, courier…"><div id="k81l" class="k81-l"><p class="k81-m">Loading…</p></div><div id="toasts"></div></div>`;
+  let data = { rows: [], team: [] };
+  const load = async () => { try { data = await AUTH.call("pubList", { kind: "cr", k: key, who: "courier-app" }, 40000); list(); } catch (e) { if (/not valid/i.test(e.message)) { try { localStorage.removeItem(CK81); } catch { } return setup81("That setup code is no longer valid - ask Admin for the new one."); } $("#k81l").innerHTML = `<p class="k81-m">⚠ ${esc(e.message)} <button type="button" id="k81t">Try again</button></p>`; $("#k81t").onclick = load; } };
+  const list = () => { const q = ($("#k81q").value || "").toLowerCase(), t = todayISO(); const L = data.rows.filter(r => !q || JSON.stringify(r).toLowerCase().includes(q));
+    $("#k81l").innerHTML = L.map(r => `<div class="k81-r ${r.dir}"><div class="k81-d">${r.dir === "in" ? "📥" : "📤"}</div><div class="k81-x"><b>${esc(r.party || "")}</b><span>${esc([r.company, r.docket].filter(Boolean).join(" · "))}${r.forName ? " · for " + esc(r.forName) : ""}</span><small>${esc(r.no || "")} · ${r.date === t ? "Today" : esc(dmy62(r.date))} ${esc(r.time || "")}</small></div><div class="k81-s">${r.appr ? '<span class="ok">✓ Approved</span>' : '<span class="w">Waiting approval</span>'}</div></div>`).join("") || '<p class="k81-m">No courier entries yet.</p>'; };
+  $("#k81q").oninput = list; $("#k81r").onclick = load;
+  $$("[data-dir]").forEach(b => b.onclick = () => form81(b.dataset.dir, key, data.team, load));
+  load();
+}
+function form81(dir, key, team, done) {
+  const guard = (() => { try { return localStorage.getItem(CK81 + ".g") || ""; } catch { return ""; } })();
+  const ov = document.createElement("div"); ov.className = "k81-f"; ov.innerHTML = `<div class="k81-fc"><header><b>${dir === "in" ? "📥 Incoming courier" : "📤 Outgoing courier"}</b><button type="button" class="k81-x2">✕</button></header>
+    <label>${dir === "in" ? "From (sender) *" : "To (recipient) *"}<input data-f="party" autocomplete="off"></label><label>Place<input data-f="place"></label>
+    <label>Courier company<select data-f="company"><option value="">Choose</option>${CRCO62.map(c => `<option>${esc(c)}</option>`).join("")}</select></label><label>Docket / AWB no.<input data-f="docket" inputmode="text"></label>
+    <label>Contents<input data-f="contents" placeholder="Documents, parcel, cheque…"></label><label>${dir === "in" ? "For (who gets it)" : "Sent by"}<select data-f="forEmail"><option value="">Choose</option>${(team || []).map(u => `<option value="${esc(u.email)}">${esc(u.name)}</option>`).join("")}</select></label>
+    <label>Reference (invoice / PO)<input data-f="ref"></label><label>Your name (security)<input data-f="handler" value="${esc(guard)}"></label>
+    <label class="k81-ph">📷 Photo of the label / parcel<input type="file" accept="image/*" capture="environment" hidden><span>No photo</span></label>
+    <button type="button" class="k81-sv">Save ${dir === "in" ? "incoming" : "outgoing"} courier</button></div>`;
+  document.body.appendChild(ov); $("[data-f=party]", ov).focus();
+  const fi = $(".k81-ph input", ov); fi.onchange = () => { $(".k81-ph span", ov).textContent = fi.files[0] ? "✓ " + fi.files[0].name : "No photo"; };
+  $(".k81-x2", ov).onclick = () => ov.remove();
+  $(".k81-sv", ov).onclick = async e => { const b = e.target, x = { dir }; $$("[data-f]", ov).forEach(i => x[i.dataset.f] = i.value.trim()); if (!x.party) return toast(dir === "in" ? "Write who sent it" : "Write who it goes to", "bad");
+    x.forName = (team || []).find(u => u.email === x.forEmail)?.name || ""; try { if (x.handler) localStorage.setItem(CK81 + ".g", x.handler); } catch { }
+    b.disabled = true; b.textContent = "Saving…";
+    try { if (fi.files[0]) { b.textContent = "Sending photo…"; const f = await shrink71(fi.files[0], 1400); const r = await AUTH.call("pubFile", { kind: "cr", k: key, who: "courier-app", name: f.name, type: f.type, b64: await b6462(f) }, 120000); x.scan = r.id; x.scanName = f.name; }
+      const r = await AUTH.call("pubSubmit", { kind: "cr", k: key, who: "courier-app", data: x }, 60000); ov.remove(); toast(`Saved ${r.no || ""} - AGM and HR will approve`); done(); }
+    catch (er) { toast(er.message, "bad"); b.disabled = false; b.textContent = "Save"; } };
+}
+function setup81(msg) {
+  document.body.className = "k81b"; document.body.innerHTML = `<div class="k81 k81-su"><img src="${LOGO73}" alt=""><h1>Rivera Courier</h1><p>${esc(msg || "One-time setup. Ask Admin, AGM or HR for the courier app setup code (Courier page ▸ App setup), then scan the QR or type the code.")}</p>
+    <button type="button" id="k81s">📷 Scan setup QR</button><input id="k81c" placeholder="or type the setup code" autocomplete="off"><button type="button" id="k81ok" class="k81-sv">Save and open</button><div id="toasts"></div></div>`;
+  const save = async code => { code = String(code || "").replace(/^RIVERA-COURIER:/i, "").trim(); if (!code) return toast("Type the code", "bad");
+    try { await AUTH.call("pubList", { kind: "cr", k: code, who: "courier-app" }, 40000); localStorage.setItem(CK81, code); toast("Ready"); kiosk81(); } catch (e) { toast(e.message, "bad"); } };
+  $("#k81ok").onclick = () => save($("#k81c").value);
+  $("#k81s").onclick = () => { const i = document.createElement("input"); i.type = "file"; i.accept = "image/*"; i.capture = "environment"; i.onchange = async () => { const f = i.files[0]; if (!f) return; try { if (!("BarcodeDetector" in window)) throw 0; const bm = await createImageBitmap(f), c = await new BarcodeDetector({ formats: ["qr_code"] }).detect(bm); if (!c[0]) throw 0; save(c[0].rawValue); } catch { toast("Could not read the QR - type the code", "bad"); } }; i.click(); };
+}
+if (new URLSearchParams(location.search).get("app") === "courier") boot = () => { try { kiosk81(); } catch (e) { document.body.textContent = "Could not open: " + e.message; } };
+/* Admin / AGM / HR: courier app setup code on the Courier page */
+{
+  const _r = render;
+  render = function () { _r.apply(this, arguments); try { if (STATE.route !== "courier" || !appr78()) return; const v = $("#view"), tb = $(".topbar", v); if (!tb || $("#k81a", v)) return;
+    tb.insertAdjacentHTML("afterend", `<details class="note" id="k81a" style="margin:0 0 12px"><summary style="cursor:pointer"><b>📱 Courier app setup (security phone, no login)</b></summary><div id="k81z" class="small muted" style="margin-top:8px">Loading the setup code…</div></details>`);
+    $("#k81a", v).ontoggle = async e => { if (!e.target.open || $("#k81z img")) return; try { const K = await AUTH.call("work62", { op: "pubkeys" }); if (!K.cr) throw new Error("Server needs the new version"); const code = "RIVERA-COURIER:" + K.cr, img = await qr71(code, 220); const apk = (window.__RIVERA_LINKS__ || {}).courierApk || "https://github.com/riverasalesindia-del/rivera-quote-studio/releases/latest/download/RiveraCourier.apk";
+      $("#k81z").innerHTML = `<div class="row" style="gap:16px;align-items:center;flex-wrap:wrap">${img ? `<img src="${img}" style="width:170px;height:170px;border:1px solid #ddd;border-radius:8px" alt="Setup QR">` : ""}<div>1. Install the <a href="${esc(apk)}" target="_blank" rel="noopener">Rivera Courier app</a> on the security phone.<br>2. Open it and tap <b>Scan setup QR</b> (or type the code).<br>Code: <span class="mono" style="word-break:break-all">${esc(code)}</span><br>Entries from the app come here with <b>Waiting approval</b> for AGM / HR.</div></div>`; } catch (er) { $("#k81z").textContent = er.message; } };
+  } catch { } };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+body.k81b{margin:0;background:#eef2f7;font-family:Roboto,Arial,sans-serif;color:#1c2433}.k81{max-width:640px;margin:0 auto;padding:0 0 30px;min-height:100vh}
+.k81-h{display:flex;align-items:center;gap:12px;background:#02315B;color:#fff;padding:14px 16px;position:sticky;top:0;z-index:2}.k81-h img{width:42px;height:42px;background:#fff;border-radius:10px;padding:3px}.k81-h div{flex:1;display:flex;flex-direction:column}.k81-h b{font-size:18px}.k81-h span{font-size:12.5px;opacity:.8}.k81-h button{background:none;border:1px solid rgba(255,255,255,.4);color:#fff;border-radius:10px;width:42px;height:42px;font-size:20px}
+.k81-a{display:grid;grid-template-columns:1fr 1fr;gap:12px;padding:16px}.k81-a button{border:0;border-radius:16px;padding:20px 10px;font-size:30px;color:#fff;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 6px 18px rgba(2,49,91,.18)}.k81-a b{font-size:15px}.k81-in{background:#1e8e3e}.k81-out{background:#E26A0C}
+.k81-q{display:block;width:calc(100% - 32px);margin:0 16px 10px;box-sizing:border-box;border:1.5px solid #cfd8e3;border-radius:12px;padding:12px;font:inherit}
+.k81-l{padding:0 16px}.k81-r{display:flex;gap:10px;align-items:center;background:#fff;border-radius:12px;padding:12px;margin-bottom:8px;border-left:5px solid #1e8e3e}.k81-r.out{border-left-color:#E26A0C}.k81-d{font-size:22px}.k81-x{flex:1;min-width:0;display:flex;flex-direction:column}.k81-x span{font-size:13px;color:#5d6878}.k81-x small{font-size:11.5px;color:#8a94a3}
+.k81-s span{font-size:11.5px;font-weight:700;border-radius:10px;padding:3px 8px;white-space:nowrap}.k81-s .ok{background:#e6f4ea;color:#1e8e3e}.k81-s .w{background:#fff1e6;color:#b3540a}.k81-m{text-align:center;color:#5d6878;padding:20px}
+.k81-f{position:fixed;inset:0;background:rgba(1,20,40,.55);z-index:9;display:flex;align-items:flex-end;justify-content:center}.k81-fc{background:#fff;width:100%;max-width:640px;max-height:92vh;overflow:auto;border-radius:18px 18px 0 0;padding:16px;box-sizing:border-box;display:flex;flex-direction:column;gap:10px}
+.k81-fc header{display:flex;justify-content:space-between;align-items:center;font-size:17px}.k81-fc header button{border:0;background:#eef2f7;border-radius:50%;width:36px;height:36px;font-size:16px}
+.k81-fc label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:#3c4656}.k81-fc input,.k81-fc select,.k81-su input{border:1.5px solid #cfd8e3;border-radius:10px;padding:12px;font:inherit;font-weight:400;background:#fff}
+.k81-ph{border:1.5px dashed #b9c6d6;border-radius:12px;padding:12px;flex-direction:row!important;justify-content:space-between;align-items:center;cursor:pointer}.k81-ph span{font-weight:400;color:#5d6878}
+.k81-sv{border:0;border-radius:12px;background:#02315B;color:#fff;font-size:16px;font-weight:700;padding:15px;margin-top:4px}
+.k81-su{display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;padding:30px 22px;box-sizing:border-box}.k81-su img{width:96px;height:96px;background:#fff;border-radius:22px;padding:8px;box-shadow:0 10px 30px rgba(2,49,91,.15)}.k81-su h1{margin:4px 0 0;color:#02315B}.k81-su p{color:#5d6878;margin:0 0 8px}.k81-su input,.k81-su button{width:100%;max-width:360px;box-sizing:border-box}#k81s{border:1.5px solid #02315B;background:#fff;color:#02315B;border-radius:12px;padding:14px;font-size:16px;font-weight:700}
+</style>`);
+
 boot();
 
 </script>
