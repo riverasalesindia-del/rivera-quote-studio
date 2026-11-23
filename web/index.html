@@ -14676,6 +14676,42 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .ns86-b span{font-size:1.05rem}.ns86-b b{font-size:.84rem}.ns86-b small{font-size:.7rem;color:#5b6b80}.ns86-b:hover{border-color:#e8590c;background:#fff8f2}.ns86-b.ok{background:#effaf3;border-color:#b8e0c6}.ns86-b.ok b::before{content:"✓ ";color:#2f8f5b}
 </style>`);
 
+/* ===================== p87: Product repository (every product ever bought: supplier, rate, date, who raised the PO, received, billed) for Purchase and Admin;
+   Admin shows Asset / Password / Product repository together; quotation lists show qty and rate per coil ===================== */
+function prodRepo87() {
+  const M = new Map(), key = s => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+  const add = (name, e) => { const k = key(name); if (!k) return; const p = M.get(k) || { name: String(name).trim(), item: e.item || "", unit: e.unit || "", hist: [] }; if (e.item && !p.item) p.item = e.item; if (e.unit && !p.unit) p.unit = e.unit; p.hist.push(e); M.set(k, p); };
+  all28("po").filter(p => !["cancelled"].includes(p.status)).forEach(p => (p.lines || []).forEach(l => add(BIZ.rows[l.item]?.name || l.desc, { kind: "PO", no: p.no, id: p.id, date: p.date, supplier: p.supplier || "", qty: Number(l.qty) || 0, unit: l.unit || "", rate: Number(l.rate) || 0, by: p.reqBy || p.by || "", status: p.status, recd: Number(l.recd) || 0, item: l.item || "" })));
+  all28("rn").forEach(r => (r.lines || []).forEach(l => add(BIZ.rows[l.item]?.name || l.desc, { kind: "GRN", no: r.no, id: r.id, date: r.date, supplier: r.supplier || "", qty: Number(l.acc) || 0, unit: l.unit || "", rate: Number(l.rate) || 0, by: r.receivedBy || r.by || "", item: l.item || "" })));
+  all28("item").forEach(it => { if (!M.has(key(it.name))) add(it.name, { kind: "Item", no: it.no || "", id: it.id, date: "", supplier: it.supplier || "", qty: 0, unit: it.unit || "", rate: Number(it.rate) || 0, by: "", item: it.id }); });
+  return [...M.values()].map(p => { const po = p.hist.filter(h => h.kind === "PO").sort((a, b) => String(b.date).localeCompare(String(a.date))), last = po[0] || p.hist[0];
+    const rates = po.map(h => h.rate).filter(Boolean);
+    return { ...p, last, n: po.length, sups: [...new Set(po.map(h => h.supplier).filter(Boolean))], qty: po.reduce((a, h) => a + h.qty, 0), min: rates.length ? Math.min(...rates) : 0, max: rates.length ? Math.max(...rates) : 0, stock: p.item ? stockOf28(p.item) : null }; })
+    .sort((a, b) => String(b.last?.date || "").localeCompare(String(a.last?.date || "")) || a.name.localeCompare(b.name));
+}
+if (!ROUTES.some(x => x[0] === "prod87")) ROUTES.push(["prod87", "Product repository", "box28"]);
+ALWAYS34.push("prod87");
+VIEWS.prod87 = v => {
+  bizSync28(); const U = BIZ.ui, q = U.p87q || "", L = prodRepo87().filter(p => has71([p.name, p.sups.join(" "), p.last?.no, p.last?.by], q));
+  v.innerHTML = top62("Purchase · Admin", "Product repository", `${L.length} products · every product we bought - from whom, at what rate, when, and who raised it`, `<button type="button" class="btn" id="p87x">⬇ Sheet</button>`)
+    + `<section class="panel"><div class="body"><div class="row" style="margin-bottom:10px">${srch71(U, "p87q", "Search product, supplier, PO no, person…")}</div><div style="overflow:auto"><table class="t"><thead><tr><th>Product</th><th>Last supplier</th><th class="n">Last rate ₹</th><th>Last bought</th><th>Raised by</th><th class="n">Times</th><th class="n">Total qty</th><th class="n">Rate range ₹</th><th class="n">In stock</th></tr></thead><tbody>${L.map((p, i) => `<tr data-p87="${i}" style="cursor:pointer"><td><b>${esc(p.name)}</b>${p.sups.length > 1 ? `<div class="small muted">${p.sups.length} suppliers</div>` : ""}</td><td>${esc(p.last?.supplier || "")}</td><td class="n">${p.last?.rate ? Number(p.last.rate).toLocaleString("en-IN") : "—"}</td><td>${p.last?.date ? dmy(p.last.date) : "—"}<div class="small muted">${esc(p.last?.no || "")}</div></td><td class="small">${esc(p.last?.by ? who28(p.last.by) : "")}</td><td class="n">${p.n}</td><td class="n">${p.qty ? p.qty.toLocaleString("en-IN") + " " + esc(p.unit || "") : "—"}</td><td class="n small">${p.min ? (p.min === p.max ? p.min.toLocaleString("en-IN") : p.min.toLocaleString("en-IN") + " – " + p.max.toLocaleString("en-IN")) : "—"}</td><td class="n">${p.stock == null ? "—" : p.stock}</td></tr>`).join("") || '<tr><td colspan="9" class="muted">No purchases yet.</td></tr>'}</tbody></table></div></div></section>`;
+  wireSrch71(v, U);
+  $$("[data-p87]", v).forEach(r => r.onclick = () => { const p = L[+r.dataset.p87], H = p.hist.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+    const D = panel28({ title: p.name, chips: `<span class="chip">${p.n} purchase${p.n === 1 ? "" : "s"}</span>${p.stock != null ? `<span class="chip navy">In stock ${p.stock} ${esc(p.unit || "")}</span>` : ""}`, body: `<div style="overflow:auto"><table class="t"><thead><tr><th>Date</th><th>Document</th><th>Supplier</th><th class="n">Qty</th><th class="n">Rate ₹</th><th>By</th></tr></thead><tbody>${H.map(h => `<tr data-o87="${h.id}" style="cursor:pointer"><td>${h.date ? dmy(h.date) : "—"}</td><td><b>${esc(h.kind)}</b> ${esc(h.no || "")}${h.status ? `<div class="small muted">${esc((PO_ST.find(s => s[0] === h.status) || [0, h.status])[1])}</div>` : ""}</td><td>${esc(h.supplier)}</td><td class="n">${h.qty} ${esc(h.unit || "")}</td><td class="n">${h.rate ? h.rate.toLocaleString("en-IN") : "—"}</td><td class="small">${esc(h.by ? who28(h.by) : "")}</td></tr>`).join("")}</tbody></table></div>`, foot: `<span style="flex:1"></span>${p.item ? `<button class="btn" id="p87i" type="button">Stock item</button>` : ""}<button class="btn primary" id="p87n" type="button">New indent for this</button>` });
+    $$("[data-o87]", D).forEach(t => t.onclick = () => window.open85?.(t.dataset.o87));
+    $("#p87i", D) && ($("#p87i", D).onclick = () => itemPanel28(BIZ.rows[p.item]));
+    $("#p87n", D).onclick = () => poPanel28({ kind: "po", status: "indent", date: todayISO(), reqBy: me28(), supplier: p.last?.supplier || "", lines: [{ item: p.item || "", desc: p.name, qty: 1, unit: p.unit || "nos", rate: p.last?.rate || "", gst: 18 }] }); });
+  $("#p87x", v).onclick = () => xlsx71("product-repository.xlsx", [["Product", "Last supplier", "Last rate", "Last bought", "PO no", "Raised by", "Times bought", "Total qty", "Unit", "Lowest rate", "Highest rate", "In stock", "All suppliers"], ...L.map(p => [p.name, p.last?.supplier, p.last?.rate, p.last?.date, p.last?.no, p.last?.by, p.n, p.qty, p.unit, p.min, p.max, p.stock, p.sups.join(", ")])]);
+};
+{
+  const put = (mod, grp, c, first) => { const m = MODS32.find(x => x.id === mod); if (!m) return; const G = m.groups[grp] ||= []; if (G.some(x => x[1] === c[1] && JSON.stringify(x[2]) === JSON.stringify(c[2]))) return; first ? G.unshift(c) : G.push(c); try { CARDMOD64.set(c, mod); } catch { } };
+  put("purchase", "Masters", ["Product repository", "prod87", {}, "Every product bought - supplier, rate, date, who"], true);
+  put("admin", "Masters", ["Asset repository", "assets62", {}, "Every asset - who has it, where, since when, value"], true);
+  put("admin", "Masters", ["Product repository", "prod87", {}, "Every product bought - supplier, rate, date, who"]);
+  MODS32.forEach(m => Object.values(m.groups).flat().forEach(c => { if (c[1] === "assets62" && c[0] === "Asset register") { c[0] = "Asset repository"; c[3] = "Every asset - who has it, where, since when, value"; } if (c[1] === "vault" && /Password vault/.test(c[0])) { c[0] = "Password repository"; c[3] = "Every login and password, encrypted - MD + Admin"; } }));
+  if (window.DEPT63?.purchase && !DEPT63.purchase.extra.includes("prod87")) DEPT63.purchase.extra.push("prod87");
+}
+
 boot();
 
 </script>
