@@ -942,7 +942,7 @@ function api(d) {
     return { ok: true };
   }
   /* ---- private document store (seeded once from Dropbox with a short-lived key) ---- */
-  if (a === "pubSubmit" || a === "pubFile") return pub71(d);
+  if (a === "pubSubmit" || a === "pubFile" || a === "pubList") return pub71(d);
   if (a === "filePut" && d.seed) { if (!seedOk(d.seed)) throw "Seed key expired"; return filePut(d, "dropbox-seed", true); }
   if (a === "fileList" && d.seed) { if (!seedOk(d.seed)) throw "Seed key expired"; return { ok: true, files: fileList() }; }
   /* ---- signed-in actions ---- */
@@ -1298,15 +1298,18 @@ function lvApprovers71() { return String(props().getProperty("LEAVE_APPROVERS") 
 function pubKey71(kind) { return hmac("pub71|" + kind).replace(/[^A-Za-z0-9]/g, "").slice(0, 20); }
 /* no-login forms: new employee (onb) and visitor (vis) — only with the key printed in the link / QR */
 function pub71(d) {
-  var kind = d.kind === "vis" ? "vis" : d.kind === "onb" ? "onb" : ""; if (!kind || !eq(String(d.k || ""), pubKey71(kind))) throw "This link is not valid. Ask the office for a new one.";
+  var kind = d.kind === "vis" ? "vis" : d.kind === "onb" ? "onb" : d.kind === "cr" ? "cr" : ""; if (!kind || !eq(String(d.k || ""), pubKey71(kind))) throw "This link is not valid. Ask the office for a new one.";
   var cache = CacheService.getScriptCache(), ck = "pub71:" + kind + ":" + String(d.who || "").slice(0, 40), n = Number(cache.get(ck) || 0); if (n > 30) throw "Too many tries. Please wait a few minutes.";
-  cache.put(ck, String(n + 1), 600);
+  if (kind !== "cr") cache.put(ck, String(n + 1), 600);
+  /* courier app (security phone, no login): recent couriers to show on the screen */
+  if (d.action === "pubList") { if (kind !== "cr") throw "Not allowed"; var since = new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+    return { ok: true, team: team62().map(function (u) { return { email: u.email, name: u.name }; }), rows: rows62("cr").filter(function (x) { return String(x.date || x.at || "") >= since; }).sort(function (a, b) { return String(b.date + (b.time || "")).localeCompare(String(a.date + (a.time || ""))); }).slice(0, 150).map(function (x) { return { no: x.no, dir: x.dir, date: x.date, time: x.time, party: x.party, place: x.place, company: x.company, docket: x.docket, contents: x.contents, forName: x.forName || "", status: x.status, appr: !!x.apprAt }; }) }; }
   if (d.action === "pubFile") { var b = String(d.b64 || ""); if (!b || b.length > 7e6) throw "Each file must be under 5 MB"; var id = "pub_" + kind + "_" + Utilities.getUuid().replace(/-/g, "").slice(0, 16); filePut({ id: id, name: String(d.name || "file").slice(0, 120), type: String(d.type || "application/octet-stream").slice(0, 80), b64: b }, "public-" + kind, false); return { ok: true, id: id }; }
-  var x = d.data || {}; if (!String(x.name || "").trim()) throw "Write your name";
+  var x = d.data || {}; if (kind === "cr") { if (!String(x.party || "").trim()) throw "Write the sender / recipient"; x.name = x.party; } else if (!String(x.name || "").trim()) throw "Write your name";
   ["id", "no", "by", "at", "_del", "del"].forEach(function (k) { delete x[k]; });
   if (kind === "vis") { var okHost = team62().map(function (u) { return u.email; }).concat(staff62().map(function (u) { return u.email; })); if (okHost.indexOf(String(x.host || "").toLowerCase()) < 0) x.host = ""; }
   Object.keys(x).forEach(function (k) { if (typeof x[k] === "string") x[k] = x[k].slice(0, 2000); });
-  x.kind = kind; x.src = "public"; x.at71 = new Date().toISOString(); if (kind === "vis") { x.status = "in"; x.inAt = x.at71; x.passNo = "GP-" + Utilities.formatDate(new Date(), "Asia/Kolkata", "yyMMdd") + "-" + String(Math.floor(1000 + Math.random() * 9000)); } else x.status = "submitted";
+  x.kind = kind; x.src = kind === "cr" ? "courier-app" : "public"; x.at71 = new Date().toISOString(); if (kind === "cr") { x.status = x.dir === "out" ? "Sent" : "Pending"; x.date = x.date || Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyy-MM-dd"); x.time = x.time || Utilities.formatDate(new Date(), "Asia/Kolkata", "HH:mm"); x.byEmail = ""; if (x.forEmail && team62().map(function (u) { return u.email; }).concat(staff62().map(function (u) { return u.email; })).indexOf(String(x.forEmail).toLowerCase()) < 0) x.forEmail = ""; } else if (kind === "vis") { x.status = "in"; x.inAt = x.at71; x.passNo = "GP-" + Utilities.formatDate(new Date(), "Asia/Kolkata", "yyMMdd") + "-" + String(Math.floor(1000 + Math.random() * 9000)); } else x.status = "submitted";
   var sys = { email: "public@rivera.form", name: String(x.name).slice(0, 60) + " (form)", role: "admin" };
   var out = recPut({ recs: [x] }, sys);
   if (kind === "vis") { try { gatePassMail78(out.recs && out.recs[0] || x); } catch (e) { log("automation", "gatepass-mail", String(e)); } return { ok: true, no: x.passNo || ((out.recs && out.recs[0] && out.recs[0].no) || "") }; }
@@ -1333,7 +1336,7 @@ function gatePassMail78(x) {
     + [["Name", x.name, "Designation", x.designation], ["Org.", x.org, "Mobile", x.mobile], ["Nationality", x.nationality, "Email", x.email], ["Type", x.type, "Purpose", x.purpose], ["From", [x.town, x.district, x.state].filter(Boolean).join(", "), "Vehicle No.:", x.vehicle], ["Goggles:", x.goggles || "No", "IT Asset", x.asset], ["Helmet:", x.helmet || "No", "Persons", x.persons]].map(function (r) { return "<tr><td style='" + h + "'>" + r[0] + "</td><td style='" + td + "'>" + V(r[1]) + "</td><td style='" + h + "'>" + r[2] + "</td><td style='" + td + "'>" + V(r[3]) + "</td></tr>"; }).join("")
     + "<tr><td style='" + td + ";height:46px' colspan='3'></td><td style='" + td + "'><b>Security Sign:</b></td></tr></table>"; };
   var html = "<p>Visitor entry recorded at <b>" + esc(when) + "</b>. Print this gate pass if needed.</p>" + pass(inline.photo ? "cid:photo" : "", inline.qr ? "cid:qr" : "", inline.logo ? "cid:logo" : "") + "<p>" + btn(link62("visitors"), "Open visitors", "#02315B") + "</p>";
-  var att = []; try { att = [Utilities.newBlob("<html><head><meta charset='utf-8'></head><body style='font-family:Arial,sans-serif'>" + pass(ph, qr, lg) + "</body></html>", "text/html", "gatepass.html").getAs("application/pdf").setName("Gate pass " + (x.passNo || x.no) + ".pdf")]; } catch (e) { att = []; }
+  var att = []; try { att = [Utilities.newBlob("<html><head><meta charset='utf-8'><style>@page{size:A4;margin:10mm}</style></head><body style='font-family:Arial,sans-serif;margin:0'>" + pass(ph, qr, lg).replace(/font-size:13px/g, "font-size:15px").replace(/padding:6px 8px/g, "padding:10px 12px").replace(/vertical-align:top/g, "vertical-align:middle").replace("max-width:720px", "height:265mm").replace(/width:110px;height:130px/, "width:150px;height:180px").replace(/width:110px;height:110px/, "width:150px;height:150px") + "</body></html>", "text/html", "gatepass.html").getAs("application/pdf").setName("Gate pass " + (x.passNo || x.no) + ".pdf")]; } catch (e) { att = []; }
   var to = lvApprovers71().concat([x.host]).filter(function (e, i, a) { return /@/.test(e || "") && a.indexOf(e) === i; });
   to.forEach(function (t) { mail(t, "Visitor: " + clean(x.name, 40) + (x.org ? " (" + clean(x.org, 40) + ")" : "") + " · Gate pass " + (x.passNo || x.no), html, att, Object.keys(inline).length ? inline : null); });
 }
@@ -1458,7 +1461,7 @@ function workEvening62() {
 }
 function work62Api(d, me) {
   if (d.op === "team") return { ok: true, team: team62(), md: md62(), courier: crNotify62(), staff: staff62() };
-  if (d.op === "pubkeys") { if (!(me.role === "admin" || me.email === ADMIN || userPages(me).some(function (p) { return /^(hrx|courier\.all)/.test(p); }))) throw "Only admin, HR or security"; return { ok: true, onb: pubKey71("onb"), vis: pubKey71("vis") }; }
+  if (d.op === "pubkeys") { if (!(me.role === "admin" || me.email === ADMIN || userPages(me).some(function (p) { return /^(hrx|courier\.all)/.test(p); }))) throw "Only admin, HR or security"; return { ok: true, onb: pubKey71("onb"), vis: pubKey71("vis"), cr: pubKey71("cr") }; }
   if (d.op === "lvappr") return { ok: true, list: lvApprovers71() };
   if (d.op === "regs") { if (!(me.role === "admin" || me.email === ADMIN || me.role === "finance")) throw "Only admin"; return regs71(); }
   /* Reminder / pending-approval list: the person taps "Send to email" — it goes to MD sir only, as an image + table */
