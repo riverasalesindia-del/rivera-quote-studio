@@ -13365,6 +13365,179 @@ async function recover77() {
 }
 { const _r = render; render = function () { _r.apply(this, arguments); try { if (signed26() && AUTH.api && !window.__rec77) setTimeout(recover77, 2500); } catch { } }; }
 
+
+/* ===================== p78: Work update in HOURS (no From / To); AGM + HR see everyone's work update and handover and approve;
+   courier entries approved by AGM / HR; courier app shows only Courier; visitor QR → welcome page → form with live face photo →
+   "Your submission has been recorded"; Production ▸ Coil library (our drawings + coil types) ===================== */
+
+/* ---------- 1. hours instead of From / To ---------- */
+const HRS78 = [0.25, 0.5, 1, 1.5, 2, 3, 4, 5, 6, 8];
+const hl78 = h => h === 0.25 ? "15m" : h === 0.5 ? "½h" : (Number.isInteger(h) ? h : h.toString().replace(".5", "½")) + "h";
+const t2m78 = s => s ? +s.slice(0, 2) * 60 + +s.slice(3, 5) : 0, m2t78 = m => `${String(Math.floor(m / 60)).padStart(2, "0")}:${String(Math.round(m % 60)).padStart(2, "0")}`;
+/* hours → hidden From / To, laid one after another from 9:00, so totals, the PDF and old reports keep working */
+function lay78(I) { let c = 540; I.forEach(i => { if (i.state === "dropped") return; if (!(+i.hrs > 0) && i.from && i.to && i.to > i.from) i.hrs = Math.round((t2m78(i.to) - t2m78(i.from)) / 15) / 4; if (+i.hrs > 0) { i.from = m2t78(Math.min(c, 1430)); c = Math.min(c + +i.hrs * 60, 1439); i.to = m2t78(c); } }); return c; }
+{
+  const _w = wireUpd65;
+  wireUpd65 = function (v) {
+    const S = W62.u65; if (S) lay78(S.items);
+    _w.apply(this, arguments); if (!S) return; const I = S.items;
+    /* each work: hour chips in place of From / To */
+    $$(".o68-tm", v).forEach(tm => { const n = +($("[data-tf]", tm)?.dataset.tf); const i = I[n]; if (!i) return; tm.style.display = "none";
+      tm.insertAdjacentHTML("afterend", `<div class="o78-h" data-h78="${n}"><span>Hours</span>${HRS78.map(h => `<button type="button" data-hv="${h}" class="${+i.hrs === h ? "on" : ""}">${hl78(h)}</button>`).join("")}<input type="number" min="0" max="16" step="0.25" inputmode="decimal" value="${+i.hrs > 0 && !HRS78.includes(+i.hrs) ? +i.hrs : ""}" placeholder="other"></div>`); });
+    $$(".o78-h", v).forEach(box => { const i = I[+box.dataset.h78]; const set = h => { i.hrs = h > 0 ? Math.min(16, h) : 0; if (!(i.hrs > 0)) { i.from = ""; i.to = ""; } lay78(I); if (updMine65()?.submittedAt) S.dirty68 = 1; keep65(); const y = scrollY; render(); scrollTo(0, y); };
+      $$("[data-hv]", box).forEach(b => b.onclick = () => set(+b.dataset.hv)); const inp = $("input", box); inp.onchange = () => set(+inp.value || 0); });
+    /* add row: hours select instead of From / To */
+    const nIn = $("#u65n", v); if (nIn) nIn.dataset.enter = "1";   /* Enter adds the work (not "next box") */
+    const f = $("#u65f", v), to = $("#u65to", v);
+    if (f && to && !$("#h78", v)) { const tl = f.closest(".o68-tl") || f.parentElement; [f, to].forEach(el => { (el.closest(".o68-tl") || el.parentElement).style.display = "none"; }); $$(".q69", v).forEach(q => q.style.display = "none");
+      tl.insertAdjacentHTML("beforebegin", `<label class="o78-add"><span>Hours</span><select id="h78">${HRS78.map(h => `<option value="${h}" ${h === 1 ? "selected" : ""}>${hl78(h)}</option>`).join("")}</select></label>`);
+      const prep = () => { const end = lay78(I), h = +$("#h78", v).value || 1; f.value = m2t78(Math.min(end, 1420)); to.value = m2t78(Math.min(end + h * 60, 1439)); };
+      const addBtn = $("#u65a", v); addBtn && addBtn.addEventListener("click", prep, true);
+      $("#u65n", v)?.addEventListener("keydown", e => { if (e.key === "Enter") prep(); }, true); }
+    $$(".o68-win *", v).forEach(el => { if (el.children.length === 0 && /with From and To time/.test(el.textContent)) el.textContent = el.textContent.replace(/with From and To time/, "with the hours you spent"); });
+    $$(".o68-win", v).forEach(w => w.childNodes.forEach(nd => { if (nd.nodeType === 3 && /From and To/.test(nd.nodeValue)) nd.nodeValue = nd.nodeValue.replace(/with From and To time/, "with the hours you spent"); }));
+    /* totals in hours */
+    const tot = I.filter(i => i.state !== "dropped").reduce((a, i) => a + (+i.hrs || 0), 0); $$(".o68-sum b", v).forEach(b => { if (/\dh|\dm/.test(b.textContent) && b.previousSibling && /Time/.test(b.parentElement.textContent)) b.textContent = (Math.round(tot * 4) / 4) + " h"; });
+  };
+  const _t = toast; toast = function (m, k) { if (typeof m === "string") m = m.replace(/Add From and To time for/, "Add hours for").replace(/Add the From and To time for this work/, "Choose the hours for this work").replace(/"To" time must be after "From" time/, "Choose the hours"); return _t.call(this, m, k); };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.t69{display:none!important}
+.o78-h{display:flex;flex-wrap:wrap;gap:5px;align-items:center;margin-top:6px}.o78-h span{font-size:12px;font-weight:700;color:#5d6878;margin-right:4px}
+.o78-h button{border:1.5px solid #dfe5ee;background:#fff;border-radius:8px;padding:5px 10px;font-weight:700;font-size:12.5px;color:#0b2a57;cursor:pointer;min-width:42px}.o78-h button.on{background:#02315B;color:#fff;border-color:#02315B}
+.o78-h input{width:84px!important;flex:0 0 84px;border:1.5px solid #dfe5ee;border-radius:8px;padding:5px 8px;font:inherit;font-size:12.5px}
+.o78-add{display:flex;flex-direction:column;gap:3px;font-size:12px;font-weight:700;color:#5d6878}.o78-add select{height:40px;border:1.5px solid #dfe5ee;border-radius:8px;padding:0 10px;font:inherit;font-weight:700;color:#0b2a57;min-width:90px}
+</style>`);
+
+/* ---------- 2. AGM + HR: everyone's work update, handover and courier — they approve ---------- */
+DEPT63.hr.extra.push("work.dash", "work.team", "handover.approve", "courier.all", "visitors");
+DEPT63.mgmt.extra.push("work.dash", "work.team", "handover.approve", "courier.all", "visitors");
+HOST62.submitted = ["With AGM / HR", "warn"];
+const appr78 = () => adm62() || ["agm@rivera.co.in", "hr@rivera.co.in"].includes(me28()) || (myDepts63?.() || []).some(d => d === "hr" || d === "mgmt");
+{
+  const _c = crPanel62;
+  crPanel62 = function (src, dir) {
+    _c.apply(this, arguments); if (!src) return; const D = $("#dr26"); if (!D) return; const h = $(".dr26-h .row", D);
+    if (h) h.insertAdjacentHTML("beforeend", src.apprAt ? `<span class="chip ok">✓ Approved by ${esc(nm62(src.apprBy))}</span>` : '<span class="chip warn">Waiting AGM / HR approval</span>');
+    if (!src.apprAt && appr78()) { const ft = $(".dr28-f", D) || (() => { $(".dr26", D).insertAdjacentHTML("beforeend", '<footer class="dr28-f"></footer>'); return $(".dr28-f", D); })();
+      ft.insertAdjacentHTML("beforeend", '<button type="button" class="btn primary" id="cr78a" style="background:#1e8e3e">✓ Approve</button>');
+      $("#cr78a").onclick = async e => { if (await save28(e.target, { ...src, apprBy: me28(), apprAt: now62() }, "Courier approved")) { closeDrawer26(); render(); } }; }
+  };
+  const _r = render;
+  render = function () { _r.apply(this, arguments); try { if (STATE.route !== "courier") return; const v = $("#view");
+    $$("[data-cr]", v).forEach(tr => { const x = BIZ.rows[tr.dataset.cr]; if (!x) return; const td = tr.lastElementChild; if (td && !$(".a78", td)) td.insertAdjacentHTML("beforeend", x.apprAt ? ' <span class="chip ok a78">✓ Approved</span>' : ' <span class="chip warn a78">Approval pending</span>'); });
+    const tb = $(".topbar", v), n = all28("cr").filter(x => !x.apprAt).length; if (tb && appr78() && n && !$("#cr78n", v)) tb.insertAdjacentHTML("afterend", `<div class="note" id="cr78n" style="margin:0 0 12px">🟠 <b>${n}</b> courier entr${n > 1 ? "ies" : "y"} waiting for your approval - open each and tap ✓ Approve.</div>`); } catch { } };
+}
+
+/* ---------- 3. courier app (security phone): only the Courier section ---------- */
+if (new URLSearchParams(location.search).get("app") === "courier") {
+  document.documentElement.classList.add("app-courier");
+  const _al = allowed21; allowed21 = function (r) { return r === "courier"; };
+  addEventListener("hashchange", () => { if (location.hash !== "#courier") location.replace("#courier"); });
+  if (location.hash !== "#courier") location.replace("#courier");
+  document.head.insertAdjacentHTML("beforeend", `<style>.app-courier #nav,.app-courier #tabbar,.app-courier #mobileNav,.app-courier .bk71,.app-courier .rail,.app-courier [data-r]:not([data-r="courier"]){display:none!important}</style>`);
+}
+
+/* ---------- 4. visitor QR: welcome page first, then the form with a live face photo; no approval ---------- */
+{
+  const _pp = pubPage71;
+  pubPage71 = async function () {
+    if (!PUB71 || PUB71.kind !== "vis" || window.__w78) { await _pp(); if (PUB71?.kind === "vis") cam78(); return; }
+    document.title = "Welcome - Rivera Group of Companies"; document.body.className = "pub71 gf74 w78b";
+    document.body.innerHTML = `<div class="w78"><div class="w78-hero"><img src="${LOGO73}" alt="Rivera"><p class="w78-k">WELCOME TO</p><h1>Rivera Group of Companies</h1><p class="w78-s">Rivera Coil Manufacturing (I) Pvt Ltd &nbsp;·&nbsp; Rivera Coil Rewinding</p></div>
+      <div class="w78-card"><p>Thank you for visiting us. For everyone's safety, please fill a short visitor entry - it takes about a minute.</p>
+        <div class="w78-row"><div><b>1</b>Your details</div><div><b>2</b>Whom you meet</div><div><b>3</b>A quick photo</div></div>
+        <button type="button" class="w78-go" id="w78go">Start visitor entry →</button>
+        <p class="w78-t">வணக்கம்! உங்கள் வருகைக்கு நன்றி.</p></div>
+      <p class="w78-f">Stator coils · Roebel bars · Rewinding · Insulation</p></div>`;
+    $("#w78go").onclick = async () => { window.__w78 = 1; await _pp(); cam78(); scrollTo(0, 0); };
+  };
+}
+function cam78() {
+  const q = $('[data-q="photo"]'); if (!q || $(".c78", q)) return; const inp = $('[data-up="photo"]', q), lab = $(".gf-l", q);
+  if (lab) lab.innerHTML = 'Your photo <span class="gf-r">*</span>';
+  $(".gf-up", q).style.display = "none";
+  q.insertAdjacentHTML("beforeend", `<div class="c78"><div class="c78-v"><video playsinline muted></video><img alt=""><div class="c78-ph">📷</div></div><div class="c78-b"><button type="button" class="c78-open">Open camera</button><button type="button" class="c78-snap" hidden>Take photo</button><button type="button" class="c78-re" hidden>Retake</button><label class="c78-file">or choose a photo<input type="file" accept="image/*" capture="user" hidden></label></div></div>`);
+  const C = $(".c78", q), vid = $("video", C), img = $("img", C); let stream = null;
+  const stop = () => { stream?.getTracks().forEach(t => t.stop()); stream = null; };
+  const useFile = f => { const dt = new DataTransfer(); dt.items.add(f); inp.files = dt.files; img.src = URL.createObjectURL(f); C.classList.add("got"); C.classList.remove("live"); $(".c78-snap", C).hidden = true; $(".c78-re", C).hidden = false; $(".c78-open", C).hidden = true; q.classList.remove("bad"); };
+  $(".c78-open", C).onclick = async () => { try { stream = await navigator.mediaDevices.getUserMedia({ video: { facingMode: "user", width: { ideal: 720 } }, audio: false }); vid.srcObject = stream; await vid.play(); C.classList.add("live"); C.classList.remove("got"); $(".c78-snap", C).hidden = false; $(".c78-open", C).hidden = true; $(".c78-re", C).hidden = true; } catch { toast("Camera not allowed - choose a photo instead", "bad"); $(".c78-file input", C).click(); } };
+  $(".c78-snap", C).onclick = () => { const c = document.createElement("canvas"), s = Math.min(1, 900 / Math.max(vid.videoWidth, vid.videoHeight)); c.width = vid.videoWidth * s; c.height = vid.videoHeight * s; const x = c.getContext("2d"); x.translate(c.width, 0); x.scale(-1, 1); x.drawImage(vid, 0, 0, c.width, c.height); stop(); c.toBlob(b => useFile(new File([b], "visitor.jpg", { type: "image/jpeg" })), "image/jpeg", .85); };
+  $(".c78-re", C).onclick = () => { inp.value = ""; C.classList.remove("got"); $(".c78-open", C).hidden = false; $(".c78-re", C).hidden = true; $(".c78-open", C).click(); };
+  $(".c78-file input", C).onchange = e => e.target.files[0] && useFile(e.target.files[0]);
+  /* photo is required; after submit show "Your submission has been recorded" */
+  const sb = $("#gf74s"); if (sb) sb.addEventListener("click", e => { if (!inp.files.length) { e.stopImmediatePropagation(); q.classList.add("bad"); $(".gf-err", q).textContent = "Please take your photo"; q.scrollIntoView({ behavior: "smooth", block: "center" }); } else stop(); }, true);
+  new MutationObserver((m, o) => { const d = $(".gf-done"); if (!d) return; o.disconnect(); const no = $(".p73-pass b", d)?.textContent || ""; const nm = $(".gf-done b")?.textContent || "";
+    d.innerHTML = `<div class="d78"><div class="d78-i">✓</div><h2>Your submission has been recorded.</h2><p class="d78-t">Thank you for visiting <b>Rivera Group of Companies</b>${nm ? `, ${esc(nm)}` : ""}.</p>${no ? `<div class="d78-p"><small>Gate pass no.</small><b>${esc(no)}</b><span>${esc(new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }))}</span></div>` : ""}<p class="d78-n">We have informed our team. Have a pleasant visit.</p></div>`; }).observe(document.body, { childList: true, subtree: true });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+body.w78b{background:linear-gradient(160deg,#02315B 0%,#0b4a85 60%,#1f5f99 100%) fixed;min-height:100vh}
+.w78{max-width:560px;margin:0 auto;padding:28px 16px 24px;color:#fff;text-align:center;font-family:Roboto,Arial,sans-serif}
+.w78-hero img{width:96px;height:96px;background:#fff;border-radius:24px;padding:8px;box-shadow:0 10px 30px rgba(0,0,0,.25)}.w78-k{letter-spacing:4px;font-size:13px;opacity:.85;margin:22px 0 4px}
+.w78-hero h1{font-size:32px;line-height:1.15;margin:0 0 8px;font-weight:700}.w78-s{opacity:.9;font-size:14px;margin:0 0 22px}
+.w78-card{background:#fff;color:#202124;border-radius:18px;padding:22px 20px;box-shadow:0 14px 40px rgba(0,0,0,.25)}.w78-card>p{margin:0 0 16px;font-size:15px;line-height:1.5}
+.w78-row{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:18px}.w78-row div{background:#f3f6fa;border-radius:12px;padding:10px 6px;font-size:12.5px;font-weight:600;color:#02315B}.w78-row b{display:block;width:26px;height:26px;margin:0 auto 6px;border-radius:50%;background:#E26A0C;color:#fff;line-height:26px}
+.w78-go{width:100%;border:0;border-radius:12px;background:#02315B;color:#fff;font-size:17px;font-weight:700;padding:15px;cursor:pointer}.w78-t{margin:14px 0 0!important;color:#5f6368;font-size:13.5px}.w78-f{opacity:.8;font-size:12.5px;margin-top:20px}
+.c78{display:flex;gap:14px;align-items:center;flex-wrap:wrap}.c78-v{width:150px;height:180px;border-radius:12px;background:#eef2f7;overflow:hidden;position:relative;display:grid;place-items:center;border:1px solid #dadce0}
+.c78-v video,.c78-v img{position:absolute;inset:0;width:100%;height:100%;object-fit:cover;display:none}.c78-v video{transform:scaleX(-1)}.c78.live video{display:block}.c78.got img{display:block}.c78-ph{font-size:40px;opacity:.5}
+.c78-b{display:flex;flex-direction:column;gap:8px}.c78-b button{border:0;border-radius:6px;background:#02315B;color:#fff;font-weight:600;padding:10px 16px;cursor:pointer}.c78-snap{background:#E26A0C!important}.c78-re{background:#fff!important;color:#02315B!important;border:1px solid #dadce0!important}.c78-file{color:#02315B;font-size:13px;text-decoration:underline;cursor:pointer}
+.d78{text-align:center;padding:10px 0}.d78-i{width:64px;height:64px;border-radius:50%;background:#1e8e3e;color:#fff;font-size:34px;line-height:64px;margin:0 auto 12px}.d78 h2{font-weight:500;font-size:22px;margin:0 0 8px}.d78-t{font-size:16px;margin:0 0 14px}
+.d78-p{display:inline-flex;flex-direction:column;border:2px dashed #02315B;border-radius:12px;padding:10px 22px;margin:4px 0 12px}.d78-p small{color:#5f6368;letter-spacing:1px}.d78-p b{font-size:22px;color:#E26A0C}.d78-p span{font-size:12.5px;color:#5f6368}.d78-n{color:#5f6368;font-size:13.5px}
+</style>`);
+
+/* ---------- 5. Production ▸ Coil library: our released coil drawings (with PDF / DWG / DXF) and the coil types we make ---------- */
+const CSITE78 = "https://riverasalesindia-del.github.io/rivera-quote-studio/coils/";
+const COILS78 = [
+  { id: "015-350", title: "Stator coil (diamond) - 350 kW, 6.6 kV", dwg: "RCM/DD/DWG/015-350", project: "NCL, Singrauli, M.P.", iwo: "7103-1", kw: 350, kv: 6.6, slots: 72, qty: 75, mass: "4.5 ±0.2 kg", type: "Diamond (form-wound) stator coil",
+    spec: [["Overall coil length", "1080 ±5"], ["Straight length top / bottom", "725 / 725"], ["CE / NCE extension", "178 / 178"], ["Span", "275 ±5 c/c"], ["Overhang height CE / NCE", "130 / 130"], ["Top / bottom angle", "75° / 25° ±2°"], ["Lead", "200"], ["Loop pin", "Ø25 · pin to pin 1145"], ["Conductor (bare)", "7.9 × 2.2 Cu-ETP"], ["Covering / insulated", "Enamel + glass (EDFG) · 8.1 × 2.5"], ["Turns", "Single strip - 11 turns"], ["Final size", "12.5 × 34.9 ±0.2"], ["Insulation", "Class F · PGMP main wall 4 layer (50% lap)"], ["Connection", "Wye, 3 groups of 24 coils"], ["Copper per coil", "29.3 m"], ["Core", "Length 680, 72 slots, slot 12.8 × 72.8"]],
+    calc: { model: "diamond", a1: 178, a2: 178, b1: 725, b2: 725, turns: 11, t: 2.2, w: 7.9, r: 0.5, par: 1, qty: 75, shape: "rect", k: 8.96, waste: 3 } },
+  { id: "016-1045", title: "Armature half coil - 1045 kW", dwg: "RCM/DD/DWG/016-1045", project: "NCL, Singrauli, M.P.", iwo: "4777-2 · Job RCM/JOB/8.1", kw: 1045, kv: "", slots: 75, qty: 375, mass: "3 ±0.2 kg", type: "Armature half coil (2 coils / slot)",
+    spec: [["Overall coil length", "775 ±5"], ["Straight length top / bottom", "520 / 520"], ["CE / NCE extension", "120 / 135"], ["Span", "382 ±5 c/c (pitch 1-13)"], ["Overhang height", "60"], ["Lead", "100"], ["Nose pin", "Ø20"], ["Conductor (bare)", "2.6 × 5 Cu-ETP"], ["Covering / insulated", "EDFG · 2.9 × 5.3"], ["Turns", "Half coil - 3 + 3 turns (2 × 3 strips)"], ["Final size", "13 × 17 ±0.2"], ["Insulation", "Kapton 1 layer + PGMP separator + FG tape"], ["Copper per coil", "13.1 m"], ["Core", "Dia 760, slot length 460, 75 slots, slot 13 × 34"]],
+    calc: { model: "diamond", a1: 120, a2: 135, b1: 520, b2: 520, turns: 6, t: 2.6, w: 5, r: 0.5, par: 1, qty: 375, shape: "rect", k: 8.96, waste: 3 } },
+  { id: "017-450", title: "Stator coil (diamond) - 450 kW, 6.6 kV", dwg: "RCM/DD/DWG/017-450", project: "NCL, Singrauli, M.P.", iwo: "5306-2", kw: 450, kv: 6.6, slots: 48, qty: 51, mass: "4.5 ±0.3 kg", type: "Diamond (form-wound) stator coil",
+    spec: [["Overall coil length", "1250 ±5"], ["Straight length top / bottom", "820 / 825"], ["CE / NCE extension", "212 / 212"], ["Span", "250 ±5 c/c"], ["Overhang height CE / NCE", "120 / 120"], ["Top / bottom angle", "60° / 45° ±2°"], ["Lead", "220 / 200"], ["Loop pin", "Ø20 · pin to pin 1330"], ["Conductor (bare)", "4.61 × 3.3 Cu-ETP"], ["Covering / insulated", "Enamel + glass (EDFG) · 4.91 × 3.6"], ["Turns", "6 turns - 2 strips side by side"], ["Final size", "13.1 × 24 ±0.2"], ["Insulation", "Class F · PGMP main wall 4 layer (50% lap)"], ["Connection", "Wye, 3 groups of 16 coils"], ["Copper per coil", "34.4 m"], ["Core", "Length 790, 48 slots, slot 13.6 × 51"]],
+    calc: { model: "diamond", a1: 212, a2: 212, b1: 825, b2: 820, turns: 6, t: 3.3, w: 4.61, r: 0.5, par: 2, qty: 51, shape: "rect", k: 8.96, waste: 3 } }];
+/* the coil shapes we make - simple drawings (not to scale) */
+const TYPES78 = [
+  ["Diamond (form-wound) stator coil", "HT motors & generators, 3.3 - 11 kV", `<path d="M20 60 L60 30 H180 L220 60 L180 90 H60 Z" class="k"/><path d="M28 60 L64 36 H176 L212 60 L176 84 H64 Z" class="k2"/><line x1="8" y1="60" x2="20" y2="60" class="k"/>`, "diamond"],
+  ["Roebel bar", "Large generators / turbo-generators", `<path d="M20 70 L60 50 H180 L220 70" class="k"/><path d="M20 76 L60 56 H180 L220 76" class="k2"/>${[70, 95, 120, 145, 170].map(x => `<line x1="${x}" y1="50" x2="${x + 12}" y2="58" class="k3"/>`).join("")}`, "bar"],
+  ["Armature half coil", "DC machines, traction, 2 coils / slot", `<path d="M30 70 L70 40 H170 L210 70" class="k"/><path d="M30 78 L70 48 H170 L210 78" class="k2"/>`, "diamond"],
+  ["Single-turn bar coil", "Large LT motors, hairpin / bar windings", `<path d="M30 80 V45 Q30 35 40 35 H200 Q210 35 210 45 V80" class="k"/>`, "bar"],
+  ["Pole / field coil", "Salient-pole rotors, DC field & interpole", `<rect x="60" y="25" width="120" height="70" rx="16" class="k"/><rect x="78" y="40" width="84" height="40" rx="8" class="k2"/>`, "pole"],
+  ["Round / concentric coil", "Brake, exciter and lifting magnet coils", `<circle cx="120" cy="60" r="38" class="k"/><circle cx="120" cy="60" r="22" class="k2"/>`, "round"],
+  ["Rotor bar / squirrel-cage bar", "Rotor rebarring, copper bars & rings", `${[40, 70, 100, 130, 160, 190].map(x => `<rect x="${x}" y="30" width="12" height="60" rx="2" class="k"/>`).join("")}<line x1="30" y1="30" x2="210" y2="30" class="k2"/><line x1="30" y1="90" x2="210" y2="90" class="k2"/>`, "bar"],
+  ["Transformer disc / helical coil", "Rewinding of distribution transformers", `${[0, 1, 2, 3, 4].map(i => `<rect x="70" y="${22 + i * 16}" width="100" height="10" rx="3" class="k"/>`).join("")}`, "round"]];
+VIEWS.coils78 = v => {
+  const U = BIZ.ui, q = U.k78q || "", tab = U.k78 || "ours";
+  const L = COILS78.filter(c => has71(c, q));
+  const card = c => `<section class="panel k78-c"><div class="k78-img" data-k78i="${c.id}"><img src="coils/RCM-DD-DWG-${c.id}-1.jpg" alt="${esc(c.title)}" loading="lazy"></div><div class="body">
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:6px"><span class="chip navy">${esc(c.dwg)} · Rev 00</span><span class="chip ok">Released</span>${c.kw ? `<span class="chip">${c.kw} kW${c.kv ? " · " + c.kv + " kV" : ""}</span>` : ""}</div>
+    <h3 style="margin:0 0 4px">${esc(c.title)}</h3><p class="small muted" style="margin:0 0 10px">${esc(c.type)} · ${esc(c.project)} · IWO ${esc(c.iwo)} · ${c.slots} slots · qty ${c.qty} · ${esc(c.mass)}</p>
+    <table class="t k78-t"><tbody>${c.spec.map(([a, b]) => `<tr><th>${esc(a)}</th><td>${esc(b)}</td></tr>`).join("")}</tbody></table>
+    <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:10px"><a class="btn sm primary" href="${CSITE78}RCM-DD-DWG-${c.id}_R00.pdf" target="_blank" rel="noopener">📄 Drawing PDF</a><a class="btn sm" href="${CSITE78}RCM-DD-DWG-${c.id}_R00.dwg" download>DWG</a><a class="btn sm" href="${CSITE78}RCM-DD-DWG-${c.id}_R00.dxf" download>DXF</a><button type="button" class="btn sm" data-k78c="${c.id}">🧮 Copper weight</button></div></div></section>`;
+  const tcard = ([n, use, svg, m]) => `<section class="panel k78-ty"><svg viewBox="0 0 240 120" class="k78-s">${svg}</svg><div class="body"><b>${esc(n)}</b><div class="small muted">${esc(use)}</div><button type="button" class="btn sm" style="margin-top:8px" data-k78m="${m}">Calculate this shape</button></div></section>`;
+  v.innerHTML = top62("Production", "Coil library", "Our released coil drawings and the coil shapes we make. Open the drawing, download DWG / DXF, or work out the copper.", "")
+    + tabs28(tab, [["ours", `Our coil drawings (${COILS78.length})`], ["types", `Coil shapes we make (${TYPES78.length})`]], "k78t")
+    + `<div class="row" style="margin:12px 0">${srch71(U, "k78q", "Search kW, project, conductor, drawing no…")}</div>`
+    + (tab === "ours" ? `<div class="k78-g">${L.map(card).join("") || '<p class="muted">Nothing found.</p>'}</div>` : `<div class="k78-g2">${TYPES78.filter(t => has71(t[0] + t[1], q)).map(tcard).join("")}</div>`);
+  $$("[data-k78t]", v).forEach(b => b.onclick = () => { U.k78 = b.dataset.k78t; render(); }); wireSrch71(v, U);
+  $$("[data-k78c]", v).forEach(b => b.onclick = () => { const c = COILS78.find(x => x.id === b.dataset.k78c); BIZ.ui.cw71 = { ...c.calc, customer: c.project, ref: c.dwg }; go32("coil71", { c71: "calc" }); });
+  $$("[data-k78m]", v).forEach(b => b.onclick = () => { BIZ.ui.cw71 = { model: b.dataset.k78m, shape: "rect", k: 8.96, par: 1, waste: 3, qty: 1 }; go32("coil71", { c71: "calc" }); });
+  $$("[data-k78i]", v).forEach(d => d.onclick = () => window.open(`${CSITE78}RCM-DD-DWG-${d.dataset.k78i}_R00.pdf`, "_blank"));
+};
+{
+  ROUTES.push(["coils78", "Coil library", "doc"]);
+  const m = MODS32.find(x => x.id === "prod"); if (m) { const c = ["Coil library", "coils78", {}, "Our coil drawings + coil shapes"]; (m.groups.Masters ||= []).unshift(c); try { CARDMOD64.set(c, "prod"); } catch { } }
+  DEPT63.prod && DEPT63.prod.extra.push("coils78", "coil71");
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.k78-g{display:grid;grid-template-columns:repeat(auto-fill,minmax(360px,1fr));gap:14px}.k78-c{overflow:hidden}.k78-img{background:#fff;border-bottom:1px solid var(--line,#dfe5ee);cursor:zoom-in}.k78-img img{width:100%;display:block;aspect-ratio:1.414;object-fit:contain}
+.k78-t th{width:46%;font-weight:600;color:#5d6878;font-size:12.5px}.k78-t td{font-size:12.5px}
+.k78-g2{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px}.k78-s{width:100%;background:#f7f9fc;border-bottom:1px solid var(--line,#dfe5ee)}
+.k78-s .k{fill:none;stroke:#b8650c;stroke-width:5;stroke-linejoin:round;stroke-linecap:round}.k78-s .k2{fill:none;stroke:#e8a052;stroke-width:2.2}.k78-s .k3{stroke:#8a4b08;stroke-width:1.6}
+@media(max-width:420px){.k78-g{grid-template-columns:1fr}}
+</style>`);
+
 boot();
 
 </script>

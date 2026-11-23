@@ -49,6 +49,7 @@ jobs:
           mkdir -p android/app/src/main/assets/www
           cp -r web/* android/app/src/main/assets/www/
           rm -f android/app/src/main/assets/www/sw.js
+          rm -f android/app/src/main/assets/www/coils/*.dwg android/app/src/main/assets/www/coils/*.dxf android/app/src/main/assets/www/coils/*.pdf
       - name: Signing key
         env:
           KS_B64: ${{ secrets.RIVERA_KEYSTORE_B64 }}
@@ -99,6 +100,7 @@ jobs:
         run: |
           mkdir -p desktop/web
           cp -r web/* desktop/web/
+          rm -f desktop/web/coils/*.dwg desktop/web/coils/*.dxf desktop/web/coils/*.pdf
           rm -f desktop/web/sw.js
       - name: Build installer and portable exe
         working-directory: desktop
