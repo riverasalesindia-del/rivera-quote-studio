@@ -13876,6 +13876,179 @@ label.k82-ok input,label.k82-ok select,.k82-ok{border-color:#2f8f5b!important;ba
   if (window.DEPT63?.mkt) ["storage", "docs71", "library"].forEach(t => DEPT63.mkt.extra.includes(t) || DEPT63.mkt.extra.push(t));
 }
 
+/* ===================== p83: GrowSmart-style interconnect - Store Receipt note (GRN) as its own document: PO → Receipt note (accepted / rejected) → Stock → Supplier bill → Payment;
+   "Linked documents" strip on every document (enquiry, sales order, work order, delivery, invoice, receipt, PO, receipt note, bill, payment);
+   HR: employee panel gets gender / father / address + Remove; staff list without people who left; asset import keeps the right date ===================== */
+
+/* ---------- HR ---------- */
+["Vasanth", "Nithiyanandam R"].forEach(n => { const i = STAFF71.findIndex(x => x[0] === n); if (i >= 0) STAFF71.splice(i, 1); });
+{
+  const _e = empPanel29;
+  empPanel29 = function (src) {
+    _e.apply(this, arguments);
+    try {
+      const D = $("#dr26"), f = D && $(".fields", D); if (!f) return; const r = src || {};
+      if (!$('[data-k="gender"]', f)) f.insertAdjacentHTML("afterbegin", field28(["gender", "Gender", "select", ["", "Male", "Female", "Other"]], r) + field28(["father", "Father / husband name", "text"], r));
+      if (!$('[data-k="address"]', f)) f.insertAdjacentHTML("beforeend", field28(["address", "Address", "textarea"], r));
+      if (src?.id && !$("#em83d", D)) { const ft = $(".dr28-f", D) || $("#em29s", D)?.parentElement; ft?.insertAdjacentHTML("afterbegin", `<button class="btn ghost" id="em83d" type="button" data-l="Remove employee" style="color:var(--bad,#c0392b)">Remove employee</button>`);
+        $("#em83d", D)?.addEventListener("click", e => sure71(e.target, async () => { try { await bizDel28(src.id); closeDrawer26(); render(); toast(`${src.name} removed`); } catch (er) { toast(er.message, "bad"); } }, "Tap again to remove")); }
+    } catch (e) { console.warn("p83 emp", e); }
+  };
+}
+/* asset sheet import: Excel dates came in one day early (old IST offset) */
+try { const s = faImport62.toString(), f = s.replace("v.getTime() - v.getTimezoneOffset() * 6e4", "v.getTime() - v.getTimezoneOffset() * 6e4 + 432e5").replace("name: name.slice(0, 200)", "name: name.replace(/\\s*[\\r\\n]+\\s*/g, ', ').slice(0, 200)"); if (f !== s) faImport62 = (0, eval)("(" + f + ")"); } catch (e) { console.warn("p83 fa", e); }
+
+/* ---------- Store: Receipt note ---------- */
+const RNST83 = { ok: ["Accepted", "ok"], part: ["Part rejected", "warn"], rej: ["Rejected", "bad"], billed: ["Bill entered", "navy"] };
+const rnOf83 = po => all28("rn").filter(x => x.po === po.id);
+const rnTot83 = r => Math.round((r.lines || []).reduce((a, l) => a + (Number(l.acc) || 0) * (Number(l.rate) || 0) * (1 + (Number(l.gst) || 0) / 100), 0));
+const toReceive83 = () => all28("po").filter(p => ["approved", "sent", "part"].includes(p.status));
+const FLOW83 = [["po", "PO to receive", () => toReceive83().length, () => go32("purchase", { pur: "po", st45: "open" })], ["rn", "Receipt note", () => all28("rn").filter(x => x.date === todayISO()).length, () => go32("rn83", {})],
+  ["qc", "Quality check", () => all28("rn").filter(x => x.status === "part" || x.status === "rej").length, () => { BIZ.ui.rn83f = "rej"; go32("rn83", {}); }], ["stk", "Stock", () => 0, () => go32("purchase", { pur: "stock" })],
+  ["bill", "Supplier bill", () => all28("rn").filter(x => !x.bill && x.status !== "rej").length, () => { BIZ.ui.rn83f = "nobill"; go32("rn83", {}); }], ["pay", "Payment", () => all28("bill").filter(b => billDue45(b) > 0).length, () => go32("accounts", { acc: "bill" })]];
+const flow83 = cur => `<nav class="fl39" aria-label="Store flow">${FLOW83.map((s, i) => { let n = 0; try { n = s[2](); } catch { } return `<button type="button" class="fl39-s ${s[0] === cur ? "on" : ""}" data-f83="${i}"><i>${i + 1}</i><span>${s[1]}</span>${n ? `<em>${n}</em>` : ""}</button>${i < FLOW83.length - 1 ? '<span class="fl39-a" aria-hidden="true">›</span>' : ""}`; }).join("")}</nav>`;
+const wireFlow83 = v => $$("[data-f83]", v).forEach(b => b.onclick = () => FLOW83[+b.dataset.f83][3]());
+
+if (!ROUTES.some(r => r[0] === "rn83")) ROUTES.push(["rn83", "Receipt note", "box28"]);
+ALWAYS34.push("rn83");
+VIEWS.rn83 = v => {
+  bizSync28(); const U = BIZ.ui, q = U.rn83q || "", f = U.rn83f || "";
+  const L = all28("rn").filter(x => has71([x.no, x.supplier, x.poNo, x.inv, x.dc, x.vehicle, (x.lines || []).map(l => l.desc)], q) && (!f || (f === "rej" ? ["part", "rej"].includes(x.status) : f === "nobill" ? !x.bill && x.status !== "rej" : true))).sort((a, b) => String(b.date + b.no).localeCompare(a.date + a.no));
+  const P = toReceive83();
+  v.innerHTML = top62("Store", "Receipt note (GRN)", "Goods received against a purchase order: count, check, accept or reject. Accepted quantity goes into stock; the bill is made from here.", `<button type="button" class="btn primary" id="rn83n">${icon("plus")}New receipt note</button>`)
+    + flow83(f === "rej" ? "qc" : f === "nobill" ? "bill" : "rn")
+    + (loadNote28() || `${P.length ? `<section class="panel"><header><h2>Waiting to be received (${P.length})</h2></header><div class="body rn83-w">${P.map(p => `<button type="button" class="rn83-p" data-rp="${p.id}"><b>${esc(p.no)}</b><span>${esc(p.supplier || "")}</span><small>${(p.lines || []).map(l => `${esc(BIZ.rows[l.item]?.name || l.desc || "")} ${Number(l.recd) || 0}/${l.qty} ${esc(l.unit || "")}`).join(" · ")}</small><em>Receive →</em></button>`).join("")}</div></section>` : ""}
+      <section class="panel"><div class="body"><div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">${srch71(U, "rn83q", "Search GRN, supplier, PO, invoice, item…")}<select id="rn83f"><option value="">All</option><option value="rej" ${f === "rej" ? "selected" : ""}>With rejection</option><option value="nobill" ${f === "nobill" ? "selected" : ""}>Bill not entered</option></select></div>
+      <div style="overflow:auto"><table class="t"><thead><tr><th>GRN</th><th>Date</th><th>Supplier</th><th>PO</th><th>Supplier invoice / DC</th><th class="n">Accepted ₹</th><th>Status</th></tr></thead><tbody>${L.map(x => `<tr data-rn="${x.id}" style="cursor:pointer"><td><b>${esc(x.no || "")}</b></td><td>${dmy(x.date)}</td><td>${esc(x.supplier || "")}</td><td>${esc(x.poNo || "—")}</td><td>${esc([x.inv, x.dc].filter(Boolean).join(" / "))}</td><td class="n">${inr28(rnTot83(x))}</td><td><span class="chip ${(RNST83[x.bill ? "billed" : x.status] || ["", ""])[1]}">${(RNST83[x.bill ? "billed" : x.status] || [x.status])[0]}</span></td></tr>`).join("") || '<tr><td colspan="7" class="muted">No receipt notes yet. Pick a PO above or tap New receipt note.</td></tr>'}</tbody></table></div></div></section>`);
+  wireFlow83(v); wireSrch71(v, U);
+  $("#rn83n", v).onclick = () => rnPick83();
+  $("#rn83f", v) && ($("#rn83f", v).onchange = e => { U.rn83f = e.target.value; render(); });
+  $$("[data-rp]", v).forEach(b => b.onclick = () => rnPanel83(null, BIZ.rows[b.dataset.rp]));
+  $$("[data-rn]", v).forEach(r => r.onclick = () => rnPanel83(BIZ.rows[r.dataset.rn]));
+};
+function rnPick83() {
+  const P = toReceive83();
+  const D = panel28({ title: "New receipt note", body: `<p class="small muted">Which purchase order did the goods come against?</p><div class="rn83-w">${P.map(p => `<button type="button" class="rn83-p" data-rp="${p.id}"><b>${esc(p.no)}</b><span>${esc(p.supplier || "")}</span><small>${dmy(p.date)} · ${inr28(poTotal28(p))}</small><em>Receive →</em></button>`).join("") || '<p class="muted">No open purchase orders.</p>'}</div>
+    <div class="row" style="margin-top:12px"><button type="button" class="btn" id="rn83x">Goods without a PO</button></div>`, foot: "" });
+  $$("[data-rp]", D).forEach(b => b.onclick = () => rnPanel83(null, BIZ.rows[b.dataset.rp]));
+  $("#rn83x", D).onclick = () => rnPanel83(null, null);
+}
+function rnPanel83(src, po) {
+  po = po || (src?.po && BIZ.rows[src.po]) || null;
+  const items = all28("item").sort((a, b) => String(a.name).localeCompare(String(b.name)));
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "rn", date: todayISO(), po: po?.id || "", poNo: po?.no || "", supplier: po?.supplier || "", receivedBy: AUTH.user?.name || "",
+    lines: po ? (po.lines || []).map((l, i) => { const left = Math.max(0, (Number(l.qty) || 0) - (Number(l.recd) || 0)); return { li: i, item: l.item || "", desc: BIZ.rows[l.item]?.name || l.desc || "", unit: l.unit || "", ordered: Number(l.qty) || 0, before: Number(l.recd) || 0, qty: left, rej: 0, acc: left, rate: Number(l.rate) || 0, gst: Number(l.gst) || 0 }; }) : [{ item: "", desc: "", unit: "kg", qty: 1, rej: 0, acc: 1, rate: "", gst: 18 }] };
+  const lock = !!src;
+  const row = (l, i) => `<tr data-ln="${i}"><td>${lock || po ? `<b>${esc(l.desc || "")}</b>${l.item ? "" : '<div class="small muted">not a stock item</div>'}` : `<select data-l="item"><option value="">— not a stock item —</option>${items.map(it => `<option value="${it.id}" ${l.item === it.id ? "selected" : ""}>${esc(it.name)}</option>`).join("")}</select><input data-l="desc" placeholder="Description" value="${esc(l.desc || "")}">`}</td>
+    ${po ? `<td class="n small">${l.ordered} ${esc(l.unit)}<div class="muted">${l.before} before</div></td>` : ""}<td><input data-l="qty" type="number" min="0" step="any" value="${esc(l.qty)}" ${lock ? "disabled" : ""} style="width:80px"></td><td><input data-l="rej" type="number" min="0" step="any" value="${esc(l.rej || 0)}" ${lock ? "disabled" : ""} style="width:70px"></td><td class="n"><b data-acc>${l.acc}</b> ${esc(l.unit || "")}</td>
+    ${!po && !lock ? `<td><input data-l="rate" type="number" min="0" step="any" value="${esc(l.rate)}" style="width:80px"></td>` : ""}</tr>`;
+  const draw = () => {
+    const st = RNST83[r.bill ? "billed" : r.status] || null;
+    const D = panel28({
+      title: src ? `Receipt note ${r.no}` : po ? `Receive goods · ${po.no}` : "Receive goods (no PO)", chips: st ? `<span class="chip ${st[1]}">${st[0]}</span>` : (po ? `<span class="chip navy">${esc(po.supplier || "")}</span>` : ""),
+      body: `<div class="fields">${field28(["supplier", "Supplier *", "list", [...new Set(all28("po").map(p => p.supplier).filter(Boolean))]], r)}${field28(["date", "Received on", "date"], r)}${field28(["inv", "Supplier invoice no", "text"], r)}${field28(["invDate", "Invoice date", "date"], r)}${field28(["dc", "Delivery challan no", "text"], r)}${field28(["vehicle", "Vehicle no", "text"], r)}${field28(["receivedBy", "Received by", "text"], r)}${field28(["checkedBy", "Checked (QC) by", "text"], r)}</div>
+        <section class="dr26-sec"><h3>Items</h3><div style="overflow:auto"><table class="t rn83-t"><thead><tr><th>Item</th>${po ? '<th class="n">Ordered</th>' : ""}<th>Received now</th><th>Rejected</th><th class="n">Accepted</th>${!po && !lock ? "<th>Rate ₹</th>" : ""}</tr></thead><tbody>${r.lines.map(row).join("")}</tbody></table></div>
+        ${!po && !lock ? `<button type="button" class="btn sm" id="rn83a">${icon("plus")}Add line</button>` : ""}${field28(["rejReason", "Reason for rejection (if any)", "text"], r)}${field28(["notes", "Remarks", "textarea"], r)}</section>
+        ${src ? `<section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>` : ""}`,
+      foot: `${src && isAdmin28() && !r.bill ? `<button class="btn ghost" id="rn83d" type="button" data-l="Delete">Delete</button>` : ""}<span style="flex:1"></span>${src ? `<button class="btn" id="rn83p" type="button">${icon("print28")}Print GRN</button>${!r.bill && r.status !== "rej" ? `<button class="btn primary" id="rn83b" type="button">Make supplier bill →</button>` : ""}<button class="btn" id="rn83s" type="button">Save</button>` : `<button class="btn primary" id="rn83s" type="button">Save receipt note — add to stock</button>`}`
+    });
+    const sync = () => { readForm28(D, r); $$("tr[data-ln]", D).forEach(tr => { const l = r.lines[+tr.dataset.ln]; $$("[data-l]", tr).forEach(el => { l[el.dataset.l] = el.type === "number" ? (el.value === "" ? "" : Number(el.value)) : el.value; }); if (l.item && !po) { const it = BIZ.rows[l.item]; l.desc = l.desc || it?.name || ""; l.unit = it?.unit || l.unit; if (!Number(l.rate)) l.rate = lastRate28(l.item) || ""; } l.acc = Math.max(0, (Number(l.qty) || 0) - (Number(l.rej) || 0)); const b = $("[data-acc]", tr); if (b) b.textContent = l.acc; }); };
+    $$("tr[data-ln] input, tr[data-ln] select", D).forEach(el => el.addEventListener("input", sync));
+    $$("tr[data-ln] select[data-l=item]", D).forEach(s => s.onchange = () => { sync(); draw(); });
+    $("#rn83a", D) && ($("#rn83a", D).onclick = () => { sync(); r.lines.push({ item: "", desc: "", unit: "kg", qty: 1, rej: 0, acc: 1, rate: "", gst: 18 }); draw(); });
+    $("#rn83s", D).onclick = async e => {
+      sync(); if (!r.supplier) return toast("Supplier is needed", "bad");
+      if (src) { if (await save28(e.target, r, "Receipt note saved")) { closeDrawer26(); render(); } return; }
+      const got = r.lines.filter(l => Number(l.qty) > 0); if (!got.length) return toast("Enter the quantity received", "bad");
+      if (got.some(l => Number(l.rej) > Number(l.qty))) return toast("Rejected can't be more than received", "bad");
+      r.lines = got; const acc = got.reduce((a, l) => a + l.acc, 0), rej = got.reduce((a, l) => a + (Number(l.rej) || 0), 0);
+      r.status = !acc ? "rej" : rej ? "part" : "ok"; r.total = rnTot83(r); logAdd28(r, "Goods received", `${r.inv ? "Invoice " + r.inv + " · " : ""}${dmy(r.date)}${rej ? ` · ${rej} rejected` : ""}`);
+      const b = e.target; b.disabled = true; b.textContent = "Saving…";
+      try {
+        const [rn] = await bizPut28(r);
+        const out = got.filter(l => l.item && l.acc > 0).map(l => ({ kind: "move", item: l.item, qty: l.acc, rate: Number(l.rate) || 0, type: "grn", ref: rn.no, rn: rn.id, po: r.po || "", date: r.date, note: [r.poNo, r.inv ? "Invoice " + r.inv : ""].filter(Boolean).join(" · ") }));
+        if (po) { const P = JSON.parse(JSON.stringify(BIZ.rows[po.id] || po)); got.forEach(l => { const pl = P.lines[l.li]; if (pl) pl.recd = (Number(pl.recd) || 0) + l.acc; }); P.status = P.lines.every(l => (Number(l.recd) || 0) >= (Number(l.qty) || 0)) ? "received" : "part"; logAdd28(P, "Goods received", `${rn.no}${rej ? ` · ${rej} rejected` : ""}`); out.push(P); }
+        if (out.length) await bizPut28(out);
+        toast(`${rn.no} saved — ${acc} accepted into stock${rej ? `, ${rej} rejected` : ""}`); closeDrawer26(); render(); setTimeout(() => rnPanel83(BIZ.rows[rn.id]), 200);
+      } catch (er) { toast(er.message, "bad"); b.disabled = false; b.textContent = "Save receipt note — add to stock"; }
+    };
+    $("#rn83d", D) && ($("#rn83d", D).onclick = e => sure71(e.target, async () => { try { const M = all28("move").filter(m => m.rn === r.id); for (const m of M) await bizDel28(m.id); if (r.po && BIZ.rows[r.po]) { const P = JSON.parse(JSON.stringify(BIZ.rows[r.po])); r.lines.forEach(l => { const pl = P.lines[l.li]; if (pl) pl.recd = Math.max(0, (Number(pl.recd) || 0) - (Number(l.acc) || 0)); }); P.status = P.lines.some(l => Number(l.recd) > 0) ? "part" : "sent"; await bizPut28(P); } await bizDel28(r.id); closeDrawer26(); render(); toast("Receipt note deleted, stock taken back"); } catch (er) { toast(er.message, "bad"); } }));
+    $("#rn83b", D) && ($("#rn83b", D).onclick = () => billFromRn83(r));
+    $("#rn83p", D) && ($("#rn83p", D).onclick = () => printHtml28("GRN " + r.no, `<h1>GOODS RECEIPT NOTE</h1><p><b>${esc(r.no)}</b> · ${dmy(r.date)}${r.poNo ? " · PO " + esc(r.poNo) : ""}</p><p>Supplier: <b>${esc(r.supplier)}</b><br>Invoice: ${esc(r.inv || "—")} ${r.invDate ? dmy(r.invDate) : ""} · DC: ${esc(r.dc || "—")} · Vehicle: ${esc(r.vehicle || "—")}</p>
+      <table><thead><tr><th>#</th><th>Item</th><th class="n">Received</th><th class="n">Rejected</th><th class="n">Accepted</th><th>Unit</th><th class="n">Rate ₹</th></tr></thead><tbody>${r.lines.map((l, i) => `<tr><td>${i + 1}</td><td>${esc(l.desc)}</td><td class="n">${l.qty}</td><td class="n">${l.rej || 0}</td><td class="n"><b>${l.acc}</b></td><td>${esc(l.unit || "")}</td><td class="n">${Number(l.rate || 0).toLocaleString("en-IN")}</td></tr>`).join("")}</tbody></table>
+      ${r.rejReason ? `<p>Rejection: ${esc(r.rejReason)}</p>` : ""}${r.notes ? `<p>${esc(r.notes)}</p>` : ""}<table style="margin-top:40px"><tr><td style="height:50px;width:33%">Received by<br><b>${esc(r.receivedBy || "")}</b></td><td style="width:33%">Checked (QC) by<br><b>${esc(r.checkedBy || "")}</b></td><td>Store in-charge</td></tr></table>`));
+  };
+  draw();
+}
+function billFromRn83(rn) {
+  billPanel29(null);
+  const D = $("#dr26"); if (!D) return;
+  const tx = (rn.lines || []).reduce((a, l) => a + (Number(l.acc) || 0) * (Number(l.rate) || 0), 0), gst = (rn.lines || []).reduce((a, l) => a + (Number(l.acc) || 0) * (Number(l.rate) || 0) * (Number(l.gst) || 0) / 100, 0);
+  const set = (k, v) => { const el = $("#f28_" + k, D); if (el && v !== undefined && v !== "") el.value = v; };
+  set("po", rn.po); set("supplier", rn.supplier); set("billNo", rn.inv); set("date", rn.invDate || rn.date); set("taxable", Math.round(tx)); set("gst", Math.round(gst));
+  $(".fields", D)?.insertAdjacentHTML("afterbegin", `<input type="hidden" data-k="rn" value="${esc(rn.id)}"><input type="hidden" data-k="rnNo" value="${esc(rn.no || "")}"><p class="small muted" style="grid-column:1/-1;margin:0">From receipt note <b>${esc(rn.no || "")}</b> - accepted quantity only.</p>`);
+  const b = $("#bl29s", D); if (!b) return; const _c = b.onclick;
+  b.onclick = async e => { await _c.call(b, e); const bill = all28("bill").filter(x => x.rn === rn.id).sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")))[0]; if (bill && !BIZ.rows[rn.id]?.bill) { const R = JSON.parse(JSON.stringify(BIZ.rows[rn.id])); R.bill = bill.id; R.billNo = bill.billNo || bill.no; logAdd28(R, "Supplier bill entered", R.billNo); try { await bizPut28(R); render(); } catch { } } };
+}
+/* PO panel: the old one-line GRN becomes "Make receipt note"; Purchase dashboard's Receive goods opens the receipt note */
+{
+  const _p = poPanel28;
+  poPanel28 = function (src) {
+    _p.apply(this, arguments);
+    try { const D = $("#dr26"), g = D && $("#g28go", D); if (g) { const sec = g.closest(".dr26-sec"); sec.innerHTML = `<h3>Receive goods</h3><p class="small muted">Count the goods, enter rejected quantity, and the accepted quantity goes into stock.</p><button class="btn primary sm" type="button" id="rn83po">Make receipt note (GRN) →</button>`; $("#rn83po", D).onclick = () => rnPanel83(null, BIZ.rows[src.id] || src); } } catch (e) { console.warn("p83 po", e); }
+  };
+  grnPick46 = () => rnPick83();
+}
+
+/* ---------- Linked documents on every document ---------- */
+const CH83 = { lead: ["Enquiry", "leadPanel28"], so: ["Sales order", "soPanel31"], job: ["Work order", "jobPanel28"], dn: ["Delivery note", "dnPanel31"], inv: ["Invoice", "invPanel29"], rcpt: ["Payment received", "rcptPanel29"], po: ["Purchase order", "poPanel28"], rn: ["Receipt note", "rnPanel83"], bill: ["Supplier bill", "billPanel29"], spay: ["Payment made", "billPanel29"] };
+const ORD83 = ["lead", "so", "job", "po", "rn", "dn", "inv", "rcpt", "bill", "spay"];
+function links83(r) {
+  const A = k => all28(k), out = [];
+  const add = id => { const x = BIZ.rows[id]; if (x && CH83[x.kind]) out.push(x); };
+  switch (r.kind) {
+    case "lead": A("so").filter(s => s.leadId === r.id).forEach(s => add(s.id)); break;
+    case "so": add(r.leadId); [...A("dn").filter(d => d.so === r.id), ...A("inv").filter(i => i.so === r.id), ...A("job").filter(j => j.soId === r.id), ...A("po").filter(p => p.soId === r.id || (r.no && p.jobNo === r.no))].forEach(x => add(x.id)); break;
+    case "job": add(r.soId); A("po").filter(p => p.jobId === r.id || (r.no && p.jobNo === r.no)).forEach(x => add(x.id)); break;
+    case "dn": add(r.so); A("inv").filter(i => i.dns?.includes(r.id)).forEach(x => add(x.id)); break;
+    case "inv": add(r.so); (r.dns || []).forEach(add); A("rcpt").filter(p => (p.alloc || []).some(a => a.inv === r.id)).forEach(x => add(x.id)); break;
+    case "rcpt": (r.alloc || []).forEach(a => add(a.inv)); break;
+    case "po": add(r.soId); add(r.jobId); [...A("rn").filter(x => x.po === r.id), ...A("bill").filter(b => b.po === r.id)].forEach(x => add(x.id)); break;
+    case "rn": add(r.po); add(r.bill); A("bill").filter(b => b.rn === r.id).forEach(x => add(x.id)); break;
+    case "bill": add(r.po); add(r.rn); A("spay").filter(p => p.bill === r.id).forEach(x => add(x.id)); break;
+    case "spay": add(r.bill); break;
+  }
+  const seen = new Set([r.id]); return out.filter(x => !seen.has(x.id) && seen.add(x.id)).sort((a, b) => ORD83.indexOf(a.kind) - ORD83.indexOf(b.kind));
+}
+const stl83 = x => x.kind === "po" ? (PO_ST.find(s => s[0] === x.status) || [0, x.status])[1] : x.kind === "rn" ? (RNST83[x.bill ? "billed" : x.status] || [x.status])[0] : String(x.status);
+function chainHtml83(r) {
+  const L = links83(r); const q = r.quoteNo ? `<span class="ch83-c q"><small>Quotation</small><b>${esc(r.quoteNo)}</b></span>` : "";
+  if (!L.length && !q) return "";
+  return `<section class="ch83" aria-label="Linked documents"><h3>Linked documents</h3><div>${q}${L.map(x => `<button type="button" class="ch83-c" data-ch="${x.id}"><small>${CH83[x.kind][0]}</small><b>${esc((x.kind === "bill" ? x.billNo || x.no : x.no) || "")}</b>${x.kind === "spay" || x.kind === "rcpt" ? `<i>${inr28(x.amount || x.total || 0)}</i>` : x.status ? `<i>${esc(stl83(x))}</i>` : ""}</button>`).join("")}</div></section>`;
+}
+Object.entries({ leadPanel28: 0, soPanel31: 0, jobPanel28: 0, dnPanel31: 0, invPanel29: 0, rcptPanel29: 0, poPanel28: 0, rnPanel83: 0, billPanel29: 0 }).forEach(([fn]) => {
+  const f = window[fn]; if (typeof f !== "function") return;
+  window[fn] = function (src) { const out = f.apply(this, arguments); try { const r = src && src.id ? BIZ.rows[src.id] || src : null, D = $("#dr26"); if (r && D && !$(".ch83", D)) { const h = chainHtml83(r); if (h) { $(".dr26-h", D)?.insertAdjacentHTML("afterend", h); $$("[data-ch]", D).forEach(b => b.onclick = () => { const x = BIZ.rows[b.dataset.ch]; if (!x) return; const p = CH83[x.kind][1]; window[p]?.(x.kind === "spay" ? BIZ.rows[x.bill] : x); }); } } } catch (e) { console.warn("p83 chain", e); } return out; };
+});
+
+/* ---------- menus: Receipt note in Store and Purchase ---------- */
+{
+  const st = MODS32.find(m => m.id === "store");
+  if (st) { const T = st.groups.Transactions, i = T.findIndex(c => c[0] === "Receipt note"), c = ["Receipt note (GRN)", "rn83", {}, "Goods received against PO - accept / reject, stock, bill"]; if (i >= 0) T.splice(i, 1, c); else T.unshift(c); try { CARDMOD64.set(c, "store"); } catch { } }
+  const pu = MODS32.find(m => m.id === "purchase");
+  if (pu && !Object.values(pu.groups).flat().some(c => c[1] === "rn83")) { const c = ["Receipt notes", "rn83", {}, "What came in against each PO"]; pu.groups.Transactions.push(c); try { CARDMOD64.set(c, "purchase"); } catch { } }
+  if (window.DEPT63?.store && !DEPT63.store.extra.includes("rn83")) DEPT63.store.extra.push("rn83");
+  if (window.DEPT63?.purchase && !DEPT63.purchase.extra.includes("rn83")) DEPT63.purchase.extra.push("rn83");
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.rn83-w{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:8px}.rn83-p{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line,#dfe5ee);background:var(--surface,#fff);border-radius:10px;padding:10px 12px;cursor:pointer;color:inherit}
+.rn83-p:hover{border-color:#e8590c}.rn83-p span{font-weight:600}.rn83-p small{color:#5b6b80}.rn83-p em{font-style:normal;color:#e8590c;font-weight:700;margin-top:4px}
+.rn83-fl{margin:0 0 12px!important;font-size:.82rem}.rn83-t input,.rn83-t select{width:100%;min-width:60px}.rn83-t td{vertical-align:middle}
+.ch83{margin:0 0 10px;padding:10px 12px;border:1px solid #dfe5ee;border-radius:12px;background:#f6f9fc}.ch83 h3{margin:0 0 8px;font-size:.78rem;text-transform:uppercase;letter-spacing:.05em;color:#5b6b80}
+.ch83>div{display:flex;gap:6px;flex-wrap:wrap}.ch83-c{display:flex;flex-direction:column;align-items:flex-start;border:1px solid #c9d6e6;background:#fff;border-radius:9px;padding:6px 10px;cursor:pointer;color:#0b2a57;font:inherit;line-height:1.2}
+.ch83-c:hover{border-color:#02315B;background:#eef4fb}.ch83-c small{font-size:.68rem;color:#5b6b80}.ch83-c b{font-size:.86rem}.ch83-c i{font-style:normal;font-size:.7rem;color:#2f8f5b}.ch83-c.q{cursor:default;background:#fff8f2;border-color:#f3d2b8}
+</style>`);
+
 boot();
 
 </script>
