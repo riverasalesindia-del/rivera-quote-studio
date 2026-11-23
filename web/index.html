@@ -14049,6 +14049,504 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .ch83-c:hover{border-color:#02315B;background:#eef4fb}.ch83-c small{font-size:.68rem;color:#5b6b80}.ch83-c b{font-size:.86rem}.ch83-c i{font-style:normal;font-size:.7rem;color:#2f8f5b}.ch83-c.q{cursor:default;background:#fff8f2;border-color:#f3d2b8}
 </style>`);
 
+/* ===================== p84: every department gets more automatic work - "Your work today" now fills itself per department
+   (Store, Purchase, Accounts, HR, Quality, Production, Marketing, Management), Compliance calendar (GST / TDS / PF / ESI / PT due dates, tick done),
+   Calibration register for Quality (test instruments from the asset register, due dates and reminders), HR employee directory with missing details.
+   Who sees what is NOT changed: each login still sees only its own department + Work update. ===================== */
+const D84 = () => { try { const D = myDepts63?.(); return isAdmin28() || !D || !D.length ? null : D; } catch { return null; } };
+const in84 = (...ids) => { const D = D84(); return !D || ids.some(i => D.includes(i)); };
+
+/* ---------- Compliance calendar ---------- */
+const CMP84 = [
+  // [key, title, day (or [month, day] list for yearly), who, note]
+  ["tds", "TDS / TCS payment (last month)", 7, ["accounts"], "Challan 281 for tax deducted last month"],
+  ["gstr1", "GSTR-1 (last month's sales)", 11, ["accounts"], "Upload all sale invoices on the GST portal"],
+  ["pf", "PF payment + ECR", 15, ["hr", "accounts"], "EPFO ECR for last month's salary"],
+  ["esi", "ESI payment", 15, ["hr", "accounts"], "ESIC challan for last month"],
+  ["gstr3b", "GSTR-3B + GST payment", 20, ["accounts"], "Summary return and tax payment"],
+  ["sal", "Salary / payslips", -1, ["hr", "accounts"], "Attendance closed, payroll run, payslips sent (last working day)"],
+  ["tdsq", "TDS return (24Q / 26Q)", [[7, 31], [10, 31], [1, 31], [5, 31]], ["accounts"], "Quarterly TDS statement"],
+  ["adv", "Advance tax", [[6, 15], [9, 15], [12, 15], [3, 15]], ["accounts"], "Instalment of income tax"],
+  ["pt", "Professional tax (half-year)", [[9, 30], [3, 31]], ["hr", "accounts"], "Tamil Nadu profession tax"],
+  ["gstr9", "GSTR-9 annual return", [[12, 31]], ["accounts"], "Annual GST return for last year"],
+  ["itr", "Income tax return (company)", [[10, 31]], ["accounts"], "With tax audit"]
+];
+function cmpDue84(from, days) {
+  const out = [], s = new Date(from + "T00:00:00"), e = new Date(s.getTime() + days * 864e5);
+  for (let d = new Date(s.getFullYear(), s.getMonth() - 1, 1); d <= e; d.setMonth(d.getMonth() + 1)) {
+    const y = d.getFullYear(), m = d.getMonth() + 1, last = new Date(y, m, 0).getDate();
+    CMP84.forEach(([k, t, day, who, note]) => {
+      let dd = null;
+      if (Array.isArray(day)) { const hit = day.find(x => x[0] === m); if (hit) dd = hit[1]; } else dd = day < 0 ? last : day;
+      if (!dd) return; let dt = new Date(y, m - 1, Math.min(dd, last)); if (day === -1) { while ([0].includes(dt.getDay())) dt.setDate(dt.getDate() - 1); }
+      const iso = `${y}-${String(m).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`; out.push({ key: `${k}-${y}-${String(m).padStart(2, "0")}`, k, title: t, due: iso, who, note });
+    });
+  }
+  return out.filter(x => x.due >= from && x.due <= addDays(from, days)).sort((a, b) => a.due.localeCompare(b.due));
+}
+const cmpDone84 = key => all28("task").find(t => t.cmp84 === key);
+const cmpMine84 = x => { const D = D84(); return !D || x.who.some(w => D.includes(w)); };
+if (!ROUTES.some(r => r[0] === "cmp84")) ROUTES.push(["cmp84", "Compliance calendar", "check28"]);
+ALWAYS34.push("cmp84");
+VIEWS.cmp84 = v => {
+  bizSync28(); const t = todayISO(), L = cmpDue84(addDays(t, -40), 100).filter(cmpMine84);
+  const over = L.filter(x => x.due < t && !cmpDone84(x.key)), next = L.filter(x => x.due >= t), done = L.filter(x => x.due < t && cmpDone84(x.key));
+  const row = x => { const d = cmpDone84(x.key), late = !d && x.due < t, soon = !d && !late && x.due <= addDays(t, 7);
+    return `<tr class="${late ? "c84-late" : ""}"><td><b>${dmy(x.due)}</b><div class="small muted">${["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"][new Date(x.due + "T00:00:00").getDay()]}${late ? ` · <b style="color:var(--bad,#c0392b)">${-daysTo28(x.due)} days late</b>` : soon ? ` · <b style="color:#b35c00">in ${daysTo28(x.due)} days</b>` : ""}</div></td><td><b>${esc(x.title)}</b><div class="small muted">${esc(x.note)}</div></td><td class="small">${x.who.map(w => DEPT63[w]?.name || w).join(" + ")}</td>
+      <td>${d ? `<span class="chip ok">✓ Done ${dmy(d.doneOn || d.due)}</span><div class="small muted">${esc(d.ref || "")} ${esc(nm62?.(d.by) || "")}</div>` : `<button type="button" class="btn sm primary" data-c84="${x.key}">Mark done</button>`}</td></tr>`; };
+  v.innerHTML = top62("Accounts · HR", "Compliance calendar", "GST, TDS, PF, ESI and tax due dates come up by themselves every month. Tick each one when it is filed. (Dates as per the usual rules - check the portal if the government extends a date.)")
+    + `<section class="panel"><div class="body" style="overflow:auto"><table class="t">${over.length ? `<thead><tr><th colspan="4" style="color:var(--bad,#c0392b)">Late - not marked done (${over.length})</th></tr></thead><tbody>${over.map(row).join("")}</tbody>` : ""}
+      <thead><tr><th>Due</th><th>What</th><th>Who</th><th></th></tr></thead><tbody>${next.map(row).join("")}</tbody>${done.length ? `<thead><tr><th colspan="4">Done recently</th></tr></thead><tbody>${done.map(row).join("")}</tbody>` : ""}</table></div></section>`;
+  $$("[data-c84]", v).forEach(b => b.onclick = () => { const x = L.find(y => y.key === b.dataset.c84);
+    const D = panel28({ title: x.title, chips: `<span class="chip">${dmy(x.due)}</span>`, body: `<div class="fields">${field28(["doneOn", "Filed / paid on", "date"], { doneOn: todayISO() })}${field28(["ref", "Challan / ARN / ack no", "text"], {})}${field28(["amt", "Amount paid ₹ (if any)", "number"], {})}</div>`, foot: `<span style="flex:1"></span><button class="btn primary" type="button" id="c84s">Mark done</button>` });
+    $("#c84s", D).onclick = async e => { const r = readForm28(D, { kind: "task", title: x.title + " · " + dmy(x.due), due: x.due, status: "done", cmp84: x.key, by: me28(), assignee: me28() }); if (await save28(e.target, r, "Marked done")) { closeDrawer26(); render(); } }; });
+};
+
+/* ---------- Calibration register (Quality) ---------- */
+const CALRX84 = /meter|tester|megger|vernier|gauge|gage|bridge|surge|hipot|high voltage|breakdown|insulation tester|thermometer|hygro|micrometer|scale|caliper|ir tester|tan delta|tan δ|multimeter|clamp|calibrat|kv|resistance/i;
+const calList84 = () => all28("fa").filter(a => a.status !== "Disposed" && a.status !== "Scrapped" && (a.cal84 || a.category === "Testing / Lab instrument" || CALRX84.test(a.name || ""))).sort((a, b) => String(a.calDue || "9999").localeCompare(String(b.calDue || "9999")));
+if (!ROUTES.some(r => r[0] === "calib84")) ROUTES.push(["calib84", "Calibration register", "check28"]);
+ALWAYS34.push("calib84");
+VIEWS.calib84 = v => {
+  bizSync28(); const U = BIZ.ui, q = U.c84q || "", t = todayISO(), L = calList84().filter(a => has71([a.tag, a.name, a.location, a.calAgency, a.calCert], q));
+  const st = a => !a.calDue ? ["Not entered", ""] : a.calDue < t ? ["Overdue", "bad"] : a.calDue <= addDays(t, 30) ? ["Due in " + daysTo28(a.calDue) + " days", "warn"] : ["OK", "ok"];
+  v.innerHTML = top62("Quality", "Calibration register", `${L.length} instruments · ${L.filter(a => a.calDue && a.calDue < t).length} overdue · ${L.filter(a => a.calDue && a.calDue >= t && a.calDue <= addDays(t, 30)).length} due in 30 days`, `<button type="button" class="btn" id="c84x">⬇ Sheet</button>`)
+    + `<section class="panel"><div class="body"><div class="row" style="margin-bottom:10px">${srch71(U, "c84q", "Search instrument, tag, agency, certificate…")}</div><div style="overflow:auto"><table class="t"><thead><tr><th>Instrument</th><th>Tag</th><th>Location</th><th>Last calibrated</th><th>Next due</th><th>Agency / certificate</th><th>Status</th></tr></thead><tbody>${L.map(a => { const s = st(a); return `<tr data-cal="${a.id}" style="cursor:pointer"><td><b>${esc(a.name)}</b></td><td class="small">${esc(a.tag || "")}</td><td class="small">${esc(a.location || "")}</td><td>${a.calLast ? dmy(a.calLast) : "—"}</td><td>${a.calDue ? dmy(a.calDue) : "—"}</td><td class="small">${esc([a.calAgency, a.calCert].filter(Boolean).join(" · "))}</td><td><span class="chip ${s[1]}">${s[0]}</span></td></tr>`; }).join("") || '<tr><td colspan="7" class="muted">No test instruments in the asset register yet.</td></tr>'}</tbody></table></div></div></section>`;
+  wireSrch71(v, U);
+  $$("[data-cal]", v).forEach(r => r.onclick = () => calPanel84(BIZ.rows[r.dataset.cal]));
+  $("#c84x", v).onclick = () => xlsx71("calibration-register.xlsx", [["Instrument", "Tag", "Location", "Last calibrated", "Next due", "Agency", "Certificate", "Frequency (months)"], ...L.map(a => [a.name, a.tag, a.location, a.calLast, a.calDue, a.calAgency, a.calCert, a.calFreq])]);
+};
+function calPanel84(a) {
+  const r = JSON.parse(JSON.stringify(a)); r.calFreq ||= 12;
+  const D = panel28({ title: r.name, chips: `<span class="chip">${esc(r.tag || "")}</span>`, body: `<div class="fields">${field28(["calLast", "Calibrated on", "date"], r)}${field28(["calFreq", "Every (months)", "number"], r)}${field28(["calDue", "Next due", "date"], r)}${field28(["calAgency", "Calibrated by (agency)", "text"], r)}${field28(["calCert", "Certificate no", "text"], r)}${field28(["calRange", "Range / least count", "text"], r)}</div><p class="small muted">Next due fills itself from the date and months. Quality gets a reminder 30 days before.</p>`,
+    foot: `<span style="flex:1"></span><button class="btn primary" type="button" id="c84s">Save</button>` });
+  const auto = () => { const l = $("#f28_calLast", D).value, f = Number($("#f28_calFreq", D).value) || 12; if (l) { const d = new Date(l + "T00:00:00"); d.setMonth(d.getMonth() + f); d.setDate(d.getDate() - 1); $("#f28_calDue", D).value = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; } };
+  $("#f28_calLast", D)?.addEventListener("change", auto); $("#f28_calFreq", D)?.addEventListener("input", auto);
+  $("#c84s", D).onclick = async e => { readForm28(D, r); r.cal84 = 1; if (await save28(e.target, r, "Calibration saved")) { closeDrawer26(); render(); } };
+}
+
+/* ---------- HR: employee directory with missing details ---------- */
+const EMPNEED84 = [["phone", "Phone"], ["doj", "Joining date"], ["dob", "Date of birth"], ["designation", "Designation"], ["father", "Father name"], ["address", "Address"], ["uan", "UAN"], ["basic", "Salary"]];
+const empMiss84 = e => EMPNEED84.filter(([k]) => !String(e[k] ?? "").trim()).map(x => x[1]);
+if (!ROUTES.some(r => r[0] === "emp84")) ROUTES.push(["emp84", "Employee directory", "hr29"]);
+ALWAYS34.push("emp84");
+VIEWS.emp84 = v => {
+  bizSync28(); const U = BIZ.ui, q = U.e84q || "", g = U.e84g || "", E = all28("emp").filter(e => e.status !== "left");
+  const L = E.filter(e => (!g || (g === "miss" ? empMiss84(e).length : (e.group || "Others") === g)) && has71([e.name, e.designation, e.dept, e.phone, e.no], q)).sort((a, b) => ["Office", "Works", "Others"].indexOf(a.group || "Others") - ["Office", "Works", "Others"].indexOf(b.group || "Others") || String(a.name).localeCompare(b.name));
+  const cnt = k => E.filter(e => (e.group || "Others") === k).length, miss = E.filter(e => empMiss84(e).length).length;
+  v.innerHTML = top62("HR", "Employee directory", `${E.length} working · Office ${cnt("Office")} · Works ${cnt("Works")} · Others ${cnt("Others")}${miss ? ` · <b style="color:#b35c00">${miss} with details missing</b>` : ""}`, `<button type="button" class="btn primary" id="e84n">${icon("plus")}Add employee</button><button type="button" class="btn" id="e84x">⬇ Sheet</button>`)
+    + `<section class="panel"><div class="body"><div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">${srch71(U, "e84q", "Search name, designation, phone…")}<div class="tabs-row">${[["", "All"], ["Office", "Office"], ["Works", "Works"], ["Others", "Others"], ["miss", "Details missing"]].map(([k, l]) => `<button type="button" class="tab ${g === k ? "on" : ""}" data-e84g="${k}">${l}</button>`).join("")}</div></div>
+      <div style="overflow:auto"><table class="t"><thead><tr><th>#</th><th>Name</th><th>Designation</th><th>Department</th><th>Group</th><th>Phone</th><th>Missing</th><th></th></tr></thead><tbody>${L.map((e, i) => { const m = empMiss84(e); return `<tr><td class="small muted">${i + 1}</td><td><b>${esc(e.name)}</b><div class="small muted">${esc(e.no || "")}${e.gender ? " · " + esc(e.gender) : ""}</div></td><td>${esc(e.designation || "")}</td><td>${esc(e.dept || "")}</td><td>${esc(e.group || "")}</td><td>${e.phone ? `<a href="tel:${esc(e.phone)}">${esc(e.phone)}</a>` : ""}</td><td class="small">${m.length ? `<span style="color:#b35c00">${esc(m.join(", "))}</span>` : '<span class="chip ok">Complete</span>'}</td><td style="white-space:nowrap"><button type="button" class="btn sm" data-e84e="${e.id}">Edit</button> <button type="button" class="btn sm ghost" data-e84d="${e.id}" data-l="Remove" style="color:var(--bad,#c0392b)">Remove</button></td></tr>`; }).join("") || '<tr><td colspan="8" class="muted">No employees.</td></tr>'}</tbody></table></div></div></section>`;
+  wireSrch71(v, U);
+  $$("[data-e84g]", v).forEach(b => b.onclick = () => { U.e84g = b.dataset.e84g; render(); });
+  $$("[data-e84e]", v).forEach(b => b.onclick = () => empPanel29(BIZ.rows[b.dataset.e84e]));
+  $$("[data-e84d]", v).forEach(b => b.onclick = e => sure71(e.target, async () => { const x = BIZ.rows[b.dataset.e84d]; try { await bizDel28(x.id); toast(`${x.name} removed`); render(); } catch (er) { toast(er.message, "bad"); } }, "Tap again"));
+  $("#e84n", v).onclick = () => empPanel29(null);
+  $("#e84x", v).onclick = () => xlsx71("employees.xlsx", [["Emp no", "Name", "Gender", "Designation", "Department", "Group", "Phone", "Email", "Joining date", "Date of birth", "Father name", "Address", "UAN", "ESI no"], ...L.map(e => [e.no, e.name, e.gender, e.designation, e.dept, e.group, e.phone, e.email, e.doj, e.dob, e.father, e.address, e.uan, e.esiNo])]);
+};
+
+/* ---------- "Your work today" fills itself for every department ---------- */
+{
+  const _q = queue37;
+  queue37 = function () {
+    const OLD = { "Follow-ups due": ["sales", "mkt"], "Quotations to chase": ["sales"], "Orders waiting approval": ["sales", "accounts", "mgmt"], "Deliveries due this week": ["sales", "store", "ops", "prod"], "Deliveries to invoice": ["accounts"], "Advance to collect": ["accounts", "sales"], "Customer payments overdue": ["accounts", "sales"], "Supplier bills due": ["accounts"], "EMD / PBG / document requests": ["accounts"], "Leave to approve": ["hr", "mgmt"], "POs to approve": ["purchase", "mgmt", "accounts"], "Goods to receive": [], "Stock to reorder": ["store", "purchase"], "Repair jobs late": ["prod", "ops", "sales"], "Service visits today": ["ops"] };
+    const Q = _q.apply(this, arguments).filter(q => !OLD[q.label] || (OLD[q.label].length && in84(...OLD[q.label]))), t = todayISO(), wk = addDays(t, 7), seen = new Set(Q.map(q => q.label));
+    const add = (ids, label, items, tone = "") => { if (!items.length || seen.has(label) || !in84(...ids)) return; seen.add(label); Q.push({ label, items, open: null, tone }); };
+    try {
+      const pos = all28("po"), rns = all28("rn"), sos = all28("so"), dns = all28("dn"), jobs = all28("job"), emps = all28("emp").filter(e => e.status !== "left");
+      // Store
+      add(["store", "purchase"], "Goods to receive (make GRN)", pos.filter(p => ["approved", "sent", "part"].includes(p.status)).map(p => [p.supplier, `${p.no}${p.needBy ? " · due " + dmy(p.needBy) : ""}`, () => rnPanel83(null, p)]), "warn");
+      add(["store", "ops"], "Ready to dispatch", sos.filter(o => ["confirmed", "part"].includes(o.status) && !dns.some(d => d.so === o.id)).map(o => [o.customer, `${o.no}${o.deliveryDate ? " · " + dmy(o.deliveryDate) : ""}`, () => soPanel31(o)]));
+      add(["store", "admin"], "Returnable material not back", all28("mg").filter(m => m.type === "Returnable" && ["out", "part"].includes(m.status) && m.due && m.due < t).map(m => [m.party, `${m.no} · due ${dmy(m.due)}`, () => mgPanel71(m)]), "bad");
+      add(["store", "purchase", "prod"], "Below minimum stock", all28("item").filter(it => Number(it.min) > 0 && stockOf28(it.id) < Number(it.min)).map(it => [it.name, `${stockOf28(it.id)} / ${it.min} ${it.unit || ""}`, () => itemPanel28(it)]), "bad");
+      // Purchase
+      add(["purchase"], "Indents to make PO", all28("po").filter(p => p.status === "indent").map(p => [p.supplier || "Indent", `${p.no} · ${(p.lines || []).map(l => l.desc || BIZ.rows[l.item]?.name || "").join(", ").slice(0, 60)}`, () => (window.indentPanel45 || poPanel28)(p)]), "warn");
+      add(["purchase", "store"], "Supplier late", pos.filter(p => ["approved", "sent", "part"].includes(p.status) && p.needBy && p.needBy < t).map(p => [p.supplier, `${p.no} · was due ${dmy(p.needBy)} (${-daysTo28(p.needBy)} days)`, () => poPanel28(p)]), "bad");
+      add(["purchase", "quality"], "Rejected at receipt", rns.filter(r => ["part", "rej"].includes(r.status) && !r.rejDone).map(r => [r.supplier, `${r.no} · ${(r.lines || []).filter(l => Number(l.rej)).map(l => `${l.desc} ${l.rej}`).join(", ")}`, () => rnPanel83(r)]), "bad");
+      // Accounts
+      add(["accounts", "purchase"], "GRN waiting for supplier bill", rns.filter(r => !r.bill && r.status !== "rej").map(r => [r.supplier, `${r.no} · ${inr28(rnTot83(r))}`, () => rnPanel83(r)]), "warn");
+      const cmp = cmpDue84(addDays(t, -15), 22).filter(x => !cmpDone84(x.key) && x.due <= wk);
+      add(["accounts"], "Compliance due", cmp.filter(x => x.who.includes("accounts")).map(x => [x.title, `${dmy(x.due)}${x.due < t ? " · LATE" : ""}`, () => go32("cmp84")]), cmp.some(x => x.due < t) ? "bad" : "warn");
+      // HR
+      add(["hr"], "PF / ESI / salary due", cmp.filter(x => x.who.includes("hr")).map(x => [x.title, `${dmy(x.due)}${x.due < t ? " · LATE" : ""}`, () => go32("cmp84")]), "warn");
+      add(["hr", "mgmt"], "Leave to approve", all28("lv").filter(l => l.status === "applied" && (typeof canAppr71 !== "function" || canAppr71()) && l.who !== me28()).map(l => [l.whoName || nm62(l.who), `${l.type} · ${dmy(l.from)} → ${dmy(l.to)}`, () => lvPanel71(l)]), "warn");
+      const md = d => d ? d.slice(5) : "", bd = [];
+      for (let i = 0; i <= 7; i++) { const k = addDays(t, i).slice(5); emps.forEach(e => { if (md(e.dob) === k) bd.push([e.name, `🎂 Birthday ${i ? "on " + dmy(addDays(t, i)) : "TODAY"}`, () => empPanel29(e)]); if (md(e.marDate) === k) bd.push([e.name, `💍 Wedding anniversary ${i ? "on " + dmy(addDays(t, i)) : "TODAY"}`, () => empPanel29(e)]); if (e.doj && md(e.doj) === k && e.doj.slice(0, 4) < t.slice(0, 4)) bd.push([e.name, `🎉 ${+t.slice(0, 4) - +e.doj.slice(0, 4)} years with us ${i ? "on " + dmy(addDays(t, i)) : "TODAY"}`, () => empPanel29(e)]); }); }
+      add(["hr"], "Birthdays & anniversaries this week", bd);
+      add(["hr"], "Employee details missing", emps.filter(e => empMiss84(e).length).map(e => [e.name, "Missing: " + empMiss84(e).join(", "), () => empPanel29(e)]));
+      add(["hr"], "Probation ending (6 months)", emps.filter(e => e.doj && addDays(e.doj, 182) >= t && addDays(e.doj, 182) <= addDays(t, 15)).map(e => [e.name, `Joined ${dmy(e.doj)} · confirm by ${dmy(addDays(e.doj, 182))}`, () => empPanel29(e)]));
+      // Quality
+      const cal = calList84().filter(a => a.calDue && a.calDue <= addDays(t, 30));
+      add(["quality"], "Calibration due", cal.map(a => [a.name, `${a.tag || ""} · ${a.calDue < t ? "OVERDUE " : "due "}${dmy(a.calDue)}`, () => calPanel84(a)]), cal.some(a => a.calDue < t) ? "bad" : "warn");
+      add(["quality", "prod"], "Jobs waiting for testing", jobs.filter(j => /test/i.test(j.stage || "")).map(j => [j.customer, `${j.no} · ${j.equipment || ""}`, () => jobPanel28(j)]));
+      // Production
+      add(["prod", "ops"], "Work orders due this week", jobs.filter(j => !["dispatched", "invoiced", "closed"].includes(j.stage) && j.promised && j.promised >= t && j.promised <= wk).map(j => [j.customer, `${j.no} · promised ${dmy(j.promised)} · ${j.stage || ""}`, () => jobPanel28(j)]), "warn");
+      add(["prod", "ops"], "Work orders late", jobs.filter(j => !["dispatched", "invoiced", "closed"].includes(j.stage) && j.promised && j.promised < t).map(j => [j.customer, `${j.no} · promised ${dmy(j.promised)}`, () => jobPanel28(j)]), "bad");
+      // Marketing
+      add(["mkt", "sales"], "New enquiries not contacted", all28("lead").filter(l => (!l.stage || l.stage === "new") && !l.next && String(l.at || l.date || "").slice(0, 10) <= addDays(t, -1)).map(l => [l.company || l.name, `${l.source || ""} · since ${dmy(String(l.at || l.date).slice(0, 10))}`, () => leadPanel28(l)]), "warn");
+      add(["mkt"], "Posts planned today", all28("mkt").filter(x => x.date === t && x.status !== "posted" && x.status !== "done").map(x => [x.title || x.channel, x.channel || "", () => mkPanel71(x)]));
+      // Management / Admin
+      add(["mgmt", "admin", "hr"], "Courier waiting approval", all28("cr").filter(c => !c.appr && !c.apprBy && c.date >= addDays(t, -10)).map(c => [c.party, `${c.no} · ${c.dir === "in" ? "Incoming" : "Outgoing"} · ${c.company || ""}`, () => crPanel62(c)]), "warn");
+      add(["mgmt", "admin"], "Handovers to approve", all28("ho").filter(h => ["submitted", "admin_ok"].includes(h.status)).map(h => [h.empName || nm62(h.emp), (HOST62[h.status] || [h.status])[0], () => hoPanel62(h)]), "warn");
+      add(["admin", "store", "mgmt"], "Asset warranty / insurance ending", all28("fa").filter(a => (a.warranty && a.warranty >= t && a.warranty <= addDays(t, 30)) || (a.insurance && a.insurance >= t && a.insurance <= addDays(t, 30))).map(a => [a.name, `${a.tag || ""} · ends ${dmy(a.warranty || a.insurance)}`, () => faPanel62(a)]));
+    } catch (e) { console.warn("p84 queue", e); }
+    return Q;
+  };
+}
+
+/* ---------- new cards in the departments ---------- */
+{
+  const put = (mod, grp, c) => { const m = MODS32.find(x => x.id === mod); if (!m || Object.values(m.groups).flat().some(x => x[1] === c[1] && JSON.stringify(x[2]) === JSON.stringify(c[2]))) return; (m.groups[grp] ||= []).push(c); try { CARDMOD64.set(c, mod); } catch { } };
+  put("accounts", "Reports", ["Compliance calendar", "cmp84", {}, "GST, TDS, PF, ESI due dates - tick when filed"]);
+  put("hr", "Reports", ["Compliance calendar", "cmp84", {}, "PF, ESI, PT, salary due dates"]);
+  put("hr", "Masters", ["Employee directory", "emp84", {}, "Everyone, missing details, edit / remove, Excel"]);
+  put("quality", "Masters", ["Calibration register", "calib84", {}, "Test instruments, next due, certificates"]);
+  put("admin", "Reports", ["Compliance calendar", "cmp84", {}, "Every statutory due date"]);
+  put("mgmt", "Reports", ["Compliance calendar", "cmp84", {}, "Every statutory due date"]);
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.c84-late td{background:#fff3f1}</style>`);
+
+/* ===================== p85: one connected ERP - Department requests (work order / material / issue / payment / inspection / manpower) with accept → done,
+   @mentions reach the person inside the app (🔔 For you + work today), PO approval by Finance (no CRM), Accounts Payments: Settlement / Advance / Other,
+   Receipts: Customer / Advance / Other (UTR, reference, remarks), advance adjusted against the bill, PO in the company letterhead format,
+   "Your work today" on every department home. Work Board and who-sees-which-department are not changed. ===================== */
+const ME85 = () => me28();
+const myD85 = () => { try { return myDepts63?.() || null; } catch { return null; } };
+const isMyDept85 = d => { const D = myD85(); return isAdmin28() || !D || D.includes(d); };
+const dName85 = d => DEPT63?.[d]?.name || { prod: "Production", ops: "Operations", mgmt: "Management", mkt: "Marketing", admin: "Admin" }[d] || d;
+const DEPTS85 = () => [...new Set([...Object.keys(DEPT63 || {}), "prod", "ops", "mgmt"])].filter(d => d !== "mkt" || DEPT63.mkt);
+const deptMails85 = d => LOGINS64.filter(x => x[2].includes(d)).map(x => x[0]);
+const fromDept85 = () => (myD85() || [])[0] || "admin";
+const SEEN85K = () => "rqs.seen85." + ME85();
+const seen85 = () => { try { return new Set(JSON.parse(localStorage.getItem(SEEN85K()) || "[]")); } catch { return new Set(); } };
+const markSeen85 = ids => { try { const S = seen85(); ids.forEach(i => S.add(i)); localStorage.setItem(SEEN85K(), JSON.stringify([...S].slice(-800))); } catch { } };
+
+/* ---------- open any record from a notification ---------- */
+function open85(id) {
+  const x = BIZ.rows[id]; if (!x) return toast("This record is not loaded yet - refresh", "bad");
+  if (x.kind === "cmt") { const on = BIZ.rows[x.on]; if (on) { open85(on.id); setTimeout(() => $("#cm29")?.scrollIntoView({ block: "center" }), 250); } else if (x.route) location.hash = x.route; return; }
+  const P = { lead: leadPanel28, so: soPanel31, job: jobPanel28, dn: dnPanel31, inv: invPanel29, rcpt: x.rtype ? r => recPanel85(r.rtype, r) : rcptPanel29, po: poPanel28, rn: rnPanel83, bill: billPanel29, spay: x.ptype ? r => payPanel85(r.ptype, r) : r => billPanel29(BIZ.rows[r.bill]), rq: rqPanel85, lv: lvPanel71, cr: crPanel62, ho: hoPanel62, emp: empPanel29, item: itemPanel28, fa: faPanel62, mg: mgPanel71, task: taskPanel28 }[x.kind];
+  P ? P(x) : toast("Open it from its page", "warn");
+}
+
+/* ---------- Department requests ---------- */
+const RQT85 = [["wo", "Work order request", "prod", "🛠"], ["mat", "Material / purchase request", "purchase", "🛒"], ["issue", "Issue material from store", "store", "📦"], ["pay", "Payment / advance request", "accounts", "💳"], ["insp", "Inspection / testing request", "quality", "🔬"], ["disp", "Dispatch / delivery request", "store", "🚚"], ["man", "Manpower / HR request", "hr", "👥"], ["svc", "Service / site visit request", "ops", "🧰"], ["gen", "Other request", "admin", "📝"]];
+const RQST85 = { open: ["Waiting", "warn"], accepted: ["Accepted - in progress", "navy"], done: ["Done", "ok"], rejected: ["Rejected", "bad"], cancelled: ["Cancelled", ""] };
+const rqType85 = k => RQT85.find(t => t[0] === k) || RQT85.at(-1);
+const rqMine85 = r => isAdmin28() || r.by === ME85() || isMyDept85(r.toDept) || isMyDept85(r.fromDept);
+function rqPanel85(src, preset) {
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "rq", status: "open", type: "gen", priority: "Normal", date: todayISO(), by: ME85(), byName: AUTH.user?.name || ME85(), fromDept: fromDept85(), ...(preset || {}) };
+  if (!src && preset?.type && !preset.toDept) r.toDept = rqType85(preset.type)[2];
+  r.toDept ||= rqType85(r.type)[2];
+  const target = src && isMyDept85(r.toDept) && r.by !== ME85() || (src && isAdmin28()), mine = src && r.by === ME85(), st = RQST85[r.status] || [r.status, ""];
+  const link = r.link && BIZ.rows[r.link];
+  const act = { wo: ["Make work order", () => link?.kind === "so" ? handoff53(link, false, true).then(() => { render(); toast("Work order made from " + link.no); }) : jobPanel28({ kind: "job", stage: "approved", received: todayISO(), customer: link?.customer || "", work: r.subject + (r.details ? " - " + r.details : ""), promised: r.needBy || "" })], mat: ["Make indent / PO", () => poPanel28({ kind: "po", status: "indent", date: todayISO(), reqBy: ME85(), jobNo: link?.no || "", needBy: r.needBy || "", lines: [{ desc: r.subject, qty: 1, unit: "nos", gst: 18 }], notes: (r.details || r.subject) + ` (request ${r.no})` })], pay: ["Make advance payment", () => payPanel85("advance", null, { po: link?.kind === "po" ? link.id : "", amount: r.amount })], issue: ["Issue material", () => go32("purchase", { pur: "stock" })], insp: ["Make test report", () => go32("quality", {})], disp: ["Make delivery note", () => link?.kind === "so" ? dnPanel31(null, link) : go32("gs", { gs: "dn" })], man: ["Open HR", () => go32("hr", {})], svc: ["Open service", () => go32("service", {})] }[r.type];
+  const D = panel28({
+    title: src ? `${r.no} · ${rqType85(r.type)[1]}` : "New request to a department",
+    chips: src ? `<span class="chip ${st[1]}">${st[0]}</span><span class="chip">${esc(dName85(r.fromDept))} → ${esc(dName85(r.toDept))}</span>${r.priority === "Urgent" ? '<span class="chip bad">Urgent</span>' : ""}` : "",
+    body: `${src ? "" : `<div class="rq85-t">${RQT85.map(t => `<button type="button" class="rq85-o ${r.type === t[0] ? "on" : ""}" data-rqt="${t[0]}"><span>${t[3]}</span><b>${esc(t[1])}</b><small>to ${esc(dName85(t[2]))}</small></button>`).join("")}</div>`}
+      ${link ? `<p class="small" style="margin:0 0 8px">For <button type="button" class="ch83-c" data-ch="${link.id}" style="display:inline-flex"><small>${esc(CH83[link.kind]?.[0] || KN71?.[link.kind] || link.kind)}</small><b>${esc(link.no || "")}</b></button> ${esc(link.customer || link.supplier || "")}</p>` : ""}
+      <div class="fields">${field28(["toDept", "To department", "select", DEPTS85().map(d => [d, dName85(d)])], r)}${field28(["priority", "Priority", "select", ["Normal", "Urgent"]], r)}${field28(["subject", "What is needed *", "text", null, 1], r)}${field28(["details", "Details", "textarea"], r)}${field28(["needBy", "Needed by", "date"], r)}${r.type === "pay" ? field28(["amount", "Amount ₹", "number"], r) : ""}</div>
+      ${src ? `<p class="small muted">Raised by <b>${esc(r.byName || r.by)}</b> (${esc(dName85(r.fromDept))}) on ${dmy(r.date)}${r.doneNote ? ` · <b>${esc(r.doneNote)}</b>` : ""}</p><section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>` : ""}`,
+    foot: src ? `${mine && ["open", "accepted"].includes(r.status) ? `<button class="btn ghost" id="rq85c" type="button" data-l="Cancel request">Cancel request</button>` : ""}<span style="flex:1"></span>
+        ${target && r.status === "open" ? `<button class="btn" id="rq85r" type="button">Reject</button><button class="btn primary" id="rq85a" type="button">✓ Accept</button>` : ""}
+        ${target && r.status === "accepted" ? `${act ? `<button class="btn" id="rq85m" type="button">${act[0]} →</button>` : ""}<button class="btn primary" id="rq85d" type="button">✓ Mark done</button>` : ""}
+        ${(mine || isAdmin28()) && r.status === "open" ? `<button class="btn" id="rq85s" type="button">Save</button>` : ""}`
+      : `<span style="flex:1"></span><button class="btn primary" id="rq85s" type="button">Send request</button>`
+  });
+  $$("[data-rqt]", D).forEach(b => b.onclick = () => { readForm28(D, r); r.type = b.dataset.rqt; r.toDept = rqType85(r.type)[2]; closeDrawer26(); rqPanel85(null, r); });
+  $$("[data-ch]", D).forEach(b => b.onclick = () => open85(b.dataset.ch));
+  const put = async (btn, patch, logT, msg) => { const R = JSON.parse(JSON.stringify(BIZ.rows[r.id] || r)); Object.assign(R, patch); logAdd28(R, logT, patch.doneNote || ""); if (await save28(btn, R, msg)) { closeDrawer26(); render(); } };
+  $("#rq85s", D) && ($("#rq85s", D).onclick = async e => { readForm28(D, r); if (!r.subject) return toast("Write what is needed", "bad"); if (!src) logAdd28(r, "Request sent", `${dName85(r.fromDept)} → ${dName85(r.toDept)}`); if (await save28(e.target, r, src ? "Saved" : `Sent to ${dName85(r.toDept)} - they see it in their work list`)) { closeDrawer26(); render(); } });
+  $("#rq85a", D) && ($("#rq85a", D).onclick = e => put(e.target, { status: "accepted", accBy: ME85(), accAt: new Date().toISOString() }, `Accepted by ${dName85(r.toDept)}`, "Accepted - requester is told"));
+  $("#rq85r", D) && ($("#rq85r", D).onclick = e => sure71(e.target, () => put(e.target, { status: "rejected", doneBy: ME85(), doneNote: "Rejected" }, `Rejected by ${dName85(r.toDept)}`, "Rejected"), "Tap again to reject"));
+  $("#rq85d", D) && ($("#rq85d", D).onclick = e => put(e.target, { status: "done", doneBy: ME85(), doneAt: new Date().toISOString() }, `Done by ${dName85(r.toDept)}`, "Done - requester is told"));
+  $("#rq85c", D) && ($("#rq85c", D).onclick = e => sure71(e.target, () => put(e.target, { status: "cancelled" }, "Cancelled by requester", "Cancelled"), "Tap again"));
+  $("#rq85m", D) && ($("#rq85m", D).onclick = () => { closeDrawer26(); act[1](); });
+  if (src) try { comments29(D, BIZ.rows[r.id] || r, "rq85"); } catch { }
+  if (src) markSeen85([r.id + ":" + r.status]);
+}
+if (!ROUTES.some(x => x[0] === "rq85")) ROUTES.push(["rq85", "Requests", "orders"]);
+ALWAYS34.push("rq85");
+VIEWS.rq85 = v => {
+  bizSync28(); const U = BIZ.ui, tab = U.rq85t || "to", q = U.rq85q || "";
+  const A = all28("rq").filter(rqMine85), D = myD85();
+  const L = A.filter(r => (tab === "to" ? isMyDept85(r.toDept) && r.by !== ME85() && (!D || D.includes(r.toDept)) : tab === "mine" ? r.by === ME85() || (D && D.includes(r.fromDept)) : true) && has71([r.no, r.subject, r.details, dName85(r.toDept), dName85(r.fromDept), r.byName], q))
+    .sort((a, b) => (["open", "accepted"].includes(b.status) - ["open", "accepted"].includes(a.status)) || String(b.at || b.date).localeCompare(String(a.at || a.date)));
+  const n = s => A.filter(r => isMyDept85(r.toDept) && r.by !== ME85() && r.status === s).length;
+  v.innerHTML = top62("Every department", "Requests", "Ask another department for something - work order, material, store issue, payment, inspection, dispatch, manpower. They accept, do it and mark done; you see every step.", `<button type="button" class="btn primary" id="rq85n">${icon("plus")}New request</button>`)
+    + `<div class="hero-strip"><div><span>Waiting for us</span><b>${n("open")}</b></div><div><span>We are doing</span><b>${n("accepted")}</b></div><div><span>Raised by us - open</span><b>${A.filter(r => (r.by === ME85() || (D && D.includes(r.fromDept))) && ["open", "accepted"].includes(r.status)).length}</b></div></div>
+    <section class="panel"><div class="body"><div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">${tabs28(tab, [["to", "To my department"], ["mine", "Raised by me"], ...(isAdmin28() ? [["all", "All"]] : [])], "rqt85")}${srch71(U, "rq85q", "Search requests…")}</div>
+    <div style="overflow:auto"><table class="t"><thead><tr><th>No</th><th>Request</th><th>From → To</th><th>Needed by</th><th>Status</th></tr></thead><tbody>${L.map(r => { const s = RQST85[r.status] || [r.status, ""]; return `<tr data-rq="${r.id}" style="cursor:pointer"><td class="mono small">${esc(r.no || "")}</td><td>${rqType85(r.type)[3]} <b>${esc(r.subject || "")}</b><div class="small muted">${esc(rqType85(r.type)[1])}${r.link && BIZ.rows[r.link] ? " · " + esc(BIZ.rows[r.link].no || "") : ""}</div></td><td class="small">${esc(dName85(r.fromDept))} → <b>${esc(dName85(r.toDept))}</b><div class="muted">${esc(r.byName || "")}</div></td><td>${r.needBy ? dueChip28(r.needBy) : "—"}${r.priority === "Urgent" ? ' <span class="chip bad">Urgent</span>' : ""}</td><td><span class="chip ${s[1]}">${s[0]}</span></td></tr>`; }).join("") || '<tr><td colspan="5" class="muted">No requests here.</td></tr>'}</tbody></table></div></div></section>`;
+  wireSrch71(v, U);
+  $$("[data-rqt85]", v).forEach(b => b.onclick = () => { U.rq85t = b.dataset.rqt85; render(); });
+  $$("[data-rq]", v).forEach(t => t.onclick = () => rqPanel85(BIZ.rows[t.dataset.rq]));
+  $("#rq85n", v).onclick = () => rqPanel85(null);
+};
+/* "↗ Request" on documents: Sales order, PO, GRN, Work order, Invoice */
+{
+  const RQON = { soPanel31: [["wo", "Work order to Production"], ["mat", "Material to Purchase"], ["disp", "Dispatch to Store"], ["insp", "Testing to Quality"]], poPanel28: [["pay", "Payment / advance to Finance"]], rnPanel83: [["insp", "Inspection to Quality"], ["pay", "Payment to Finance"]], jobPanel28: [["mat", "Material to Purchase"], ["issue", "Issue from Store"], ["insp", "Testing to Quality"], ["disp", "Dispatch to Store"]], invPanel29: [["disp", "Dispatch to Store"]] };
+  Object.entries(RQON).forEach(([fn, opts]) => {
+    const f = window[fn]; if (typeof f !== "function") return;
+    window[fn] = function (src) {
+      const out = f.apply(this, arguments);
+      try { const r = src?.id && (BIZ.rows[src.id] || src), Dr = $("#dr26"), ft = Dr && $(".dr28-f", Dr); if (r && ft && !$("#rq85b", ft)) {
+        ft.insertAdjacentHTML("afterbegin", `<div class="rq85-m"><button class="btn" id="rq85b" type="button">↗ Request</button><div class="rq85-p" hidden>${opts.map(([k, l]) => `<button type="button" data-rqo="${k}">${rqType85(k)[3]} ${esc(l)}</button>`).join("")}<button type="button" data-rqo="gen">📝 Other department…</button></div></div>`);
+        const p = $(".rq85-p", ft); $("#rq85b", ft).onclick = e => { e.stopPropagation(); p.hidden = !p.hidden; };
+        $$("[data-rqo]", ft).forEach(b => b.onclick = () => rqPanel85(null, { type: b.dataset.rqo, link: r.id, linkNo: r.no, subject: `${rqType85(b.dataset.rqo)[1].split(" /")[0]} for ${r.no || ""} ${r.customer || r.supplier || ""}`.trim(), needBy: r.deliveryDate || r.needBy || r.promised || "" }));
+      } } catch (e) { console.warn("p85 rq", e); }
+      return out;
+    };
+  });
+}
+/* linked documents: requests, advance payments and receipts show in the chain */
+{
+  const _l = links83;
+  links83 = function (r) {
+    const L = _l(r), add = x => { if (x && !L.some(y => y.id === x.id) && x.id !== r.id) L.push(x); };
+    try {
+      all28("rq").filter(q => q.link === r.id).forEach(add); if (r.kind === "rq") add(BIZ.rows[r.link]);
+      if (r.kind === "po") all28("spay").filter(p => p.po === r.id && p.ptype === "advance").forEach(add);
+      if (r.kind === "so") all28("rcpt").filter(p => p.so === r.id).forEach(add);
+      if (r.kind === "spay" && r.po) add(BIZ.rows[r.po]);
+    } catch { }
+    return L;
+  };
+  CH83.rq = ["Request", "rqPanel85"]; CH83.spay = ["Payment made", "open85"]; CH83.rcpt = ["Payment received", "open85"]; ORD83.push("rq");
+  window.open85 = open85;
+}
+
+/* ---------- Accounts: Payments (Settlement / Advance / Other) and Receipts (Customer / Advance / Other) ---------- */
+const PT85 = { advance: "Advance payment", other: "Other payment" }, RT85 = { advance: "Advance receipt", other: "Other receipt" };
+const MODES85 = ["NEFT / RTGS", "IMPS", "UPI", "Cheque", "Cash", "Bank transfer", "Demand draft"];
+const advLeft85 = a => (Number(a.amount) || 0) - all28("spay").filter(p => p.adv === a.id).reduce((s, p) => s + (Number(p.amount) || 0), 0);
+function chooser85(title, opts) {
+  const D = panel28({ title, body: `<div class="ch85">${opts.map((o, i) => `<button type="button" class="ch85-o" data-ch85="${i}"><span>${o[0]}</span><b>${esc(o[1])}</b><small>${esc(o[2])}</small></button>`).join("")}</div>`, foot: "" });
+  $$("[data-ch85]", D).forEach(b => b.onclick = () => { closeDrawer26(); opts[+b.dataset.ch85][3](); });
+}
+const payChooser85 = () => chooser85("New payment", [["🧾", "Settlement payment", "Against a supplier bill / PO (as now)", () => billPanel29()], ["⏩", "Advance payment", "Before the bill - against a PO", () => payPanel85("advance")], ["➕", "Other payment", "Anything else - name, reason, amount", () => payPanel85("other")]]);
+const recChooser85 = () => chooser85("Record payment received", [["🧾", "Record customer receipt", "Against invoices (as now)", () => rcptPanel29()], ["⏩", "Advance receipt", "Before the invoice - against customer PO / order", () => recPanel85("advance")], ["➕", "Other receipt", "Anything else - name, reason, amount", () => recPanel85("other")]]);
+function money85(D, r) { const t = $("#f28_taxable", D), g = $("#f28_gstAmt", D), o = $("#t85", D); const f = () => { const a = (Number(t?.value) || 0) + (Number(g?.value) || 0); if (o) o.textContent = inr28(a); }; t?.addEventListener("input", f); g?.addEventListener("input", f); f(); }
+function vouch85(r, inOut) {
+  const C = SETTINGS.company || {}, title = inOut === "in" ? (RT85[r.rtype] || "Receipt") : (PT85[r.ptype] || "Payment");
+  printHtml28(`${title} ${r.no || ""}`, lhPage85(`<h2 class="lt85">${inOut === "in" ? "RECEIPT VOUCHER" : "PAYMENT VOUCHER"}</h2><table class="kv85"><tr><td>Voucher no</td><td><b>${esc(r.no || "")}</b></td><td>Date</td><td><b>${dmy(r.date)}</b></td></tr>
+    <tr><td>${inOut === "in" ? "Received from" : "Paid to"}</td><td colspan="3"><b>${esc(r.supplier || r.customer || r.payee || "")}</b>${r.gstin ? " · GSTIN " + esc(r.gstin) : ""}</td></tr>
+    ${r.poNo ? `<tr><td>PO / order</td><td colspan="3">${esc(r.poNo)}</td></tr>` : ""}${r.reason ? `<tr><td>Reason</td><td colspan="3">${esc(r.reason)}</td></tr>` : ""}
+    ${r.taxable !== undefined && r.taxable !== "" ? `<tr><td>Amount before GST</td><td class="n">${inr28(r.taxable)}</td><td>GST</td><td class="n">${inr28(r.gstAmt || 0)}</td></tr>` : ""}
+    <tr><td>Total</td><td colspan="3"><b style="font-size:16px">${inr28(r.amount)}</b><div>${esc(amountInWords(r.amount, "INR", ""))}</div></td></tr>
+    <tr><td>Mode</td><td>${esc(r.mode || "")}</td><td>UTR / cheque</td><td>${esc(r.utr || "")}</td></tr>${r.ref ? `<tr><td>Reference</td><td colspan="3">${esc(r.ref)}</td></tr>` : ""}${r.notes ? `<tr><td>Remarks</td><td colspan="3">${esc(r.notes)}</td></tr>` : ""}</table>
+    <table class="sg85"><tr><td>Prepared by</td><td>Verified</td><td>${inOut === "in" ? "Received by" : "Receiver's signature"}</td><td>For ${esc(C.name || "Rivera Coil Manufacturing (I) Pvt Ltd")}<br><br><br>Authorised signatory</td></tr></table>`));
+}
+function payPanel85(type, src, preset) {
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "spay", ptype: type, date: todayISO(), mode: "NEFT / RTGS", ...(preset || {}) };
+  type = r.ptype;
+  const pos = all28("po").filter(p => !["draft", "cancelled"].includes(p.status) || p.id === r.po).sort((a, b) => String(b.no).localeCompare(String(a.no)));
+  const sup = [...new Set([...all28("po").map(p => p.supplier), ...all28("bill").map(b => b.supplier)].filter(Boolean))];
+  if (!src && r.po && BIZ.rows[r.po]) { const p = BIZ.rows[r.po]; r.supplier ||= p.supplier; r.gstin ||= p.supplierGstin || ""; r.poNo = p.no; if (r.amount && !r.taxable) { r.taxable = Math.round(r.amount / 1.18); r.gstAmt = r.amount - r.taxable; } }
+  const D = panel28({ title: src ? `${PT85[type]} ${r.no || ""}` : PT85[type], chips: src && type === "advance" ? `<span class="chip ${advLeft85(r) > 0 ? "warn" : "ok"}">${advLeft85(r) > 0 ? "Not yet adjusted " + inr28(advLeft85(r)) : "Adjusted against bill"}</span>` : "",
+    body: `<div class="fields">${type === "advance" ? [["po", "PO number", "select", [["", "— pick PO —"], ...pos.map(p => [p.id, `${p.no} · ${p.supplier}`])]], ["supplier", "Supplier name *", "list", sup], ["gstin", "GST number", "text"], ["taxable", "Tax amount (before GST) ₹", "number"], ["gstAmt", "GST amount ₹", "number"], ["date", "Date", "date"]].map(f => field28(f, r)).join("") + `<div class="f" style="align-self:end"><small class="muted">Total</small><b id="t85" style="font-size:1.2rem">₹0</b></div>`
+      : [["payee", "Name *", "list", sup], ["gstin", "GST number", "text"], ["reason", "Reason *", "text"], ["amount", "Amount ₹ *", "number"], ["date", "Date", "date"]].map(f => field28(f, r)).join("")}
+      ${field28(["mode", "Paid by", "select", MODES85], r)}${field28(["utr", "UTR / cheque no", "text"], r)}${field28(["ref", "Reference", "text"], r)}${field28(["notes", "Remarks", "textarea"], r)}</div>
+      ${src && type === "advance" ? `<section class="dr26-sec"><h3>Adjusted against bills</h3>${all28("spay").filter(p => p.adv === r.id).map(p => `<div class="small">${dmy(p.date)} · ${esc(BIZ.rows[p.bill]?.billNo || "")} · <b>${inr28(p.amount)}</b></div>`).join("") || '<p class="small muted">Not yet - when the supplier bill for this PO is entered, tap "Adjust advance" on the bill.</p>'}</section>` : ""}`,
+    foot: `${src && isAdmin28() ? `<button class="btn ghost" id="p85d" type="button" data-l="Delete">Delete</button>` : ""}<span style="flex:1"></span>${src ? `<button class="btn" id="p85p" type="button">${icon("print28")}Print voucher</button>` : ""}<button class="btn primary" id="p85s" type="button">${src ? "Save" : "Save payment"}</button>` });
+  if (type === "advance") { money85(D, r); $("#f28_po", D).onchange = e => { const p = BIZ.rows[e.target.value]; if (!p) return; $("#f28_supplier", D).value = p.supplier || ""; if (p.supplierGstin) $("#f28_gstin", D).value = p.supplierGstin; const tx = sum29(p.lines || [], l => (Number(l.qty) || 0) * (Number(l.rate) || 0)); if (!$("#f28_taxable", D).value) { $("#f28_taxable", D).value = Math.round(tx); $("#f28_gstAmt", D).value = Math.round(poTotal28(p) - tx); $("#f28_taxable", D).dispatchEvent(new Event("input")); } }; }
+  $("#p85s", D).onclick = async e => { readForm28(D, r);
+    if (type === "advance") { if (!r.supplier) return toast("Supplier name is needed", "bad"); r.amount = Math.round(((Number(r.taxable) || 0) + (Number(r.gstAmt) || 0)) * 100) / 100; if (!r.amount) return toast("Enter the amount", "bad"); r.poNo = BIZ.rows[r.po]?.no || ""; }
+    else { if (!r.payee || !r.reason || !Number(r.amount)) return toast("Name, reason and amount are needed", "bad"); r.supplier = r.payee; }
+    if (!src) logAdd28(r, PT85[type] + " made", `${r.mode} ${r.utr || ""}`);
+    if (await save28(e.target, r, PT85[type] + " saved")) { closeDrawer26(); render(); } };
+  $("#p85p", D) && ($("#p85p", D).onclick = () => vouch85(r, "out"));
+  $("#p85d", D) && ($("#p85d", D).onclick = e => sure71(e.target, async () => { try { await bizDel28(r.id); closeDrawer26(); render(); toast("Deleted"); } catch (er) { toast(er.message, "bad"); } }));
+}
+function recPanel85(type, src, preset) {
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "rcpt", rtype: type, date: todayISO(), mode: "NEFT / RTGS", alloc: [], ...(preset || {}) };
+  type = r.rtype;
+  const sos = all28("so").filter(o => o.status !== "cancelled").sort((a, b) => String(b.no).localeCompare(String(a.no)));
+  const cus = [...new Set([...all28("inv").map(i => i.customer), ...sos.map(o => o.customer)].filter(Boolean))];
+  const D = panel28({ title: src ? `${RT85[type]} ${r.no || ""}` : RT85[type],
+    body: `<div class="fields">${type === "advance" ? [["so", "Against our sales order", "select", [["", "— none —"], ...sos.map(o => [o.id, `${o.no} · ${o.customer}`])]], ["poNo", "Customer PO number", "text"], ["customer", "Customer / supplier name *", "list", cus], ["gstin", "GST number", "text"], ["taxable", "Tax amount (before GST) ₹", "number"], ["gstAmt", "GST amount ₹", "number"], ["date", "Date", "date"]].map(f => field28(f, r)).join("") + `<div class="f" style="align-self:end"><small class="muted">Total</small><b id="t85" style="font-size:1.2rem">₹0</b></div>`
+      : [["payer", "Name *", "list", cus], ["gstin", "GST number", "text"], ["reason", "Reason *", "text"], ["amount", "Amount ₹ *", "number"], ["date", "Date", "date"]].map(f => field28(f, r)).join("")}
+      ${field28(["mode", "Received by", "select", MODES85], r)}${field28(["utr", "UTR / cheque no", "text"], r)}${field28(["ref", "Reference", "text"], r)}${field28(["notes", "Remarks", "textarea"], r)}</div>`,
+    foot: `${src && isAdmin28() ? `<button class="btn ghost" id="r85d" type="button" data-l="Delete">Delete</button>` : ""}<span style="flex:1"></span>${src ? `<button class="btn" id="r85p" type="button">${icon("print28")}Print voucher</button>` : ""}<button class="btn primary" id="r85s" type="button">${src ? "Save" : "Save receipt"}</button>` });
+  if (type === "advance") { money85(D, r); $("#f28_so", D).onchange = e => { const o = BIZ.rows[e.target.value]; if (!o) return; $("#f28_customer", D).value = o.customer || ""; if (o.poNo) $("#f28_poNo", D).value = o.poNo; if (o.gstin) $("#f28_gstin", D).value = o.gstin; }; }
+  $("#r85s", D).onclick = async e => { readForm28(D, r);
+    if (type === "advance") { if (!r.customer) return toast("Name is needed", "bad"); r.amount = Math.round(((Number(r.taxable) || 0) + (Number(r.gstAmt) || 0)) * 100) / 100; if (!r.amount) return toast("Enter the amount", "bad"); r.soNo = BIZ.rows[r.so]?.no || ""; }
+    else { if (!r.payer || !r.reason || !Number(r.amount)) return toast("Name, reason and amount are needed", "bad"); r.customer = r.payer; }
+    r.ref = r.ref || r.utr || ""; if (!src) logAdd28(r, RT85[type] + " recorded", `${r.mode} ${r.utr || ""}`);
+    if (await save28(e.target, r, RT85[type] + " saved")) { closeDrawer26(); render(); } };
+  $("#r85p", D) && ($("#r85p", D).onclick = () => vouch85(r, "in"));
+  $("#r85d", D) && ($("#r85d", D).onclick = e => sure71(e.target, async () => { try { await bizDel28(r.id); closeDrawer26(); render(); toast("Deleted"); } catch (er) { toast(er.message, "bad"); } }));
+}
+/* Accounts page: Payments tabs + chooser, Receipts tabs + chooser */
+{
+  const _a = VIEWS.accounts;
+  VIEWS.accounts = v => {
+    _a(v);
+    try {
+      const U = BIZ.ui;
+      if (U.acc === "bill") {
+        const n = $("#n29", v); if (n) { n.innerHTML = `${icon("plus")}${U.pay63 ? "Payment" : "Supplier bill / payment"}`; n.onclick = e => { e.stopImmediatePropagation(); payChooser85(); }; }
+        const t = U.pay85 || "set", tbl = $(".panel .tablewrap", v)?.closest(".panel"); if (!tbl) return;
+        tbl.insertAdjacentHTML("beforebegin", `<div style="margin:0 0 10px">${tabs28(t, [["set", "Settlement (bills)"], ["advance", `Advance payments (${all28("spay").filter(p => p.ptype === "advance").length})`], ["other", `Other payments (${all28("spay").filter(p => p.ptype === "other").length})`]], "p85t")}</div>`);
+        $$("[data-p85t]", v).forEach(b => b.onclick = () => { U.pay85 = b.dataset.p85t; render(); });
+        if (t !== "set") { const L = qf29(all28("spay").filter(p => p.ptype === t), x => `${x.no} ${x.supplier} ${x.poNo} ${x.reason} ${x.utr} ${x.ref}`).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+          tbl.outerHTML = tbl29(t === "advance" ? ["Voucher", "Supplier", "PO", "Date", "Before GST", "GST", "Total", "Not adjusted", "UTR / ref"] : ["Voucher", "Name", "Reason", "Date", "Amount", "Mode", "UTR / ref"], L.map(p => t === "advance" ? `<tr class="r26" data-p85="${p.id}" tabindex="0"><td class="mono small">${esc(p.no || "")}</td><td><b>${esc(p.supplier)}</b><div class="small muted">${esc(p.gstin || "")}</div></td><td class="small">${esc(p.poNo || "")}</td><td>${dmy(p.date)}</td><td class="n">${inr28(p.taxable)}</td><td class="n">${inr28(p.gstAmt)}</td><td class="n"><b>${inr28(p.amount)}</b></td><td class="n">${advLeft85(p) > 0 ? inr28(advLeft85(p)) : "—"}</td><td class="small">${esc([p.utr, p.ref].filter(Boolean).join(" · "))}</td></tr>` : `<tr class="r26" data-p85="${p.id}" tabindex="0"><td class="mono small">${esc(p.no || "")}</td><td><b>${esc(p.supplier || p.payee)}</b><div class="small muted">${esc(p.gstin || "")}</div></td><td>${esc(p.reason || "")}</td><td>${dmy(p.date)}</td><td class="n"><b>${inr28(p.amount)}</b></td><td>${esc(p.mode || "")}</td><td class="small">${esc([p.utr, p.ref].filter(Boolean).join(" · "))}</td></tr>`), t === "advance" ? "No advance payments yet" : "No other payments yet");
+          $$("[data-p85]", v).forEach(r => r.onclick = () => payPanel85(t, BIZ.rows[r.dataset.p85])); }
+      }
+      if (U.acc === "rcpt") {
+        const n = $("#n29", v); if (n) n.onclick = e => { e.stopImmediatePropagation(); recChooser85(); };
+        const t = U.rec85 || "cust", tbl = $(".panel .tablewrap", v)?.closest(".panel"); if (!tbl) return;
+        tbl.insertAdjacentHTML("beforebegin", `<div style="margin:0 0 10px">${tabs28(t, [["cust", "Customer receipts"], ["advance", `Advance receipts (${all28("rcpt").filter(p => p.rtype === "advance").length})`], ["other", `Other receipts (${all28("rcpt").filter(p => p.rtype === "other").length})`]], "r85t")}</div>`);
+        $$("[data-r85t]", v).forEach(b => b.onclick = () => { U.rec85 = b.dataset.r85t; render(); });
+        if (t === "cust") $$("[data-rc]", v).forEach(tr => { if (BIZ.rows[tr.dataset.rc]?.rtype) tr.remove(); });
+        else { const L = qf29(all28("rcpt").filter(p => p.rtype === t), x => `${x.no} ${x.customer} ${x.poNo} ${x.reason} ${x.utr} ${x.ref}`).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+          tbl.outerHTML = tbl29(t === "advance" ? ["Voucher", "From", "Customer PO / order", "Date", "Before GST", "GST", "Total", "UTR / ref"] : ["Voucher", "Name", "Reason", "Date", "Amount", "Mode", "UTR / ref"], L.map(p => t === "advance" ? `<tr class="r26" data-r85="${p.id}" tabindex="0"><td class="mono small">${esc(p.no || "")}</td><td><b>${esc(p.customer)}</b><div class="small muted">${esc(p.gstin || "")}</div></td><td class="small">${esc([p.poNo, p.soNo].filter(Boolean).join(" · "))}</td><td>${dmy(p.date)}</td><td class="n">${inr28(p.taxable)}</td><td class="n">${inr28(p.gstAmt)}</td><td class="n"><b>${inr28(p.amount)}</b></td><td class="small">${esc([p.utr, p.ref].filter(Boolean).join(" · "))}</td></tr>` : `<tr class="r26" data-r85="${p.id}" tabindex="0"><td class="mono small">${esc(p.no || "")}</td><td><b>${esc(p.customer || p.payer)}</b><div class="small muted">${esc(p.gstin || "")}</div></td><td>${esc(p.reason || "")}</td><td>${dmy(p.date)}</td><td class="n"><b>${inr28(p.amount)}</b></td><td>${esc(p.mode || "")}</td><td class="small">${esc([p.utr, p.ref].filter(Boolean).join(" · "))}</td></tr>`), t === "advance" ? "No advance receipts yet" : "No other receipts yet");
+          $$("[data-r85]", v).forEach(r => r.onclick = () => recPanel85(t, BIZ.rows[r.dataset.r85])); }
+      }
+    } catch (e) { console.warn("p85 acc", e); }
+  };
+  /* Sales ▸ Receipts "Record payment" also asks which kind */
+  const _rc = rcptPanel29;
+  rcptPanel29 = function (src, preset) { if (!src && !preset && !window.__rc85) { window.__rc85 = 1; setTimeout(() => window.__rc85 = 0, 50); return recChooser85(); } if (src?.rtype) return recPanel85(src.rtype, src); return _rc.apply(this, arguments); };
+  /* supplier bill: adjust an advance paid on the same PO */
+  const _b = billPanel29;
+  billPanel29 = function (src) {
+    const out = _b.apply(this, arguments);
+    try { const b = src?.id && BIZ.rows[src.id]; const D = $("#dr26"); if (b && b.po && D) { const A = all28("spay").filter(p => p.ptype === "advance" && p.po === b.po && advLeft85(p) > 0); const paid = all28("spay").filter(p => p.bill === b.id).reduce((s, p) => s + (Number(p.amount) || 0), 0), bal = (Number(b.total) || 0) - paid;
+      if (A.length && bal > 0) { $(".dr26-b", D).insertAdjacentHTML("afterbegin", `<div class="note warn" style="margin-bottom:10px"><b>Advance already paid on ${esc(BIZ.rows[b.po]?.no || "this PO")}</b>${A.map(a => `<div class="row" style="justify-content:space-between;margin-top:6px"><span>${esc(a.no || "")} · ${dmy(a.date)} · left ${inr28(advLeft85(a))}</span><button type="button" class="btn sm primary" data-adj="${a.id}">Adjust ${inr28(Math.min(advLeft85(a), bal))}</button></div>`).join("")}</div>`);
+        $$("[data-adj]", D).forEach(x => x.onclick = async e => { const a = BIZ.rows[x.dataset.adj], amt = Math.min(advLeft85(a), bal); if (await save28(e.target, { kind: "spay", bill: b.id, supplier: b.supplier, amount: amt, mode: "Advance adjusted", ref: a.no, adv: a.id, date: todayISO() }, "Advance adjusted against the bill")) billPanel29(BIZ.rows[b.id]); }); } } } catch (e) { console.warn("p85 adj", e); }
+    return out;
+  };
+}
+
+/* ---------- PO approval by Finance (not CRM) ---------- */
+const canApprPO85 = () => isAdmin28() || isMyDept85("accounts") && !!myD85() || ME85() === "finance@rivera.co.in";
+{
+  const _t = toast; toast = function (m, ...a) { return _t.call(this, typeof m === "string" ? m.replace("Sent to admin for approval", "Sent to Finance for approval").replace("waiting for the admin", "waiting for Finance") : m, ...a); };
+  const _p = poPanel28;
+  poPanel28 = function (src) {
+    const out = _p.apply(this, arguments);
+    try {
+      const r = src?.id && BIZ.rows[src.id], D = $("#dr26"), ft = D && $(".dr28-f", D);
+      if (r && ft && r.status === "pending" && canApprPO85() && !$("#p28ap", ft)) {
+        ft.insertAdjacentHTML("beforeend", `<button class="btn" id="p85rej" type="button">Send back</button><button class="btn primary" id="p85ap" type="button">✓ Approve (Finance)</button>`);
+        const go = async (btn, st, t, m) => { const R = JSON.parse(JSON.stringify(BIZ.rows[r.id])); R.status = st; if (st === "approved") { R.apprBy = ME85(); R.apprAt = new Date().toISOString(); } logAdd28(R, t, AUTH.user?.name || ME85()); if (await save28(btn, R, m)) { closeDrawer26(); render(); } };
+        $("#p85ap", ft).onclick = e => go(e.target, "approved", "Approved by Finance", "PO approved - Purchase can send it");
+        $("#p85rej", ft).onclick = e => sure71(e.target, () => go(e.target, "draft", "Sent back by Finance", "Sent back to Purchase"), "Tap again to send back");
+      }
+      if (r && ft) { const pr = $("#p28pr", ft); if (pr) { const n = pr.cloneNode(true); pr.replaceWith(n); n.onclick = () => poPrint85(BIZ.rows[r.id] || r); } }
+      /* vendor details for the PO print (kept when the form redraws) */
+      const ensure = () => { const f = $("#dr26 .fields"); if (!f || $("#f28_supplierGstin", f) || !$("#f28_supplier", f)) return; const R = BIZ.rows[src?.id] || src || {}; const prev = all28("po").filter(p => p.supplier === (R.supplier || "") && p.supplierGstin).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0] || {};
+        $("#f28_supplierPhone", f)?.closest("label")?.insertAdjacentHTML("afterend", field28(["supplierGstin", "Supplier GSTIN", "text"], { supplierGstin: R.supplierGstin || prev.supplierGstin || "" }) + field28(["supplierAddr", "Supplier address", "text", null, 1], { supplierAddr: R.supplierAddr || prev.supplierAddr || "" }) + field28(["supplierPin", "Pin code", "text"], { supplierPin: R.supplierPin || prev.supplierPin || "" }));
+        $("#f28_supplier", f).addEventListener("change", e => { const p = all28("po").filter(x => x.supplier === e.target.value && x.supplierGstin).sort((a, b) => String(b.date).localeCompare(String(a.date)))[0]; if (p) ["supplierGstin", "supplierAddr", "supplierPin", "supplierEmail", "supplierPhone"].forEach(k => { const el = $("#f28_" + k, f); if (el && !el.value) el.value = p[k] || ""; }); }); };
+      ensure(); if (D && !D.dataset.o85) { D.dataset.o85 = 1; new MutationObserver(ensure).observe(D, { childList: true, subtree: true }); }
+    } catch (e) { console.warn("p85 po", e); }
+    return out;
+  };
+}
+
+/* ---------- Company letterhead (as the paper PO) ---------- */
+const CO85 = { name: "RIVERA COIL MANUFACTURING INDIA PVT LTD", short: "Rivera Coil Manufacturing (I) Pvt Ltd", cin: "U31904TZ2021PTC037487", gst: "33AALCR4223N1Z5", pan: "AALCR4223N", tan: "CMBR09105F", addr: "191/1, Perundurai Main Road, Opp Veerappampalayam by-pass road, Thindal (Post), Erode.", pin: "638012", ph: "8903045399, 9940983393", foot: "Regd. Off: 191/1, Perundurai Main Road, Opp Veerappampalayam By-Pass Road, Thindal (Post), Erode, Tamilnadu - 638 012, India", foot2: "+91 424 2273399, 77085 49900 | riverarcmindia@gmail.com | www.riveracoilmanufacturing.com | www.rivera.co.in" };
+let LHIMG85 = null;
+async function lhImgs85() { if (LHIMG85) return LHIMG85; try { const A = await lhAssets({ embedJpg: async b => b }); if (A) { const u = b => "data:image/jpeg;base64," + btoa(Array.from(b, c => String.fromCharCode(c)).join("")); LHIMG85 = { sign: u(A.sign), seal: u(A.seal) }; } } catch { } return LHIMG85 || {}; }
+lhImgs85();
+const lhPage85 = inner => `<style>@page{size:A4;margin:10mm}body{margin:0;font:12.5px/1.45 Arial,sans-serif;color:#111}.lh85{display:flex;justify-content:space-between;align-items:flex-start;border-bottom:2px solid #111;padding-bottom:6px;margin-bottom:8px}.lh85 img{height:58px}.lh85 .co{font:700 11px Arial;letter-spacing:.02em;margin-top:2px}.lh85 .id{background:#111;color:#fff;padding:6px 12px;font:600 11px/1.5 Arial;clip-path:polygon(8% 0,100% 0,100% 100%,0 100%)}.lt85{text-align:center;font:700 16px Georgia,serif;letter-spacing:.06em;margin:4px 0 10px}.kv85,.it85,.sg85{width:100%;border-collapse:collapse;margin:8px 0}.kv85 td,.it85 td,.it85 th{border:1px solid #333;padding:5px 7px;vertical-align:top}.it85 th{background:#f0f0f0}.n{text-align:right}.sg85 td{border:0;padding:28px 6px 0;vertical-align:bottom;font-weight:600;width:25%}.ft85{margin-top:18px;border-top:2px solid #111;padding-top:5px;text-align:center;font-size:10.5px}.ft85 b{display:block;font-size:11.5px}</style>
+  <div class="lh85"><div><img src="${brandLogo()}" alt="Rivera"><div class="co">${CO85.name}</div></div><div class="id">CIN : ${CO85.cin}<br>GST : ${CO85.gst}<br>PAN : ${CO85.pan}<br>TAN : ${CO85.tan}</div></div>${inner}
+  <div class="ft85"><b>${CO85.name}</b>${CO85.foot}<br>${CO85.foot2}</div>`;
+async function poPrint85(r) {
+  const I = await lhImgs85(), tx = sum29(r.lines || [], l => (Number(l.qty) || 0) * (Number(l.rate) || 0)), tot = poTotal28(r), gst = tot - tx;
+  const igst = r.supplierGstin ? !String(r.supplierGstin).startsWith("33") : false, rate = Math.round(gst / (tx || 1) * 100);
+  const terms = String(r.terms || "").split(/\n|;\s*/).filter(Boolean);
+  printHtml28("Purchase order " + r.no, lhPage85(`<h2 class="lt85">PURCHASE ORDER</h2>
+    <table class="kv85" style="width:44%;margin-left:auto"><tr><td>PO Date</td><td><b>${dmy(r.date).replace(/-/g, ".")}</b></td></tr><tr><td>PO No</td><td><b>${esc(r.no || "")}</b></td></tr></table>
+    <p style="margin:6px 0 2px"><b>VENDOR</b></p><table class="kv85" style="border:0">${[["Name", r.supplier], ["Address", r.supplierAddr], ["Pin code", r.supplierPin], ["Ph.No", r.supplierPhone], ["GSTIN", r.supplierGstin], ["E Mail Id", r.supplierEmail]].map(([k, v]) => `<tr><td style="border:0;width:110px;padding:1px 6px">${k}</td><td style="border:0;padding:1px 6px">: ${esc(v || "")}</td></tr>`).join("")}</table>
+    <p style="margin:8px 0 2px"><b>INVOICE &amp; DELIVER TO</b></p><table class="kv85" style="border:0">${[["Name", CO85.short], ["Address", r.deliverTo || CO85.addr], ["Pin code", CO85.pin], ["Ph.No", CO85.ph], ["GSTIN", CO85.gst], ["E Mail Id", "purchase@rivera.co.in"]].map(([k, v]) => `<tr><td style="border:0;width:110px;padding:1px 6px">${k}</td><td style="border:0;padding:1px 6px">: ${esc(v || "")}</td></tr>`).join("")}</table>
+    <p style="margin:10px 0 4px"><b>Dear ${esc(r.supplier || "")},</b><br>We are pleased to place an order for the item${(r.lines || []).length > 1 ? "s" : ""} below</p>
+    <table class="it85"><thead><tr><th style="width:44px">S.No</th><th>Item Name and Description</th><th class="n">Qty/Nos</th><th class="n">Unit Price</th><th class="n">Amount</th></tr></thead><tbody>${(r.lines || []).map((l, i) => `<tr><td>${i + 1}</td><td>${esc([BIZ.rows[l.item]?.name, l.desc].filter((x, j, a) => x && a.indexOf(x) === j).join(" — "))}</td><td class="n">${l.qty} ${esc(l.unit || "")}</td><td class="n">${Number(l.rate || 0).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td><td class="n">${((Number(l.qty) || 0) * (Number(l.rate) || 0)).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td></tr>`).join("")}
+      <tr><td colspan="3" style="border:0"></td><th>Sub Total</th><td class="n"><b>${tx.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</b></td></tr>
+      ${igst ? `<tr><td colspan="3" style="border:0"></td><th>IGST ${rate}%</th><td class="n">${gst.toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td></tr>` : `<tr><td colspan="3" style="border:0"></td><th>CGST ${rate / 2}%</th><td class="n">${(gst / 2).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td></tr><tr><td colspan="3" style="border:0"></td><th>SGST ${rate / 2}%</th><td class="n">${(gst / 2).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</td></tr>`}
+      <tr><td colspan="3" style="border:0"></td><th>Total</th><td class="n"><b>${Math.round(tot).toLocaleString("en-IN", { minimumFractionDigits: 2 })}</b></td></tr></tbody></table>
+    <p><b><u>Amount in Words</u>:</b> ${esc(amountInWords(Math.round(tot), "INR", "").replace(/^INR /, ""))}.</p>
+    <p style="margin-bottom:2px"><b><u>Commercial Terms and Conditions:</u></b></p><ol style="margin-top:2px">${(terms.length ? terms : [`Payment: ${r.terms || "As agreed"}`]).map(t => `<li>${esc(t)}</li>`).join("")}${r.needBy ? `<li>Delivery: required by ${dmy(r.needBy)}.</li>` : ""}<li>${esc(r.supplier || "Supplier")} shall pack and dispatch the items in good condition to avoid any damage.</li><li>Please quote our PO number on your invoice and delivery challan.</li></ol>
+    ${r.notes ? `<p>${esc(r.notes)}</p>` : ""}
+    <table class="sg85"><tr><td>Prepared by<div style="font-weight:400">${esc(who28?.(r.by) || "")}</div></td><td style="text-align:center">Verified</td><td style="text-align:right;width:40%">For ${CO85.short},<br>${I.seal ? `<img src="${I.seal}" style="height:70px;vertical-align:middle;margin-right:6px">` : ""}${I.sign && r.status !== "draft" && r.status !== "pending" ? `<img src="${I.sign}" style="height:46px;vertical-align:middle">` : '<span style="display:inline-block;height:46px"></span>'}<br>Authorized Signature</td></tr></table>`));
+}
+
+/* ---------- 🔔 For you: mentions, requests, approvals - inside the app ---------- */
+function forMe85() {
+  const me = ME85(), S = seen85(), out = [], t30 = addDays(todayISO(), -30);
+  all28("cmt").filter(c => (c.mentions || []).includes(me) && c.by !== me && String(c.at || "").slice(0, 10) >= t30).forEach(c => out.push({ key: c.id, id: c.id, at: c.at, ic: "💬", t: `${who28(c.by)} mentioned you`, s: `${c.onTitle || ""} - “${String(c.text || "").slice(0, 90)}”` }));
+  all28("rq").filter(r => r.status === "open" && r.by !== me && isMyDept85(r.toDept) && (!isAdmin28() || !myD85())).forEach(r => out.push({ key: r.id + ":open", id: r.id, at: r.at || r.date, ic: rqType85(r.type)[3], t: `Request from ${dName85(r.fromDept)}: ${r.subject}`, s: `${r.no || ""}${r.needBy ? " · needed by " + dmy(r.needBy) : ""}${r.priority === "Urgent" ? " · URGENT" : ""}` }));
+  all28("rq").filter(r => r.by === me && ["accepted", "done", "rejected"].includes(r.status)).forEach(r => out.push({ key: r.id + ":" + r.status, id: r.id, at: r.doneAt || r.accAt || r.at, ic: r.status === "done" ? "✅" : r.status === "rejected" ? "⛔" : "👍", t: `${dName85(r.toDept)} ${r.status === "accepted" ? "accepted" : r.status === "done" ? "finished" : "rejected"} your request`, s: `${r.no || ""} · ${r.subject || ""}` }));
+  if (canApprPO85() && myD85()) all28("po").filter(p => p.status === "pending").forEach(p => out.push({ key: p.id + ":pending", id: p.id, at: p.at, ic: "🧾", t: `PO waiting your approval: ${p.no}`, s: `${p.supplier} · ${inr28(poTotal28(p))}` }));
+  all28("po").filter(p => p.by === me || (myD85() || []).includes("purchase")).filter(p => ["approved", "draft"].includes(p.status) && (p.log || []).some(l => /by Finance/.test(l.t || l.title || ""))).forEach(p => out.push({ key: p.id + ":" + p.status, id: p.id, at: p.apprAt || p.at, ic: p.status === "approved" ? "✅" : "↩", t: p.status === "approved" ? `Finance approved ${p.no}` : `Finance sent back ${p.no}`, s: p.supplier }));
+  return out.map(x => ({ ...x, unread: !S.has(x.key) })).sort((a, b) => (b.unread - a.unread) || String(b.at || "").localeCompare(String(a.at || "")));
+}
+function bell85() {
+  const nav = $("#nav51"), host = nav && nav.offsetParent !== null ? $(".n51-u", nav) : $(".ab26-r"); if (!host || !signed26?.()) return;
+  const L = forMe85(), n = L.filter(x => x.unread).length; let b = $("#fm85");
+  if (b && !host.parentElement?.contains(b) && !host.contains(b)) { b.remove(); b = null; }
+  if (!b) { const h = `<button class="${nav && host.classList.contains("n51-u") ? "n51-ic" : "ab26-ib"} fm85" id="fm85" type="button" title="For you - mentions, requests, approvals" aria-label="For you">💬<i hidden></i></button>`; host.classList.contains("n51-u") ? host.insertAdjacentHTML("beforebegin", h) : host.insertAdjacentHTML("afterbegin", h); b = $("#fm85"); b.onclick = e => { e.stopPropagation(); pop85(); }; }
+  const i = $("i", b); i.hidden = !n; i.textContent = n > 99 ? "99+" : n;
+  const fresh = L.filter(x => x.unread && !NOTI85.has(x.key)); if (fresh.length) { fresh.forEach(x => NOTI85.add(x.key)); if (NOTI85.ready) { toast(`${fresh[0].ic} ${fresh[0].t}${fresh.length > 1 ? ` (+${fresh.length - 1} more)` : ""}`); try { if ("Notification" in window && Notification.permission === "granted") new Notification("Rivera ERP", { body: fresh[0].t + "\n" + fresh[0].s, icon: "icons/icon-192.png" }); } catch { } } }
+  NOTI85.ready = true;
+}
+const NOTI85 = new Set();
+function pop85() {
+  if ($("#fp85")) return $("#fp85").remove();
+  const L = forMe85();
+  document.body.insertAdjacentHTML("beforeend", `<div id="fp85" class="bp26 fp85" role="dialog" aria-label="For you"><header><b>For you</b><span class="small muted">mentions, requests and approvals</span></header><div class="bp26-l">${L.length ? L.map((x, i) => `<button type="button" class="bp26-i ${x.unread ? "un85" : ""}" data-f85="${i}"><span class="bp26-m">${x.ic}</span><span class="bp26-x"><b>${esc(x.t)}</b><small>${esc(x.s)}${x.at ? " · " + esc(new Date(x.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })) : ""}</small></span></button>`).join("") : '<div class="empty" style="padding:22px"><b>Nothing for you</b>When someone @mentions you or sends your department a request, it shows here.</div>'}</div>
+    <footer><button class="btn sm" id="fp85r" type="button">Open requests</button>${L.some(x => x.unread) ? '<button class="btn sm primary" id="fp85s" type="button">Mark all read</button>' : ""}${"Notification" in window && Notification.permission === "default" ? '<button class="btn sm" id="fp85n" type="button">Phone / desktop alerts</button>' : ""}</footer></div>`);
+  const P = $("#fp85"), close = () => { P.remove(); document.removeEventListener("click", out, true); }, out = e => { if (!P.contains(e.target) && !e.target.closest("#fm85")) close(); };
+  setTimeout(() => document.addEventListener("click", out, true));
+  $$("[data-f85]", P).forEach(b => b.onclick = () => { const x = L[+b.dataset.f85]; markSeen85([x.key]); close(); open85(x.id); bell85(); });
+  $("#fp85r").onclick = () => { close(); go32("rq85", {}); };
+  $("#fp85s") && ($("#fp85s").onclick = () => { markSeen85(L.map(x => x.key)); close(); bell85(); });
+  $("#fp85n") && ($("#fp85n").onclick = async () => { await Notification.requestPermission(); close(); });
+}
+{ const _r = render; render = function () { const o = _r.apply(this, arguments); try { bell85(); home85(); } catch (e) { console.warn("p85 bell", e); } return o; }; setInterval(() => { try { if (signed26?.() && !document.hidden) bizSync28(true); } catch { } }, 90000); }
+/* comments: tell people it reaches them in the app */
+{ const _c = comments29; comments29 = function () { const o = _c.apply(this, arguments); const t = $("#cm29t"); if (t) t.placeholder = "Write a comment — tap @ to tell a person or department (they see it in the app and get a mail)"; return o; }; }
+
+/* ---------- "Your work today" on every department home ---------- */
+function home85() {
+  if (STATE.route !== "apps") return; const h = $(".h51"); if (!h || $(".q37", h)) return;
+  const Q = queue37(); const me = forMe85().filter(x => x.unread && !/:(open|pending)$/.test(x.key));
+  if (me.length) Q.unshift({ label: "For you (mentions & requests)", items: me.map(x => [x.t, x.s, () => { markSeen85([x.key]); open85(x.id); }]), tone: "warn" });
+  const total = Q.reduce((a, q) => a + q.items.length, 0), anchor = $(".h51-s", h) || $(".h51-tiles", h); if (!anchor) return;
+  anchor.insertAdjacentHTML("afterend", `<section class="q37 q85"><header><b>${total ? `Your work today · ${total}` : "You're all caught up"}</b><span class="small muted">${total ? "Comes up by itself from every department - tap to act" : "Requests, approvals and things due show up here by themselves"}</span><button type="button" class="btn sm" id="q85n">↗ New request</button></header>${total ? `<div class="q37-g">${Q.map((q, i) => `<div class="q37-c ${q.tone || ""}"><div class="q37-h"><b>${esc(q.label)}</b><i>${q.items.length}</i></div>${q.items.slice(0, 3).map((it, j) => `<button type="button" class="q37-i" data-q85="${i}|${j}"><span>${esc(String(it[0]).slice(0, 48))}</span><small>${esc(String(it[1]).slice(0, 80))}</small></button>`).join("")}${q.items.length > 3 ? `<button type="button" class="q37-m" data-q85m="${i}">+${q.items.length - 3} more</button>` : ""}</div>`).join("")}</div>` : ""}</section>`);
+  $$("[data-q85]", h).forEach(b => b.onclick = () => { const [i, j] = b.dataset.q85.split("|").map(Number); Q[i].items[j][2](); });
+  $$("[data-q85m]", h).forEach(b => b.onclick = () => { const q = Q[+b.dataset.q85m]; const D = panel28({ title: q.label, body: q.items.map((it, j) => `<button type="button" class="q37-i" data-q85x="${j}" style="width:100%"><span>${esc(String(it[0]))}</span><small>${esc(String(it[1]))}</small></button>`).join(""), foot: "" }); $$("[data-q85x]", D).forEach(x => x.onclick = () => { closeDrawer26(); q.items[+x.dataset.q85x][2](); }); });
+  $("#q85n", h).onclick = () => rqPanel85(null);
+}
+/* department work list: requests + PO approval for Finance; courier needs no approval */
+{
+  const _q = queue37;
+  queue37 = function () {
+    const Q = _q.apply(this, arguments).filter(q => q.label !== "Courier waiting approval");
+    try {
+      const me = ME85(), mine = all28("rq").filter(r => r.by !== me && isMyDept85(r.toDept) && (!isAdmin28() || !myD85()));
+      const o = mine.filter(r => r.status === "open"), a = mine.filter(r => r.status === "accepted");
+      if (o.length) Q.unshift({ label: "Requests waiting for you", items: o.map(r => [`${rqType85(r.type)[3]} ${r.subject}`, `${r.no || ""} · from ${dName85(r.fromDept)}${r.needBy ? " · by " + dmy(r.needBy) : ""}`, () => rqPanel85(r)]), tone: o.some(r => r.priority === "Urgent") ? "bad" : "warn" });
+      if (a.length) Q.push({ label: "Requests you are doing", items: a.map(r => [r.subject, `${r.no || ""} · ${dName85(r.fromDept)}`, () => rqPanel85(r)]), tone: "" });
+      if (canApprPO85() && myD85()) { const P = all28("po").filter(p => p.status === "pending"); if (P.length) Q.unshift({ label: "PO waiting your approval", items: P.map(p => [p.supplier, `${p.no} · ${inr28(poTotal28(p))}`, () => poPanel28(p)]), tone: "warn" }); }
+    } catch (e) { console.warn("p85 q", e); }
+    return Q;
+  };
+}
+/* menus: Requests in every department; Payments / Receipts cards say what they hold */
+{
+  MODS32.forEach(m => { if (m.id === "work") return; const T = m.groups.Transactions ||= []; if (!T.some(c => c[1] === "rq85")) { const c = ["Requests", "rq85", {}, "Ask / answer other departments - work order, material, payment…"]; T.unshift(c); try { CARDMOD64.set(c, m.id); } catch { } } });
+  const ac = MODS32.find(m => m.id === "accounts"); if (ac) { const T = ac.groups.Transactions; const p = T.find(c => c[0] === "Payments"); if (p) p[3] = "Settlement, advance and other payments"; const r = T.find(c => c[0] === "Receipts"); if (r) r[3] = "Customer, advance and other receipts"; }
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.rq85-t,.ch85{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:8px;margin-bottom:12px}.rq85-o,.ch85-o{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line,#dfe5ee);background:var(--surface,#fff);border-radius:12px;padding:10px 12px;cursor:pointer;color:inherit;font:inherit}
+.rq85-o span,.ch85-o span{font-size:1.3rem}.rq85-o small,.ch85-o small{color:#5b6b80}.rq85-o.on,.rq85-o:hover,.ch85-o:hover{border-color:#e8590c;background:#fff8f2}.ch85-o{padding:16px}.ch85-o b{font-size:1rem}
+.rq85-m{position:relative}.rq85-p{position:absolute;bottom:calc(100% + 6px);left:0;z-index:5;background:#fff;border:1px solid #dfe5ee;border-radius:12px;box-shadow:0 10px 30px #0003;padding:6px;display:flex;flex-direction:column;min-width:250px}.rq85-p[hidden]{display:none}.rq85-p button{text-align:left;border:0;background:none;padding:9px 10px;border-radius:8px;cursor:pointer;font:inherit;color:#0b2a57}.rq85-p button:hover{background:#f2f6fb}
+.fm85{font-size:1.05rem}.fm85 i{font-style:normal}.fp85{right:150px}.un85{background:#fff6ee}.un85 b::before{content:"● ";color:#e8590c}
+.q85{margin:14px 0}.q85 header{display:flex;align-items:center;gap:10px;flex-wrap:wrap}.q85 header .btn{margin-left:auto}
+</style>`);
+
 boot();
 
 </script>
