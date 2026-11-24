@@ -15449,6 +15449,49 @@ VIEWS.sup91 = v => {
     $$("[data-e91a]").forEach(b => b.onclick = () => faPanel62(BIZ.rows[b.dataset.e91a])); } catch (er) { console.warn("p91 emp", er); } };
 }
 
+/* ===================== p92: every printed document on the colour company letterhead (+ address footer), colours kept when printing ===================== */
+LHDOC86.test = () => true;
+{
+  const _p = printHtml28;
+  printHtml28 = function (title, inner) {
+    const h = String(inner || "").replace(/<img src="blob:[^"]*" style="width:100%;margin-bottom:8px" alt="">/g, "");
+    return _p.call(this, title, `<style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}</style>` + h);
+  };
+}
+/* Password repository: grouped by category with counts, one-tap "Tidy up" (only after the master password unlocks it, all in this browser):
+   sorts entries out of "Other" by name / website, removes exact repeats (same name + same user + same password), keeps the newest */
+["Government / GST", "Customer / Supplier portal", "Website / Domain / Hosting", "Social media", "CCTV / Biometric"].forEach(c => { if (!VCAT62.includes(c)) VCAT62.splice(VCAT62.length - 1, 0, c); });
+const VCATRX92 = [["Finance / Bank", /bank|sbi|hdfc|icici|axis|cub\b|iob|kotak|canara|indusind|upi|paytm|phonepe|gpay|razorpay|net ?banking|credit card|loan|tally|zoho books|insurance/i], ["Government / GST", /gst|income ?tax|tds|traces|epfo|\bpf\b|esi|mca|udyam|msme|icegate|dgft|gem\b|e-?way|einvoice|e-?invoice|tnpcb|factor(y|ies)|labour|pt\b|nsic|tneb|eb bill/i], ["Email", /mail|gmail|outlook|zoho mail|webmail|rivera\.co\.in/i], ["Wi-Fi / Network", /wi-?fi|router|tp-?link|jio ?fiber|airtel|bsnl|broadband|lan\b|network|ssid/i], ["CCTV / Biometric", /cctv|dvr|nvr|camera|hikvision|cp ?plus|biometric|zkteco|essl|attendance device/i], ["Website / Domain / Hosting", /godaddy|domain|hosting|cpanel|wordpress|website|hostinger|cloudflare|dns/i], ["Social media", /facebook|instagram|linkedin|youtube|twitter|x\.com|whatsapp business|google business|indiamart|justdial|tradeindia/i], ["Device / Mobile", /mobile|phone|laptop|desktop|pc\b|imei|printer|apple id|icloud|windows|synology|nas\b/i], ["Customer / Supplier portal", /portal|vendor|supplier|bhel|ntpc|ongc|tneb|kpcl|nlc|coal india|ariba|sap|srm/i], ["Software / Portal", /software|license|adobe|autocad|solidworks|microsoft|office ?365|dropbox|google drive|canva|antivirus/i]];
+async function vtTidy92(btn) {
+  if (!VT62.key) return toast("Unlock first", "bad");
+  const I = VT62.items.slice(), seen = new Map(), dup = [], recat = [];
+  I.sort((a, b) => String(b.changed || b.at || "").localeCompare(String(a.changed || a.at || "")));
+  for (const i of I) { const k = [String(i.title).trim().toLowerCase(), String(i.d?.username || "").trim().toLowerCase(), i.d?.password || ""].join("\u0001"); if (seen.has(k)) dup.push(i); else seen.set(k, i); }
+  for (const i of seen.values()) { if (i.category && i.category !== "Other") continue; const s = [i.title, i.url, i.d?.username, i.d?.notes].join(" "); const c = VCATRX92.find(([, rx]) => rx.test(s)); if (c) recat.push([i, c[0]]); }
+  if (!dup.length && !recat.length) return toast("Already tidy - no repeats, categories fine");
+  if (!btn.dataset.sure) { btn.dataset.sure = 1; btn.textContent = `Tap again: remove ${dup.length} repeat${dup.length === 1 ? "" : "s"}, sort ${recat.length}`; setTimeout(() => { if (btn.isConnected) { delete btn.dataset.sure; btn.textContent = "🧹 Tidy up"; } }, 6000); return; }
+  btn.disabled = true;
+  try {
+    if (recat.length) await bizPut28(recat.map(([i, c]) => { const r = { ...BIZ.rows[i.id] }; r.category = c; return r; }));
+    for (const i of dup) await bizDel28(i.id);
+    toast(`Tidy: ${dup.length} repeats removed, ${recat.length} sorted into categories`); render();
+  } catch (e) { toast(e.message, "bad"); btn.disabled = false; }
+}
+{
+  const _v = VIEWS.vault;
+  VIEWS.vault = async v => {
+    await _v(v);
+    try {
+      if (!VT62.key) return;
+      const k = $("#vt62k", v); if (k && !$("#vt92t", v)) { k.insertAdjacentHTML("beforebegin", `<button class="btn" id="vt92t" type="button">🧹 Tidy up</button>`); $("#vt92t", v).onclick = e => vtTidy92(e.target); }
+      const q = VT62.q.toLowerCase(), L = VT62.items.filter(i => !q || [i.title, i.category, i.d.username, i.url, nm62(i.holder || "")].join(" ").toLowerCase().includes(q)).sort((a, b) => (a.category + a.title).localeCompare(b.category + b.title));
+      const R = $$(".vt62r", v), cnt = {}; L.forEach(i => cnt[i.category || "Other"] = (cnt[i.category || "Other"] || 0) + 1);
+      let last = null; R.forEach((r, ix) => { const c = L[ix]?.category || "Other"; if (c !== last) { r.insertAdjacentHTML("beforebegin", `<h3 class="vt92h">${esc(c)} <span class="chip">${cnt[c]}</span></h3>`); last = c; } });
+    } catch (e) { console.warn("p92 vault", e); }
+  };
+  document.head.insertAdjacentHTML("beforeend", `<style>.vt92h{margin:14px 0 6px;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:#5b6b80;display:flex;align-items:center;gap:8px}.vt92h:first-of-type{margin-top:0}</style>`);
+}
+
 boot();
 
 </script>
