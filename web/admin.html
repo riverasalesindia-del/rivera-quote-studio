@@ -15624,6 +15624,83 @@ document.head.insertAdjacentHTML("beforeend", `<style>@media (min-width:900px) a
 
 document.head.insertAdjacentHTML("beforeend", `<style>@media (max-width:760px){#view>.topbar{flex-wrap:wrap!important;gap:10px!important}#view>.topbar>div:not(.row){flex:1 1 calc(100% - 64px)!important;min-width:0}#view>.topbar>.row{flex:1 1 100%!important;justify-content:flex-start}#view>.topbar p{word-break:normal}}</style>`);
 
+/* ===================== p95: Purchase order printed exactly like the Rivera paper PO (signatures by hand),
+   quotations with GST, long menus scroll ===================== */
+const CORCR95 = { name: "RIVERA COIL REWINDING", short: "Rivera Coil Rewinding", gst: "33AMTPP0122H1Z6", addr: CO85.addr, pin: CO85.pin, ph: CO85.ph };
+const PO_TERMS95 = sup => [`Delivery : Within 10-15 Days from Date of confirmed PO.`, `Payment : 50 % advance against the Performa invoice & balance before Dispatch.`, `${sup} shall pack and dispatch the items in good condition to avoid any damages.`, `${sup} shall issue the QA test certificates at the time of delivery.`, `The finished goods were delivered within the given date. As per the terms and conditions any delay in delivery attracts an LD clause on the total order value.`];
+poPrint85 = async function (r) {
+  const L = r.lines || [], tx = L.reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0), exact = poTotal28(r), gst = exact - tx, tot = Math.round(exact), roff = tot - exact;
+  const igst = r.supplierGstin ? !String(r.supplierGstin).trim().startsWith("33") : false, rate = Math.round(gst / (tx || 1) * 100);
+  const RCR = r.company === "RCR", C = RCR ? CORCR95 : { name: CO85.name, short: CO85.short, gst: CO85.gst, addr: CO85.addr, pin: CO85.pin, ph: CO85.ph };
+  const sup = r.supplier || "Supplier", terms = String(r.terms || "").split(/\n/).map(s => s.trim()).filter(Boolean), T = terms.length > 1 ? terms : [...(terms.length ? [`Payment : ${terms[0]}`] : []), ...PO_TERMS95(sup).filter((t, i) => !(terms.length && i === 1))];
+  const units = [...new Set(L.map(l => String(l.unit || "").toLowerCase()))], uh = units.length === 1 && units[0] ? units[0].replace(/^./, c => c.toUpperCase()) : "Nos";
+  const f2 = n => (Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const row = (k, v) => `<tr><td class="k">${k}</td><td>: ${esc(v || "")}</td></tr>`;
+  const ref = r.refMail || r.quoteDate || r.quoteRef ? ` for Your reference ${r.quoteRef ? esc(r.quoteRef) + " " : ""}${r.refMail || r.quoteDate ? "Mail Dt: " + dmy(r.refMail || r.quoteDate).replace(/-/g, ".") : ""}` : "";
+  const sumRow = (l, v, b) => `<tr><td colspan="3" class="nb"></td><th class="st">${l}</th><td class="n">${b ? "<b>" : ""}${v}${b ? "</b>" : ""}</td></tr>`;
+  const html = `<style>.po95{font:12.5px/1.45 "Times New Roman",Georgia,serif;color:#111}.po95 h2{text-align:center;font:700 17px "Times New Roman",serif;letter-spacing:.04em;margin:6px 0 10px}
+    .po95 .top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}.po95 .kv td{padding:1px 4px;border:0;vertical-align:top}.po95 .kv td.k{width:72px}.po95 .top>div{flex:1 1 auto}.po95 .kv{width:auto!important;margin:2px 0}.po95 .box{border-collapse:collapse;width:260px!important;flex:0 0 260px;margin:0}.po95 .box td{border:1px solid #222;padding:3px 8px}
+    .po95 .it{width:100%;border-collapse:collapse;margin:8px 0 6px}.po95 .it th,.po95 .it td{border:1px solid #222;padding:4px 7px}.po95 .it th{background:#f2f2f2;font-weight:700}.po95 .n{text-align:right;white-space:nowrap}.po95 .nb{border:0!important}.po95 .st{text-align:left;background:#fff!important}
+    .po95 ol{margin:2px 0 0 18px;padding:0}.po95 li{margin:2px 0}.po95 .sg{display:flex;justify-content:space-between;align-items:flex-end;margin-top:46px;font-weight:700}.po95 .sg div{min-width:150px;border-top:1px solid #555;padding-top:4px;text-align:center}</style>
+    <div class="po95"><h2>PURCHASE ORDER</h2>
+    <div class="top"><div><b>VENDOR</b><table class="kv">${row("Name", sup)}${row("Address", r.supplierAddr)}${row("Pin code", r.supplierPin)}${row("Ph.No", r.supplierPhone)}${row("GSTIN", r.supplierGstin)}</table></div>
+      <table class="box"><tr><td>PO Date</td><td><b>${dmy(r.date).replace(/-/g, ".")}</b></td></tr><tr><td>PO No</td><td><b>${esc(r.no || "")}</b></td></tr></table></div>
+    <p style="margin:8px 0 0"><b>DELIVER TO</b></p><table class="kv">${row("Name", C.short)}${row("Address", r.deliverTo || C.addr)}${row("Pin code", C.pin)}${row("Ph.No", C.ph)}${row("GSTIN", C.gst)}</table>
+    <p style="margin:10px 0 2px">Dear ${esc(sup)},</p><p style="margin:0 0 4px">We are pleased to place an order for the following item(s)${ref}.</p>
+    <table class="it"><thead><tr><th style="width:42px">S.No</th><th>Item Name and Description</th><th class="n" style="width:70px">Qty/${esc(uh)}</th><th class="n" style="width:95px">Unit Price</th><th class="n" style="width:110px">Amount</th></tr></thead><tbody>
+      ${L.map((l, i) => `<tr><td>${i + 1}</td><td>${esc([BIZ.rows[l.item]?.name, l.desc].filter((x, j, a) => x && a.indexOf(x) === j).join(" — "))}</td><td class="n">${esc(l.qty)}${units.length > 1 && l.unit ? " " + esc(l.unit) : ""}</td><td class="n">${f2(l.rate)}</td><td class="n">${f2((Number(l.qty) || 0) * (Number(l.rate) || 0))}</td></tr>`).join("")}
+      ${sumRow("SUB TOTAL", f2(tx), 1)}${gst ? (igst ? sumRow(`IGST ${rate}%`, f2(gst)) : sumRow(`CGST ${rate / 2}%`, f2(gst / 2)) + sumRow(`SGST ${rate / 2}%`, f2(gst / 2))) : ""}${Math.abs(roff) >= 0.005 ? sumRow("Round Off", (roff > 0 ? "+" : "") + roff.toFixed(2)) : ""}${sumRow("TOTAL", f2(tot), 1)}</tbody></table>
+    <p style="margin:8px 0"><b><u>Amount in Words</u></b> : <b>Rupees ${esc(amountInWords(tot, "INR", "").replace(/^INR\s*/i, "").replace(/^Rupees\s*/i, "").replace(/\s*only\.?$/i, ""))} Only.</b></p>
+    <p style="margin:8px 0 2px"><b><u>Commercial Terms and Conditions:</u></b></p><ol>${T.map(t => `<li>${esc(t)}</li>`).join("")}${r.needBy ? `<li>Required on or before ${dmy(r.needBy).replace(/-/g, ".")}.</li>` : ""}<li>Please quote our PO number on your invoice and delivery challan.</li></ol>
+    ${r.notes ? `<p>${esc(r.notes)}</p>` : ""}
+    <div class="sg"><div>Prepared by</div><div>Verified</div><div>Authorized Signature</div></div></div>`;
+  printHtml28("Purchase order " + (r.no || ""), RCR ? html : lhPage85(html));
+};
+/* Quotations: GST shown and added - Sub total, GST %, Total with GST, amount in words (editable GST %) */
+{
+  const _b = blankQuote; blankQuote = function () { const Q = _b.apply(this, arguments); if ((Q.currency || "INR") === "INR" && Q.template !== "export") { Q.showGst = true; Q.gstPct ||= 18; } return Q; };
+  const _w = quoteFromWorkings; quoteFromWorkings = function () { const Q = _w.apply(this, arguments); if ((Q.currency || "INR") === "INR" && Q.template !== "export") { Q.showGst = true; Q.gstPct ||= 18; } return Q; };
+}
+/* one supplier repository (the full one with old bills too) */
+if (VIEWS.sup90 && VIEWS.sup91) { VIEWS.sup90 = v => VIEWS.sup91(v); MODS32.forEach(m => Object.keys(m.groups).forEach(g => { m.groups[g] = m.groups[g].filter(c => c[1] !== "sup90"); })); }
+/* long top-menu lists open in two columns so nothing needs scrolling; duplicate menu entries removed */
+MODS32.forEach(m => Object.keys(m.groups).forEach(g => { const seen = new Set(); m.groups[g] = m.groups[g].filter(c => { const k = c[0] + "|" + c[1] + "|" + JSON.stringify(c[2] || {}); if (seen.has(k)) return false; seen.add(k); return true; }); }));
+MODS32.forEach(m => { const seen = new Set(); Object.keys(m.groups).forEach(g => { m.groups[g] = m.groups[g].filter(c => { const k = String(c[0]).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }); }); });
+document.head.insertAdjacentHTML("beforeend", `<style>@media (min-width:900px){.n51-p:has(> button:nth-of-type(12)){columns:2;column-gap:0;min-width:470px;max-height:calc(100vh - 64px)}.n51-p:has(> button:nth-of-type(12))>*{break-inside:avoid}.n51-pr:has(> button:nth-of-type(12)){right:0;left:auto}}.n51-p::-webkit-scrollbar{width:8px}.n51-p::-webkit-scrollbar-thumb{background:#c5ced9;border-radius:8px}</style>`);
+
+/* Store: import the monthly "Stock Details" Excel (RCM, RCR Production, PPE, packing, stationery, tools, first aid) - items + stock as on today */
+const STKCAT95 = { "rcm": ["Raw material", "RCM"], "rcr production": ["Production consumables", "RCR"], "ppe": ["PPE", ""], "sheet4": ["Packing material", ""], "sheet5": ["Stationery", ""], "sheet6": ["Tools", ""], "sheet7": ["First aid", ""] };
+function stkParse95(wb) {
+  const UN = /^(nos|no|roll|rolls|kg|kgs|mtr|mtrs|m|ltr|ltrs|litre|box|bandle|bundle|pkt|packet|pair|pairs|set|sets|sheet|sheets|can|tin|bottle|tube|ream|pcs|piece|pieces)\.?$/i, out = [];
+  for (const sn of wb.SheetNames) {
+    const g = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "" }); if (g.length < 3) continue;
+    const h1 = (g[1] || []).map(String), bal = h1.map((x, i) => /balance/i.test(x) ? i : -1).filter(i => i >= 0), cat = STKCAT95[sn.trim().toLowerCase()] || [sn.trim(), ""];
+    for (const r of g.slice(2)) {
+      const s = /^\d+$/.test(String(r[1]).trim()) ? 1 : 0, name = String(r[1 + s] || "").trim(); if (!name || /^total/i.test(name)) continue;
+      const f2 = String(r[2 + s] ?? "").trim(), f3 = String(r[3 + s] ?? "").trim(); let unit = UN.test(f3) ? f3 : UN.test(f2) ? f2 : "nos"; const spec = UN.test(f2) ? "" : f2;
+      let q = ""; for (const i of bal) if (String(r[i + s] ?? r[i]).trim() !== "") q = r[i + s] ?? r[i]; if (q === "") q = r[4 + s];
+      out.push({ name: name.replace(/\s+/g, " "), spec, unit: unit.toLowerCase().replace(/^bandle$/, "bundle"), qty: Number(String(q).replace(/[^\d.-]/g, "")) || 0, category: cat[0], company: cat[1] });
+    }
+  }
+  return out;
+}
+async function stkImport95(file, date) {
+  try {
+    await loadScript(LIBS.sheetjs); const L = stkParse95(window.XLSX.read(await file.arrayBuffer(), { type: "array" })); if (!L.length) return toast("No items found in this Excel", "bad");
+    if (!confirm(`Bring ${L.length} store items and their stock (as in ${file.name}) into the app?`)) return;
+    const key = (n, s) => (n + " " + (s || "")).toLowerCase().replace(/\s+/g, " ").trim(), have = new Map(all28("item").map(i => [key(i.name, i.spec), i]));
+    const newItems = L.filter(x => !have.has(key(x.name, x.spec))).map(x => ({ kind: "item", name: x.name, spec: x.spec, unit: x.unit, category: x.category, company: x.company }));
+    for (let i = 0; i < newItems.length; i += 100) (await bizPut28(newItems.slice(i, i + 100))).forEach(it => have.set(key(it.name, it.spec), it));
+    const d = date || todayISO(), moves = L.map(x => { const it = have.get(key(x.name, x.spec)); const diff = x.qty - stockOf28(it.id); return diff ? { kind: "move", item: it.id, qty: diff, rate: 0, type: "opening", date: d, ref: "Stock count", note: `Stock as per ${file.name}` } : null; }).filter(Boolean);
+    for (let i = 0; i < moves.length; i += 100) await bizPut28(moves.slice(i, i + 100));
+    toast(`${newItems.length} new items, ${moves.length} stock figures updated`); render();
+  } catch (e) { toast("Import failed: " + e.message, "bad"); }
+}
+{
+  const _v = VIEWS.stock88;
+  if (_v) VIEWS.stock88 = v => { _v(v); try { const bar = v.querySelector(".topbar .row"); if (bar && !$("#stk95", v)) { bar.insertAdjacentHTML("afterbegin", `<label class="btn">⬆ Import stock Excel<input type="file" id="stk95" accept=".xlsx,.xls" hidden></label>`); $("#stk95", v).onchange = e => e.target.files[0] && stkImport95(e.target.files[0]); } } catch { } };
+}
+
 boot();
 
 </script>
