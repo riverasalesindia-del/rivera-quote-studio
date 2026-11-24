@@ -14712,6 +14712,270 @@ VIEWS.prod87 = v => {
   if (window.DEPT63?.purchase && !DEPT63.purchase.extra.includes("prod87")) DEPT63.purchase.extra.push("prod87");
 }
 
+/* ===================== p88: Asset upload takes any sheet (no AST ID needed) and Asset repository is Admin-only; Password repository imports Excel too;
+   Store stock with limits - issue to production, auto reminder (request + mail) to Purchase when a product reaches its limit;
+   Product repository: datasheets per product + import old purchases from Excel; Sales customer repository;
+   Testing calculator (Rivera routine & type tests from riveracoilmanufacturing.com, by stage and insulation system) with charges → quotation ===================== */
+const adm88 = () => { try { return isAdmin28() || (myDepts63?.() || []).includes("admin"); } catch { return false; } };
+
+/* ---------- 1. Asset upload: any column layout ---------- */
+async function faAny88(file, wb, co, have) {
+  const out = [], X = window.XLSX, d10 = v => { if (v instanceof Date) { const d = new Date(v.getTime() + 432e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; } if (typeof v === "number" && v > 20000 && v < 80000) return new Date(Date.UTC(1899, 11, 30) + v * 864e5).toISOString().slice(0, 10); const m = String(v || "").match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/); return m ? `${m[3].length === 2 ? "20" + m[3] : m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : ""; };
+  const F = { name: /(asset|item|equipment|product|machine)\s*(name|description)|^(asset|item|equipment|description|particulars?|name|product|machine)$/, tag: /asset\s*(id|no|code|tag|number)|^tag|^(id|code)$/, serial: /serial|model|imei|make/, location: /location|place|area|kept/, dept: /dept|department|section/, date: /date|purchased?|bought|since|year/, value: /cost|value|amount|price|rate/, category: /category|type|group|class/, holder: /with|holder|user|assigned|employee|person|owner|issued|custod/, invoice: /invoice|bill/, vendor: /vendor|supplier|bought from/, notes: /remark|note|condition|status/ };
+  let n0 = all28("fa").length;
+  for (const sn of wb.SheetNames) {
+    const g = X.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: null });
+    const hi = g.slice(0, 20).findIndex(r => { const t = r.map(c => String(c || "").trim().toLowerCase()); return t.some(x => F.name.test(x)) && t.filter(Boolean).length >= 2; });
+    if (hi < 0) continue;
+    const H = g[hi].map(c => String(c || "").trim().toLowerCase()), ix = {};
+    Object.entries(F).forEach(([k, re]) => { const i = H.findIndex((h, j) => h && re.test(h) && !Object.values(ix).includes(j)); if (i >= 0) ix[k] = i; });
+    if (ix.name == null) continue;
+    let sec = "";
+    for (const r of g.slice(hi + 1)) {
+      const cells = r.filter(c => c !== null && String(c).trim() !== ""); if (!cells.length) continue;
+      if (cells.length === 1 && typeof cells[0] === "string") { sec = cells[0].trim(); continue; }
+      const name = String(r[ix.name] ?? "").trim(); if (!name || /^total/i.test(name) || F.name.test(name.toLowerCase())) continue;
+      const v = k => ix[k] == null ? "" : r[ix[k]];
+      let tag = String(v("tag") || "").replace(/\s+/g, ""); if (!tag || have.has(tag)) { if (tag && have.has(tag)) continue; tag = `AST/${co || "RCM"}/UP/${String(++n0).padStart(4, "0")}`; } have.add(tag);
+      out.push({ kind: "fa", tag, company: co || "RCM", name: name.slice(0, 200), category: String(v("category") || sec || "Other").slice(0, 60), serial: String(v("serial") || ""), location: String(v("location") || ""), dept: String(v("dept") || ""), holder: String(v("holder") || ""), purchase: d10(v("date")), value: Number(String(v("value") || "").replace(/[₹,\s]/g, "")) || "", invoice: String(v("invoice") || ""), vendor: String(v("vendor") || ""), notes: [v("notes"), "Uploaded from " + file.name + " / " + sn.trim()].filter(Boolean).join(" · "), status: "In use" });
+    }
+  }
+  if (!out.length) return toast("No asset rows found - the sheet needs a column like Asset name / Item / Description", "bad");
+  if (!confirm(`Upload ${out.length} assets from ${file.name}?`)) return;
+  for (let i = 0; i < out.length; i += 150) { toast(`Uploading ${Math.min(i + 150, out.length)} / ${out.length}…`); await bizPut28(out.slice(i, i + 150)); }
+  toast(`${out.length} assets uploaded`); render();
+}
+try { const s = faImport62.toString(), a = 'if (!out.length) return toast("No asset rows (with an AST/... ID) found in this file", "bad");'; if (s.includes(a)) faImport62 = (0, eval)("(" + s.replace(a, "if (!out.length) return faAny88(file, wb, co, have);") + ")"); } catch (e) { console.warn("p88 fa", e); }
+/* Asset repository - Admin only */
+{
+  const _v = VIEWS.assets62;
+  VIEWS.assets62 = v => { if (!adm88()) { v.innerHTML = top62("Admin", "Asset repository", "") + '<div class="empty"><b>Admin only</b>The asset repository is kept by the Admin department.</div>'; return; } _v(v);
+    try { const h = v.querySelector(".topbar h1, h1"); if (h && /Asset register/.test(h.textContent)) h.textContent = "Asset repository"; const b = [...v.querySelectorAll("label.btn, button")].find(x => /Import sheet/i.test(x.textContent)); if (b) { b.firstChild && (b.childNodes[0].textContent = "⬆ Upload sheet"); b.title = "Upload your asset Excel - any column layout"; } } catch { } };
+  MODS32.forEach(m => { if (m.id === "admin") return; Object.keys(m.groups).forEach(g => { m.groups[g] = m.groups[g].filter(c => !(c[1] === "assets62" || (c[1] === "rep62" && c[2]?.r62 === "asset"))); }); });
+}
+
+/* ---------- 2. Password repository: Excel as well as CSV (encrypted on this screen) ---------- */
+{
+  const _i = vtImport62;
+  vtImport62 = async function (file) {
+    if (!/\.xlsx?$/i.test(file.name)) return _i.apply(this, arguments);
+    await loadScript(LIBS.sheetjs); const wb = window.XLSX.read(await file.arrayBuffer(), { type: "array" }), out = [];
+    for (const sn of wb.SheetNames) {
+      const g = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: false, defval: "" });
+      const hi = g.slice(0, 12).findIndex(r => r.some(c => /pass(word)?|pwd/i.test(String(c)))); if (hi < 0) continue;
+      const h = g[hi].map(c => String(c).toLowerCase().trim()), ix = re => h.findIndex(x => re.test(x));
+      const ti = ix(/title|account|portal|name of|software|service|site name|particular|^name$/), ui = ix(/user|login|e-?mail|mail id|^id$|user id/), pi = ix(/pass(word)?|pwd/), wi = ix(/url|website|link|site$/), ci = ix(/category|type/), ni = ix(/note|remark/), oi = ix(/person|owner|used by|holder|employee|department|dept/), di = ix(/date|changed|updated/);
+      for (const r of g.slice(hi + 1)) { const title = String(r[ti] ?? r[wi] ?? r[ui] ?? "").trim(); if (!title || pi < 0) continue;
+        out.push({ kind: "vlt", title: title.slice(0, 120), category: ci >= 0 && r[ci] ? (VCAT62.find(c => c.toLowerCase().includes(String(r[ci]).toLowerCase().split(/[\s/]/)[0])) || "Other") : (/bank|finance|tally/i.test(title) ? "Finance / Bank" : /mail/i.test(title) ? "Email" : /gst|income|epf|esi|mca|tds|govt/i.test(title) ? "Government / GST" : /wi-?fi|router|network/i.test(title) ? "Wi-Fi / Network" : "Other"), url: wi >= 0 ? String(r[wi] || "") : "", changed: now62(),
+          ...(await vEnc62({ username: ui >= 0 ? String(r[ui] || "") : "", password: String(r[pi] || ""), notes: [ni >= 0 ? r[ni] : "", oi >= 0 && r[oi] ? "With: " + r[oi] : "", di >= 0 && r[di] ? "Date: " + r[di] : "", "Sheet: " + sn].filter(Boolean).join(" · "), history: [] })) }); }
+    }
+    if (!out.length) return toast("No rows with a Password column found", "bad");
+    for (let i = 0; i < out.length; i += 100) await bizPut28(out.slice(i, i + 100));
+    toast(`Imported ${out.length} logins - encrypted on this device`); render();
+  };
+  const _r = render; render = function () { const o = _r.apply(this, arguments); try { const i = $("#vt62i"); if (i && !/xlsx/.test(i.accept)) { i.accept = ".csv,.xlsx,.xls"; i.parentElement.childNodes[0].textContent = "⬆ Import Excel / CSV"; } } catch { } return o; };
+  MODS32.forEach(m => Object.values(m.groups).flat().forEach(c => { if (c[1] === "vault") { c[0] = "Password repository"; c[3] = "Confidential logins - encrypted, MD + Admin"; } }));
+}
+
+/* ---------- 3. Store stock with limits → automatic reminder to Purchase ---------- */
+const lowState88 = it => { const s = stockOf28(it.id), m = Number(it.min) || 0; return !m ? ["No limit set", ""] : s <= 0 ? ["Out of stock", "bad"] : s <= m ? ["At limit - reorder", "warn"] : ["OK", "ok"]; };
+async function reorderCheck88(itemIds) {
+  for (const id of new Set(itemIds)) {
+    const it = BIZ.rows[id]; if (!it || !(Number(it.min) > 0)) continue; const s = stockOf28(id); if (s > Number(it.min)) continue;
+    if (all28("rq").some(q => q.link === id && q.type === "mat" && ["open", "accepted"].includes(q.status))) continue;
+    if (all28("po").some(p => ["indent", "draft", "pending", "approved", "sent", "part"].includes(p.status) && (p.lines || []).some(l => l.item === id))) continue;
+    const last = all28("move").filter(m => m.item === id && Number(m.qty) < 0).sort((a, b) => String(b.at || b.date).localeCompare(String(a.at || a.date)))[0];
+    try { const RQ = { kind: "rq", type: "mat", status: "open", fromDept: "store", toDept: "purchase", priority: s <= 0 ? "Urgent" : "Normal", date: todayISO(), by: me28(), byName: "Store (automatic)", auto: 1, link: id, linkNo: it.no || "", subject: `Reorder ${it.name} - ${s <= 0 ? "OUT OF STOCK" : `only ${s} ${it.unit || ""} left`} (limit ${it.min})`, details: `Stock reached the limit set by Store.${last ? ` Last taken: ${Math.abs(last.qty)} ${it.unit || ""} on ${dmy(last.date)}${last.jobNo ? " for " + last.jobNo : ""}${last.note ? " · " + last.note : ""}.` : ""} Suggested order: ${Math.max(Number(it.reorder) || 0, Number(it.min) * 2 - s)} ${it.unit || ""}.` }; logAdd28(RQ, "Automatic reminder", "Stock reached the limit"); await bizPut28(RQ); toast(`🔔 ${it.name} reached its limit - Purchase is reminded`); } catch (e) { console.warn("p88 reorder", e); }
+  }
+}
+{
+  const _p = bizPut28;
+  bizPut28 = async function (recs) { const out = await _p.apply(this, arguments); try { const ids = [].concat(recs).filter(r => r && r.kind === "move" && Number(r.qty) < 0 && r.item).map(r => r.item); if (ids.length) setTimeout(() => reorderCheck88(ids), 400); } catch { } return out; };
+}
+if (!ROUTES.some(x => x[0] === "stock88")) ROUTES.push(["stock88", "Store stock & limits", "box28"]);
+ALWAYS34.push("stock88");
+VIEWS.stock88 = v => {
+  bizSync28(); const U = BIZ.ui, q = U.s88q || "", f = U.s88f || "";
+  const I = all28("item").filter(it => has71([it.name, it.no, it.code, it.group], q)).map(it => ({ it, s: stockOf28(it.id), st: lowState88(it) })).filter(x => !f || (f === "low" ? ["bad", "warn"].includes(x.st[1]) : f === "nolimit" ? !Number(x.it.min) : true)).sort((a, b) => (["bad", "warn"].includes(b.st[1]) - ["bad", "warn"].includes(a.st[1])) || a.it.name.localeCompare(b.it.name));
+  const all = all28("item"), low = all.filter(it => ["bad", "warn"].includes(lowState88(it)[1])).length;
+  v.innerHTML = top62("Store", "Stock & limits", "Every product in the store. Production takes material with Issue; when a product comes down to its limit, Purchase gets a reminder by itself (in the app + email).", `<button type="button" class="btn primary" id="s88i">${icon("plus")}Issue material</button><button type="button" class="btn" id="s88a">${icon("plus")}Add product</button>`)
+    + `<div class="hero-strip"><div><span>Products</span><b>${all.length}</b></div><div><span>At / below limit</span><b style="color:${low ? "#c0392b" : "inherit"}">${low}</b></div><div><span>No limit set</span><b>${all.filter(it => !Number(it.min)).length}</b></div><div><span>Reminders open with Purchase</span><b>${all28("rq").filter(r => r.auto && r.type === "mat" && ["open", "accepted"].includes(r.status)).length}</b></div></div>
+    <section class="panel"><div class="body"><div class="row" style="gap:8px;flex-wrap:wrap;margin-bottom:10px">${srch71(U, "s88q", "Search product…")}${tabs28(f, [["", "All"], ["low", "At limit"], ["nolimit", "No limit set"]], "s88f")}</div>
+    <div style="overflow:auto"><table class="t"><thead><tr><th>Product</th><th class="n">In stock</th><th>Limit (remind at)</th><th>Status</th><th>Last taken</th><th></th></tr></thead><tbody>${I.map(({ it, s, st }) => { const last = all28("move").filter(m => m.item === it.id && Number(m.qty) < 0).sort((a, b) => String(b.at || b.date).localeCompare(String(a.at || a.date)))[0];
+      return `<tr><td><b class="lnk" data-s88o="${it.id}" style="cursor:pointer">${esc(it.name)}</b><div class="small muted">${esc(it.no || "")}${it.group ? " · " + esc(it.group) : ""}</div></td><td class="n"><b style="font-size:1.05rem">${s}</b> ${esc(it.unit || "")}</td><td><input type="number" min="0" step="any" value="${esc(it.min || "")}" data-s88m="${it.id}" placeholder="set" style="width:90px"> ${esc(it.unit || "")}</td><td><span class="chip ${st[1]}">${st[0]}</span></td><td class="small">${last ? `${Math.abs(last.qty)} ${esc(it.unit || "")} · ${dmy(last.date)}${last.jobNo ? " · " + esc(last.jobNo) : ""}` : "—"}</td><td style="white-space:nowrap"><button type="button" class="btn sm" data-s88t="${it.id}">Issue</button> <button type="button" class="btn sm ghost" data-s88r="${it.id}">Receive</button></td></tr>`; }).join("") || '<tr><td colspan="6" class="muted">No products yet - tap Add product.</td></tr>'}</tbody></table></div><p class="small muted" style="margin-top:8px">Type the limit and press Enter. Example: 30 tapes in store, limit 10 → when Production has taken 20, Purchase is reminded to buy more.</p></div></section>`;
+  wireSrch71(v, U);
+  $$("[data-s88f]", v).forEach(b => b.onclick = () => { U.s88f = b.dataset.s88f; render(); });
+  $$("[data-s88o]", v).forEach(b => b.onclick = () => itemPanel28(BIZ.rows[b.dataset.s88o]));
+  $$("[data-s88t]", v).forEach(b => b.onclick = () => movePanel28({ type: "issue", item: b.dataset.s88t }));
+  $$("[data-s88r]", v).forEach(b => b.onclick = () => movePanel28({ type: "in", item: b.dataset.s88r }));
+  $$("[data-s88m]", v).forEach(i => { const sv = async () => { const it = JSON.parse(JSON.stringify(BIZ.rows[i.dataset.s88m])); const n = i.value === "" ? "" : Number(i.value); if (String(it.min ?? "") === String(n)) return; it.min = n; try { await bizPut28(it); toast(`Limit for ${it.name} set to ${n || "none"}`); reorderCheck88([it.id]); render(); } catch (e) { toast(e.message, "bad"); } }; i.onchange = sv; i.onkeydown = e => { if (e.key === "Enter") { e.preventDefault(); i.blur(); } }; });
+  $("#s88i", v).onclick = () => movePanel28({ type: "issue" }); $("#s88a", v).onclick = () => itemPanel28();
+};
+
+/* ---------- 4. Product repository: datasheets + old purchases from Excel ---------- */
+{
+  const _r = prodRepo87;
+  prodRepo87 = function () {
+    const L = _r.apply(this, arguments), key = s => String(s || "").toLowerCase().replace(/\s+/g, " ").trim();
+    all28("ph").forEach(h => { const k = key(h.product); let p = L.find(x => key(x.name) === k); if (!p) { p = { name: h.product, item: "", unit: h.unit || "", hist: [], n: 0, sups: [], qty: 0, min: 0, max: 0, stock: null }; L.push(p); }
+      p.hist.push({ kind: "Old", no: h.poNo || "", id: h.id, date: h.date, supplier: h.supplier || "", qty: Number(h.qty) || 0, unit: h.unit || "", rate: Number(h.rate) || 0, by: h.byName || "" }); p.n++; if (h.supplier && !p.sups.includes(h.supplier)) p.sups.push(h.supplier); p.qty += Number(h.qty) || 0;
+      if (!p.last || String(h.date) > String(p.last.date || "")) p.last = { kind: "Old", no: h.poNo || "", date: h.date, supplier: h.supplier, rate: Number(h.rate) || 0, by: h.byName || "" };
+      const r = Number(h.rate) || 0; if (r) { p.min = p.min ? Math.min(p.min, r) : r; p.max = Math.max(p.max, r); } });
+    L.forEach(p => { const it = p.item && BIZ.rows[p.item] || all28("item").find(i => key(i.name) === key(p.name)); p.ds = it?.datasheets || []; if (it) p.item = it.id; });
+    return L.sort((a, b) => String(b.last?.date || "").localeCompare(String(a.last?.date || "")) || a.name.localeCompare(b.name));
+  };
+  const _v = VIEWS.prod87;
+  VIEWS.prod87 = v => {
+    _v(v);
+    try {
+      const bar = v.querySelector(".topbar .row") || v.querySelector("#p87x")?.parentElement;
+      bar?.insertAdjacentHTML("afterbegin", `<label class="btn">⬆ Import old purchases (Excel)<input type="file" id="p88imp" accept=".xlsx,.xls,.csv" hidden></label>`);
+      $("#p88imp", v).onchange = e => e.target.files[0] && phImport88(e.target.files[0]);
+      const L = prodRepo87().filter(p => has71([p.name, p.sups.join(" "), p.last?.no, p.last?.by], BIZ.ui.p87q || ""));
+      $$("tbody tr[data-p87]", v).forEach(tr => { const p = L[+tr.dataset.p87]; if (p?.ds?.length) tr.cells[0].insertAdjacentHTML("beforeend", ` <span class="chip navy" title="Datasheet attached">📄 ${p.ds.length}</span>`); });
+    } catch (e) { console.warn("p88 prod", e); }
+  };
+  /* datasheet buttons inside the product drawer */
+  const _pn = panel28;
+  panel28 = function (o) { const D = _pn.apply(this, arguments); try { if (STATE.route === "prod87" && o?.foot && /New indent for this/.test(o.foot)) setTimeout(() => dsBox88(D, o.title), 0); } catch { } return D; };
+}
+function dsBox88(D, name) {
+  const key = s => String(s || "").toLowerCase().replace(/\s+/g, " ").trim(); let it = all28("item").find(i => key(i.name) === key(name));
+  const body = $(".dr26-b", D) || D, ds = it?.datasheets || [];
+  body.insertAdjacentHTML("afterbegin", `<section class="dr26-sec ds88"><h3>Datasheets & documents</h3>${ds.map((d, i) => `<div class="row" style="justify-content:space-between;margin:4px 0"><button type="button" class="btn sm ghost" data-ds="${i}">📄 ${esc(d.name)}</button><span class="small muted">${d.size ? Math.round(d.size / 1024) + " KB · " : ""}${d.at ? dmy(d.at.slice(0, 10)) : ""}</span></div>`).join("") || '<p class="small muted" style="margin:0 0 6px">No datasheet yet.</p>'}<label class="btn sm">⬆ Attach datasheet / TDS / MSDS / certificate<input type="file" id="ds88f" hidden multiple></label></section>`);
+  $$("[data-ds]", D).forEach(b => b.onclick = async () => { const d = ds[+b.dataset.ds]; toast("Opening…"); const u = await fileUrl71(d.id); if (!u) return toast("Could not open", "bad"); const w = window.open(); if (w) w.document.write(`<title>${esc(d.name)}</title><iframe src="${u}" style="border:0;position:fixed;inset:0;width:100%;height:100%"></iframe>`); });
+  $("#ds88f", D).onchange = async e => { const files = [...e.target.files]; if (!files.length) return; try { if (!it) { [it] = await bizPut28({ kind: "item", name, unit: "nos" }); } const R = JSON.parse(JSON.stringify(BIZ.rows[it.id] || it)); R.datasheets ||= []; for (const f of files) { toast("Uploading " + f.name + "…"); const up = await upFile71(f, "ds88"); R.datasheets.push({ ...up, at: new Date().toISOString(), by: me28() }); } await bizPut28(R); toast("Datasheet saved"); closeDrawer26(); render(); } catch (er) { toast(er.message, "bad"); } };
+}
+async function phImport88(file) {
+  try {
+    await loadScript(LIBS.sheetjs); const wb = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true }), out = [];
+    const d10 = v => v instanceof Date ? (d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`)(new Date(v.getTime() + 432e5)) : (m => m ? `${m[3].length === 2 ? "20" + m[3] : m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : "")(String(v || "").match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/));
+    for (const sn of wb.SheetNames) {
+      const g = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: null }), hi = g.slice(0, 15).findIndex(r => r.some(c => /item|product|material|description|particular/i.test(String(c || "")))); if (hi < 0) continue;
+      const h = g[hi].map(c => String(c || "").toLowerCase()), ix = re => h.findIndex(x => re.test(x));
+      const pi = ix(/item|product|material|description|particular/), si = ix(/supplier|vendor|party|from/), di = ix(/date/), qi = ix(/qty|quantity/), ui = ix(/unit|uom/), ri = ix(/rate|price|unit cost/), ni = ix(/po\s*no|order\s*no|po$|invoice|bill/), bi = ix(/by|raised|person|indent/);
+      for (const r of g.slice(hi + 1)) { const p = String(r[pi] ?? "").trim(); if (!p || /^total/i.test(p)) continue; out.push({ kind: "ph", product: p.slice(0, 200), supplier: si >= 0 ? String(r[si] || "") : "", date: di >= 0 ? d10(r[di]) : "", qty: qi >= 0 ? Number(r[qi]) || "" : "", unit: ui >= 0 ? String(r[ui] || "") : "", rate: ri >= 0 ? Number(String(r[ri] || "").replace(/[₹,\s]/g, "")) || "" : "", poNo: ni >= 0 ? String(r[ni] || "") : "", byName: bi >= 0 ? String(r[bi] || "") : "", src: file.name }); }
+    }
+    if (!out.length) return toast("No rows - the sheet needs a Product / Item / Description column", "bad");
+    if (!confirm(`Add ${out.length} old purchases from ${file.name} to the Product repository?`)) return;
+    for (let i = 0; i < out.length; i += 150) { toast(`Saving ${Math.min(i + 150, out.length)} / ${out.length}…`); await bizPut28(out.slice(i, i + 150)); }
+    toast(`${out.length} purchases added`); render();
+  } catch (e) { toast("Import failed: " + e.message, "bad"); }
+}
+
+/* ---------- 5. Sales: customer repository ---------- */
+if (!ROUTES.some(x => x[0] === "cust88")) ROUTES.push(["cust88", "Customer repository", "users"]);
+ALWAYS34.push("cust88");
+function custRepo88() {
+  const M = new Map(), key = s => String(s || "").toLowerCase().replace(/\b(m\/s|pvt|private|ltd|limited|llp|india|the)\b|[.,]/g, "").replace(/\s+/g, " ").trim();
+  const get = n => { const k = key(n); if (!k) return null; if (!M.has(k)) M.set(k, { name: String(n).trim(), docs: [], enq: 0, qt: 0, qv: 0, so: 0, sov: 0, inv: 0, invv: 0, rec: 0, contact: "", phone: "", email: "", city: "", last: "" }); return M.get(k); };
+  const touch = (c, d) => { if (d && d > c.last) c.last = d; };
+  all28("lead").forEach(l => { const c = get(l.company || l.name); if (!c) return; c.enq++; c.contact ||= l.contact || l.name || ""; c.phone ||= l.phone || ""; c.email ||= l.email || ""; c.city ||= l.city || l.place || ""; c.docs.push({ t: "Enquiry", no: l.no, d: String(l.date || l.at || "").slice(0, 10), id: l.id }); touch(c, String(l.date || l.at || "").slice(0, 10)); });
+  try { quotes50().forEach(q => { const c = get(q.customer); if (!c) return; c.qt++; c.qv += Number(q.totalINR || q.total) || 0; c.docs.push({ t: "Quotation", no: q.no, d: q.date, q: q.id, v: Number(q.totalINR || q.total) || 0, s: q.status }); touch(c, q.date); }); } catch { }
+  all28("so").forEach(o => { const c = get(o.customer); if (!c) return; c.so++; const v = soTotal31(o); c.sov += v; c.docs.push({ t: "Sales order", no: o.no, d: o.date, id: o.id, v, s: o.status }); touch(c, o.date); });
+  all28("inv").forEach(i => { const c = get(i.customer); if (!c) return; c.inv++; let v = Number(i.total) || 0; try { v = v || invCalc29(i).total || 0; } catch { } c.invv += v; c.docs.push({ t: "Invoice", no: i.no, d: i.date, id: i.id, v, s: i.status }); touch(c, i.date); });
+  all28("rcpt").forEach(r => { const c = get(r.customer); if (!c) return; c.rec += Number(r.amount) || 0; c.docs.push({ t: r.rtype ? (r.rtype === "advance" ? "Advance receipt" : "Other receipt") : "Payment received", no: r.no, d: r.date, id: r.id, v: Number(r.amount) || 0 }); touch(c, r.date); });
+  return [...M.values()].sort((a, b) => String(b.last).localeCompare(String(a.last)));
+}
+VIEWS.cust88 = v => {
+  bizSync28(); const U = BIZ.ui, q = U.c88q || "", L = custRepo88().filter(c => has71([c.name, c.contact, c.phone, c.email, c.city], q));
+  v.innerHTML = top62("Sales", "Customer repository", `${L.length} customers - every enquiry, quotation, order, invoice and payment of each customer in one place`, `<button type="button" class="btn" id="c88x">⬇ Sheet</button>`)
+    + `<section class="panel"><div class="body"><div class="row" style="margin-bottom:10px">${srch71(U, "c88q", "Search customer, contact, phone, city…")}</div><div style="overflow:auto"><table class="t"><thead><tr><th>Customer</th><th>Contact</th><th class="n">Enquiries</th><th class="n">Quotations</th><th class="n">Orders ₹</th><th class="n">Invoiced ₹</th><th class="n">Received ₹</th><th>Last</th></tr></thead><tbody>${L.map((c, i) => `<tr data-c88="${i}" style="cursor:pointer"><td><b>${esc(c.name)}</b>${c.city ? `<div class="small muted">${esc(c.city)}</div>` : ""}</td><td class="small">${esc(c.contact)}${c.phone ? `<div>${esc(c.phone)}</div>` : ""}</td><td class="n">${c.enq || "—"}</td><td class="n">${c.qt ? `${c.qt}<div class="small muted">${inr28(c.qv)}</div>` : "—"}</td><td class="n">${c.so ? inr28(c.sov) : "—"}</td><td class="n">${c.inv ? inr28(c.invv) : "—"}</td><td class="n">${c.rec ? inr28(c.rec) : "—"}</td><td>${c.last ? dmy(c.last) : "—"}</td></tr>`).join("") || '<tr><td colspan="8" class="muted">No customers yet.</td></tr>'}</tbody></table></div></div></section>`;
+  wireSrch71(v, U);
+  $$("[data-c88]", v).forEach(t => t.onclick = () => { const c = L[+t.dataset.c88], Dc = c.docs.slice().sort((a, b) => String(b.d).localeCompare(String(a.d)));
+    const D = panel28({ title: c.name, chips: `${c.phone ? `<a class="chip" href="tel:${esc(c.phone)}">📞 ${esc(c.phone)}</a>` : ""}${c.email ? `<a class="chip" href="mailto:${esc(c.email)}">✉ ${esc(c.email)}</a>` : ""}`, body: `<div class="hero-strip" style="margin-bottom:10px"><div><span>Quoted</span><b>${inr28(c.qv)}</b></div><div><span>Ordered</span><b>${inr28(c.sov)}</b></div><div><span>Invoiced</span><b>${inr28(c.invv)}</b></div><div><span>Received</span><b>${inr28(c.rec)}</b></div></div><div style="overflow:auto"><table class="t"><thead><tr><th>Date</th><th>Document</th><th>Status</th><th class="n">Value</th></tr></thead><tbody>${Dc.map((d, i) => `<tr data-c88d="${i}" style="cursor:pointer"><td>${d.d ? dmy(d.d) : "—"}</td><td><b>${esc(d.t)}</b> ${esc(d.no || "")}</td><td class="small">${esc(d.s || "")}</td><td class="n">${d.v ? inr28(d.v) : ""}</td></tr>`).join("")}</tbody></table></div>`, foot: `<span style="flex:1"></span><button class="btn primary" id="c88n" type="button">New enquiry for this customer</button>` });
+    $$("[data-c88d]", D).forEach(r => r.onclick = () => { const d = Dc[+r.dataset.c88d]; if (d.id) window.open85?.(d.id); else if (d.q) { closeDrawer26(); location.hash = "register"; } });
+    $("#c88n", D).onclick = () => leadPanel28({ kind: "lead", company: c.name, contact: c.contact, phone: c.phone, email: c.email, stage: "new", date: todayISO() }); });
+  $("#c88x", v).onclick = () => xlsx71("customers.xlsx", [["Customer", "City", "Contact", "Phone", "Email", "Enquiries", "Quotations", "Quoted ₹", "Orders", "Ordered ₹", "Invoices", "Invoiced ₹", "Received ₹", "Last activity"], ...L.map(c => [c.name, c.city, c.contact, c.phone, c.email, c.enq, c.qt, Math.round(c.qv), c.so, Math.round(c.sov), c.inv, Math.round(c.invv), Math.round(c.rec), c.last])]);
+};
+
+/* ---------- 6. Testing calculator (Rivera test plan as published on riveracoilmanufacturing.com) ---------- */
+const TS88 = { rr: "Resin rich", vpi: "VPI", hyb: "Hybrid" };
+const kv88 = x => Math.round(x * 100) / 100;
+const TPLAN88 = (prod, sys, V) => {
+  const H = 2 * V + 1, coil = prod === "coil", R = [];
+  const add = (stage, test, val, how, acc, std, per = "coil") => R.push({ stage, test, val, how, acc, std, per });
+  if (coil) {
+    add("1. Individual coils", "AC high voltage (slot portion)", sys === "vpi" ? kv88(1.3 * V) + " kV" : kv88(1.3 * H) + " kV", "1 minute", "No failure in slot portion", "IEC 60034-15 / Rivera norms");
+    add("1. Individual coils", "Inter-turn surge", kv88(1.7 * V) + " kV", "Rise time 0.2 µs ± 0.1 µs, 5 pulses", "Waveforms match - no strand short", "IEC 60034-15");
+    add("1. Individual coils", "Tan delta & capacitance", `${kv88(0.2 * V)} → ${kv88(1.2 * V)} kV in ${kv88(0.2 * V)} kV steps`, "Guard electrodes", "DF < 2 % at 0.2 Un · Δ per step < 0.5 % · tip-up 0.6–0.2 Un < 0.5 %", "IEEE 286 / IEC 60034-27-3");
+    add("1. Individual coils", "Insulation resistance", ir88(V), "1 minute", "≥ 100 MΩ", "IEEE 43");
+    add("2. Before stator connection", "AC high voltage", sys === "vpi" ? kv88(1.2 * V) + " kV" : kv88(1.2 * H) + " kV", "1 minute", "No failure", "IEC 60034-15", "winding");
+    add("2. Before stator connection", "Inter-turn surge", kv88(1.6 * V) + " kV", "Per coil", "Waveforms match", "IEC 60034-15");
+    add("2. Before stator connection", "RTD AC high voltage", "1.5 kV", "5 seconds", "No failure; RTD resistance recorded", "Rivera norms", "winding");
+    add("2. Before stator connection", "IR + polarisation index", ir88(V), "1 and 10 minutes", "IR ≥ 100 MΩ · PI ≥ 2.5", "IEEE 43", "winding");
+    add("3. After stator connection", "AC high voltage", sys === "vpi" ? kv88(1.1 * V) + " kV" : kv88(1.1 * H) + " kV", "1 minute", "No failure", "IEC 60034-15", "winding");
+    add("3. After stator connection", "Surge - phase to phase comparison", "2 kV", "Between phases", "Phases match", "Rivera norms", "winding");
+    add("3. After stator connection", "Winding resistance", "Per phase", "At room temperature", "Phases balanced", "Rivera norms", "winding");
+    add("3. After stator connection", "IR + polarisation index", ir88(V), "1 and 10 minutes", "IR ≥ 100 MΩ · PI ≥ 2.5", "IEEE 43", "winding");
+    add("3. After stator connection", "Tan delta & capacitance", `${kv88(0.2 * V)} → ${kv88(1.2 * V)} kV`, "Per phase", "DF < 2 % at 0.2 Un · tip-up < 0.5 %", "IEEE 286", "winding");
+    if (sys !== "rr") add("4. After VPI & post-curing", "AC high voltage", sys === "vpi" ? kv88(1.05 * V) + " kV" : kv88(1.05 * H) + " kV", "1 minute", "No failure", "IEC 60034-15", "winding");
+  } else {
+    add("1. Individual bars", "Tan delta & capacitance", `${kv88(0.2 * V)} → ${kv88(1.2 * V)} kV in ${kv88(0.2 * V)} kV steps`, "Per bar", "DF < 2 % at 0.2 Un · tip-up < 0.5 %", "IEEE 286 / IEC 60034-27", "bar");
+    add("1. Individual bars", "Surface resistance of slot conducting tape", "500 – 5000 Ω/sq", "Slot portion", "Within range", "Rivera norms", "bar");
+    add("1. Individual bars", "Insulation resistance", ir88(V), "1 minute", "≥ 100 MΩ", "IEEE 43", "bar");
+    add("1. Individual bars", "AC high voltage", sys === "vpi" ? kv88(3 * V) + " kV" : kv88(1.3 * H) + " kV", "1 minute", "No failure in slot portion", "IEC 60034-15", "bar");
+    add("2. Bars in wound stator", "IR + polarisation index", ir88(V), "1 and 10 minutes", "IR ≥ 100 MΩ · PI ≥ 2.5", "IEEE 43", "winding");
+    add("2. Bars in wound stator", "AC high voltage", sys === "vpi" ? kv88(1.3 * H) + " kV" : kv88(1.2 * H) + " kV", "1 minute", "No failure", "IEC 60034-15", "winding");
+    add("2. Bars in wound stator", "RTD AC high voltage", "1.5 kV", "5 seconds", "No failure; RTD resistance recorded", "Rivera norms", "winding");
+    add("3. After stator connection", "Winding resistance", "Per phase", "Room temperature", "Phases balanced", "Rivera norms", "winding");
+    add("3. After stator connection", "IR + polarisation index", ir88(V), "1 and 10 minutes", "IR ≥ 100 MΩ · PI ≥ 2.5", "IEEE 43", "winding");
+    add("3. After stator connection", "AC high voltage", sys === "vpi" ? kv88(1.2 * H) + " kV" : kv88(1.1 * H) + " kV", "1 minute", "No failure", "IEC 60034-15", "winding");
+    add("3. After stator connection", "Tan delta & capacitance", `${kv88(0.2 * V)} → ${kv88(1.2 * V)} kV`, "Per phase", "DF < 2 % at 0.2 Un · tip-up < 0.5 %", "IEEE 286", "winding");
+  }
+  const E = { 6.6: [14.3, 16.69], 11: [23.87, 27.83], 13.2: [28.64, 33.39], 13.8: [29.94, 34.91], 15.75: [34.177, 39.84] }[V] || [kv88(V * 14.3 / 6.6), kv88(V * 16.69 / 6.6)];
+  add("Type tests", "Overhang AC high voltage", kv88(1.5 * V + 1) + " kV", "30 seconds, on 10 % of coils/bars", "No breakdown", "Rivera norms", "lot");
+  add("Type tests", "AC withstand + breakdown ramp", `${kv88(H)} kV 1 min, then 1 kV/s to ${kv88(2 * H)} kV`, "Terminals to earth", "Withstands 1 min", "IEC 60034-15", "sample");
+  if (coil) add("Type tests", "Impulse - inter-turn insulation", kv88(0.65 * (4 * V + 5)) + " kV", "Rise 0.2 µs ± 0.1 µs, 5 operations", "No failure", "IEC 60034-15", "sample");
+  add("Type tests", "Partial discharge", `${kv88(0.2 * V)} → ${kv88(1.2 * V)} kV`, "In steps", "Within approved procedure / OEM", "IEEE 1434", "sample");
+  add("Type tests", "Thermal cycling", "40 °C ↔ 150 °C, 500 cycles", "Tip-up, tan δ, PD at 50/100/250/500 cycles", "No significant change", "IEEE 1310", "sample");
+  add("Type tests", "Voltage endurance", `Schedule A ${E[0]} kV (400 h) · Schedule B ${E[1]} kV (200 h)`, "At 120 °C", "Pass per IEEE 1553", "IEEE 1043 / 1553", "sample");
+  add("Type tests", "Dissection examination", "Slot portion cut and examined", "Microscope, insulation thickness", "As per design", "Rivera norms", "sample");
+  return R;
+};
+const ir88 = V => V <= 1 ? "500 V DC" : V <= 2.5 ? "500 – 1000 V DC" : V <= 5 ? "1000 – 2500 V DC" : V <= 12 ? "2500 – 5000 V DC" : "5000 – 10000 V DC";
+if (!ROUTES.some(x => x[0] === "test88")) ROUTES.push(["test88", "Testing calculator", "check28"]);
+ALWAYS34.push("test88");
+VIEWS.test88 = v => {
+  const U = BIZ.ui, S = U.t88 ||= { prod: "coil", sys: "vpi", V: 6.6, n: 72, stages: ["1", "2", "3", "4", "Type"], rates: (() => { try { return JSON.parse(localStorage.getItem("rqs.t88rates") || "{}"); } catch { return {}; } })(), pick: {} };
+  const R = TPLAN88(S.prod, S.sys, Number(S.V) || 0).filter(r => S.stages.some(s => r.stage.startsWith(s)));
+  const qty = r => r.per === "coil" || r.per === "bar" ? Number(S.n) || 0 : r.per === "lot" ? Math.max(1, Math.ceil((Number(S.n) || 0) / 10)) : 1;
+  const k = r => r.stage + "|" + r.test, on = r => S.pick[k(r)] !== false, rate = r => Number(S.rates[k(r)]) || 0;
+  const tot = R.filter(on).reduce((a, r) => a + qty(r) * rate(r), 0);
+  v.innerHTML = top62("Sales · Quality", "Testing calculator", "Every Rivera routine and type test with the test voltage worked out from the rated voltage - per stage and insulation system, as published on riveracoilmanufacturing.com. Tick the tests, enter the rate, and send it to a quotation.", `<button type="button" class="btn" id="t88p">${icon("print28")}Print test plan</button><button type="button" class="btn primary" id="t88q">Add to quotation →</button>`)
+    + `<section class="panel"><div class="body"><div class="fields" style="grid-template-columns:repeat(auto-fill,minmax(170px,1fr))">
+      <label class="f"><span>Product</span><select id="t88a"><option value="coil" ${S.prod === "coil" ? "selected" : ""}>Stator diamond coils</option><option value="bar" ${S.prod === "bar" ? "selected" : ""}>Stator Roebel bars</option></select></label>
+      <label class="f"><span>Insulation system</span><select id="t88b">${Object.entries(TS88).filter(([k]) => S.prod === "coil" || k !== "hyb").map(([k, l]) => `<option value="${k}" ${S.sys === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
+      <label class="f"><span>Rated line voltage Un (kV)</span><input id="t88c" type="number" step="any" min="0.4" value="${esc(S.V)}" list="t88vl"><datalist id="t88vl">${[0.415, 3.3, 6.6, 11, 13.2, 13.8, 15.75].map(x => `<option value="${x}">`).join("")}</datalist></label>
+      <label class="f"><span>Number of ${S.prod === "coil" ? "coils" : "bars"}</span><input id="t88d" type="number" min="0" value="${esc(S.n)}"></label></div>
+      <div class="row" style="gap:6px;flex-wrap:wrap;margin-top:6px">${[["1", "Stage 1"], ["2", "Stage 2"], ["3", "Stage 3"], ["4", "Stage 4 (VPI)"], ["Type", "Type tests"]].map(([s, l]) => `<label class="chip" style="cursor:pointer"><input type="checkbox" data-t88s="${s}" ${S.stages.includes(s) ? "checked" : ""}> ${l}</label>`).join("")}</div></div></section>
+    <section class="panel"><div class="body" style="overflow:auto"><table class="t"><thead><tr><th></th><th>Stage</th><th>Test</th><th>Test value</th><th>How</th><th>Acceptance</th><th class="n">Qty</th><th class="n">Rate ₹</th><th class="n">Amount ₹</th></tr></thead><tbody>${R.map((r, i) => `<tr class="${on(r) ? "" : "muted"}"><td><input type="checkbox" data-t88p="${i}" ${on(r) ? "checked" : ""}></td><td class="small">${esc(r.stage)}</td><td><b>${esc(r.test)}</b><div class="small muted">${esc(r.std)}</div></td><td><b style="color:#02315B">${esc(r.val)}</b></td><td class="small">${esc(r.how)}</td><td class="small">${esc(r.acc)}</td><td class="n">${qty(r)}<div class="small muted">${r.per === "coil" || r.per === "bar" ? "per " + (S.prod === "coil" ? "coil" : "bar") : r.per === "lot" ? "10 %" : r.per}</div></td><td class="n"><input type="number" min="0" step="any" data-t88r="${esc(k(r))}" value="${rate(r) || ""}" placeholder="0" style="width:90px"></td><td class="n">${on(r) && rate(r) ? inr28(qty(r) * rate(r)) : "—"}</td></tr>`).join("")}
+      <tr class="sum"><td colspan="8" style="text-align:right"><b>Total testing charges</b></td><td class="n"><b>${inr28(tot)}</b></td></tr></tbody></table>
+      <p class="small muted" style="margin-top:8px">IR test voltage follows IEEE 43 by rated voltage. Rates are remembered on this device. ${S.prod === "coil" && S.sys === "vpi" ? "Note: the website gives VPI coil AC HV as 1.3 × / 1.2 × / 1.1 × / 1.05 × Un (without 2 Un + 1) - check this with Quality before sending to a customer." : ""}${S.prod === "bar" && S.sys === "vpi" ? "Note: the website gives VPI individual-bar AC HV as 3 × Un - check this with Quality before sending to a customer." : ""}</p></div></section>`;
+  const set = (k2, val) => { S[k2] = val; render(); };
+  $("#t88a", v).onchange = e => { S.prod = e.target.value; if (S.prod === "bar" && S.sys === "hyb") S.sys = "vpi"; render(); };
+  $("#t88b", v).onchange = e => set("sys", e.target.value); $("#t88c", v).onchange = e => set("V", Number(e.target.value)); $("#t88d", v).onchange = e => set("n", Number(e.target.value));
+  $$("[data-t88s]", v).forEach(c => c.onchange = () => { S.stages = $$("[data-t88s]", v).filter(x => x.checked).map(x => x.dataset.t88s); render(); });
+  $$("[data-t88p]", v).forEach(c => c.onchange = () => { S.pick[k(R[+c.dataset.t88p])] = c.checked; render(); });
+  $$("[data-t88r]", v).forEach(i => i.onchange = () => { S.rates[i.dataset.t88r] = Number(i.value) || 0; try { localStorage.setItem("rqs.t88rates", JSON.stringify(S.rates)); } catch { } render(); });
+  const title = `Test plan - ${S.prod === "coil" ? "stator diamond coils" : "stator Roebel bars"}, ${TS88[S.sys]}, Un ${S.V} kV`;
+  $("#t88p", v).onclick = () => printHtml28(title, `<h2 style="text-align:center">${esc(title)}</h2><table><thead><tr><th>Stage</th><th>Test</th><th>Test value</th><th>How</th><th>Acceptance</th><th>Standard</th></tr></thead><tbody>${R.filter(on).map(r => `<tr><td>${esc(r.stage)}</td><td><b>${esc(r.test)}</b></td><td>${esc(r.val)}</td><td>${esc(r.how)}</td><td>${esc(r.acc)}</td><td>${esc(r.std)}</td></tr>`).join("")}</tbody></table>`);
+  $("#t88q", v).onclick = () => { const L = R.filter(r => on(r) && rate(r)); if (!L.length) return toast("Enter a rate for at least one ticked test", "bad"); const Q = blankQuote(); Q.subject = `Testing of ${S.prod === "coil" ? "stator diamond coils" : "stator Roebel bars"} (${TS88[S.sys]}, ${S.V} kV)`; Q.lines = L.map(r => ({ desc: `${r.test} - ${r.val} (${r.how}); acceptance: ${r.acc} [${r.std}]`, qty: qty(r), unit: r.per === "coil" ? "Coils" : r.per === "bar" ? "Bars" : "Lot", rate: rate(r) })); STATE.quote = Q; saveDrafts(); location.hash = "quote"; toast("Testing lines added to a new quotation"); };
+};
+
+/* ---------- menus ---------- */
+{
+  const put = (mod, grp, c, first) => { const m = MODS32.find(x => x.id === mod); if (!m) return; const G = m.groups[grp] ||= []; if (G.some(x => x[1] === c[1])) return; first ? G.unshift(c) : G.push(c); try { CARDMOD64.set(c, mod); } catch { } };
+  put("store", "Transactions", ["Stock & limits", "stock88", {}, "Stock of every product, issue to production, reminder to Purchase at the limit"], true);
+  put("prod", "Transactions", ["Take material from store", "stock88", {}, "Issue tapes, copper, insulation - stock updates itself"]);
+  put("purchase", "Reports", ["Stock at limit", "stock88", {}, "Products Store says must be bought"]);
+  put("sales", "Masters", ["Customer repository", "cust88", {}, "Every customer - enquiries, quotations, orders, invoices, payments"], true);
+  put("sales", "Transactions", ["Testing calculator", "test88", {}, "All test values from rated voltage + charges → quotation"]);
+  put("quality", "Transactions", ["Testing calculator", "test88", {}, "Rivera test plan by stage and insulation system"], true);
+  put("accounts", "Masters", ["Customer repository", "cust88", {}, "Customer-wise orders, invoices and payments"]);
+  [["store", "stock88"], ["prod", "stock88"], ["purchase", "stock88"], ["sales", "cust88"], ["sales", "test88"], ["quality", "test88"], ["accounts", "cust88"]].forEach(([d, t]) => { if (window.DEPT63?.[d] && !DEPT63[d].extra.includes(t)) DEPT63[d].extra.push(t); });
+}
+
 boot();
 
 </script>
