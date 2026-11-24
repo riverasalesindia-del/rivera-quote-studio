@@ -15348,6 +15348,107 @@ VIEWS.sup90 = v => {
   if (window.DEPT63?.accounts && !DEPT63.accounts.extra.includes("sup90")) DEPT63.accounts.extra.push("sup90");
 }
 
+/* Purchase bill registers (GST + non-GST sections, many months per file) -> Product repository history. Petty expenses (food, fuel, travel, salary) are left out. */
+const PETTY90 = /vegetable|\begg|milk|petrol|diesel|fuel|salary|slry|stipend|food|grocery|flight|irctc|train|bus\b|hotel|room|chicken|mushroom|\btea\b|coffee|bread|\brice\b|\bdal\b|wheat|sugar|poojai|pooja|flower|refreshment|medicine|dolo|balm|tomato|onion|lemon|lunch|dinner|snacks|parcel|courier|speed post|stamp|travel|lens|chair re|tds service|tan exp|expense|expence|gas\b|b-gas|indane|domestic gas|kadukai|avarai|karunseeragam|nattu|harpic|washing powder|distilled water|water bottle/i;
+function phParse90(wb, src) {
+  const d10 = v => { if (v instanceof Date) { const d = new Date(v.getTime() + 432e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+    const s = String(v ?? "").trim(); let m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/); if (!m) return ""; let [_, a, b, y] = m; if (y.length === 2) y = "20" + y; if (+b > 12) [a, b] = [b, a]; return `${y}-${b.padStart(2, "0")}-${a.padStart(2, "0")}`; };
+  const num = v => Number(String(v ?? "").replace(/[₹,\s`]/g, "")) || 0, out = [];
+  for (const sn of wb.SheetNames) {
+    const g = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: null }); let M = null;
+    for (const r of g) {
+      const low = r.map(c => String(c ?? "").toLowerCase().trim());
+      if (low.some(x => /^(description|item|product|material|particulars?|item description)$/.test(x)) && low.some(x => /vendor|supplier|party/.test(x))) {
+        const ix = re => low.findIndex(x => re.test(x));
+        M = { p: ix(/^(description|item|product|material|particulars?|item description)$/), s: ix(/vendor|supplier|party/), d: ix(/invoice date|bill date|^date$/), n: ix(/invoice no|bill no|inv no|po no/), g: ix(/gstin/), t: ix(/gst ?%|gst rate/), a: ix(/taxable|bill amount|^amount$|basic/), tot: ix(/total invoice|^total$|net payable/), q: ix(/^qty|quantity/), u: ix(/^unit$|uom/), rt: ix(/^rate|unit price/), gstSec: low.some(x => /gstin/.test(x)) };
+        continue;
+      }
+      if (!M) continue;
+      const p = String(r[M.p] ?? "").trim(), s = String(r[M.s] ?? "").trim(); if (!p || !s || /^total/i.test(p) || /^total/i.test(s)) continue;
+      if (!M.gstSec && PETTY90.test(p)) continue;
+      const amt = num(r[M.a]), qty = M.q >= 0 ? num(r[M.q]) : 0, rate = M.rt >= 0 ? num(r[M.rt]) : 0;
+      out.push({ kind: "ph", product: p.slice(0, 200), supplier: s.slice(0, 120), gstin: M.g >= 0 ? String(r[M.g] ?? "").trim() : "", date: M.d >= 0 ? d10(r[M.d]) : "", poNo: M.n >= 0 ? String(r[M.n] ?? "").replace(/^`/, "").trim() : "", gst: M.t >= 0 ? String(r[M.t] ?? "") : "", amount: amt, total: M.tot >= 0 ? num(r[M.tot]) : 0, qty: qty || (rate ? "" : 1), unit: M.u >= 0 ? String(r[M.u] ?? "") : (qty || rate ? "" : "bill"), rate: rate || (qty ? Math.round(amt / qty * 100) / 100 : amt), src: src || "" });
+    }
+  }
+  const seen = new Set(all28("ph").map(h => [h.supplier, h.poNo, h.product, h.date].join("|").toLowerCase()));
+  return out.filter(h => { const k = [h.supplier, h.poNo, h.product, h.date].join("|").toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+phImport88 = async function (file) {
+  try {
+    await loadScript(LIBS.sheetjs); const wb = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true }), out = phParse90(wb, file.name);
+    if (!out.length) return toast("Nothing new in this sheet (needs Vendor + Description columns, or everything is already in)", "bad");
+    if (!confirm(`Add ${out.length} purchases from ${file.name} to the Product repository?`)) return;
+    for (let i = 0; i < out.length; i += 150) { toast(`Saving ${Math.min(i + 150, out.length)} / ${out.length}…`); await bizPut28(out.slice(i, i + 150)); }
+    toast(`${out.length} purchases added`); render();
+  } catch (e) { toast("Import failed: " + e.message, "bad"); }
+};
+
+/* ===================== p91: interconnect - Supplier repository (every supplier: products, POs, receipts, bills, payments, old bills; one tap to each document)
+   and Employee 360 (documents, letters, assets held, leave, attendance this month inside the employee drawer) ===================== */
+const supKey91 = s => String(s || "").toLowerCase().replace(/\b(m\/s|pvt|private|ltd|limited|llp|india|the|co|company|corporation|corp|&|and|enterprises?|traders?|trading)\b|[.,()\-]/g, " ").replace(/\s+/g, " ").trim().split(" ").map(w => w.length > 3 ? w.replace(/s$/, "") : w).join(" ");
+function supRepo91() {
+  const M = new Map(), get = n => { const k = supKey91(n); if (!k) return null; if (!M.has(k)) M.set(k, { name: String(n).trim(), gstin: "", po: [], rn: [], bill: [], pay: [], ph: [], prods: new Set(), spend: 0, due: 0, last: "" }); return M.get(k); };
+  const touch = (s, d) => { if (d && String(d) > s.last) s.last = String(d).slice(0, 10); };
+  all28("po").filter(p => p.status !== "cancelled").forEach(p => { const s = get(p.supplier); if (!s) return; s.po.push(p); (p.lines || []).forEach(l => s.prods.add(BIZ.rows[l.item]?.name || l.desc)); touch(s, p.date); });
+  all28("rn").forEach(r => { const s = get(r.supplier); if (s) { s.rn.push(r); touch(s, r.date); } });
+  all28("bill").forEach(b => { const s = get(b.supplier); if (!s) return; s.bill.push(b); s.gstin ||= b.gstin || ""; s.spend += Number(b.total) || 0; touch(s, b.date); const paid = all28("spay").filter(p => p.bill === b.id).reduce((a, p) => a + (Number(p.amount) || 0), 0); s.due += Math.max(0, (Number(b.total) || 0) - paid); });
+  all28("spay").forEach(p => { const s = get(p.supplier || BIZ.rows[p.bill]?.supplier); if (s) { s.pay.push(p); touch(s, p.date); } });
+  all28("ph").forEach(h => { const s = get(h.supplier); if (!s) return; s.ph.push(h); s.prods.add(h.product); s.gstin ||= h.gstin || ""; if (!s.bill.length) s.spend += Number(h.total || h.amount) || 0; touch(s, h.date); });
+  return [...M.values()].map(s => ({ ...s, prods: [...s.prods].filter(Boolean) })).sort((a, b) => b.last.localeCompare(a.last) || a.name.localeCompare(b.name));
+}
+function sup360_91(s) {
+  const row = (t, d, b, sm, id) => `<button type="button" class="dr26-li" ${id ? `data-o91="${id}"` : ""}><b>${t}</b><small>${d ? dmy(String(d).slice(0, 10)) + " · " : ""}${b}${sm ? " · " + sm : ""}</small></button>`;
+  const sec = (t, L, f) => L.length ? `<section class="dr26-sec"><h3>${t} · ${L.length}</h3>${L.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 15).map(f).join("")}${L.length > 15 ? `<p class="small muted">+ ${L.length - 15} more</p>` : ""}</section>` : "";
+  const D = panel28({ title: s.name, chips: `${s.gstin ? `<span class="chip">${esc(s.gstin)}</span>` : ""}${s.due > 0 ? `<span class="chip warn">To pay ${inr28(s.due)}</span>` : ""}`,
+    body: `<div class="dr26-k"><div><span>Purchases</span><b>${inr28(s.spend)}</b></div><div><span>Products</span><b>${s.prods.length}</b></div><div><span>Orders</span><b>${s.po.length}</b></div><div><span>Last</span><b>${s.last ? dmy(s.last) : "—"}</b></div></div>
+      <div class="dr26-a"><button class="btn primary" id="s91n" type="button">New indent / PO</button><button class="btn" id="s91p" type="button">Product repository</button></div>
+      ${s.prods.length ? `<section class="dr26-sec"><h3>Products bought · ${s.prods.length}</h3><div class="row" style="flex-wrap:wrap;gap:4px">${s.prods.slice(0, 40).map(p => `<span class="chip">${esc(String(p).slice(0, 40))}</span>`).join("")}</div></section>` : ""}
+      ${sec("Purchase orders", s.po, p => row(`${esc(p.no || "draft")} · ${esc((PO_ST.find(x => x[0] === p.status) || [0, p.status])[1])}`, p.date, inr28(p.total), "", p.id))}
+      ${sec("Receipt notes (GRN)", s.rn, r => row(esc(r.no || ""), r.date, esc(r.status || ""), "", r.id))}
+      ${sec("Bills", s.bill, b => row(esc(b.billNo || b.no || ""), b.date, inr28(b.total), "", b.id))}
+      ${sec("Payments", s.pay, p => row(esc(p.no || p.ref || "Payment"), p.date, inr28(p.amount), esc(p.mode || ""), p.id))}
+      ${sec("Old purchase bills (Excel / email)", s.ph, h => row(esc(String(h.product).slice(0, 60)), h.date, h.amount ? inr28(h.amount) : "", esc(h.poNo || ""), ""))}` });
+  $$("[data-o91]", D).forEach(b => b.onclick = () => window.open85?.(b.dataset.o91));
+  $("#s91n", D).onclick = () => poPanel28({ kind: "po", status: "indent", date: todayISO(), reqBy: me28(), supplier: s.name, lines: [{ item: "", desc: "", qty: 1, unit: "nos", rate: "", gst: 18 }] });
+  $("#s91p", D).onclick = () => { closeDrawer26(); BIZ.ui.p87q = s.name; go32?.("prod87") ?? (location.hash = "prod87"); };
+}
+if (!ROUTES.some(x => x[0] === "sup91")) ROUTES.push(["sup91", "Supplier repository", "users"]);
+ALWAYS34.push("sup91");
+VIEWS.sup91 = v => {
+  bizSync28(); const U = BIZ.ui, q = U.s91q || "", L = supRepo91().filter(s => has71([s.name, s.gstin, s.prods.join(" ")], q));
+  v.innerHTML = top62("Purchase · Finance", "Supplier repository", `${L.length} suppliers · what we bought from each, orders, bills, payments, dues`, `<button type="button" class="btn" id="s91x">⬇ Sheet</button>`)
+    + `<section class="panel"><div class="body"><div class="row" style="margin-bottom:10px">${srch71(U, "s91q", "Search supplier, GSTIN, product…")}</div><div style="overflow:auto"><table class="t"><thead><tr><th>Supplier</th><th>Products (sample)</th><th class="n">Purchases ₹</th><th class="n">To pay ₹</th><th class="n">POs</th><th>Last</th></tr></thead><tbody>${L.slice(0, 400).map((s, i) => `<tr data-s91="${i}" style="cursor:pointer"><td><b>${esc(s.name)}</b>${s.gstin ? `<div class="small muted mono">${esc(s.gstin)}</div>` : ""}</td><td class="small">${esc(s.prods.slice(0, 3).join(", ").slice(0, 90))}${s.prods.length > 3 ? ` +${s.prods.length - 3}` : ""}</td><td class="n">${s.spend ? Math.round(s.spend).toLocaleString("en-IN") : "—"}</td><td class="n">${s.due > 0 ? `<b style="color:#b35c00">${Math.round(s.due).toLocaleString("en-IN")}</b>` : "—"}</td><td class="n">${s.po.length || "—"}</td><td>${s.last ? dmy(s.last) : "—"}</td></tr>`).join("") || '<tr><td colspan="6" class="muted">No suppliers yet.</td></tr>'}</tbody></table></div></div></section>`;
+  wireSrch71(v, U);
+  $$("[data-s91]", v).forEach(r => r.onclick = () => sup360_91(L[+r.dataset.s91]));
+  $("#s91x", v).onclick = () => xlsx71("supplier-repository.xlsx", [["Supplier", "GSTIN", "Purchases ₹", "To pay ₹", "POs", "Bills", "Last purchase", "Products"], ...L.map(s => [s.name, s.gstin, Math.round(s.spend), Math.round(s.due), s.po.length, s.bill.length + s.ph.length, s.last, s.prods.join(", ")])]);
+};
+{
+  const put = (mod, grp, c, first) => { const m = MODS32.find(x => x.id === mod); if (!m) return; const G = m.groups[grp] ||= []; if (G.some(x => x[1] === c[1])) return; first ? G.unshift(c) : G.push(c); try { CARDMOD64.set(c, mod); } catch { } };
+  const c = ["Supplier repository", "sup91", {}, "Every supplier - products, POs, bills, payments, dues"];
+  put("purchase", "Masters", c, true); put("accounts", "Masters", [...c]); put("admin", "Masters", [...c]);
+  if (window.DEPT63?.purchase && !DEPT63.purchase.extra.includes("sup91")) DEPT63.purchase.extra.push("sup91");
+  if (window.DEPT63?.accounts && !DEPT63.accounts.extra?.includes("sup91")) DEPT63.accounts.extra?.push("sup91");
+}
+/* Product repository: supplier names open the supplier drawer */
+{
+  const _pn = panel28;
+  panel28 = function (o) { const D = _pn.apply(this, arguments); try { if (STATE.route === "prod87" && o?.foot && /New indent for this/.test(o.foot)) setTimeout(() => { $$("tr[data-o87] td:nth-child(3)", D).forEach(td => { const n = td.textContent.trim(); if (!n) return; td.innerHTML = `<a href="#" data-s91n="${esc(n)}">${esc(n)}</a>`; td.firstChild.onclick = e => { e.preventDefault(); e.stopPropagation(); const s = supRepo91().find(x => supKey91(x.name) === supKey91(n)); if (s) sup360_91(s); }; }); }, 0); } catch { } return D; };
+}
+/* Employee 360: assets held, leave, attendance of this month inside the employee drawer */
+{
+  const _e = empPanel29;
+  empPanel29 = function (src) { _e.apply(this, arguments); try { if (!src?.id) return; const e = BIZ.rows[src.id] || src, nm = String(e.name || "").toLowerCase();
+    const A = all28("fa").filter(a => (e.email && a.holder === e.email) || (a.holderName && String(a.holderName).toLowerCase() === nm) || (a.user && String(a.user).toLowerCase() === nm));
+    const Lv = all28("lv").filter(l => (e.email && l.who === e.email) || String(l.whoName || "").toLowerCase() === nm).sort((a, b) => String(b.from).localeCompare(String(a.from))).slice(0, 6);
+    const mm = todayISO().slice(0, 7); let att = ""; try { const s = attSum29(attDays29(e.id, mm)); att = `P ${s.P} · Half ${s.H} · Leave ${s.L} · Absent ${s.A}`; } catch { }
+    let today = ""; try { const V = dayView89(todayISO()); const c = V.came.find(x => x.e.id === e.id); today = c ? `In ${String(c.p.in || "").slice(0, 5)}${c.p.out ? " · Out " + String(c.p.out).slice(0, 5) : ""}` : V.any ? (V.leave.some(x => x.id === e.id) ? "On leave" : "Not punched yet") : ""; } catch { }
+    const html = `<section class="dr26-sec" id="e91"><h3>👤 At a glance</h3><div class="dr26-k"><div><span>Today</span><b>${esc(today || "—")}</b></div><div><span>This month</span><b class="small">${esc(att || "—")}</b></div><div><span>Assets with</span><b>${A.length}</b></div><div><span>Leaves</span><b>${Lv.length}</b></div></div>
+      ${A.length ? `<h3 style="margin-top:10px">Assets with ${esc(e.name)}</h3>${A.map(a => `<button type="button" class="dr26-li" data-e91a="${a.id}"><b>${esc(a.name)}</b><small>${esc(a.tag || a.no || "")} · ${esc(a.status || "")}</small></button>`).join("")}` : ""}
+      ${Lv.length ? `<h3 style="margin-top:10px">Recent leave</h3>${Lv.map(l => `<div class="a89r"><span>${esc(l.type || "Leave")} · ${dmy(l.from)}${l.to && l.to !== l.from ? " – " + dmy(l.to) : ""}</span><span class="chip ${l.status === "approved" ? "ok" : l.status === "rejected" ? "bad" : "warn"}">${esc(l.status || "")}</span></div>`).join("")}` : ""}</section>`;
+    const box = $("#dr26 .fields"); if (!box) return; $("#e91")?.remove(); box.insertAdjacentHTML("beforebegin", html);
+    $$("[data-e91a]").forEach(b => b.onclick = () => faPanel62(BIZ.rows[b.dataset.e91a])); } catch (er) { console.warn("p91 emp", er); } };
+}
+
 boot();
 
 </script>
