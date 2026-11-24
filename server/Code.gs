@@ -943,6 +943,7 @@ function api(d) {
   }
   /* ---- private document store (seeded once from Dropbox with a short-lived key) ---- */
   if (a === "pubSubmit" || a === "pubFile" || a === "pubList") return pub71(d);
+  if (a === "attPush") return att89(d);
   if (a === "filePut" && d.seed) { if (!seedOk(d.seed)) throw "Seed key expired"; return filePut(d, "dropbox-seed", true); }
   if (a === "fileList" && d.seed) { if (!seedOk(d.seed)) throw "Seed key expired"; return { ok: true, files: fileList() }; }
   /* ---- signed-in actions ---- */
@@ -1105,13 +1106,13 @@ function setup() { secret(); users(); sessions(); sheet("Log", ["time", "email",
 
 /* ================= p28: business records (GrowSmart-style) — leads & follow-ups, repair jobs, purchase orders, stock, tasks ================= */
 var RCH = ["id", "kind", "no", "data", "by", "at", "del"];
-var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN", cq: "CQ", sr: "RT", wk: "WK", wd: "DU", cr: "CR", ho: "HO", fa: "FA", vlt: "VL", qap: "QA", qtr: "TR", pret: "PR", pcs: "CS", cert: "CE", rm: "RM", lv: "LVR", onb: "NE", vis: "VS", appt: "AP", tqs: "TQ", cw: "CW", pl: "PL", mg: "MG", vr: "VR", mkt: "MK", dc: "DC", rn: "GRN", rq: "RQ", ph: "PH" };
+var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN", cq: "CQ", sr: "RT", wk: "WK", wd: "DU", cr: "CR", ho: "HO", fa: "FA", vlt: "VL", qap: "QA", qtr: "TR", pret: "PR", pcs: "CS", cert: "CE", rm: "RM", lv: "LVR", onb: "NE", vis: "VS", appt: "AP", tqs: "TQ", cw: "CW", pl: "PL", mg: "MG", vr: "VR", mkt: "MK", dc: "DC", rn: "GRN", rq: "RQ", ph: "PH", pd: "PD" };
 /* who may see / change each kind (admin always) — salaries and books stay with admin + finance */
 var REC_ACCESS = { vlt: ["-"], fa: ["finance", "operation"], qap: ["operation"], qtr: ["operation"], pret: ["operation", "finance"], pcs: ["operation", "finance"], cert: ["finance"], emp: ["finance"], att: ["finance"], sal: ["finance"], exp: ["finance"], bill: ["finance"], spay: ["finance"], inv: ["finance", "sales"], rcpt: ["finance", "sales"] };
-var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase", cq: "compq", sr: "salesret", fa: "assets62", vlt: "vault", qap: "quality", qtr: "quality", pret: "pur62", pcs: "pur62", cert: "hrx", onb: "hrx", tqs: "tqs71", cw: "coil71", pl: "coil71", mg: "gate71", vr: "vreg71", mkt: "mkt71", dc: "docs71", rn: "purchase", ph: "purchase" };
+var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase", cq: "compq", sr: "salesret", fa: "assets62", vlt: "vault", qap: "quality", qtr: "quality", pret: "pur62", pcs: "pur62", cert: "hrx", onb: "hrx", tqs: "tqs71", cw: "coil71", pl: "coil71", mg: "gate71", vr: "vreg71", mkt: "mkt71", dc: "docs71", rn: "purchase", ph: "purchase", pd: "hr" };
 /* a department login (pages ticked) may still save what its role could save before pages were ticked - pages decide what it sees, not what breaks */
 function roleCan74(kind, me) { if (me.role === "viewer" || kind === "vlt") return false; var a = REC_ACCESS[kind]; return !a || a.indexOf(me.role) >= 0; }
-var KN74 = { lead: "lead", job: "work order", po: "purchase order / indent", item: "stock item", move: "stock entry", svc: "service call", inv: "invoice", rcpt: "receipt", exp: "expense", bill: "supplier bill", emp: "employee", so: "sales order", dn: "delivery note", wk: "work", wd: "work update", cr: "courier", ho: "handover", lv: "leave", vis: "visitor", appt: "appointment", qtr: "test report", tqs: "test sheet", mg: "gate pass", dc: "document", onb: "joining form", rn: "receipt note", rq: "request", ph: "past purchase" };
+var KN74 = { lead: "lead", job: "work order", po: "purchase order / indent", item: "stock item", move: "stock entry", svc: "service call", inv: "invoice", rcpt: "receipt", exp: "expense", bill: "supplier bill", emp: "employee", so: "sales order", dn: "delivery note", wk: "work", wd: "work update", cr: "courier", ho: "handover", lv: "leave", vis: "visitor", appt: "appointment", qtr: "test report", tqs: "test sheet", mg: "gate pass", dc: "document", onb: "joining form", rn: "receipt note", rq: "request", ph: "past purchase", pd: "attendance punch" };
 function recCan(kind, me) {
   if (me.role === "admin" || me.email === ADMIN) return true;
   if (OPEN62.indexOf(kind) >= 0) return true;
@@ -1322,6 +1323,39 @@ function pub71(d) {
   if (kind === "onb") { var hr = String(props().getProperty("HR_MAIL") || "hr@rivera.co.in"); try { mail(hr, APP + " — New employee form: " + clean(x.name, 50), "<p><b>" + esc(x.name) + "</b> filled the joining form" + (x.designation ? " (" + esc(x.designation) + ")" : "") + ".</p>" + btn(link62("hrx"), "Open HR ▸ New employees", "#02315B")); } catch (e) { } }
   return { ok: true, no: (out.recs && out.recs[0] && out.recs[0].no) || "" };
 }
+/* 10:30 every day: who came / who did not (from the fingerprint device) to HR + AGM */
+function attDaily89() {
+  var day = Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyy-MM-dd"), dow = new Date().getDay(); if (dow === 0) return;
+  var P = rows62("pd").filter(function (x) { return x.day === day; }); if (!P.length && !rows62("pd").length) return;
+  var nm = function (s) { return String(s || "").toLowerCase().replace(/[^a-z]/g, ""); }, E = rows62("emp").filter(function (e) { return e.status !== "left"; });
+  var L = rows62("lv").filter(function (l) { return l.status === "approved" && l.from <= day && l.to >= day; });
+  var seen = {}, came = [], absent = [], leave = [];
+  E.forEach(function (e) { var p = P.filter(function (x) { return (e.bioId && String(x.uid) === String(e.bioId)) || (!e.bioId && x.devName && (nm(x.devName) === nm(e.name) || nm(e.name).indexOf(nm(x.devName)) === 0)); })[0];
+    if (p) { seen[p.id] = 1; came.push([e.name, p.in || ""]); } else if (L.some(function (l) { return String(l.whoName || "").toLowerCase() === String(e.name).toLowerCase() || l.emp === e.id; })) leave.push(e.name); else absent.push(e.name); });
+  var odd = P.filter(function (x) { return !seen[x.id]; });
+  var row = function (a) { return "<tr><td style='padding:4px 10px;border-bottom:1px solid #eee'>" + esc(a[0]) + "</td><td style='padding:4px 10px;border-bottom:1px solid #eee'>" + esc(a[1] || "") + "</td></tr>"; };
+  var html = "<p><b>Attendance " + day + "</b> (fingerprint device, at 10:30)</p><p>Present <b>" + came.length + "</b> · Absent <b>" + absent.length + "</b> · On leave <b>" + leave.length + "</b> · of " + E.length + "</p>"
+    + (absent.length ? "<p><b style='color:#b42318'>Not came yet</b><br>" + absent.map(esc).join(", ") + "</p>" : "") + (leave.length ? "<p><b>On leave</b><br>" + leave.map(esc).join(", ") + "</p>" : "")
+    + "<table style='border-collapse:collapse;font-family:Arial'><tr><th align=left style='padding:4px 10px'>Present</th><th align=left style='padding:4px 10px'>In time</th></tr>" + came.sort(function (a, b) { return String(a[1]).localeCompare(String(b[1])); }).map(row).join("") + "</table>"
+    + (odd.length ? "<p class=small>Device IDs not linked to an employee: " + odd.map(function (x) { return esc(x.uid + " " + (x.devName || "")); }).join(", ") + " - link them in HR ▸ Attendance.</p>" : "")
+    + "<p><a href='" + LINKS.site + "#hr'>Open HR ▸ Attendance</a></p>";
+  lvApprovers71().forEach(function (to) { try { mail(to, APP + " — Attendance " + day + ": " + came.length + " present, " + absent.length + " absent", html); } catch (e) { } });
+}
+/* fingerprint / face device (ZKTeco) → attendance. The office PC bridge sends punches: [{uid, name, ts:"YYYY-MM-DD HH:MM:SS"}].
+   One record per person per day: first punch = IN, last punch = OUT (works even when the device's punch state is wrong). */
+function att89(d) {
+  if (!eq(String(d.k || ""), pubKey71("att"))) throw "Device key is not valid - copy it again from HR ▸ Attendance ▸ Fingerprint device";
+  var P = (d.punches || []).slice(0, 5000), G = {};
+  P.forEach(function (p) { var ts = String(p.ts || "").replace("T", " ").slice(0, 19), uid = String(p.uid || "").trim(); if (!/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}/.test(ts) || !uid) return; var day = ts.slice(0, 10), k = day + "|" + uid; (G[k] = G[k] || { day: day, uid: uid, name: String(p.name || "").slice(0, 80), t: [] }).t.push(ts.slice(11, 19)); });
+  var keys = Object.keys(G); if (!keys.length) return { ok: true, saved: 0, devUsers: 0 };
+  var have = {}; rows62("pd").forEach(function (x) { have[x.day + "|" + x.uid] = x; });
+  var recs = keys.map(function (k) { var g = G[k], o = have[k], all = (o && o.punches || []).concat(g.t).filter(function (v, i, a) { return a.indexOf(v) === i; }).sort();
+    var r = { kind: "pd", day: g.day, uid: g.uid, devName: g.name || (o && o.devName) || "", punches: all, in: all[0], out: all.length > 1 ? all[all.length - 1] : "", src: "device" }; if (o) r.id = o.id; return r; });
+  var sys = { email: "device@rivera.att", name: "Fingerprint device", role: "admin" }, n = 0;
+  for (var i = 0; i < recs.length; i += 200) { recPut({ recs: recs.slice(i, i + 200) }, sys); n += Math.min(200, recs.length - i); }
+  props().setProperty("ATT_LAST", new Date().toISOString() + " | " + n + " day-records | device " + String(d.device || "").slice(0, 60));
+  return { ok: true, saved: n };
+}
 /* visitor gate pass (like the L&T pass): photo, QR, host, visitor details, signatures — mailed to AGM + HR (+ the department they meet), ready to print */
 function gatePassMail78(x) {
   var inline = {}, ph = "", qr = "";
@@ -1387,9 +1421,10 @@ function team62() {
   return out;
 }
 function work62Install() {
-  ScriptApp.getProjectTriggers().forEach(function (t) { if (["workMorning62", "workPlans62", "workRemind62", "workEvening62", "hrDates71", "regs71"].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
+  ScriptApp.getProjectTriggers().forEach(function (t) { if (["workMorning62", "workPlans62", "workRemind62", "workEvening62", "hrDates71", "regs71", "attDaily89"].indexOf(t.getHandlerFunction()) >= 0) ScriptApp.deleteTrigger(t); });
   ScriptApp.newTrigger("hrDates71").timeBased().atHour(8).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("regs71").timeBased().atHour(19).nearMinute(15).everyDays(1).inTimezone("Asia/Kolkata").create();
+  ScriptApp.newTrigger("attDaily89").timeBased().atHour(10).nearMinute(30).everyDays(1).inTimezone("Asia/Kolkata").create();
   /* no 10:45 plans mail to MD any more - MD gets one combined report in the evening */
   ScriptApp.newTrigger("workRemind62").timeBased().atHour(18).nearMinute(0).everyDays(1).inTimezone("Asia/Kolkata").create();
   ScriptApp.newTrigger("workEvening62").timeBased().atHour(18).nearMinute(35).everyDays(1).inTimezone("Asia/Kolkata").create();
@@ -1466,7 +1501,7 @@ function workEvening62() {
 }
 function work62Api(d, me) {
   if (d.op === "team") return { ok: true, team: team62(), md: md62(), courier: crNotify62(), staff: staff62() };
-  if (d.op === "pubkeys") { if (!(me.role === "admin" || me.email === ADMIN || userPages(me).some(function (p) { return /^(hrx|courier\.all)/.test(p); }))) throw "Only admin, HR or security"; return { ok: true, onb: pubKey71("onb"), vis: pubKey71("vis"), cr: pubKey71("cr") }; }
+  if (d.op === "pubkeys") { if (!(me.role === "admin" || me.email === ADMIN || userPages(me).some(function (p) { return /^(hrx|courier\.all)/.test(p); }))) throw "Only admin, HR or security"; return { ok: true, onb: pubKey71("onb"), vis: pubKey71("vis"), cr: pubKey71("cr"), att: pubKey71("att") }; }
   if (d.op === "lvappr") return { ok: true, list: lvApprovers71() };
   if (d.op === "regs") { if (!(me.role === "admin" || me.email === ADMIN || me.role === "finance")) throw "Only admin"; return regs71(); }
   /* Reminder / pending-approval list: the person taps "Send to email" — it goes to MD sir only, as an image + table */
