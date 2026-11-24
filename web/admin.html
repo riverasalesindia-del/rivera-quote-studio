@@ -15206,6 +15206,534 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .st89 li{margin:5px 0}.lt89-c{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}.lt89-o{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:1px solid var(--line,#dfe5ee);background:var(--surface,#fff);border-radius:12px;padding:14px;cursor:pointer;font:inherit;color:inherit}.lt89-o span{font-size:1.5rem}.lt89-o small{color:#5b6b80}.lt89-o:hover{border-color:#e8590c;background:#fff8f2}
 </style>`);
 
+/* ===================== p90: HR employee documents (profile, certificates, ID proofs) - open / download per person, upload more;
+   Joining kit - type the details once, the offer letter AND the after-joining appointment letter are both ready (and the person can be added to Employees) ===================== */
+const docsOf90 = e => (e?.docs || []).filter(d => d && d.id);
+async function dlDoc90(d) {
+  try { const x = await AUTH.call("fileGet", { id: d.id }, 90000), b64 = x.b64 || x.data || ""; if (!b64) throw new Error("File not found");
+    const bin = atob(b64), u = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u[i] = bin.charCodeAt(i);
+    const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([u], { type: x.type || d.type || "application/pdf" })); a.download = d.name || "document.pdf"; document.body.appendChild(a); a.click(); a.remove(); setTimeout(() => URL.revokeObjectURL(a.href), 8000);
+  } catch (e) { toast(e.message, "bad"); }
+}
+async function addDocs90(e, files, label) {
+  const R = JSON.parse(JSON.stringify(BIZ.rows[e.id] || e)); R.docs ||= [];
+  for (const f of files) { toast(`Uploading ${f.name}…`); R.docs.push({ ...(await upFile71(f, "empdoc")), label: label || "Document", at: todayISO(), by: me28() }); }
+  await bizPut28(R); toast(`${files.length} file${files.length === 1 ? "" : "s"} added to ${R.name}`); return R;
+}
+const DOCL90 = ["Certificates (education)", "ID proof (Aadhaar / PAN)", "Employee profile & certificates", "Resume", "Bank / PF / ESI", "Signed offer / appointment letter", "Other"];
+function docsBlock90(e) {
+  const L = docsOf90(e), letters = all28("cert").filter(c => c.emp === e.id || (c.empName || c.name) && String(c.empName || c.name).toLowerCase() === String(e.name).toLowerCase());
+  return `<section class="dr26-sec" id="d90"><h3>📎 Documents & certificates (${L.length})</h3>${L.map((d, i) => `<div class="a89r"><span><b>${esc(d.label || "Document")}</b><br><span class="small muted">${esc(d.name || "")}${d.size ? " · " + (d.size / 1048576).toFixed(1) + " MB" : ""}</span></span><span style="white-space:nowrap"><button type="button" class="btn sm" data-d90o="${i}">👁 Open</button> <button type="button" class="btn sm" data-d90d="${i}">⬇ Download</button> <button type="button" class="btn sm ghost" data-d90x="${i}" title="Remove">✕</button></span></div>`).join("") || '<p class="small muted">No documents yet.</p>'}
+    <div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><select id="d90l">${DOCL90.map(x => `<option>${esc(x)}</option>`).join("")}</select><label class="btn sm primary">⬆ Add files<input type="file" id="d90f" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" hidden></label></div>
+    ${letters.length ? `<h3 style="margin-top:12px">Letters issued</h3>${letters.map(c => `<div class="a89r"><span>${esc((LT89[c.type]?.t) || (CERT62.find(x => x[0] === c.type) || [0, c.type])[1])} <span class="small muted">${esc(c.no || "")} · ${dmy(c.date)}</span></span>${LT89[c.type] ? `<button type="button" class="btn sm" data-d90p="${c.id}">🖨 Print</button>` : ""}</div>`).join("")}` : ""}</section>`;
+}
+function wireDocs90(root, e, after) {
+  const L = docsOf90(e);
+  $$("[data-d90o]", root).forEach(b => b.onclick = () => openFile62(L[+b.dataset.d90o].id, L[+b.dataset.d90o].name));
+  $$("[data-d90d]", root).forEach(b => b.onclick = () => dlDoc90(L[+b.dataset.d90d]));
+  $$("[data-d90x]", root).forEach(b => b.onclick = () => sure71(b, async () => { const R = JSON.parse(JSON.stringify(BIZ.rows[e.id])); R.docs = docsOf90(R).filter(d => d.id !== L[+b.dataset.d90x].id); await bizPut28(R); toast("Removed"); after?.(R); }, "Tap again to remove"));
+  $$("[data-d90p]", root).forEach(b => b.onclick = () => print89(BIZ.rows[b.dataset.d90p]));
+  const f = $("#d90f", root); f && (f.onchange = async ev => { const fs = [...ev.target.files]; if (!fs.length) return; try { const R = await addDocs90(e, fs, $("#d90l", root).value); after?.(R); } catch (er) { toast(er.message, "bad"); } });
+}
+/* employee panel gets the documents block */
+{
+  const _e = empPanel29;
+  empPanel29 = function (src) { _e.apply(this, arguments); try { if (!src?.id) return; const box = $("#dr26 .fields"); if (!box) return; const put = e => { $("#d90")?.remove(); box.insertAdjacentHTML("afterend", docsBlock90(e)); wireDocs90($("#d90"), e, R => put(R)); }; put(BIZ.rows[src.id] || src); } catch (e) { console.warn("p90 emp", e); } };
+}
+/* HR ▸ Employee register: tab "Employee documents" - every person, their files, one tap to download */
+{
+  const _x = VIEWS.hrx;
+  VIEWS.hrx = v => {
+    const U = BIZ.ui; if (U.h62 !== "docs") { _x(v); } else { U.h62 = "cert"; _x(v); U.h62 = "docs"; }
+    try {
+      const tabsRow = v.querySelector("[data-h62t]")?.parentElement; if (!tabsRow) return;
+      if (!tabsRow.querySelector('[data-h62t="docs"]')) { tabsRow.insertAdjacentHTML("afterbegin", `<button type="button" class="${tabsRow.querySelector("[data-h62t]").className.replace(/\bon\b|\bactive\b/g, "")}" data-h62t="docs">📎 Employee documents</button>`); tabsRow.firstElementChild.onclick = () => { U.h62 = "docs"; render(); }; }
+      if (U.h62 !== "docs") return;
+      $$("[data-h62t]", tabsRow).forEach(b => b.classList.toggle("on", b.dataset.h62t === "docs"));
+      const h = v.querySelector("h1"); if (h) h.textContent = "Employee documents & certificates";
+      const q = U.d90q || "", E = all28("emp").filter(e => e.status !== "left" && has71([e.name, e.code, e.designation, e.dept], q)).sort((a, b) => a.name.localeCompare(b.name));
+      const body = tabsRow.nextElementSibling, n = E.filter(e => docsOf90(e).length).length;
+      body.innerHTML = `<section class="panel"><header><h2>${n} of ${E.length} people have documents</h2>${srch71(U, "d90q", "Search name, code, department…")}</header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Employee</th><th>Designation</th><th>Documents</th><th></th></tr></thead><tbody>${E.map(e => { const L = docsOf90(e); return `<tr><td><b>${esc(e.name)}</b><div class="small muted">${esc(e.code || e.no || "")}</div></td><td class="small">${esc(e.designation || e.dept || "")}</td><td>${L.map((d, i) => `<button type="button" class="btn sm" data-d90g="${e.id}:${i}" title="Download ${esc(d.name || "")}">⬇ ${esc(d.label || d.name || "File")}</button>`).join(" ") || '<span class="chip warn">None</span>'}</td><td style="white-space:nowrap"><button type="button" class="btn sm" data-d90e="${e.id}">Open / add</button></td></tr>`; }).join("") || '<tr><td colspan="4" class="muted">No employees.</td></tr>'}</tbody></table></div></section>`;
+      wireSrch71(body, U);
+      $$("[data-d90g]", body).forEach(b => b.onclick = () => { const [id, i] = b.dataset.d90g.split(":"); dlDoc90(docsOf90(BIZ.rows[id])[+i]); });
+      $$("[data-d90e]", body).forEach(b => b.onclick = () => empPanel29(BIZ.rows[b.dataset.d90e]));
+    } catch (e) { console.warn("p90 docs", e); }
+  };
+  const hr = MODS32.find(m => m.id === "hr"); if (hr) { const T = hr.groups.Transactions ||= []; const c = ["Employee documents", "hrx", { h62: "docs" }, "Every person's certificates and ID proofs - open or download"]; if (!T.some(x => x[0] === c[0])) { T.unshift(c); try { CARDMOD64.set(c, "hr"); } catch { } } }
+}
+/* Joining kit: one form -> offer letter + appointment letter (+ employee) */
+function kit90() {
+  const r = { salut: "Mr.", date: todayISO(), position: "Engineer Trainee", duration: "", pay: "", gross: "", probation: "6 months", location: "Erode", reportTo: "Ms. S. Gowthami – AGM (Plant & Projects)", hours: "9:00 AM to 6:00 PM, Monday to Saturday", notice: "30 days", signName: "Mrs. S. Gowthami", signDesig: "Assistant General Manager – Plant & Projects", addEmp: "yes" };
+  const F = [["salut", "Mr / Ms", "select", ["Mr.", "Ms.", "Mrs."]], ["name", "Name *", "text"], ["addr", "Address - one line each", "textarea"], ["phone", "Phone", "tel"], ["position", "Position / designation", "text"], ["dept", "Department", "list", typeof DEPTS !== "undefined" ? DEPTS : []], ["start", "Joining date", "date"], ["duration", "Training period (leave empty for a direct hire)", "text"], ["pay", "Offer: stipend / salary ₹ per month", "text"], ["acceptBy", "Accept offer by", "date"], ["gross", "After joining: gross salary ₹ per month", "text"], ["probation", "Probation", "text"], ["location", "Work location", "text"], ["reportTo", "Reporting to", "text"], ["hours", "Working hours", "text"], ["notice", "Notice period", "text"], ["date", "Letter date", "date"], ["signName", "Signed by", "text"], ["signDesig", "Designation of signatory", "text"], ["addEmp", "Add to Employees list", "select", [["yes", "Yes"], ["no", "No"]]]];
+  const D = panel28({ title: "Joining kit - offer + appointment letter", body: `<p class="small" style="margin-top:0">Type the details once. Both letters are made, saved and can be edited and printed again any time from the list.</p><div class="fields">${F.map(f => field28(f, r)).join("")}</div>`, foot: `<span style="flex:1"></span><button class="btn" id="k90s" type="button">Save both</button><button class="btn primary" id="k90p" type="button">🖨 Save & print both</button>` });
+  const go = async (btn, pr) => {
+    readForm28(D, r); if (!r.name) return toast("Write the name", "bad");
+    const base = { kind: "cert", salut: r.salut, name: r.name, empName: r.name, addr: r.addr, position: r.position, dept: r.dept, start: r.start, location: r.location, reportTo: r.reportTo, date: r.date, signName: r.signName, signDesig: r.signDesig, kit: "K" + Date.now().toString(36) };
+    let emp = all28("emp").find(e => e.status !== "left" && String(e.name).toLowerCase() === String(r.name).toLowerCase());
+    const recs = [{ ...base, type: "offer", duration: r.duration, pay: r.pay, acceptBy: r.acceptBy }, { ...base, type: "appoint", pay: r.gross || r.pay, probation: r.probation, hours: r.hours, notice: r.notice, emp: emp?.id || "" }];
+    if (!emp && r.addEmp === "yes") { const g = Number(String(r.gross || r.pay).replace(/[^\d.]/g, "")) || 0; recs.push({ kind: "emp", status: "active", pf: "yes", esi: "yes", name: r.name, designation: r.position, dept: r.dept || "Office", doj: r.start || todayISO(), phone: r.phone || "", address: r.addr || "", gender: r.salut === "Mr." ? "Male" : "Female", basic: g ? Math.round(g * 0.6) : "", hra: g ? Math.round(g * 0.2) : "", allow: g ? g - Math.round(g * 0.6) - Math.round(g * 0.2) : "" }); }
+    const out = await save28(btn, recs, `Offer + appointment letter ready for ${r.name}`); if (!out) return;
+    const [o, a, e] = out; if (e && a && !a.emp) { try { await bizPut28({ ...a, emp: e.id }); } catch { } }
+    if (pr) await printBoth90([o, a]); closeDrawer26(); render();
+  };
+  $("#k90s", D).onclick = e => go(e.target); $("#k90p", D).onclick = e => go(e.target, 1);
+}
+async function printBoth90(list) {
+  const lh = await lhImg62();
+  const one = r => { const L = LT89[r.type]; return `<div style="page-break-after:always">${lh}<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px"><span>${esc(r.no || "")}<br>Date: ${esc(dmyDot89(r.date))}</span><img src="${LOGO89}" alt="Rivera" style="width:78px;height:auto"></div><h2 style="text-align:center;text-decoration:underline;letter-spacing:.06em;margin:10px 0 14px">${esc(L.t.toUpperCase())}</h2>${L.body(r)}<br><p>For <b>Rivera Coil Manufacturing India Pvt Ltd</b>,</p><br><br><p><b>${esc(r.signName || "Authorized Signatory")}</b><br>${esc(r.signDesig || "")}</p></div>`; };
+  printHtml28(`Joining kit - ${list[0].name}`, `<style>body{font-size:13.5px;line-height:1.55}ol,ul{margin-top:4px}li{margin:3px 0}</style>${list.filter(r => r && LT89[r.type]).map(one).join("")}`);
+}
+/* letters tab: Joining kit button first; kit letters print together */
+{
+  const _x = VIEWS.hrx;
+  VIEWS.hrx = v => { _x(v); try { if (BIZ.ui.h62 !== "letters") return; const g = v.querySelector(".lt89-c"); if (!g || g.querySelector("[data-k90]")) return; g.insertAdjacentHTML("afterbegin", `<button type="button" class="lt89-o" data-k90="1" style="border-color:#e8731a"><span>🧳</span><b>Joining kit (both letters)</b><small>Type the details once - offer letter + after-joining appointment letter</small></button>`); g.firstElementChild.onclick = () => kit90();
+    $$("[data-ltp]", v).forEach(b => { const c = BIZ.rows[b.dataset.ltp]; if (!c?.kit) return; const pair = all28("cert").filter(x => x.kit === c.kit).sort((a, b) => (a.type === "offer" ? 0 : 1) - (b.type === "offer" ? 0 : 1)); if (pair.length > 1) b.insertAdjacentHTML("afterend", ` <button type="button" class="btn sm" data-k90b="${c.kit}">🖨 Both</button>`); });
+    $$("[data-k90b]", v).forEach(b => b.onclick = () => printBoth90(all28("cert").filter(x => x.kit === b.dataset.k90b).sort((a, c) => (a.type === "offer" ? 0 : 1) - (c.type === "offer" ? 0 : 1)))); } catch (e) { console.warn("p90 kit", e); } };
+  const hr = MODS32.find(m => m.id === "hr"); if (hr) { const T = hr.groups.Transactions ||= []; const c = ["Joining kit (offer + appointment)", "hrx", { h62: "letters" }, "Type details once - both letters ready"]; if (!T.some(x => x[0] === c[0])) { T.unshift(c); try { CARDMOD64.set(c, "hr"); } catch { } } }
+}
+
+/* p90b: employee panel shows what is linked to the person in other departments - assets with them (Admin), leave (HR), attendance this month */
+function linked90(e) {
+  const nm = s => String(s || "").toLowerCase().replace(/[^a-z]/g, ""), en = nm(e.name), mail = String(e.email || "").toLowerCase();
+  const tm = (window.W62?.team || []).find(u => (mail && String(u.email).toLowerCase() === mail) || (en && nm(u.name) === en));
+  const who = tm?.email || mail;
+  const A = all28("fa").filter(a => a.holder && (String(a.holder).toLowerCase() === who || nm(a.holder) === en));
+  const LV = all28("lv").filter(l => (who && l.who === who) || (en && nm(l.whoName) === en) || l.emp === e.id).sort((a, b) => String(b.from).localeCompare(String(a.from))).slice(0, 6);
+  let att = ""; try { const s = attSum29(attDays29(e.id, month29(todayISO()))); att = `P ${s.P} · Half ${s.H} · Absent ${s.A} · Leave ${s.L}`; } catch { }
+  return `<section class="dr26-sec" id="l90"><h3>🔗 Linked</h3>${att ? `<div class="a89r"><span>Attendance this month</span><b>${att}</b></div>` : ""}
+    <div class="a89r"><span>Assets with ${esc(e.name.split(" ")[0])}</span><span>${A.map(a => `<button type="button" class="btn sm" data-l90a="${a.id}">${esc(a.name)} ${esc(a.tag || "")}</button>`).join(" ") || '<span class="small muted">None</span>'}</span></div>
+    <div class="a89r"><span>Leave</span><span class="small">${LV.map(l => `${esc(l.type || "")} ${dmy(l.from)}${l.to && l.to !== l.from ? "–" + dmy(l.to) : ""} (${esc(l.status)})`).join("<br>") || '<span class="muted">None</span>'}</span></div></section>`;
+}
+{
+  const _e = empPanel29;
+  empPanel29 = function (src) { _e.apply(this, arguments); try { if (!src?.id) return; const anchor = $("#d90") || $("#dr26 .fields"); if (!anchor || $("#l90")) return; anchor.insertAdjacentHTML("afterend", linked90(BIZ.rows[src.id] || src)); $$("[data-l90a]").forEach(b => b.onclick = () => faPanel62(BIZ.rows[b.dataset.l90a])); } catch (er) { console.warn("p90b", er); } };
+}
+
+/* p90c: Supplier repository - every supplier with POs, receipts (GRN), bills, payments, what we still owe, and the products bought from them (Purchase + Accounts + Admin) */
+function sups90() {
+  const M = new Map(), key = s => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const get = n => { const k = key(n); if (!k) return null; return M.get(k) || (M.set(k, { name: String(n).trim(), po: [], rn: [], bill: [], spay: [], gst: "" }), M.get(k)); };
+  ["po", "rn", "bill", "spay"].forEach(k => all28(k).forEach(x => { if (k === "po" && x.status === "cancelled") return; const s = get(x.supplier); if (!s) return; s[k].push(x); s.gst ||= x.gstin || x.gst_no || x.supGst || ""; }));
+  return [...M.values()].map(s => { const billed = s.bill.reduce((a, b) => a + (Number(b.total) || 0), 0), paid = s.spay.reduce((a, p) => a + (Number(p.amount) || 0), 0), ordered = s.po.reduce((a, p) => a + (Number(p.total) || 0), 0);
+    const owe = s.bill.reduce((a, b) => a + Math.max(0, billDue45(b)), 0), last = [...s.po, ...s.rn, ...s.bill, ...s.spay].map(x => x.date || "").sort().pop() || "";
+    const prods = [...new Set(s.po.flatMap(p => (p.lines || []).map(l => BIZ.rows[l.item]?.name || l.desc)).filter(Boolean))];
+    return { ...s, billed, paid, ordered, owe, last, prods }; }).sort((a, b) => b.last.localeCompare(a.last) || a.name.localeCompare(b.name));
+}
+function supPanel90(s) {
+  const row = x => `<button type="button" class="dr26-li" data-s90o="${x.id}"><b>${esc(x.no || x.kind.toUpperCase())} · ${x.date ? dmy(x.date) : ""}</b><small>${x.kind === "spay" ? "Paid " : ""}${x.total || x.amount ? inr28(Number(x.total || x.amount)) : ""}${x.kind === "bill" && billDue45(x) > 0 ? " · due " + inr28(billDue45(x)) : ""}${x.status ? " · " + esc(x.status) : ""}</small></button>`;
+  const sec = (t, L) => L.length ? `<section class="dr26-sec"><h3>${t} · ${L.length}</h3>${L.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 15).map(row).join("")}</section>` : "";
+  const D = panel28({ title: s.name, chips: `${s.gst ? `<span class="chip">GST ${esc(s.gst)}</span>` : ""}${s.owe > 0 ? `<span class="chip warn">We owe ${inr28(s.owe)}</span>` : '<span class="chip ok">Nothing due</span>'}`,
+    body: `<div class="dr26-k"><div><span>Ordered</span><b>${inr28(s.ordered)}</b></div><div><span>Billed</span><b>${inr28(s.billed)}</b></div><div><span>Paid</span><b>${inr28(s.paid)}</b></div><div><span>Due</span><b>${inr28(s.owe)}</b></div></div>
+      ${s.prods.length ? `<section class="dr26-sec"><h3>Products bought · ${s.prods.length}</h3><p class="small">${s.prods.map(esc).join(" · ")}</p></section>` : ""}${sec("Purchase orders", s.po)}${sec("Goods received (GRN)", s.rn)}${sec("Bills", s.bill)}${sec("Payments", s.spay)}`,
+    foot: `<span style="flex:1"></span>${typeof payPanel85 === "function" ? '<button class="btn" id="s90a" type="button">Advance payment</button>' : ""}<button class="btn primary" id="s90n" type="button">New PO to this supplier</button>` });
+  $$("[data-s90o]", D).forEach(b => b.onclick = () => open85(b.dataset.s90o));
+  $("#s90n", D).onclick = () => poPanel28({ kind: "po", status: "indent", date: todayISO(), reqBy: me28(), supplier: s.name, lines: [] });
+  $("#s90a", D) && ($("#s90a", D).onclick = () => payPanel85("advance", { supplier: s.name }));
+}
+if (!ROUTES.some(x => x[0] === "sup90")) ROUTES.push(["sup90", "Supplier repository", "box28"]);
+ALWAYS34.push("sup90");
+VIEWS.sup90 = v => {
+  bizSync28(); const U = BIZ.ui, q = U.s90q || "", L = sups90().filter(s => has71([s.name, s.gst, s.prods.join(" ")], q));
+  v.innerHTML = top62("Purchase · Accounts", "Supplier repository", `${L.length} suppliers · what we ordered, received, were billed, paid and still owe`, `<button type="button" class="btn" id="s90x">⬇ Sheet</button>`)
+    + `<section class="panel"><div class="body"><div class="row" style="margin-bottom:10px">${srch71(U, "s90q", "Search supplier, GST, product…")}</div><div style="overflow:auto"><table class="t"><thead><tr><th>Supplier</th><th class="n">POs</th><th class="n">Ordered ₹</th><th class="n">Billed ₹</th><th class="n">Paid ₹</th><th class="n">Due ₹</th><th>Last</th></tr></thead><tbody>${L.map((s, i) => `<tr data-s90="${i}" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="small muted">${esc(s.prods.slice(0, 3).join(", "))}${s.prods.length > 3 ? "…" : ""}</div></td><td class="n">${s.po.length}</td><td class="n">${inr28(s.ordered)}</td><td class="n">${inr28(s.billed)}</td><td class="n">${inr28(s.paid)}</td><td class="n">${s.owe > 0 ? `<b style="color:#b35c00">${inr28(s.owe)}</b>` : "—"}</td><td>${s.last ? dmy(s.last) : "—"}</td></tr>`).join("") || '<tr><td colspan="7" class="muted">No suppliers yet - they appear from POs, GRNs, bills and payments.</td></tr>'}</tbody></table></div></div></section>`;
+  wireSrch71(v, U);
+  $$("[data-s90]", v).forEach(r => r.onclick = () => supPanel90(L[+r.dataset.s90]));
+  $("#s90x", v).onclick = () => xlsx71("supplier-repository.xlsx", [["Supplier", "GST", "POs", "Ordered", "Billed", "Paid", "Due", "Last", "Products"], ...L.map(s => [s.name, s.gst, s.po.length, s.ordered, s.billed, s.paid, s.owe, s.last, s.prods.join(", ")])]);
+};
+{
+  const put = (mod, grp, c) => { const m = MODS32.find(x => x.id === mod); if (!m) return; const G = m.groups[grp] ||= []; if (G.some(x => x[1] === c[1])) return; G.unshift(c); try { CARDMOD64.set(c, mod); } catch { } };
+  const c = ["Supplier repository", "sup90", {}, "Every supplier - POs, GRN, bills, paid, due, products"];
+  put("purchase", "Masters", c); put("accounts", "Masters", [...c]); put("admin", "Masters", [...c]);
+  if (window.DEPT63?.purchase && !DEPT63.purchase.extra.includes("sup90")) DEPT63.purchase.extra.push("sup90");
+  if (window.DEPT63?.accounts && !DEPT63.accounts.extra.includes("sup90")) DEPT63.accounts.extra.push("sup90");
+}
+
+/* Purchase bill registers (GST + non-GST sections, many months per file) -> Product repository history. Petty expenses (food, fuel, travel, salary) are left out. */
+const PETTY90 = /vegetable|\begg|milk|petrol|diesel|fuel|salary|slry|stipend|food|grocery|flight|irctc|train|bus\b|hotel|room|chicken|mushroom|\btea\b|coffee|bread|\brice\b|\bdal\b|wheat|sugar|poojai|pooja|flower|refreshment|medicine|dolo|balm|tomato|onion|lemon|lunch|dinner|snacks|parcel|courier|speed post|stamp|travel|lens|chair re|tds service|tan exp|expense|expence|gas\b|b-gas|indane|domestic gas|kadukai|avarai|karunseeragam|nattu|harpic|washing powder|distilled water|water bottle/i;
+function phParse90(wb, src) {
+  const d10 = v => { if (v instanceof Date) { const d = new Date(v.getTime() + 432e5); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
+    const s = String(v ?? "").trim(); let m = s.match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/); if (!m) return ""; let [_, a, b, y] = m; if (y.length === 2) y = "20" + y; if (+b > 12) [a, b] = [b, a]; return `${y}-${b.padStart(2, "0")}-${a.padStart(2, "0")}`; };
+  const num = v => Number(String(v ?? "").replace(/[₹,\s`]/g, "")) || 0, out = [];
+  for (const sn of wb.SheetNames) {
+    const g = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: null }); let M = null;
+    for (const r of g) {
+      const low = r.map(c => String(c ?? "").toLowerCase().trim());
+      if (low.some(x => /^(description|item|product|material|particulars?|item description)$/.test(x)) && low.some(x => /vendor|supplier|party/.test(x))) {
+        const ix = re => low.findIndex(x => re.test(x));
+        M = { p: ix(/^(description|item|product|material|particulars?|item description)$/), s: ix(/vendor|supplier|party/), d: ix(/invoice date|bill date|^date$/), n: ix(/invoice no|bill no|inv no|po no/), g: ix(/gstin/), t: ix(/gst ?%|gst rate/), a: ix(/taxable|bill amount|^amount$|basic/), tot: ix(/total invoice|^total$|net payable/), q: ix(/^qty|quantity/), u: ix(/^unit$|uom/), rt: ix(/^rate|unit price/), gstSec: low.some(x => /gstin/.test(x)) };
+        continue;
+      }
+      if (!M) continue;
+      const p = String(r[M.p] ?? "").trim(), s = String(r[M.s] ?? "").trim(); if (!p || !s || /^total/i.test(p) || /^total/i.test(s)) continue;
+      if (!M.gstSec && PETTY90.test(p)) continue;
+      const amt = num(r[M.a]), qty = M.q >= 0 ? num(r[M.q]) : 0, rate = M.rt >= 0 ? num(r[M.rt]) : 0;
+      out.push({ kind: "ph", product: p.slice(0, 200), supplier: s.slice(0, 120), gstin: M.g >= 0 ? String(r[M.g] ?? "").trim() : "", date: M.d >= 0 ? d10(r[M.d]) : "", poNo: M.n >= 0 ? String(r[M.n] ?? "").replace(/^`/, "").trim() : "", gst: M.t >= 0 ? String(r[M.t] ?? "") : "", amount: amt, total: M.tot >= 0 ? num(r[M.tot]) : 0, qty: qty || (rate ? "" : 1), unit: M.u >= 0 ? String(r[M.u] ?? "") : (qty || rate ? "" : "bill"), rate: rate || (qty ? Math.round(amt / qty * 100) / 100 : amt), src: src || "" });
+    }
+  }
+  const seen = new Set(all28("ph").map(h => [h.supplier, h.poNo, h.product, h.date].join("|").toLowerCase()));
+  return out.filter(h => { const k = [h.supplier, h.poNo, h.product, h.date].join("|").toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; });
+}
+phImport88 = async function (file) {
+  try {
+    await loadScript(LIBS.sheetjs); const wb = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true }), out = phParse90(wb, file.name);
+    if (!out.length) return toast("Nothing new in this sheet (needs Vendor + Description columns, or everything is already in)", "bad");
+    if (!confirm(`Add ${out.length} purchases from ${file.name} to the Product repository?`)) return;
+    for (let i = 0; i < out.length; i += 150) { toast(`Saving ${Math.min(i + 150, out.length)} / ${out.length}…`); await bizPut28(out.slice(i, i + 150)); }
+    toast(`${out.length} purchases added`); render();
+  } catch (e) { toast("Import failed: " + e.message, "bad"); }
+};
+
+/* ===================== p91: interconnect - Supplier repository (every supplier: products, POs, receipts, bills, payments, old bills; one tap to each document)
+   and Employee 360 (documents, letters, assets held, leave, attendance this month inside the employee drawer) ===================== */
+const supKey91 = s => String(s || "").toLowerCase().replace(/\b(m\/s|pvt|private|ltd|limited|llp|india|the|co|company|corporation|corp|&|and|enterprises?|traders?|trading)\b|[.,()\-]/g, " ").replace(/\s+/g, " ").trim().split(" ").map(w => w.length > 3 ? w.replace(/s$/, "") : w).join(" ");
+function supRepo91() {
+  const M = new Map(), get = n => { const k = supKey91(n); if (!k) return null; if (!M.has(k)) M.set(k, { name: String(n).trim(), gstin: "", po: [], rn: [], bill: [], pay: [], ph: [], prods: new Set(), spend: 0, due: 0, last: "" }); return M.get(k); };
+  const touch = (s, d) => { if (d && String(d) > s.last) s.last = String(d).slice(0, 10); };
+  all28("po").filter(p => p.status !== "cancelled").forEach(p => { const s = get(p.supplier); if (!s) return; s.po.push(p); (p.lines || []).forEach(l => s.prods.add(BIZ.rows[l.item]?.name || l.desc)); touch(s, p.date); });
+  all28("rn").forEach(r => { const s = get(r.supplier); if (s) { s.rn.push(r); touch(s, r.date); } });
+  all28("bill").forEach(b => { const s = get(b.supplier); if (!s) return; s.bill.push(b); s.gstin ||= b.gstin || ""; s.spend += Number(b.total) || 0; touch(s, b.date); const paid = all28("spay").filter(p => p.bill === b.id).reduce((a, p) => a + (Number(p.amount) || 0), 0); s.due += Math.max(0, (Number(b.total) || 0) - paid); });
+  all28("spay").forEach(p => { const s = get(p.supplier || BIZ.rows[p.bill]?.supplier); if (s) { s.pay.push(p); touch(s, p.date); } });
+  all28("ph").forEach(h => { const s = get(h.supplier); if (!s) return; s.ph.push(h); s.prods.add(h.product); s.gstin ||= h.gstin || ""; if (!s.bill.length) s.spend += Number(h.total || h.amount) || 0; touch(s, h.date); });
+  return [...M.values()].map(s => ({ ...s, prods: [...s.prods].filter(Boolean) })).sort((a, b) => b.last.localeCompare(a.last) || a.name.localeCompare(b.name));
+}
+function sup360_91(s) {
+  const row = (t, d, b, sm, id) => `<button type="button" class="dr26-li" ${id ? `data-o91="${id}"` : ""}><b>${t}</b><small>${d ? dmy(String(d).slice(0, 10)) + " · " : ""}${b}${sm ? " · " + sm : ""}</small></button>`;
+  const sec = (t, L, f) => L.length ? `<section class="dr26-sec"><h3>${t} · ${L.length}</h3>${L.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 15).map(f).join("")}${L.length > 15 ? `<p class="small muted">+ ${L.length - 15} more</p>` : ""}</section>` : "";
+  const D = panel28({ title: s.name, chips: `${s.gstin ? `<span class="chip">${esc(s.gstin)}</span>` : ""}${s.due > 0 ? `<span class="chip warn">To pay ${inr28(s.due)}</span>` : ""}`,
+    body: `<div class="dr26-k"><div><span>Purchases</span><b>${inr28(s.spend)}</b></div><div><span>Products</span><b>${s.prods.length}</b></div><div><span>Orders</span><b>${s.po.length}</b></div><div><span>Last</span><b>${s.last ? dmy(s.last) : "—"}</b></div></div>
+      <div class="dr26-a"><button class="btn primary" id="s91n" type="button">New indent / PO</button><button class="btn" id="s91p" type="button">Product repository</button></div>
+      ${s.prods.length ? `<section class="dr26-sec"><h3>Products bought · ${s.prods.length}</h3><div class="row" style="flex-wrap:wrap;gap:4px">${s.prods.slice(0, 40).map(p => `<span class="chip">${esc(String(p).slice(0, 40))}</span>`).join("")}</div></section>` : ""}
+      ${sec("Purchase orders", s.po, p => row(`${esc(p.no || "draft")} · ${esc((PO_ST.find(x => x[0] === p.status) || [0, p.status])[1])}`, p.date, inr28(p.total), "", p.id))}
+      ${sec("Receipt notes (GRN)", s.rn, r => row(esc(r.no || ""), r.date, esc(r.status || ""), "", r.id))}
+      ${sec("Bills", s.bill, b => row(esc(b.billNo || b.no || ""), b.date, inr28(b.total), "", b.id))}
+      ${sec("Payments", s.pay, p => row(esc(p.no || p.ref || "Payment"), p.date, inr28(p.amount), esc(p.mode || ""), p.id))}
+      ${sec("Old purchase bills (Excel / email)", s.ph, h => row(esc(String(h.product).slice(0, 60)), h.date, h.amount ? inr28(h.amount) : "", esc(h.poNo || ""), ""))}` });
+  $$("[data-o91]", D).forEach(b => b.onclick = () => window.open85?.(b.dataset.o91));
+  $("#s91n", D).onclick = () => poPanel28({ kind: "po", status: "indent", date: todayISO(), reqBy: me28(), supplier: s.name, lines: [{ item: "", desc: "", qty: 1, unit: "nos", rate: "", gst: 18 }] });
+  $("#s91p", D).onclick = () => { closeDrawer26(); BIZ.ui.p87q = s.name; go32?.("prod87") ?? (location.hash = "prod87"); };
+}
+if (!ROUTES.some(x => x[0] === "sup91")) ROUTES.push(["sup91", "Supplier repository", "users"]);
+ALWAYS34.push("sup91");
+VIEWS.sup91 = v => {
+  bizSync28(); const U = BIZ.ui, q = U.s91q || "", L = supRepo91().filter(s => has71([s.name, s.gstin, s.prods.join(" ")], q));
+  v.innerHTML = top62("Purchase · Finance", "Supplier repository", `${L.length} suppliers · what we bought from each, orders, bills, payments, dues`, `<button type="button" class="btn" id="s91x">⬇ Sheet</button>`)
+    + `<section class="panel"><div class="body"><div class="row" style="margin-bottom:10px">${srch71(U, "s91q", "Search supplier, GSTIN, product…")}</div><div style="overflow:auto"><table class="t"><thead><tr><th>Supplier</th><th>Products (sample)</th><th class="n">Purchases ₹</th><th class="n">To pay ₹</th><th class="n">POs</th><th>Last</th></tr></thead><tbody>${L.slice(0, 400).map((s, i) => `<tr data-s91="${i}" style="cursor:pointer"><td><b>${esc(s.name)}</b>${s.gstin ? `<div class="small muted mono">${esc(s.gstin)}</div>` : ""}</td><td class="small">${esc(s.prods.slice(0, 3).join(", ").slice(0, 90))}${s.prods.length > 3 ? ` +${s.prods.length - 3}` : ""}</td><td class="n">${s.spend ? Math.round(s.spend).toLocaleString("en-IN") : "—"}</td><td class="n">${s.due > 0 ? `<b style="color:#b35c00">${Math.round(s.due).toLocaleString("en-IN")}</b>` : "—"}</td><td class="n">${s.po.length || "—"}</td><td>${s.last ? dmy(s.last) : "—"}</td></tr>`).join("") || '<tr><td colspan="6" class="muted">No suppliers yet.</td></tr>'}</tbody></table></div></div></section>`;
+  wireSrch71(v, U);
+  $$("[data-s91]", v).forEach(r => r.onclick = () => sup360_91(L[+r.dataset.s91]));
+  $("#s91x", v).onclick = () => xlsx71("supplier-repository.xlsx", [["Supplier", "GSTIN", "Purchases ₹", "To pay ₹", "POs", "Bills", "Last purchase", "Products"], ...L.map(s => [s.name, s.gstin, Math.round(s.spend), Math.round(s.due), s.po.length, s.bill.length + s.ph.length, s.last, s.prods.join(", ")])]);
+};
+{
+  const put = (mod, grp, c, first) => { const m = MODS32.find(x => x.id === mod); if (!m) return; const G = m.groups[grp] ||= []; if (G.some(x => x[1] === c[1])) return; first ? G.unshift(c) : G.push(c); try { CARDMOD64.set(c, mod); } catch { } };
+  const c = ["Supplier repository", "sup91", {}, "Every supplier - products, POs, bills, payments, dues"];
+  put("purchase", "Masters", c, true); put("accounts", "Masters", [...c]); put("admin", "Masters", [...c]);
+  if (window.DEPT63?.purchase && !DEPT63.purchase.extra.includes("sup91")) DEPT63.purchase.extra.push("sup91");
+  if (window.DEPT63?.accounts && !DEPT63.accounts.extra?.includes("sup91")) DEPT63.accounts.extra?.push("sup91");
+}
+/* Product repository: supplier names open the supplier drawer */
+{
+  const _pn = panel28;
+  panel28 = function (o) { const D = _pn.apply(this, arguments); try { if (STATE.route === "prod87" && o?.foot && /New indent for this/.test(o.foot)) setTimeout(() => { $$("tr[data-o87] td:nth-child(3)", D).forEach(td => { const n = td.textContent.trim(); if (!n) return; td.innerHTML = `<a href="#" data-s91n="${esc(n)}">${esc(n)}</a>`; td.firstChild.onclick = e => { e.preventDefault(); e.stopPropagation(); const s = supRepo91().find(x => supKey91(x.name) === supKey91(n)); if (s) sup360_91(s); }; }); }, 0); } catch { } return D; };
+}
+/* Employee 360: assets held, leave, attendance of this month inside the employee drawer */
+{
+  const _e = empPanel29;
+  empPanel29 = function (src) { _e.apply(this, arguments); try { if (!src?.id) return; const e = BIZ.rows[src.id] || src, nm = String(e.name || "").toLowerCase();
+    const A = all28("fa").filter(a => (e.email && a.holder === e.email) || (a.holderName && String(a.holderName).toLowerCase() === nm) || (a.user && String(a.user).toLowerCase() === nm));
+    const Lv = all28("lv").filter(l => (e.email && l.who === e.email) || String(l.whoName || "").toLowerCase() === nm).sort((a, b) => String(b.from).localeCompare(String(a.from))).slice(0, 6);
+    const mm = todayISO().slice(0, 7); let att = ""; try { const s = attSum29(attDays29(e.id, mm)); att = `P ${s.P} · Half ${s.H} · Leave ${s.L} · Absent ${s.A}`; } catch { }
+    let today = ""; try { const V = dayView89(todayISO()); const c = V.came.find(x => x.e.id === e.id); today = c ? `In ${String(c.p.in || "").slice(0, 5)}${c.p.out ? " · Out " + String(c.p.out).slice(0, 5) : ""}` : V.any ? (V.leave.some(x => x.id === e.id) ? "On leave" : "Not punched yet") : ""; } catch { }
+    const html = `<section class="dr26-sec" id="e91"><h3>👤 At a glance</h3><div class="dr26-k"><div><span>Today</span><b>${esc(today || "—")}</b></div><div><span>This month</span><b class="small">${esc(att || "—")}</b></div><div><span>Assets with</span><b>${A.length}</b></div><div><span>Leaves</span><b>${Lv.length}</b></div></div>
+      ${A.length ? `<h3 style="margin-top:10px">Assets with ${esc(e.name)}</h3>${A.map(a => `<button type="button" class="dr26-li" data-e91a="${a.id}"><b>${esc(a.name)}</b><small>${esc(a.tag || a.no || "")} · ${esc(a.status || "")}</small></button>`).join("")}` : ""}
+      ${Lv.length ? `<h3 style="margin-top:10px">Recent leave</h3>${Lv.map(l => `<div class="a89r"><span>${esc(l.type || "Leave")} · ${dmy(l.from)}${l.to && l.to !== l.from ? " – " + dmy(l.to) : ""}</span><span class="chip ${l.status === "approved" ? "ok" : l.status === "rejected" ? "bad" : "warn"}">${esc(l.status || "")}</span></div>`).join("")}` : ""}</section>`;
+    const box = $("#dr26 .fields"); if (!box) return; $("#e91")?.remove(); box.insertAdjacentHTML("beforebegin", html);
+    $$("[data-e91a]").forEach(b => b.onclick = () => faPanel62(BIZ.rows[b.dataset.e91a])); } catch (er) { console.warn("p91 emp", er); } };
+}
+
+/* ===================== p92: every printed document on the colour company letterhead (+ address footer), colours kept when printing ===================== */
+LHDOC86.test = () => true;
+{
+  const _p = printHtml28;
+  printHtml28 = function (title, inner) {
+    const h = String(inner || "").replace(/<img src="blob:[^"]*" style="width:100%;margin-bottom:8px" alt="">/g, "");
+    return _p.call(this, title, `<style>*{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}</style>` + h);
+  };
+}
+/* Password repository: grouped by category with counts, one-tap "Tidy up" (only after the master password unlocks it, all in this browser):
+   sorts entries out of "Other" by name / website, removes exact repeats (same name + same user + same password), keeps the newest */
+["Government / GST", "Customer / Supplier portal", "Website / Domain / Hosting", "Social media", "CCTV / Biometric"].forEach(c => { if (!VCAT62.includes(c)) VCAT62.splice(VCAT62.length - 1, 0, c); });
+const VCATRX92 = [["Finance / Bank", /bank|sbi|hdfc|icici|axis|cub\b|iob|kotak|canara|indusind|upi|paytm|phonepe|gpay|razorpay|net ?banking|credit card|loan|tally|zoho books|insurance/i], ["Government / GST", /gst|income ?tax|tds|traces|epfo|\bpf\b|esi|mca|udyam|msme|icegate|dgft|gem\b|e-?way|einvoice|e-?invoice|tnpcb|factor(y|ies)|labour|pt\b|nsic|tneb|eb bill/i], ["Email", /mail|gmail|outlook|zoho mail|webmail|rivera\.co\.in/i], ["Wi-Fi / Network", /wi-?fi|router|tp-?link|jio ?fiber|airtel|bsnl|broadband|lan\b|network|ssid/i], ["CCTV / Biometric", /cctv|dvr|nvr|camera|hikvision|cp ?plus|biometric|zkteco|essl|attendance device/i], ["Website / Domain / Hosting", /godaddy|domain|hosting|cpanel|wordpress|website|hostinger|cloudflare|dns/i], ["Social media", /facebook|instagram|linkedin|youtube|twitter|x\.com|whatsapp business|google business|indiamart|justdial|tradeindia/i], ["Device / Mobile", /mobile|phone|laptop|desktop|pc\b|imei|printer|apple id|icloud|windows|synology|nas\b/i], ["Customer / Supplier portal", /portal|vendor|supplier|bhel|ntpc|ongc|tneb|kpcl|nlc|coal india|ariba|sap|srm/i], ["Software / Portal", /software|license|adobe|autocad|solidworks|microsoft|office ?365|dropbox|google drive|canva|antivirus/i]];
+async function vtTidy92(btn) {
+  if (!VT62.key) return toast("Unlock first", "bad");
+  const I = VT62.items.slice(), seen = new Map(), dup = [], recat = [];
+  I.sort((a, b) => String(b.changed || b.at || "").localeCompare(String(a.changed || a.at || "")));
+  for (const i of I) { const k = [String(i.title).trim().toLowerCase(), String(i.d?.username || "").trim().toLowerCase(), i.d?.password || ""].join("\u0001"); if (seen.has(k)) dup.push(i); else seen.set(k, i); }
+  for (const i of seen.values()) { if (i.category && i.category !== "Other") continue; const s = [i.title, i.url, i.d?.username, i.d?.notes].join(" "); const c = VCATRX92.find(([, rx]) => rx.test(s)); if (c) recat.push([i, c[0]]); }
+  if (!dup.length && !recat.length) return toast("Already tidy - no repeats, categories fine");
+  if (!btn.dataset.sure) { btn.dataset.sure = 1; btn.textContent = `Tap again: remove ${dup.length} repeat${dup.length === 1 ? "" : "s"}, sort ${recat.length}`; setTimeout(() => { if (btn.isConnected) { delete btn.dataset.sure; btn.textContent = "🧹 Tidy up"; } }, 6000); return; }
+  btn.disabled = true;
+  try {
+    if (recat.length) await bizPut28(recat.map(([i, c]) => { const r = { ...BIZ.rows[i.id] }; r.category = c; return r; }));
+    for (const i of dup) await bizDel28(i.id);
+    toast(`Tidy: ${dup.length} repeats removed, ${recat.length} sorted into categories`); render();
+  } catch (e) { toast(e.message, "bad"); btn.disabled = false; }
+}
+{
+  const _v = VIEWS.vault;
+  VIEWS.vault = async v => {
+    await _v(v);
+    try {
+      if (!VT62.key) return;
+      const k = $("#vt62k", v); if (k && !$("#vt92t", v)) { k.insertAdjacentHTML("beforebegin", `<button class="btn" id="vt92t" type="button">🧹 Tidy up</button>`); $("#vt92t", v).onclick = e => vtTidy92(e.target); }
+      const q = VT62.q.toLowerCase(), L = VT62.items.filter(i => !q || [i.title, i.category, i.d.username, i.url, nm62(i.holder || "")].join(" ").toLowerCase().includes(q)).sort((a, b) => (a.category + a.title).localeCompare(b.category + b.title));
+      const R = $$(".vt62r", v), cnt = {}; L.forEach(i => cnt[i.category || "Other"] = (cnt[i.category || "Other"] || 0) + 1);
+      let last = null; R.forEach((r, ix) => { const c = L[ix]?.category || "Other"; if (c !== last) { r.insertAdjacentHTML("beforebegin", `<h3 class="vt92h">${esc(c)} <span class="chip">${cnt[c]}</span></h3>`); last = c; } });
+    } catch (e) { console.warn("p92 vault", e); }
+  };
+  document.head.insertAdjacentHTML("beforeend", `<style>.vt92h{margin:14px 0 6px;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:#5b6b80;display:flex;align-items:center;gap:8px}.vt92h:first-of-type{margin-top:0}</style>`);
+}
+
+/* ===================== p93: two companies everywhere in HR (RCM / RCR) · professional English QR posters (visitors, courier)
+   · courier app opens straight from its own QR with only the courier register · no approval wording for couriers ===================== */
+const CO93 = [["RCM", "Rivera Coil Manufacturing India Pvt Ltd"], ["RCR", "Rivera Coil Rewinding"]];
+const coOf93 = e => (e?.company === "RCR" ? "RCR" : "RCM");
+["Canteen", "Security", "Housekeeping"].forEach(d => { if (!DEPTS.includes(d)) DEPTS.splice(DEPTS.length - 1, 0, d); });
+/* employee drawer: Company field (RCM / RCR) at the top */
+{
+  const _e = empPanel29;
+  empPanel29 = function (src) { _e.apply(this, arguments); try { const f = $("#dr26 .fields"); if (!f || $('[data-k="company"]', f)) return; const r = src || {}; f.insertAdjacentHTML("afterbegin", field28(["company", "Company *", "select", CO93.map(([k, n]) => [k, `${k} · ${n}`])], { company: coOf93(r) })); } catch (e) { console.warn("p93 emp", e); } };
+}
+/* HR ▸ Employees: company chip on every row + All / RCM / RCR filter with counts */
+{
+  const _hr = VIEWS.hr;
+  VIEWS.hr = v => {
+    _hr(v);
+    try {
+      const U = BIZ.ui; if (!["emp", "att", "pay"].includes(U.hr || "emp")) return; const tb = v.querySelector("table"); if (!tb) return;
+      const idOf = r => r.dataset.em || r.querySelector("[data-ae]")?.dataset.ae || r.dataset.pd || r.querySelector("[data-pd]")?.dataset.pd || "";
+      const rows = $$("tbody tr", v).filter(r => BIZ.rows[idOf(r)]?.kind === "emp"), c = { RCM: 0, RCR: 0 }; all28("emp").forEach(e => { if (e.status !== "left") c[coOf93(e)]++; });
+      rows.forEach(r => { const e = BIZ.rows[idOf(r)]; const k = coOf93(e); r.cells[0].insertAdjacentHTML("beforeend", ` <span class="chip ${k === "RCR" ? "navy" : "ok"}" title="${esc(CO93.find(x => x[0] === k)[1])}">${k}</span>`); if (U.co93 && U.co93 !== k) r.style.display = "none"; });
+      const tl = v.querySelector('[role="tablist"]'), wrap = tl ? (tl.parentElement.matches("#view") ? tl : tl.parentElement) : (tb.closest("section") || tb.parentElement);
+      wrap.insertAdjacentHTML("beforebegin", `<div class="row" style="gap:6px;margin:0 0 10px;flex-wrap:wrap" id="co93">${[["", `All companies (${c.RCM + c.RCR})`], ["RCM", `RCM · Rivera Coil Manufacturing (${c.RCM})`], ["RCR", `RCR · Rivera Coil Rewinding (${c.RCR})`]].map(([k, l]) => `<button type="button" class="btn sm ${(U.co93 || "") === k ? "primary" : ""}" data-co93="${k}">${esc(l)}</button>`).join("")}</div>`);
+      $$("[data-co93]", v).forEach(b => b.onclick = () => { U.co93 = b.dataset.co93; render(); });
+    } catch (e) { console.warn("p93 hr", e); }
+  };
+}
+/* letters name the right company (RCR staff get Rivera Coil Rewinding) */
+{
+  const _b = print89;
+  print89 = async function (r) { const e = r.emp && BIZ.rows[r.emp] || all28("emp").find(x => String(x.name).toLowerCase() === String(r.name || "").toLowerCase()); if (!(e && coOf93(e) === "RCR" && r.type !== "intern")) return _b.call(this, r);
+    const _p = printHtml28; printHtml28 = (t, h) => _p(t, h.replace(/Rivera Coil Manufacturing India (Pvt Ltd|Private Limited)/g, "Rivera Coil Rewinding")); try { return await _b.call(this, r); } finally { printHtml28 = _p; } };
+}
+/* ---------- QR posters: clean English, A4, both companies, step by step ---------- */
+function poster93({ title, sub, steps, qr, url, foot, color }) {
+  return `<style>@page{size:A4;margin:10mm}.p93{text-align:center;font-family:Arial,Helvetica,sans-serif;color:#0f2340}.p93 .k{display:inline-block;background:${color};color:#fff;font-weight:700;letter-spacing:.14em;font-size:13px;padding:6px 16px;border-radius:999px;margin-top:6px}
+    .p93 h1{font-size:40px;margin:14px 0 4px;letter-spacing:.02em;color:#02315B}.p93 .s{font-size:17px;color:#41506a;margin:0 0 16px}.p93 .q{display:inline-block;border:6px solid ${color};border-radius:22px;padding:14px;background:#fff}.p93 .q img{width:330px;height:330px;display:block}
+    .p93 ol{list-style:none;padding:0;margin:20px auto 8px;max-width:640px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.p93 li{border:1.5px solid #d6dee9;border-radius:14px;padding:12px 10px;font-size:14px;line-height:1.35}.p93 li b{display:block;width:30px;height:30px;line-height:30px;border-radius:50%;background:#02315B;color:#fff;margin:0 auto 6px;font-size:15px}
+    .p93 .co{font-size:13px;color:#41506a;margin-top:10px}.p93 .u{font-size:10.5px;color:#7b879a;word-break:break-all;margin-top:6px}.p93 .f{margin-top:12px;font-size:12.5px;color:#41506a;border-top:1px solid #d6dee9;padding-top:8px}</style>
+    <div class="p93"><span class="k">${esc(sub)}</span><h1>${esc(title)}</h1><p class="s">Scan the QR code with your phone camera</p><div class="q">${qr ? `<img src="${qr}" alt="QR code">` : ""}</div>
+    <ol>${steps.map((s, i) => `<li><b>${i + 1}</b>${esc(s)}</li>`).join("")}</ol><p class="co">Rivera Coil Manufacturing India Pvt Ltd &nbsp;·&nbsp; Rivera Coil Rewinding</p><p class="f">${esc(foot)}</p><p class="u">${esc(url)}</p></div>`;
+}
+async function visPoster93() {
+  try { const K = await pubKeys71(), url = pubUrl71("vis", K.vis), img = await qr71(url, 600);
+    printHtml28("Visitor entry", poster93({ title: "Welcome, Visitors", sub: "VISITOR REGISTRATION", qr: img, url, color: "#E26A0C", steps: ["Scan the QR code and fill in your details with a photo", "Show the entry on your phone to security at the gate", "Collect your visitor pass and return it when you leave"], foot: "For your safety, please wear the visitor pass at all times, follow the PPE rules and stay with your host inside the premises." }));
+  } catch (e) { toast(e.message, "bad"); }
+}
+const courierUrl93 = code => `${(window.__RIVERA_LINKS__ || {}).site || "https://riverasalesindia-del.github.io/rivera-quote-studio/"}?app=courier&k=${encodeURIComponent(code)}`;
+async function courierPoster93() {
+  try { const K = await AUTH.call("work62", { op: "pubkeys" }); if (!K.cr) throw new Error("Server needs the new version"); const url = courierUrl93(K.cr), img = await qr71(url, 600);
+    printHtml28("Courier register", poster93({ title: "Courier Desk", sub: "SECURITY USE ONLY", qr: img, url, color: "#1e8e3e", steps: ["Scan once on the security phone - the courier register opens directly", "Tap Incoming or Outgoing and snap the courier label", "Save - AGM and HR are informed automatically"], foot: "Every parcel, document and cheque entering or leaving the premises must be entered here. Keep this poster at the security desk only." }));
+  } catch (e) { toast(e.message, "bad"); }
+}
+/* visitors page: poster button prints the new design */
+document.addEventListener("click", e => { const b = e.target.closest?.("#vs71pp"); if (!b) return; e.preventDefault(); e.stopImmediatePropagation(); visPoster93(); }, true);
+/* courier page setup box: one QR that opens the courier-only app, poster, link */
+{
+  const _r = render;
+  render = function () { const out = _r.apply(this, arguments); try { if (STATE.route !== "courier") return out; setTimeout(() => { const a = $("#k81a"); if (!a || a.dataset.p93) return; a.dataset.p93 = 1; a.ontoggle = async e => { if (!e.target.open) return; try { const K = await AUTH.call("work62", { op: "pubkeys" }); if (!K.cr) throw new Error("Server needs the new version"); const url = courierUrl93(K.cr), img = await qr71(url, 260);
+        $("#k81z").innerHTML = `<div class="row" style="gap:16px;align-items:center;flex-wrap:wrap">${img ? `<img src="${img}" style="width:170px;height:170px;border:1px solid #ddd;border-radius:8px" alt="Courier app QR">` : ""}<div style="flex:1;min-width:220px"><b>Scan this once on the security phone</b> - the courier register opens directly (no login, only the courier section). Add it to the home screen from the browser menu.<div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm primary" id="k93p">🖨 Print courier poster</button><button type="button" class="btn sm" data-copy="${esc(url)}">Copy link</button></div><p class="small muted" style="margin:6px 0 0">Entries come here at once and AGM + HR get a mail. No approval needed.</p></div></div>`;
+        $("#k93p").onclick = courierPoster93; $$("[data-copy]", $("#k81z")).forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast("Link copied"); } catch { toast(b.dataset.copy); } }); } catch (er) { $("#k81z").textContent = er.message; } }; }, 300); } catch { } return out; };
+}
+/* courier app: the code can come in the QR link; no "waiting approval" - entries are simply recorded */
+{
+  const sp = new URLSearchParams(location.search);
+  if (sp.get("app") === "courier" && sp.get("k")) { try { localStorage.setItem(CK81, sp.get("k").replace(/^RIVERA-COURIER:/i, "")); history.replaceState(null, "", location.pathname + "?app=courier"); } catch { } }
+  const _k = kiosk81;
+  kiosk81 = async function () { const out = await _k.apply(this, arguments); try { const fix = () => { $$(".k81-s .w").forEach(s => { s.className = "ok"; s.textContent = "✓ Recorded"; }); $$(".k81-s .ok").forEach(s => { if (/Approved/.test(s.textContent)) s.textContent = "✓ Recorded"; }); }; const l = $("#k81l"); if (l) new MutationObserver(fix).observe(l, { childList: true }); fix(); } catch { } return out; };
+  const _t = toast;
+  toast = function (m, t) { return _t.call(this, String(m).replace(" - AGM and HR will approve", " - AGM and HR are informed"), t); };
+}
+
+/* ===================== p94: Product repository made clear - fits the screen (no sideways scroll), totals on top,
+   filters (where it came from, company, year, sort), 50 at a time with "Show more", plain words (Bill amount instead of "1 bill") ===================== */
+const src94 = h => h.kind === "PO" || h.kind === "GRN" || h.kind === "Item" ? "app" : /email/i.test(h.src || "") ? "email" : "bills";
+const amt94 = h => (h.kind === "Old" || h.unit === "bill" || h.unit === "order") ? (Number(h.rate) || 0) : (Number(h.qty) || 0) * (Number(h.rate) || 0);
+function prodRows94() {
+  const L = prodRepo87();
+  L.forEach(p => { p.hist.forEach(h => { if (h.kind === "Old") { const r = BIZ.rows[h.id]; if (r) { h.src = r.src || ""; h.company = r.company || ""; h.unit = r.unit || h.unit; h.amount = Number(r.amount) || 0; } } });
+    p.spend = p.hist.reduce((a, h) => a + (h.kind === "Old" ? (h.amount || Number(h.rate) || 0) : (h.kind === "PO" ? (Number(h.qty) || 0) * (Number(h.rate) || 0) : 0)), 0);
+    p.srcs = [...new Set(p.hist.map(src94))]; p.cos = [...new Set(p.hist.map(h => h.company || (h.kind === "PO" || h.kind === "GRN" ? "RCM" : "")).filter(Boolean))];
+    p.years = [...new Set(p.hist.map(h => String(h.date || "").slice(0, 4)).filter(Boolean))]; });
+  return L;
+}
+const fy94 = d => { const y = +String(d).slice(0, 4), m = +String(d).slice(5, 7); if (!y) return ""; const s = m >= 4 ? y : y - 1; return `${s}-${String(s + 1).slice(2)}`; };
+function openProd94(p) {
+  const H = p.hist.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const lbl = h => h.kind === "PO" ? "Purchase order" : h.kind === "GRN" ? "Goods receipt" : h.kind === "Item" ? "Stock item" : src94(h) === "email" ? "From purchase email" : "Purchase bill";
+  const D = panel28({ title: p.name, chips: `<span class="chip">${p.n || H.length} purchase${(p.n || H.length) === 1 ? "" : "s"}</span>${p.spend ? `<span class="chip ok">Spent ${inr28(p.spend)}</span>` : ""}${p.stock != null ? `<span class="chip navy">In stock ${p.stock} ${esc(p.unit || "")}</span>` : ""}`,
+    body: `<div class="dr26-k"><div><span>Last bought</span><b>${p.last?.date ? dmy(p.last.date) : "—"}</b></div><div><span>Last supplier</span><b class="small">${esc(p.last?.supplier || "—")}</b></div><div><span>Suppliers</span><b>${p.sups.length}</b></div><div><span>Total spent</span><b>${p.spend ? inr28(p.spend) : "—"}</b></div></div>
+      ${p.sups.length ? `<section class="dr26-sec"><h3>Suppliers · ${p.sups.length}</h3><div class="row" style="gap:6px;flex-wrap:wrap">${p.sups.map(s => `<button type="button" class="btn sm" data-s94="${esc(s)}">${esc(s)} ›</button>`).join("")}</div></section>` : ""}
+      <section class="dr26-sec"><h3>Every purchase · ${H.length}</h3>${H.map(h => `<button type="button" class="dr26-li" ${h.kind !== "Old" && h.id ? `data-o87="${h.id}"` : ""}><b>${h.date ? dmy(h.date) : "No date"} · ${esc(h.supplier || "—")}</b><small>${lbl(h)}${h.no ? " · " + esc(h.no) : ""}${h.company ? " · " + esc(h.company) : ""} · ${h.kind === "Old" || h.unit === "bill" || h.unit === "order" ? (amt94(h) ? "Amount " + inr28(amt94(h)) : "Amount not given") : `${h.qty} ${esc(h.unit || "")} × ${h.rate ? inr28(h.rate) : "—"}`}${h.by ? " · by " + esc(who28(h.by)) : ""}</small></button>`).join("")}</section>`,
+    foot: `<span style="flex:1"></span>${p.item ? `<button class="btn" id="p87i" type="button">Stock item</button>` : ""}<button class="btn primary" id="p87n" type="button">New indent for this</button>` });
+  $$("[data-o87]", D).forEach(t => t.onclick = () => window.open85?.(t.dataset.o87));
+  $$("[data-s94]", D).forEach(b => b.onclick = () => { const s = typeof supRepo91 === "function" && supRepo91().find(x => supKey91(x.name) === supKey91(b.dataset.s94)); if (s) sup360_91(s); });
+  $("#p87i", D) && ($("#p87i", D).onclick = () => itemPanel28(BIZ.rows[p.item]));
+  $("#p87n", D).onclick = () => poPanel28({ kind: "po", status: "indent", date: todayISO(), reqBy: me28(), supplier: p.last?.supplier || "", lines: [{ item: p.item || "", desc: p.name, qty: 1, unit: p.unit && !/bill|order/.test(p.unit) ? p.unit : "nos", rate: p.last?.kind === "Old" ? "" : p.last?.rate || "", gst: 18 }] });
+}
+VIEWS.prod87 = v => {
+  bizSync28(); const U = BIZ.ui, q = U.p87q || "", src = U.p94s || "", co = U.p94c || "", yr = U.p94y || "", sort = U.p94o || "recent", lim = U.p94n || 50;
+  const ALL = prodRows94(), years = [...new Set(ALL.flatMap(p => p.hist.map(h => fy94(h.date))).filter(Boolean))].sort().reverse();
+  let L = ALL.filter(p => has71([p.name, p.sups.join(" "), p.last?.no, p.last?.by], q) && (!src || p.srcs.includes(src)) && (!co || p.cos.includes(co)) && (!yr || p.hist.some(h => fy94(h.date) === yr)));
+  L.sort(sort === "spend" ? (a, b) => b.spend - a.spend : sort === "times" ? (a, b) => (b.hist.length - a.hist.length) : sort === "az" ? (a, b) => a.name.localeCompare(b.name) : (a, b) => String(b.last?.date || "").localeCompare(String(a.last?.date || "")));
+  const sup = new Set(L.flatMap(p => p.sups)), spend = L.reduce((a, p) => a + p.spend, 0), fyNow = fy94(todayISO()), thisYr = ALL.reduce((a, p) => a + p.hist.filter(h => fy94(h.date) === fyNow).length, 0);
+  const sel = (k, opts, cur) => `<select data-p94="${k}" class="p94s">${opts.map(([val, l]) => `<option value="${esc(val)}" ${val === cur ? "selected" : ""}>${esc(l)}</option>`).join("")}</select>`;
+  v.innerHTML = top62("Purchase · Admin", "Product repository", "Everything we have bought - tap a product to see every purchase, supplier and rate", `<label class="btn">⬆ Import purchase Excel<input type="file" id="p88imp" accept=".xlsx,.xls,.csv" hidden></label><button type="button" class="btn" id="p87x">⬇ Excel</button>`)
+    + `<div class="p94k">${[["Products", L.length.toLocaleString("en-IN")], ["Suppliers", sup.size.toLocaleString("en-IN")], ["Total spent", inr28(spend)], [`Purchases in FY ${fyNow}`, thisYr]].map(([l, n]) => `<div><span>${esc(l)}</span><b>${n}</b></div>`).join("")}</div>
+    <section class="panel"><div class="body"><div class="p94f">${srch71(U, "p87q", "Search product, supplier, PO no…")}
+      ${sel("p94s", [["", "All sources"], ["app", "Made in the app (PO / GRN)"], ["bills", "Old purchase bills"], ["email", "Purchase email"]], src)}${sel("p94c", [["", "Both companies"], ["RCM", "RCM"], ["RCR", "RCR"]], co)}${sel("p94y", [["", "All years"], ...years.map(y => [y, "FY " + y])], yr)}${sel("p94o", [["recent", "Newest first"], ["spend", "Most spent"], ["times", "Bought most often"], ["az", "A → Z"]], sort)}</div>
+      <div class="p94l">${L.slice(0, lim).map((p, i) => `<button type="button" class="p94r" data-p94i="${i}"><div class="p94a"><b>${esc(p.name)}</b><small>${p.sups.length > 1 ? `${p.sups.length} suppliers · ` : ""}${p.srcs.map(s => s === "app" ? "In app" : s === "email" ? "Email" : "Old bills").join(" · ")}${p.cos.length ? " · " + p.cos.join(" / ") : ""}${p.ds?.length ? ` · 📄 ${p.ds.length} datasheet${p.ds.length > 1 ? "s" : ""}` : ""}</small></div>
+        <div class="p94b"><span>Last bought</span><b>${p.last?.date ? dmy(p.last.date) : "—"}</b><small>${esc(p.last?.supplier || "")}</small></div>
+        <div class="p94c"><span>Times</span><b>${p.hist.length}</b></div><div class="p94d"><span>Spent</span><b>${p.spend ? inr28(p.spend) : "—"}</b></div>${p.stock != null ? `<div class="p94c"><span>Stock</span><b>${p.stock}</b></div>` : ""}<i>›</i></button>`).join("") || '<p class="muted" style="padding:20px;text-align:center">Nothing matches - clear the search or filters.</p>'}</div>
+      ${L.length > lim ? `<button type="button" class="btn block" id="p94m" style="margin-top:10px">Show more (${(L.length - lim).toLocaleString("en-IN")} more)</button>` : ""}</div></section>`;
+  wireSrch71(v, U);
+  $$("[data-p94]", v).forEach(s => s.onchange = () => { U[s.dataset.p94] = s.value; U.p94n = 50; render(); });
+  $$("[data-p94i]", v).forEach(r => r.onclick = () => openProd94(L[+r.dataset.p94i]));
+  $("#p94m", v) && ($("#p94m", v).onclick = () => { U.p94n = lim + 100; render(); });
+  $("#p88imp", v).onchange = e => e.target.files[0] && phImport88(e.target.files[0]);
+  $("#p87x", v).onclick = () => xlsx71("product-repository.xlsx", [["Product", "Last supplier", "Last bought", "Document no", "Times bought", "Total spent ₹", "All suppliers", "Source", "Company"], ...L.map(p => [p.name, p.last?.supplier, p.last?.date, p.last?.no, p.hist.length, Math.round(p.spend), p.sups.join(", "), p.srcs.join(", "), p.cos.join(", ")])]);
+};
+document.head.insertAdjacentHTML("beforeend", `<style>
+.p94k{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px;margin:0 0 12px}.p94k div{background:var(--card,#fff);border:1px solid var(--line,#e3e8ef);border-radius:12px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}.p94k span{font-size:.72rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#64748b)}.p94k b{font-size:1.35rem}
+.p94f{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-bottom:12px}.p94f .q71{flex:1 1 260px;min-width:0;width:auto!important;border:1.5px solid var(--line,#d6dee9);border-radius:10px;padding:9px 12px;font:inherit}.p94f select.p94s{flex:0 0 auto;width:auto!important;max-width:100%;border:1.5px solid var(--line,#d6dee9);border-radius:10px;padding:8px 10px;font:inherit;background:var(--card,#fff)}@media (max-width:760px){.p94f select.p94s{flex:1 1 45%}}
+.p94l{display:flex;flex-direction:column;gap:6px}.p94r{display:flex;align-items:center;gap:14px;width:100%;text-align:left;background:var(--card,#fff);border:1px solid var(--line,#e3e8ef);border-radius:12px;padding:10px 14px;cursor:pointer;font:inherit;color:inherit}.p94r:hover{border-color:#E26A0C;box-shadow:0 2px 10px rgba(226,106,12,.12)}
+.p94r>div{display:flex;flex-direction:column;min-width:0}.p94a{flex:1 1 auto}.p94a b{font-size:.95rem;overflow-wrap:anywhere}.p94a small,.p94b small{color:var(--muted,#64748b);font-size:.76rem;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.p94b{flex:0 0 170px}.p94c{flex:0 0 60px;text-align:right}.p94d{flex:0 0 120px;text-align:right}
+.p94r span{font-size:.66rem;text-transform:uppercase;letter-spacing:.06em;color:var(--muted,#64748b)}.p94r i{font-style:normal;font-size:1.4rem;color:#b0bac8}
+@media (max-width:760px){.p94k{grid-template-columns:repeat(2,minmax(0,1fr))}.p94r{flex-wrap:wrap;gap:8px 14px}.p94a{flex-basis:100%}.p94b{flex:1 1 100%}.p94c,.p94d{flex:0 0 auto;text-align:left}.p94r i{display:none}}
+</style>`);
+
+document.head.insertAdjacentHTML("beforeend", `<style>@media (min-width:900px) and (max-width:1600px){.n51 .n51-d>.n51-i,.n51>.n51-i{padding-left:4px!important;padding-right:4px!important;font-size:.76rem!important;letter-spacing:-.01em}.n51 .n51-new{padding:6px 9px!important}.n51 .n51-ic{padding:1px 3px!important}}@media (min-width:900px) and (max-width:1380px){.n51 .n51-d>.n51-i,.n51>.n51-i{font-size:.7rem!important;padding-left:3px!important;padding-right:3px!important}}</style>`);
+
+document.head.insertAdjacentHTML("beforeend", `<style>@media (max-width:760px){#view>.topbar{flex-wrap:wrap!important;gap:10px!important}#view>.topbar>div:not(.row){flex:1 1 calc(100% - 64px)!important;min-width:0}#view>.topbar>.row{flex:1 1 100%!important;justify-content:flex-start}#view>.topbar p{word-break:normal}}</style>`);
+
+/* ===================== p95: Purchase order printed exactly like the Rivera paper PO (signatures by hand),
+   quotations with GST, long menus scroll ===================== */
+const CORCR95 = { name: "RIVERA COIL REWINDING", short: "Rivera Coil Rewinding", gst: "33AMTPP0122H1Z6", addr: CO85.addr, pin: CO85.pin, ph: CO85.ph };
+const PO_TERMS95 = sup => [`Delivery : Within 10-15 Days from Date of confirmed PO.`, `Payment : 50 % advance against the Performa invoice & balance before Dispatch.`, `${sup} shall pack and dispatch the items in good condition to avoid any damages.`, `${sup} shall issue the QA test certificates at the time of delivery.`, `The finished goods were delivered within the given date. As per the terms and conditions any delay in delivery attracts an LD clause on the total order value.`];
+poPrint85 = async function (r) {
+  const L = r.lines || [], tx = L.reduce((a, l) => a + (Number(l.qty) || 0) * (Number(l.rate) || 0), 0), exact = poTotal28(r), gst = exact - tx, tot = Math.round(exact), roff = tot - exact;
+  const igst = r.supplierGstin ? !String(r.supplierGstin).trim().startsWith("33") : false, rate = Math.round(gst / (tx || 1) * 100);
+  const RCR = r.company === "RCR", C = RCR ? CORCR95 : { name: CO85.name, short: CO85.short, gst: CO85.gst, addr: CO85.addr, pin: CO85.pin, ph: CO85.ph };
+  const sup = r.supplier || "Supplier", terms = String(r.terms || "").split(/\n/).map(s => s.trim()).filter(Boolean), T = terms.length > 1 ? terms : [...(terms.length ? [`Payment : ${terms[0]}`] : []), ...PO_TERMS95(sup).filter((t, i) => !(terms.length && i === 1))];
+  const units = [...new Set(L.map(l => String(l.unit || "").toLowerCase()))], uh = units.length === 1 && units[0] ? units[0].replace(/^./, c => c.toUpperCase()) : "Nos";
+  const f2 = n => (Number(n) || 0).toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const row = (k, v) => `<tr><td class="k">${k}</td><td>: ${esc(v || "")}</td></tr>`;
+  const ref = r.refMail || r.quoteDate || r.quoteRef ? ` for Your reference ${r.quoteRef ? esc(r.quoteRef) + " " : ""}${r.refMail || r.quoteDate ? "Mail Dt: " + dmy(r.refMail || r.quoteDate).replace(/-/g, ".") : ""}` : "";
+  const sumRow = (l, v, b) => `<tr><td colspan="3" class="nb"></td><th class="st">${l}</th><td class="n">${b ? "<b>" : ""}${v}${b ? "</b>" : ""}</td></tr>`;
+  const html = `<style>.po95{font:12.5px/1.45 "Times New Roman",Georgia,serif;color:#111}.po95 h2{text-align:center;font:700 17px "Times New Roman",serif;letter-spacing:.04em;margin:6px 0 10px}
+    .po95 .top{display:flex;justify-content:space-between;align-items:flex-start;gap:14px}.po95 .kv td{padding:1px 4px;border:0;vertical-align:top}.po95 .kv td.k{width:72px}.po95 .top>div{flex:1 1 auto}.po95 .kv{width:auto!important;margin:2px 0}.po95 .box{border-collapse:collapse;width:260px!important;flex:0 0 260px;margin:0}.po95 .box td{border:1px solid #222;padding:3px 8px}
+    .po95 .it{width:100%;border-collapse:collapse;margin:8px 0 6px}.po95 .it th,.po95 .it td{border:1px solid #222;padding:4px 7px}.po95 .it th{background:#f2f2f2;font-weight:700}.po95 .n{text-align:right;white-space:nowrap}.po95 .nb{border:0!important}.po95 .st{text-align:left;background:#fff!important}
+    .po95 ol{margin:2px 0 0 18px;padding:0}.po95 li{margin:2px 0}.po95 .sg{display:flex;justify-content:space-between;align-items:flex-end;margin-top:46px;font-weight:700}.po95 .sg div{min-width:150px;border-top:1px solid #555;padding-top:4px;text-align:center}</style>
+    <div class="po95"><h2>PURCHASE ORDER</h2>
+    <div class="top"><div><b>VENDOR</b><table class="kv">${row("Name", sup)}${row("Address", r.supplierAddr)}${row("Pin code", r.supplierPin)}${row("Ph.No", r.supplierPhone)}${row("GSTIN", r.supplierGstin)}</table></div>
+      <table class="box"><tr><td>PO Date</td><td><b>${dmy(r.date).replace(/-/g, ".")}</b></td></tr><tr><td>PO No</td><td><b>${esc(r.no || "")}</b></td></tr></table></div>
+    <p style="margin:8px 0 0"><b>DELIVER TO</b></p><table class="kv">${row("Name", C.short)}${row("Address", r.deliverTo || C.addr)}${row("Pin code", C.pin)}${row("Ph.No", C.ph)}${row("GSTIN", C.gst)}</table>
+    <p style="margin:10px 0 2px">Dear ${esc(sup)},</p><p style="margin:0 0 4px">We are pleased to place an order for the following item(s)${ref}.</p>
+    <table class="it"><thead><tr><th style="width:42px">S.No</th><th>Item Name and Description</th><th class="n" style="width:70px">Qty/${esc(uh)}</th><th class="n" style="width:95px">Unit Price</th><th class="n" style="width:110px">Amount</th></tr></thead><tbody>
+      ${L.map((l, i) => `<tr><td>${i + 1}</td><td>${esc([BIZ.rows[l.item]?.name, l.desc].filter((x, j, a) => x && a.indexOf(x) === j).join(" — "))}</td><td class="n">${esc(l.qty)}${units.length > 1 && l.unit ? " " + esc(l.unit) : ""}</td><td class="n">${f2(l.rate)}</td><td class="n">${f2((Number(l.qty) || 0) * (Number(l.rate) || 0))}</td></tr>`).join("")}
+      ${sumRow("SUB TOTAL", f2(tx), 1)}${gst ? (igst ? sumRow(`IGST ${rate}%`, f2(gst)) : sumRow(`CGST ${rate / 2}%`, f2(gst / 2)) + sumRow(`SGST ${rate / 2}%`, f2(gst / 2))) : ""}${Math.abs(roff) >= 0.005 ? sumRow("Round Off", (roff > 0 ? "+" : "") + roff.toFixed(2)) : ""}${sumRow("TOTAL", f2(tot), 1)}</tbody></table>
+    <p style="margin:8px 0"><b><u>Amount in Words</u></b> : <b>Rupees ${esc(amountInWords(tot, "INR", "").replace(/^INR\s*/i, "").replace(/^Rupees\s*/i, "").replace(/\s*only\.?$/i, ""))} Only.</b></p>
+    <p style="margin:8px 0 2px"><b><u>Commercial Terms and Conditions:</u></b></p><ol>${T.map(t => `<li>${esc(t)}</li>`).join("")}${r.needBy ? `<li>Required on or before ${dmy(r.needBy).replace(/-/g, ".")}.</li>` : ""}<li>Please quote our PO number on your invoice and delivery challan.</li></ol>
+    ${r.notes ? `<p>${esc(r.notes)}</p>` : ""}
+    <div class="sg"><div>Prepared by</div><div>Verified</div><div>Authorized Signature</div></div></div>`;
+  printHtml28("Purchase order " + (r.no || ""), RCR ? html : lhPage85(html));
+};
+/* Quotations: GST shown and added - Sub total, GST %, Total with GST, amount in words (editable GST %) */
+{
+  const _b = blankQuote; blankQuote = function () { const Q = _b.apply(this, arguments); if ((Q.currency || "INR") === "INR" && Q.template !== "export") { Q.showGst = true; Q.gstPct ||= 18; } return Q; };
+  const _w = quoteFromWorkings; quoteFromWorkings = function () { const Q = _w.apply(this, arguments); if ((Q.currency || "INR") === "INR" && Q.template !== "export") { Q.showGst = true; Q.gstPct ||= 18; } return Q; };
+}
+/* one supplier repository (the full one with old bills too) */
+if (VIEWS.sup90 && VIEWS.sup91) { VIEWS.sup90 = v => VIEWS.sup91(v); MODS32.forEach(m => Object.keys(m.groups).forEach(g => { m.groups[g] = m.groups[g].filter(c => c[1] !== "sup90"); })); }
+/* long top-menu lists open in two columns so nothing needs scrolling; duplicate menu entries removed */
+MODS32.forEach(m => Object.keys(m.groups).forEach(g => { const seen = new Set(); m.groups[g] = m.groups[g].filter(c => { const k = c[0] + "|" + c[1] + "|" + JSON.stringify(c[2] || {}); if (seen.has(k)) return false; seen.add(k); return true; }); }));
+MODS32.forEach(m => { const seen = new Set(); Object.keys(m.groups).forEach(g => { m.groups[g] = m.groups[g].filter(c => { const k = String(c[0]).toLowerCase(); if (seen.has(k)) return false; seen.add(k); return true; }); }); });
+document.head.insertAdjacentHTML("beforeend", `<style>@media (min-width:900px){.n51-p:has(> button:nth-of-type(12)){columns:2;column-gap:0;min-width:470px;max-height:calc(100vh - 64px)}.n51-p:has(> button:nth-of-type(12))>*{break-inside:avoid}.n51-pr:has(> button:nth-of-type(12)){right:0;left:auto}}.n51-p::-webkit-scrollbar{width:8px}.n51-p::-webkit-scrollbar-thumb{background:#c5ced9;border-radius:8px}</style>`);
+
+/* Store: import the monthly "Stock Details" Excel (RCM, RCR Production, PPE, packing, stationery, tools, first aid) - items + stock as on today */
+const STKCAT95 = { "rcm": ["Raw material", "RCM"], "rcr production": ["Production consumables", "RCR"], "ppe": ["PPE", ""], "sheet4": ["Packing material", ""], "sheet5": ["Stationery", ""], "sheet6": ["Tools", ""], "sheet7": ["First aid", ""] };
+function stkParse95(wb) {
+  const UN = /^(nos|no|roll|rolls|kg|kgs|mtr|mtrs|m|ltr|ltrs|litre|box|bandle|bundle|pkt|packet|pair|pairs|set|sets|sheet|sheets|can|tin|bottle|tube|ream|pcs|piece|pieces)\.?$/i, out = [];
+  for (const sn of wb.SheetNames) {
+    const g = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, defval: "" }); if (g.length < 3) continue;
+    const h1 = (g[1] || []).map(String), bal = h1.map((x, i) => /balance/i.test(x) ? i : -1).filter(i => i >= 0), cat = STKCAT95[sn.trim().toLowerCase()] || [sn.trim(), ""];
+    for (const r of g.slice(2)) {
+      const s = /^\d+$/.test(String(r[1]).trim()) ? 1 : 0, name = String(r[1 + s] || "").trim(); if (!name || /^total/i.test(name)) continue;
+      const f2 = String(r[2 + s] ?? "").trim(), f3 = String(r[3 + s] ?? "").trim(); let unit = UN.test(f3) ? f3 : UN.test(f2) ? f2 : "nos"; const spec = UN.test(f2) ? "" : f2;
+      let q = ""; for (const i of bal) if (String(r[i + s] ?? r[i]).trim() !== "") q = r[i + s] ?? r[i]; if (q === "") q = r[4 + s];
+      out.push({ name: name.replace(/\s+/g, " "), spec, unit: unit.toLowerCase().replace(/^bandle$/, "bundle"), qty: Number(String(q).replace(/[^\d.-]/g, "")) || 0, category: cat[0], company: cat[1] });
+    }
+  }
+  return out;
+}
+async function stkImport95(file, date) {
+  try {
+    await loadScript(LIBS.sheetjs); const L = stkParse95(window.XLSX.read(await file.arrayBuffer(), { type: "array" })); if (!L.length) return toast("No items found in this Excel", "bad");
+    if (!confirm(`Bring ${L.length} store items and their stock (as in ${file.name}) into the app?`)) return;
+    const key = (n, s) => (n + " " + (s || "")).toLowerCase().replace(/\s+/g, " ").trim(), have = new Map(all28("item").map(i => [key(i.name, i.spec), i]));
+    const newItems = L.filter(x => !have.has(key(x.name, x.spec))).map(x => ({ kind: "item", name: x.name, spec: x.spec, unit: x.unit, category: x.category, company: x.company }));
+    for (let i = 0; i < newItems.length; i += 100) (await bizPut28(newItems.slice(i, i + 100))).forEach(it => have.set(key(it.name, it.spec), it));
+    const d = date || todayISO(), moves = L.map(x => { const it = have.get(key(x.name, x.spec)); const diff = x.qty - stockOf28(it.id); return diff ? { kind: "move", item: it.id, qty: diff, rate: 0, type: "opening", date: d, ref: "Stock count", note: `Stock as per ${file.name}` } : null; }).filter(Boolean);
+    for (let i = 0; i < moves.length; i += 100) await bizPut28(moves.slice(i, i + 100));
+    toast(`${newItems.length} new items, ${moves.length} stock figures updated`); render();
+  } catch (e) { toast("Import failed: " + e.message, "bad"); }
+}
+{
+  const _v = VIEWS.stock88;
+  if (_v) VIEWS.stock88 = v => { _v(v); try { const bar = v.querySelector(".topbar .row"); if (bar && !$("#stk95", v)) { bar.insertAdjacentHTML("afterbegin", `<label class="btn">⬆ Import stock Excel<input type="file" id="stk95" accept=".xlsx,.xls" hidden></label>`); $("#stk95", v).onchange = e => e.target.files[0] && stkImport95(e.target.files[0]); } } catch { } };
+}
+
+/* ===================== p96: wide tables readable to the last column - compact attendance grid that fits a laptop,
+   names and dates stay fixed while scrolling, and a "⛶ Full screen" button on every table that is wider than the screen ===================== */
+document.head.insertAdjacentHTML("beforeend", `<style>
+.att29 th,.att29 td{padding:2px 1px!important}.att29 button.at29{min-width:0!important;width:27px!important;height:26px!important;font-size:.68rem!important;border-radius:5px!important}
+.att29 thead th{position:sticky;top:0;z-index:2;background:var(--surface,#fff)}.att29 thead th:first-child{z-index:3}.att29 td:first-child b{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.att29 td:last-child,.att29 th:last-child{position:sticky;right:0;background:var(--surface,#fff);z-index:1;box-shadow:-6px 0 8px -6px rgba(0,0,0,.18)}.att29 thead th:last-child{z-index:3}
+.fs96b{display:flex;justify-content:flex-end;margin:0 0 6px}.fs96b button{font-size:.78rem}
+.fs96{position:fixed!important;inset:0!important;z-index:9000!important;margin:0!important;border-radius:0!important;background:var(--bg,#f4f6f9)!important;display:flex!important;flex-direction:column;padding:10px 12px!important;max-width:none!important;width:auto!important}
+.fs96>.fs96h{display:flex;align-items:center;gap:10px;margin-bottom:8px}.fs96>.fs96h b{flex:1;font-size:1rem}.fs96 .tablewrap,.fs96 .fs96s{flex:1;overflow:auto!important;max-height:none!important}
+.fs96 table thead th{position:sticky;top:0;z-index:2;background:var(--surface,#fff)}.fs96 table td:first-child,.fs96 table th:first-child{position:sticky;left:0;background:var(--surface,#fff);z-index:1}.fs96 table thead th:first-child{z-index:3}
+body.fs96on{overflow:hidden}
+</style>`);
+function fs96(sec, title) {
+  if (sec.classList.contains("fs96")) { sec.classList.remove("fs96"); $(".fs96h", sec)?.remove(); document.body.classList.remove("fs96on"); return; }
+  sec.classList.add("fs96"); document.body.classList.add("fs96on");
+  sec.insertAdjacentHTML("afterbegin", `<div class="fs96h"><b>${esc(title || document.querySelector("#view h1")?.textContent || "")}</b>${$("#at29s") && sec.querySelector(".att29") ? '<button type="button" class="btn sm" data-fs96s>Mark today present for all</button><button type="button" class="btn sm primary" data-fs96v>💾 Save attendance</button>' : ""}<button type="button" class="btn sm" data-fs96x>✕ Close full screen</button></div>`);
+  $("[data-fs96x]", sec).onclick = () => fs96(sec);
+  $("[data-fs96s]", sec) && ($("[data-fs96s]", sec).onclick = () => $("#at29all")?.click());
+  $("[data-fs96v]", sec) && ($("[data-fs96v]", sec).onclick = () => { const b = $("#at29s"); if (!b || b.disabled) return toast("Nothing changed yet"); fs96(sec); b.click(); });
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") { const s = $(".fs96"); if (s) fs96(s); } });
+{
+  const _r = render;
+  render = function () { const out = _r.apply(this, arguments); setTimeout(() => { try {
+      const v = $("#view"); if (!v) return; document.body.classList.remove("fs96on");
+      $$("table", v).forEach(t => { const box = t.closest(".tablewrap") || t.parentElement; if (!box || box.dataset.fs96) return; const sec = t.closest("section.panel") || box; if (sec.dataset.fs96 || sec.classList.contains("fs96")) return;
+        const wide = t.classList.contains("att29") || t.scrollWidth > box.clientWidth + 24; if (!wide) return; box.dataset.fs96 = sec.dataset.fs96 = 1;
+        if (!box.classList.contains("tablewrap")) { box.classList.add("fs96s"); box.style.overflow = "auto"; }
+        sec.insertAdjacentHTML("beforebegin", `<div class="fs96b"><button type="button" class="btn sm">⛶ Full screen${t.classList.contains("att29") ? " (all days)" : ""}</button></div>`);
+        sec.previousElementSibling.querySelector("button").onclick = () => fs96(sec, t.classList.contains("att29") ? "Attendance · " + ($("#view [type=month]")?.value || "") : ""); });
+    } catch (e) { console.warn("p96", e); } }, 150); return out; };
+}
+
 boot();
 
 </script>
