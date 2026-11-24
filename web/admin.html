@@ -15492,6 +15492,77 @@ async function vtTidy92(btn) {
   document.head.insertAdjacentHTML("beforeend", `<style>.vt92h{margin:14px 0 6px;font-size:.78rem;text-transform:uppercase;letter-spacing:.06em;color:#5b6b80;display:flex;align-items:center;gap:8px}.vt92h:first-of-type{margin-top:0}</style>`);
 }
 
+/* ===================== p93: two companies everywhere in HR (RCM / RCR) · professional English QR posters (visitors, courier)
+   · courier app opens straight from its own QR with only the courier register · no approval wording for couriers ===================== */
+const CO93 = [["RCM", "Rivera Coil Manufacturing India Pvt Ltd"], ["RCR", "Rivera Coil Rewinding"]];
+const coOf93 = e => (e?.company === "RCR" ? "RCR" : "RCM");
+["Canteen", "Security", "Housekeeping"].forEach(d => { if (!DEPTS.includes(d)) DEPTS.splice(DEPTS.length - 1, 0, d); });
+/* employee drawer: Company field (RCM / RCR) at the top */
+{
+  const _e = empPanel29;
+  empPanel29 = function (src) { _e.apply(this, arguments); try { const f = $("#dr26 .fields"); if (!f || $('[data-k="company"]', f)) return; const r = src || {}; f.insertAdjacentHTML("afterbegin", field28(["company", "Company *", "select", CO93.map(([k, n]) => [k, `${k} · ${n}`])], { company: coOf93(r) })); } catch (e) { console.warn("p93 emp", e); } };
+}
+/* HR ▸ Employees: company chip on every row + All / RCM / RCR filter with counts */
+{
+  const _hr = VIEWS.hr;
+  VIEWS.hr = v => {
+    _hr(v);
+    try {
+      const U = BIZ.ui; if (!["emp", "att", "pay"].includes(U.hr || "emp")) return; const tb = v.querySelector("table"); if (!tb) return;
+      const idOf = r => r.dataset.em || r.querySelector("[data-ae]")?.dataset.ae || r.dataset.pd || r.querySelector("[data-pd]")?.dataset.pd || "";
+      const rows = $$("tbody tr", v).filter(r => BIZ.rows[idOf(r)]?.kind === "emp"), c = { RCM: 0, RCR: 0 }; all28("emp").forEach(e => { if (e.status !== "left") c[coOf93(e)]++; });
+      rows.forEach(r => { const e = BIZ.rows[idOf(r)]; const k = coOf93(e); r.cells[0].insertAdjacentHTML("beforeend", ` <span class="chip ${k === "RCR" ? "navy" : "ok"}" title="${esc(CO93.find(x => x[0] === k)[1])}">${k}</span>`); if (U.co93 && U.co93 !== k) r.style.display = "none"; });
+      const tl = v.querySelector('[role="tablist"]'), wrap = tl ? (tl.parentElement.matches("#view") ? tl : tl.parentElement) : (tb.closest("section") || tb.parentElement);
+      wrap.insertAdjacentHTML("beforebegin", `<div class="row" style="gap:6px;margin:0 0 10px;flex-wrap:wrap" id="co93">${[["", `All companies (${c.RCM + c.RCR})`], ["RCM", `RCM · Rivera Coil Manufacturing (${c.RCM})`], ["RCR", `RCR · Rivera Coil Rewinding (${c.RCR})`]].map(([k, l]) => `<button type="button" class="btn sm ${(U.co93 || "") === k ? "primary" : ""}" data-co93="${k}">${esc(l)}</button>`).join("")}</div>`);
+      $$("[data-co93]", v).forEach(b => b.onclick = () => { U.co93 = b.dataset.co93; render(); });
+    } catch (e) { console.warn("p93 hr", e); }
+  };
+}
+/* letters name the right company (RCR staff get Rivera Coil Rewinding) */
+{
+  const _b = print89;
+  print89 = async function (r) { const e = r.emp && BIZ.rows[r.emp] || all28("emp").find(x => String(x.name).toLowerCase() === String(r.name || "").toLowerCase()); if (!(e && coOf93(e) === "RCR" && r.type !== "intern")) return _b.call(this, r);
+    const _p = printHtml28; printHtml28 = (t, h) => _p(t, h.replace(/Rivera Coil Manufacturing India (Pvt Ltd|Private Limited)/g, "Rivera Coil Rewinding")); try { return await _b.call(this, r); } finally { printHtml28 = _p; } };
+}
+/* ---------- QR posters: clean English, A4, both companies, step by step ---------- */
+function poster93({ title, sub, steps, qr, url, foot, color }) {
+  return `<style>@page{size:A4;margin:10mm}.p93{text-align:center;font-family:Arial,Helvetica,sans-serif;color:#0f2340}.p93 .k{display:inline-block;background:${color};color:#fff;font-weight:700;letter-spacing:.14em;font-size:13px;padding:6px 16px;border-radius:999px;margin-top:6px}
+    .p93 h1{font-size:40px;margin:14px 0 4px;letter-spacing:.02em;color:#02315B}.p93 .s{font-size:17px;color:#41506a;margin:0 0 16px}.p93 .q{display:inline-block;border:6px solid ${color};border-radius:22px;padding:14px;background:#fff}.p93 .q img{width:330px;height:330px;display:block}
+    .p93 ol{list-style:none;padding:0;margin:20px auto 8px;max-width:640px;display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.p93 li{border:1.5px solid #d6dee9;border-radius:14px;padding:12px 10px;font-size:14px;line-height:1.35}.p93 li b{display:block;width:30px;height:30px;line-height:30px;border-radius:50%;background:#02315B;color:#fff;margin:0 auto 6px;font-size:15px}
+    .p93 .co{font-size:13px;color:#41506a;margin-top:10px}.p93 .u{font-size:10.5px;color:#7b879a;word-break:break-all;margin-top:6px}.p93 .f{margin-top:12px;font-size:12.5px;color:#41506a;border-top:1px solid #d6dee9;padding-top:8px}</style>
+    <div class="p93"><span class="k">${esc(sub)}</span><h1>${esc(title)}</h1><p class="s">Scan the QR code with your phone camera</p><div class="q">${qr ? `<img src="${qr}" alt="QR code">` : ""}</div>
+    <ol>${steps.map((s, i) => `<li><b>${i + 1}</b>${esc(s)}</li>`).join("")}</ol><p class="co">Rivera Coil Manufacturing India Pvt Ltd &nbsp;·&nbsp; Rivera Coil Rewinding</p><p class="f">${esc(foot)}</p><p class="u">${esc(url)}</p></div>`;
+}
+async function visPoster93() {
+  try { const K = await pubKeys71(), url = pubUrl71("vis", K.vis), img = await qr71(url, 600);
+    printHtml28("Visitor entry", poster93({ title: "Welcome, Visitors", sub: "VISITOR REGISTRATION", qr: img, url, color: "#E26A0C", steps: ["Scan the QR code and fill in your details with a photo", "Show the entry on your phone to security at the gate", "Collect your visitor pass and return it when you leave"], foot: "For your safety, please wear the visitor pass at all times, follow the PPE rules and stay with your host inside the premises." }));
+  } catch (e) { toast(e.message, "bad"); }
+}
+const courierUrl93 = code => `${(window.__RIVERA_LINKS__ || {}).site || "https://riverasalesindia-del.github.io/rivera-quote-studio/"}?app=courier&k=${encodeURIComponent(code)}`;
+async function courierPoster93() {
+  try { const K = await AUTH.call("work62", { op: "pubkeys" }); if (!K.cr) throw new Error("Server needs the new version"); const url = courierUrl93(K.cr), img = await qr71(url, 600);
+    printHtml28("Courier register", poster93({ title: "Courier Desk", sub: "SECURITY USE ONLY", qr: img, url, color: "#1e8e3e", steps: ["Scan once on the security phone - the courier register opens directly", "Tap Incoming or Outgoing and snap the courier label", "Save - AGM and HR are informed automatically"], foot: "Every parcel, document and cheque entering or leaving the premises must be entered here. Keep this poster at the security desk only." }));
+  } catch (e) { toast(e.message, "bad"); }
+}
+/* visitors page: poster button prints the new design */
+document.addEventListener("click", e => { const b = e.target.closest?.("#vs71pp"); if (!b) return; e.preventDefault(); e.stopImmediatePropagation(); visPoster93(); }, true);
+/* courier page setup box: one QR that opens the courier-only app, poster, link */
+{
+  const _r = render;
+  render = function () { const out = _r.apply(this, arguments); try { if (STATE.route !== "courier") return out; setTimeout(() => { const a = $("#k81a"); if (!a || a.dataset.p93) return; a.dataset.p93 = 1; a.ontoggle = async e => { if (!e.target.open) return; try { const K = await AUTH.call("work62", { op: "pubkeys" }); if (!K.cr) throw new Error("Server needs the new version"); const url = courierUrl93(K.cr), img = await qr71(url, 260);
+        $("#k81z").innerHTML = `<div class="row" style="gap:16px;align-items:center;flex-wrap:wrap">${img ? `<img src="${img}" style="width:170px;height:170px;border:1px solid #ddd;border-radius:8px" alt="Courier app QR">` : ""}<div style="flex:1;min-width:220px"><b>Scan this once on the security phone</b> - the courier register opens directly (no login, only the courier section). Add it to the home screen from the browser menu.<div class="row" style="gap:6px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm primary" id="k93p">🖨 Print courier poster</button><button type="button" class="btn sm" data-copy="${esc(url)}">Copy link</button></div><p class="small muted" style="margin:6px 0 0">Entries come here at once and AGM + HR get a mail. No approval needed.</p></div></div>`;
+        $("#k93p").onclick = courierPoster93; $$("[data-copy]", $("#k81z")).forEach(b => b.onclick = async () => { try { await navigator.clipboard.writeText(b.dataset.copy); toast("Link copied"); } catch { toast(b.dataset.copy); } }); } catch (er) { $("#k81z").textContent = er.message; } }; }, 300); } catch { } return out; };
+}
+/* courier app: the code can come in the QR link; no "waiting approval" - entries are simply recorded */
+{
+  const sp = new URLSearchParams(location.search);
+  if (sp.get("app") === "courier" && sp.get("k")) { try { localStorage.setItem(CK81, sp.get("k").replace(/^RIVERA-COURIER:/i, "")); history.replaceState(null, "", location.pathname + "?app=courier"); } catch { } }
+  const _k = kiosk81;
+  kiosk81 = async function () { const out = await _k.apply(this, arguments); try { const fix = () => { $$(".k81-s .w").forEach(s => { s.className = "ok"; s.textContent = "✓ Recorded"; }); $$(".k81-s .ok").forEach(s => { if (/Approved/.test(s.textContent)) s.textContent = "✓ Recorded"; }); }; const l = $("#k81l"); if (l) new MutationObserver(fix).observe(l, { childList: true }); fix(); } catch { } return out; };
+  const _t = toast;
+  toast = function (m, t) { return _t.call(this, String(m).replace(" - AGM and HR will approve", " - AGM and HR are informed"), t); };
+}
+
 boot();
 
 </script>
