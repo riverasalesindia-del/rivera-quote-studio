@@ -14976,6 +14976,235 @@ VIEWS.test88 = v => {
   [["store", "stock88"], ["prod", "stock88"], ["purchase", "stock88"], ["sales", "cust88"], ["sales", "test88"], ["quality", "test88"], ["accounts", "cust88"]].forEach(([d, t]) => { if (window.DEPT63?.[d] && !DEPT63[d].extra.includes(t)) DEPT63[d].extra.push(t); });
 }
 
+/* ===================== p89: HR - fingerprint / face device (ZKTeco MB360) attendance in the app: who came / who did not, in & out times,
+   first punch = IN, last punch = OUT (no need for the device's check-in/check-out key), fills the attendance grid, daily 10:30 mail to HR + AGM;
+   office-PC sync program; punch file upload; Offer letter / Internship-cum-placement offer / Appointment letter with every field editable;
+   employee list Edit / Remove; employee details import (DOB, marriage date, DOJ, phone, UAN…) ===================== */
+const SRV89 = "https://script.google.com/macros/s/AKfycbyQ2QR_G9qbU7KaCBVa6gO9w0hRkVeaSiqqCNOVAjQaVolGdUmgfy0FWQis14vo_By3/exec";
+const LATE89 = "09:15";
+const nm89 = s => String(s || "").toLowerCase().replace(/^(mr|ms|mrs)\.?\s+/, "").replace(/[^a-z]/g, "");
+const emps89 = () => all28("emp").filter(e => e.status !== "left");
+function empOfPd89(p, E = emps89()) { return E.find(e => e.bioId && String(e.bioId) === String(p.uid)) || (p.devName ? E.find(e => !e.bioId && (nm89(e.name) === nm89(p.devName) || (nm89(p.devName).length >= 4 && nm89(e.name).startsWith(nm89(p.devName))))) : null); }
+const hrs89 = p => { if (!p.in || !p.out) return 0; const [a, b] = [p.in, p.out].map(t => { const [h, m] = t.split(":").map(Number); return h * 60 + m; }); return Math.max(0, (b - a) / 60); };
+function dayView89(day) {
+  const E = emps89(), P = all28("pd").filter(p => p.day === day), used = new Set(), came = [];
+  E.forEach(e => { const p = P.find(x => !used.has(x.id) && empOfPd89(x, [e]) === e); if (p) { used.add(p.id); came.push({ e, p }); } });
+  const onLeave = all28("lv").filter(l => l.status === "approved" && l.from <= day && l.to >= day);
+  const leave = E.filter(e => !came.some(c => c.e === e) && onLeave.some(l => l.emp === e.id || nm89(l.whoName) === nm89(e.name)));
+  const absent = E.filter(e => !came.some(c => c.e === e) && !leave.includes(e));
+  return { came: came.sort((a, b) => String(a.p.in).localeCompare(String(b.p.in))), absent, leave, unknown: P.filter(p => !used.has(p.id)), total: E.length, any: P.length };
+}
+/* attendance grid ← device */
+async function fillGrid89(mm, btn) {
+  const E = emps89(), P = all28("pd").filter(p => String(p.day).startsWith(mm)), today = todayISO(), recs = [];
+  const last = new Date(+mm.slice(0, 4), +mm.slice(5, 7), 0).getDate();
+  for (const e of E) {
+    const cur = { ...attDays29(e.id, mm) }, ch = {};
+    for (let d = 1; d <= last; d++) { const dd = String(d).padStart(2, "0"), iso = `${mm}-${dd}`; if (iso > today) break; if (["L", "WO", "HO"].includes(cur[dd])) continue;
+      const p = P.find(x => x.day === iso && empOfPd89(x, [e]) === e);
+      if (p) { const h = hrs89(p), code = p.out && h > 0 && h < 4.5 ? "H" : "P"; if (cur[dd] !== code) ch[dd] = code; }
+      else if (iso < today && new Date(iso + "T00:00:00").getDay() !== 0 && !cur[dd] && all28("pd").some(x => x.day === iso)) ch[dd] = "A"; }
+    if (Object.keys(ch).length) { const a = attRec29(e.id, mm) ? JSON.parse(JSON.stringify(attRec29(e.id, mm))) : { kind: "att", emp: e.id, month: mm, days: {} }; a.days = { ...cur, ...(a.days || {}), ...ch }; recs.push(a); }
+  }
+  if (!recs.length) return toast("Grid already matches the device");
+  await save28(btn, recs, `Attendance filled from the device for ${recs.length} employees`); render();
+}
+/* punch file from the device (USB: attlog.dat / ZK software Excel or CSV) */
+async function punchFile89(file) {
+  let rows = [];
+  if (/\.(xlsx?|csv)$/i.test(file.name)) { await loadScript(LIBS.sheetjs); const wb = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true }); const g = window.XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, defval: "" });
+    const hi = g.slice(0, 10).findIndex(r => r.some(c => /time|date/i.test(c)) && r.some(c => /id|no|code/i.test(c))); if (hi < 0) return toast("Could not find ID and Date/Time columns", "bad");
+    const h = g[hi].map(c => String(c).toLowerCase()), ix = re => h.findIndex(x => re.test(x)), ii = ix(/(user|emp|ac)[\s.-]*(id|no)|^id$|^no\.?$|code/), ni = ix(/name/), ti = ix(/date.?time|time.?stamp|check.?time|punch.?time/), di = ix(/^date/), tmi = ix(/^time/);
+    g.slice(hi + 1).forEach(r => { let ts = ti >= 0 ? String(r[ti]) : `${r[di]} ${r[tmi]}`; const m = ts.match(/(\d{1,4})[-/.](\d{1,2})[-/.](\d{1,4})\D+(\d{1,2}):(\d{2})(?::(\d{2}))?/); if (!m || !String(r[ii]).trim()) return; const [y, mo, d] = m[1].length === 4 ? [m[1], m[2], m[3]] : [m[3].length === 2 ? "20" + m[3] : m[3], m[2], m[1]]; rows.push({ uid: String(r[ii]).trim(), name: ni >= 0 ? String(r[ni]).trim() : "", ts: `${y}-${mo.padStart(2, "0")}-${d.padStart(2, "0")} ${m[4].padStart(2, "0")}:${m[5]}:${m[6] || "00"}` }); }); }
+  else { (await file.text()).split(/\r?\n/).forEach(l => { const m = l.trim().match(/^(\S+)\s+(\d{4}-\d{2}-\d{2})\s+(\d{2}:\d{2}:\d{2})/); if (m) rows.push({ uid: m[1], name: "", ts: `${m[2]} ${m[3]}` }); }); }
+  if (!rows.length) return toast("No punches found in this file", "bad");
+  const G = {}; rows.forEach(r => { const k = r.ts.slice(0, 10) + "|" + r.uid; (G[k] ||= { day: r.ts.slice(0, 10), uid: r.uid, name: r.name, t: [] }).t.push(r.ts.slice(11, 19)); });
+  const have = {}; all28("pd").forEach(x => have[x.day + "|" + x.uid] = x);
+  const recs = Object.entries(G).map(([k, g]) => { const o = have[k], t = [...new Set([...(o?.punches || []), ...g.t])].sort(); return { ...(o ? JSON.parse(JSON.stringify(o)) : { kind: "pd", day: g.day, uid: g.uid }), devName: g.name || o?.devName || "", punches: t, in: t[0], out: t.length > 1 ? t.at(-1) : "", src: o?.src || "file" }; });
+  if (!confirm(`Add ${rows.length} punches (${recs.length} person-days) from ${file.name}?`)) return;
+  for (let i = 0; i < recs.length; i += 150) { toast(`Saving ${Math.min(i + 150, recs.length)} / ${recs.length}…`); await bizPut28(recs.slice(i, i + 150)); }
+  toast("Punches added"); render();
+}
+/* office-PC program that reads the device every 5 minutes */
+async function devSetup89() {
+  let key = ""; try { key = (await AUTH.call("work62", { op: "pubkeys" })).att || ""; } catch (e) { return toast(e.message, "bad"); }
+  const last = all28("pd").filter(p => p.src === "device").sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")))[0];
+  const py = `# Rivera ERP - fingerprint / face device sync (ZKTeco MB360)
+# Reads the device on the office network every 5 minutes and sends new punches to Rivera ERP.
+# The app takes the FIRST punch of the day as IN and the LAST punch as OUT - the device's check-in/check-out key is not needed.
+import json, os, sys, time, datetime, urllib.request
+DEVICE_IP = "192.168.0.126"   # MB360 > Comm > Wireless network > Details > IP Address
+DEVICE_PORT = 4370
+SERVER = "${SRV89}"
+KEY = "${key}"
+HERE = os.path.dirname(os.path.abspath(__file__))
+STATE = os.path.join(HERE, "rivera_att_last.txt")
+
+def post(payload):
+    req = urllib.request.Request(SERVER, data=json.dumps(payload).encode("utf-8"), headers={"Content-Type": "text/plain"})
+    return json.loads(urllib.request.urlopen(req, timeout=90).read().decode("utf-8"))
+
+def once():
+    from zk import ZK
+    last = open(STATE).read().strip() if os.path.exists(STATE) else (datetime.date.today() - datetime.timedelta(days=31)).isoformat() + " 00:00:00"
+    conn = ZK(DEVICE_IP, port=DEVICE_PORT, timeout=15, ommit_ping=True).connect()
+    try:
+        names = {str(u.user_id): u.name for u in conn.get_users()}
+        rows = [(str(a.user_id), a.timestamp.strftime("%Y-%m-%d %H:%M:%S")) for a in conn.get_attendance()]
+    finally:
+        conn.disconnect()
+    new = [{"uid": u, "name": names.get(u, ""), "ts": t} for u, t in rows if t > last]
+    for i in range(0, len(new), 1500):
+        r = post({"action": "attPush", "k": KEY, "device": DEVICE_IP, "punches": new[i:i + 1500]})
+        if not r.get("ok"):
+            raise Exception(r.get("error"))
+    if new:
+        open(STATE, "w").write(max(p["ts"] for p in new))
+    print(datetime.datetime.now().strftime("%d-%m %H:%M"), "device users:", len(names), "| new punches sent:", len(new))
+
+while True:
+    try:
+        once()
+    except Exception as e:
+        print(datetime.datetime.now().strftime("%d-%m %H:%M"), "problem:", e, "- check the device is on and on the same Wi-Fi")
+    if "--once" in sys.argv:
+        break
+    time.sleep(300)
+`;
+  const bat = `@echo off\r\ntitle Rivera ERP - attendance sync\r\ncd /d %~dp0\r\npy -m pip install --quiet pyzk\r\npy rivera_attendance_sync.py\r\npause\r\n`;
+  const dl = (name, text) => { const a = document.createElement("a"); a.href = URL.createObjectURL(new Blob([text], { type: "text/plain" })); a.download = name; a.click(); setTimeout(() => URL.revokeObjectURL(a.href), 4000); };
+  const D = panel28({ title: "Fingerprint device → app", chips: last ? `<span class="chip ok">Last punch received ${new Date(last.at).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}</span>` : '<span class="chip warn">Nothing received yet</span>',
+    body: `<div class="note" style="margin-bottom:10px">The device (ZKTeco MB360, IP <b>192.168.0.126</b>) sits on the office Wi-Fi. One office PC on the <b>same Wi-Fi (RiveraTP-Link C6)</b> reads it every 5 minutes and sends the punches here. Without that PC you can still <b>upload the punch file</b> from the device's USB.</div>
+      <ol class="st89"><li><b>Office PC:</b> install Python from <b>python.org</b> (tick <i>Add Python to PATH</i>).</li><li>Download the two files below into one folder, e.g. <code>C:\\RiveraAttendance</code>.</li><li>Double-click <b>start.bat</b>. It installs the device library once and starts sending. Keep the window open (or put a shortcut to start.bat in <code>shell:startup</code> so it starts with Windows).</li><li>Open HR ▸ Attendance - today's punches appear. Link any device ID that is not matched to an employee (shown in orange).</li></ol>
+      <div class="row" style="gap:8px;flex-wrap:wrap;margin:10px 0"><button class="btn primary" id="d89a" type="button">⬇ rivera_attendance_sync.py</button><button class="btn" id="d89b" type="button">⬇ start.bat</button></div>
+      <section class="dr26-sec"><h3>Check-out not changing on the device?</h3><p class="small">Not needed any more. The app takes the <b>first punch of the day as IN</b> and the <b>last punch as OUT</b>, whatever state the device shows. You can leave <i>Punch State Mode: Auto</i> and <i>Punch State Required: OFF</i> as they are.</p></section>
+      <section class="dr26-sec"><h3>Device checklist</h3><ul class="small"><li>Comm ▸ Ethernet / Wi-Fi: keep a fixed IP (192.168.0.126) so the PC always finds it.</li><li>Comm ▸ PC Connection: port <b>4370</b>, Comm Key <b>0</b>.</li><li>System ▸ Date/Time: correct date and time (the app uses the device time).</li><li>User Mgt: the User ID of each person = their <b>Fingerprint ID</b> in HR ▸ Employees.</li></ul></section>
+      <p class="small muted">The key inside the file only lets the PC add punches - it cannot read anything. If it is ever shared by mistake, tell the admin to change the server secret.</p>`, foot: "" });
+  $("#d89a", D).onclick = () => dl("rivera_attendance_sync.py", py); $("#d89b", D).onclick = () => dl("start.bat", bat);
+}
+function linkDev89(p) {
+  const E = emps89().filter(e => !e.bioId).sort((a, b) => a.name.localeCompare(b.name));
+  const D = panel28({ title: `Device ID ${p.uid}${p.devName ? " · " + p.devName : ""}`, body: `<p class="small">Which employee is this on the fingerprint device?</p><label class="f">Employee<select id="l89">${E.map(e => `<option value="${e.id}" ${nm89(e.name).startsWith(nm89(p.devName).slice(0, 4)) ? "selected" : ""}>${esc(e.name)}</option>`).join("")}</select></label>`, foot: `<span style="flex:1"></span><button class="btn primary" id="l89s" type="button">Link</button>` });
+  $("#l89s", D).onclick = async e => { const R = JSON.parse(JSON.stringify(BIZ.rows[$("#l89", D).value])); R.bioId = String(p.uid); if (await save28(e.target, R, `${R.name} = device ID ${p.uid}`)) { closeDrawer26(); render(); } };
+}
+/* panel on HR ▸ Attendance + HR KPIs from the device */
+{
+  const _hr = VIEWS.hr;
+  VIEWS.hr = v => {
+    _hr(v);
+    const U = BIZ.ui;
+    if (U.hr === "att" && can29("emp")) try { (() => {
+      const day = U.att89d || todayISO(), V = dayView89(day), mm = U.hrm || month29(todayISO()), late = V.came.filter(c => c.p.in > LATE89);
+      const anchor = v.querySelector("#at29s")?.closest(".row") || v.querySelector(".tablewrap"); if (!anchor) return;
+      anchor.insertAdjacentHTML("beforebegin", `<section class="panel att89"><header><h2>🖐 Fingerprint device · ${day === todayISO() ? "Today" : dmy(day)}</h2><div class="row" style="gap:6px;flex-wrap:wrap"><input type="date" id="a89d" value="${day}"><label class="btn sm">⬆ Upload punch file<input type="file" id="a89f" accept=".dat,.txt,.csv,.xlsx,.xls" hidden></label><button class="btn sm" id="a89g" type="button">Fill grid from device (${monthName29(mm)})</button><button class="btn sm primary" id="a89s" type="button">Device setup</button></div></header>
+        <div class="body">${V.any ? `<div class="hero-strip" style="margin-bottom:10px"><div><span>Came</span><b style="color:#2f8f5b">${V.came.length}</b></div><div><span>Late (after ${LATE89})</span><b style="color:#b35c00">${late.length}</b></div><div><span>Not came</span><b style="color:#c0392b">${V.absent.length}</b></div><div><span>On leave</span><b>${V.leave.length}</b></div></div>
+          <div class="att89-g"><div><h3>Came · in → out</h3>${V.came.map(c => `<div class="a89r"><b>${esc(c.e.name)}</b><span class="${c.p.in > LATE89 ? "late" : ""}">${esc((c.p.in || "").slice(0, 5))} → ${esc((c.p.out || "").slice(0, 5) || "…")}${c.p.out ? ` · ${hrs89(c.p).toFixed(1)} h` : ""}</span></div>`).join("") || '<p class="small muted">Nobody yet.</p>'}</div>
+          <div><h3>Not came</h3>${V.absent.map(e => `<div class="a89r"><b>${esc(e.name)}</b><span class="small muted">${esc(e.designation || "")}</span></div>`).join("") || '<p class="small muted">Everyone came 🎉</p>'}${V.leave.length ? `<h3 style="margin-top:10px">On leave</h3>${V.leave.map(e => `<div class="a89r"><b>${esc(e.name)}</b></div>`).join("")}` : ""}
+          ${V.unknown.length ? `<h3 style="margin-top:10px;color:#b35c00">Device IDs not linked</h3>${V.unknown.map(p => `<div class="a89r"><b>ID ${esc(p.uid)} ${esc(p.devName || "")}</b><button type="button" class="btn sm" data-l89="${p.id}">Link to employee</button></div>`).join("")}` : ""}</div></div>`
+          : `<p class="small muted" style="margin:0">No punches from the fingerprint device yet. Tap <b>Device setup</b> to connect it (one office PC on the same Wi-Fi), or <b>Upload punch file</b> from the device's USB.</p>`}</div></section>`);
+      $("#a89d", v).onchange = e => { U.att89d = e.target.value; render(); };
+      $("#a89f", v).onchange = e => e.target.files[0] && punchFile89(e.target.files[0]);
+      $("#a89g", v).onclick = e => fillGrid89(mm, e.target);
+      $("#a89s", v).onclick = () => devSetup89();
+      $$("[data-l89]", v).forEach(b => b.onclick = () => linkDev89(BIZ.rows[b.dataset.l89]));
+    })(); } catch (e) { console.warn("p89 att", e); }
+    try { /* Present today KPI from the device when the grid is not filled */
+      if (can29("emp")) { const V = dayView89(todayISO()); if (V.any) { const lab = [...v.querySelectorAll("*")].find(x => !x.children.length && /^present today$/i.test(x.textContent.trim())); const box = lab?.parentElement; const num = box && [...box.querySelectorAll("*")].find(x => !x.children.length && /^\d+$/.test(x.textContent.trim())); if (num && Number(num.textContent) < V.came.length) { num.textContent = V.came.length; num.title = "From the fingerprint device"; } } } } catch { }
+    try { /* Employees: Edit / Remove on every row + details import */
+      if (U.hr === "emp" && can29("emp")) {
+        const tb = v.querySelector("table"); if (tb) { tb.querySelector("thead tr")?.insertAdjacentHTML("beforeend", "<th></th>"); $$("tr[data-em]", tb).forEach(tr => tr.insertAdjacentHTML("beforeend", `<td style="white-space:nowrap"><button type="button" class="btn sm" data-e89e="${tr.dataset.em}">✎ Edit</button> <button type="button" class="btn sm ghost" data-e89d="${tr.dataset.em}" style="color:var(--bad,#c0392b)">Remove</button></td>`)); }
+        $$("[data-e89e]", v).forEach(b => b.onclick = e => { e.stopPropagation(); empPanel29(BIZ.rows[b.dataset.e89e]); });
+        $$("[data-e89d]", v).forEach(b => b.onclick = e => { e.stopPropagation(); sure71(b, async () => { const x = BIZ.rows[b.dataset.e89d]; try { await bizDel28(x.id); toast(`${x.name} removed`); render(); } catch (er) { toast(er.message, "bad"); } }, "Tap again to remove"); });
+        $("#n29", v)?.insertAdjacentHTML("beforebegin", `<label class="btn">⬆ Import details (Excel)<input type="file" id="e89i" accept=".xlsx,.xls,.csv" hidden></label>`);
+        $("#e89i", v) && ($("#e89i", v).onchange = e => e.target.files[0] && empImport89(e.target.files[0]));
+      }
+    } catch (e) { console.warn("p89 emp", e); }
+  };
+}
+/* employee panel: fingerprint ID + marriage date */
+{
+  const _e = empPanel29;
+  empPanel29 = function (src) { _e.apply(this, arguments); try { const f = $("#dr26 .fields"), r = src || {}; if (f && !$('[data-k="bioId"]', f)) f.insertAdjacentHTML("beforeend", field28(["bioId", "Fingerprint device ID", "text"], r) + ($('[data-k="dob"]', f) ? "" : field28(["dob", "Date of birth", "date"], r)) + ($('[data-k="marDate"]', f) ? "" : field28(["marDate", "Wedding anniversary", "date"], r))); } catch (e) { console.warn("p89 emp panel", e); } };
+}
+/* employee details from Excel - matched by name, only empty fields are filled */
+async function empImport89(file) {
+  await loadScript(LIBS.sheetjs); const wb = window.XLSX.read(await file.arrayBuffer(), { type: "array", cellDates: true }), E = all28("emp"), ch = new Map();
+  const d10 = v => v instanceof Date ? (d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`)(new Date(v.getTime() + 432e5)) : (m => m ? `${m[3].length === 2 ? (+m[3] > 50 ? "19" : "20") + m[3] : m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}` : "")(String(v || "").match(/^(\d{1,2})[./-](\d{1,2})[./-](\d{2,4})/));
+  const F = [["dob", /birth|dob/, 1], ["doj", /join|doj/, 1], ["marDate", /marri|wedding|anniv/, 1], ["phone", /phone|mobile|contact/], ["email", /e-?mail/], ["uan", /uan/], ["esiNo", /esi/], ["pan", /^pan|pan\s*no/], ["aadhaar", /aadha?r/], ["bloodGroup", /blood/], ["father", /father|spouse/], ["address", /address/], ["designation", /designation|role/], ["dept", /dept|department/], ["bioId", /finger|bio|device|ac.?no|enroll/]];
+  for (const sn of wb.SheetNames) { const g = window.XLSX.utils.sheet_to_json(wb.Sheets[sn], { header: 1, raw: true, defval: "" }), hi = g.slice(0, 12).findIndex(r => r.some(c => /name/i.test(String(c)))); if (hi < 0) continue;
+    const h = g[hi].map(c => String(c).toLowerCase().trim()), ni = h.findIndex(x => /name/.test(x) && !/father|spouse|bank/.test(x)), ix = {}; F.forEach(([k, re]) => { const i = h.findIndex(x => re.test(x)); if (i >= 0) ix[k] = i; });
+    g.slice(hi + 1).forEach(r => { const n = nm89(r[ni]); if (!n) return; const e = E.find(x => nm89(x.name) === n) || E.find(x => n.length >= 5 && (nm89(x.name).startsWith(n) || n.startsWith(nm89(x.name)))); if (!e) return;
+      const R = ch.get(e.id) || JSON.parse(JSON.stringify(e)); F.forEach(([k, , dt]) => { if (ix[k] == null) return; const v = dt ? d10(r[ix[k]]) : String(r[ix[k]] ?? "").trim(); if (v && !String(R[k] || "").trim()) { R[k] = v; ch.set(e.id, R); } }); if (R.marDate && !R.marital) R.marital = "Married"; }); }
+  if (!ch.size) return toast("Nothing new to fill - names must match HR ▸ Employees", "warn");
+  if (!confirm(`Fill missing details for ${ch.size} employees from ${file.name}? (Existing values are kept.)`)) return;
+  await bizPut28([...ch.values()]); toast(`Details filled for ${ch.size} employees`); render();
+}
+
+/* ---------- Offer / Internship-cum-placement / Appointment letters (Rivera formats, every field editable) ---------- */
+const LT89 = {
+  offer: { t: "Offer letter", f: [["salut", "Mr / Ms", "select", ["Mr.", "Ms.", "Mrs."]], ["name", "Name *", "text"], ["addr", "Address (college / home) - one line each", "textarea"], ["position", "Position", "text"], ["start", "Start date", "date"], ["duration", "Internship / training duration", "text"], ["pay", "Stipend / salary (₹ per month)", "text"], ["acceptBy", "Accept by", "date"]],
+    d: { position: "Engineer Trainee", duration: "6 Months", pay: "15000" },
+    body: r => `<p><b>${esc(r.salut)} ${esc(r.name)},</b><br>${esc(r.addr || "").replace(/\n/g, "<br>")}</p><p>Dear ${esc(r.salut)} ${esc(r.name)},</p><p>We are pleased to inform you that, after reviewing your qualifications and interview performance, we are offering you the opportunity to join Rivera Coil Manufacturing India Pvt Ltd as an <b>${esc(r.position)}</b>. This position will provide you with hands-on experience in the HT Motor &amp; Generator Coil industry, and we believe that your skills and academic background make you an excellent fit for our team.</p><p><b>Details of the Offer:</b></p><ol><li>Position: ${esc(r.position)}</li><li>Start Date: ${dmyDot89(r.start)}</li>${r.duration ? `<li>Internship Duration: ${esc(r.duration)}</li>` : ""}<li>${r.duration ? "Internship Stipend" : "Salary"}: ${esc(r.pay)}/-</li></ol><p>As an ${esc(r.position)} at Rivera Coil Manufacturing India Pvt Ltd, you will have the opportunity to work in various departments and gain valuable insights into the operations of the HT Motor &amp; Generator Coil industry. You will be working alongside experienced professionals who will mentor you throughout your time with us.</p><p>To accept this offer, please sign and return the enclosed copy of this letter by ${dmyDot89(r.acceptBy)}.</p><p>We are excited to have you join our team and look forward to your contributions.</p>` },
+  intern: { t: "Internship cum placement offer letter", f: [["salut", "Mr / Ms", "select", ["Mr.", "Ms.", "Mrs."]], ["name", "Name *", "text"], ["regNo", "Register no", "text"], ["dept", "Department (studying)", "text"], ["year", "Year", "text"], ["college", "College", "text"], ["phone", "Contact no", "text"], ["position", "Position", "text"], ["start", "Internship starts", "date"], ["duration", "Duration", "text"], ["location", "Work location", "text"], ["pay", "Stipend (₹ per month)", "text"], ["reportTo", "Reporting to", "text"], ["acceptBy", "Accept by", "date"]],
+    d: { position: "Graduate Trainee", duration: "3 Months", location: "Erode", pay: "15,000", reportTo: "Ms. S. Gowthami – AGM (Plant & Projects)", year: "FINAL YEAR" },
+    body: r => `<p>To<br>Name: <b>${esc(String(r.name).toUpperCase())}</b>${r.regNo ? ` (${esc(r.regNo)})` : ""}<br>${r.dept ? `Department: ${esc(r.dept)}<br>` : ""}${r.year ? `Year: ${esc(r.year)}<br>` : ""}${r.college ? `College: ${esc(r.college)}<br>` : ""}${r.phone ? `Contact No: ${esc(r.phone)}` : ""}</p><p><b>Subject: Internship Cum Placement Offer Letter</b></p><p>Dear: ${esc(String(r.name).toUpperCase())},</p><p>We are pleased to offer you an Internship Cum Placement opportunity with Rivera Group of Companies. You are selected for internship in the position of <b>${esc(r.position)}</b>. Your internship will commence on <b>${dmyLong89(r.start)}</b> and you will be reporting to ${esc(r.reportTo)}.</p>
+      <p><b>Terms and Conditions:</b></p><ul><li>Position: ${esc(r.position)} (Internship)</li><li>Internship Duration: ${esc(r.duration)}</li><li>Work Location: ${esc(r.location)}</li><li>Stipend: As per company norms</li></ul><p>During the internship period, the company will provide free food and free accommodation. Upon confirmation as a full-time employee, subsidized food and subsidized accommodation will be provided as per company policy.</p><p>Performance Evaluation: Based on your performance during the internship period. Upon successful completion of the internship and based on performance evaluation, you may be considered for full-time employment in our organization as per company requirements and policies.</p><p>This offer is effective immediately. You are requested to confirm your acceptance by signing and returning a copy of this letter on or before ${dmyLong89(r.acceptBy)}.</p><p>We look forward to your valuable contribution and wish you a successful learning experience with Rivera Group of Companies.</p>
+      <p style="page-break-before:always"><b>Compensation Structure – Internship Period</b><br>During the internship period, the intern will be paid a consolidated stipend of ₹${esc(r.pay)} per month. This is a fixed consolidated amount, and no additional allowances or benefits will be applicable during the internship period.</p><p><b>Compensation Structure – Full-Time Employment</b><br>Upon confirmation as a full-time employee after successful completion of the internship, the candidate will be placed under the regular salary structure of the company as per applicable policies and designation. The detailed salary structure and benefits will be communicated at the time of full-time appointment.</p>${CONDUCT89}`, ack: 1 },
+  appoint: { t: "Appointment letter", f: [["emp", "Employee", "emp"], ["salut", "Mr / Ms", "select", ["Mr.", "Ms.", "Mrs."]], ["name", "Name *", "text"], ["addr", "Address", "textarea"], ["position", "Designation", "text"], ["dept", "Department", "text"], ["start", "Date of joining", "date"], ["probation", "Probation", "text"], ["location", "Work location", "text"], ["pay", "Gross monthly salary (₹)", "text"], ["reportTo", "Reporting to", "text"], ["hours", "Working hours", "text"], ["notice", "Notice period", "text"]],
+    d: { probation: "6 months", location: "Erode", reportTo: "Ms. S. Gowthami – AGM (Plant & Projects)", hours: "9:00 AM to 6:00 PM, Monday to Saturday", notice: "30 days" },
+    body: r => `<p><b>${esc(r.salut)} ${esc(r.name)},</b><br>${esc(r.addr || "").replace(/\n/g, "<br>")}</p><p><b>Subject: Letter of Appointment – ${esc(r.position)}</b></p><p>Dear ${esc(r.salut)} ${esc(r.name)},</p><p>With reference to your joining on <b>${dmyLong89(r.start)}</b>, we are pleased to appoint you as <b>${esc(r.position)}</b>${r.dept ? ` in the ${esc(r.dept)} department` : ""} of Rivera Coil Manufacturing India Private Limited, on the following terms and conditions:</p>
+      <ol><li><b>Place of work:</b> ${esc(r.location)}. You may be transferred to any unit, site or office of Rivera Group of Companies as per business needs.</li><li><b>Reporting:</b> You will report to ${esc(r.reportTo)}.</li><li><b>Probation:</b> You will be on probation for ${esc(r.probation)} from the date of joining. On satisfactory completion your services will be confirmed in writing.</li><li><b>Salary:</b> Gross monthly salary of ₹${esc(r.pay)}/-, subject to statutory deductions (PF, ESI, PT, TDS as applicable). The salary break-up is given in the annexure.</li><li><b>Working hours:</b> ${esc(r.hours)}. Attendance is recorded on the biometric device.</li><li><b>Leave:</b> As per company leave policy and the Factories Act.</li><li><b>Notice period:</b> ${esc(r.notice)} on either side after confirmation (or salary in lieu of notice).</li><li><b>Confidentiality:</b> You shall not disclose company information, drawings, designs, customer or pricing data during or after your employment.</li></ol>${CONDUCT89}<p>Please sign and return the duplicate copy of this letter as a token of your acceptance.</p><p>We welcome you to Rivera Group of Companies and wish you a long and successful career with us.</p>`, ack: 1 }
+};
+const CONDUCT89 = `<p><b>Code of Conduct &amp; Mandatory Compliance Guidelines</b></p><ol><li>Follow all company rules, regulations, policies, and procedures of the organization without exception.</li><li>Strict adherence to company working hours is mandatory. Late coming, absenteeism without prior approval, or irregular attendance will be viewed seriously and may lead to disciplinary action.</li><li>Maintain professional behavior, respect superiors and colleagues, and uphold workplace discipline at all times.</li><li>Wearing appropriate PPE (Helmet, Safety Shoes, Gloves, Mask, etc., as applicable) is compulsory inside the factory/production premises.</li><li>All safety instructions and operational guidelines must be strictly followed to ensure a safe working environment.</li><li>Do not disclose any company-related confidential information, data, designs, or operational details to any third party.</li><li>Any form of misconduct, negligence, insubordination, or violation of company standards may result in termination.</li><li>Any tools, ID cards, uniforms, or company property issued must be handled responsibly and returned upon completion / exit.</li></ol>`;
+const dmyDot89 = d => d ? d.split("-").reverse().join(".") : "________";
+const dmyLong89 = d => { if (!d) return "________"; const x = new Date(d + "T00:00:00"); return `${String(x.getDate()).padStart(2, "0")}-${x.toLocaleString("en-IN", { month: "long" })}-${x.getFullYear()}`; };
+function letter89(type, src) {
+  const L = LT89[type], r = src ? JSON.parse(JSON.stringify(src)) : { kind: "cert", type, date: todayISO(), salut: "Mr.", signName: "Mrs. S. Gowthami", signDesig: "Assistant General Manager – Plant & Projects", ...L.d };
+  const E = emps89().sort((a, b) => a.name.localeCompare(b.name));
+  const D = panel28({ title: src ? `${L.t} ${r.no || ""}` : `New ${L.t.toLowerCase()}`, chips: src ? `<span class="chip">${esc(r.name || r.empName || "")}</span>` : "",
+    body: `<div class="fields">${L.f.map(f => f[2] === "emp" ? `<label class="f"><span>${f[1]}</span><select data-k="emp" id="f28_emp"><option value="">— new person —</option>${E.map(e => `<option value="${e.id}" ${r.emp === e.id ? "selected" : ""}>${esc(e.name)}</option>`).join("")}</select></label>` : field28(f, r)).join("")}${field28(["date", "Letter date", "date"], r)}${field28(["signName", "Signed by", "text"], r)}${field28(["signDesig", "Designation of signatory", "text"], r)}</div><p class="small muted">Every word can be changed: edit the fields, Save, Print again. The letter prints on the Rivera letterhead.</p>`,
+    foot: `<span style="flex:1"></span><button class="btn" id="lt89s" type="button">Save</button><button class="btn primary" id="lt89p" type="button">🖨 Save & print</button>` });
+  $("#f28_emp", D)?.addEventListener("change", e => { const x = BIZ.rows[e.target.value]; if (!x) return; const set = (k, v) => { const el = $("#f28_" + k, D); if (el && v) el.value = v; }; set("name", x.name); set("position", x.designation); set("dept", x.dept); set("start", x.doj); set("addr", x.address); set("salut", /^f/i.test(x.gender || "") ? "Ms." : "Mr."); const g = (Number(x.basic) || 0) + (Number(x.hra) || 0) + (Number(x.allow) || 0); if (g) set("pay", g.toLocaleString("en-IN")); });
+  const save = async (btn, pr) => { readForm28(D, r); if (!r.name) return toast("Write the name", "bad"); r.empName = r.name; const out = await save28(btn, r, L.t + " saved"); if (!out) return; Object.assign(r, out[0] || {}); if (pr) await print89(r); closeDrawer26(); render(); };
+  $("#lt89s", D).onclick = e => save(e.target); $("#lt89p", D).onclick = e => save(e.target, 1);
+}
+async function print89(r) {
+  const L = LT89[r.type];
+  printHtml28(`${L.t} - ${r.name}`, `${await lhImg62()}<style>body{font-size:13.5px;line-height:1.55}ol,ul{margin-top:4px}li{margin:3px 0}</style><p style="display:flex;justify-content:space-between"><span>${esc(r.no || "")}</span><span>Date: ${esc(dmyDot89(r.date))}</span></p><h2 style="text-align:center;text-decoration:underline;letter-spacing:.06em;margin:10px 0 14px">${esc(L.t.toUpperCase())}</h2>${L.body(r)}<br><p>For <b>${r.type === "intern" ? "Rivera Group of Companies" : "Rivera Coil Manufacturing India Pvt Ltd"}</b>,</p><br><br><p><b>${esc(r.signName || "Authorized Signatory")}</b><br>${esc(r.signDesig || "")}</p>${L.ack ? `<div style="margin-top:26px;border-top:1px solid #999;padding-top:10px"><b>Acknowledgement</b><p>I hereby acknowledge and accept the terms and conditions offered by Rivera Coil Manufacturing India Private Limited, including the ${r.type === "intern" ? "stipend" : "salary"}, benefits, and employment policies mentioned above.</p><p>Signature: ____________________ &nbsp; Name: ____________________ &nbsp; Date: ____________</p></div>` : ""}`);
+}
+/* HR ▸ Employee register screen: new tab "Offer & appointment letters"; issued letters can be opened, edited and printed again */
+{
+  const _x = VIEWS.hrx;
+  VIEWS.hrx = v => {
+    const U = BIZ.ui; if (U.h62 !== "letters") { _x(v); } else { U.h62 = "cert"; _x(v); U.h62 = "letters"; }
+    try {
+      const tabsRow = v.querySelector("[data-h62t]")?.parentElement; if (!tabsRow) return;
+      if (!tabsRow.querySelector('[data-h62t="letters"]')) { tabsRow.insertAdjacentHTML("beforeend", `<button type="button" class="${tabsRow.querySelector("[data-h62t]").className.replace(/\bon\b|\bactive\b/g, "")}" data-h62t="letters">Offer & appointment letters</button>`); tabsRow.lastElementChild.onclick = () => { U.h62 = "letters"; render(); }; }
+      if (U.h62 !== "letters") return;
+      $$("[data-h62t]", tabsRow).forEach(b => b.classList.toggle("on", b.dataset.h62t === "letters"));
+      const h = v.querySelector("h1"); if (h) h.textContent = "Offer & appointment letters";
+      const body = tabsRow.nextElementSibling; const C = all28("cert").filter(c => LT89[c.type]).sort((a, b) => String(b.date + b.no).localeCompare(a.date + a.no));
+      body.innerHTML = `<section class="panel"><div class="body"><div class="lt89-c">${Object.entries(LT89).map(([k, l]) => `<button type="button" class="lt89-o" data-lt="${k}"><span>${k === "offer" ? "📨" : k === "intern" ? "🎓" : "📝"}</span><b>${esc(l.t)}</b><small>${k === "offer" ? "Before joining - trainee / new hire" : k === "intern" ? "College students - internship, stipend, code of conduct" : "After joining - designation, salary, probation, rules"}</small></button>`).join("")}</div></div></section>
+        <section class="panel"><header><h2>Issued letters</h2></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>No.</th><th>Date</th><th>Name</th><th>Letter</th><th>Position</th><th></th></tr></thead><tbody>${C.map(c => `<tr><td class="mono small">${esc(c.no || "")}</td><td>${dmy(c.date)}</td><td><b>${esc(c.name || c.empName || "")}</b></td><td>${esc(LT89[c.type].t)}</td><td>${esc(c.position || "")}</td><td style="white-space:nowrap"><button type="button" class="btn sm" data-lte="${c.id}">✎ Edit</button> <button type="button" class="btn sm" data-ltp="${c.id}">🖨 Print</button></td></tr>`).join("") || '<tr><td colspan="6" class="muted">No letters yet.</td></tr>'}</tbody></table></div></section>`;
+      $$("[data-lt]", body).forEach(b => b.onclick = () => letter89(b.dataset.lt));
+      $$("[data-lte]", body).forEach(b => b.onclick = () => { const c = BIZ.rows[b.dataset.lte]; letter89(c.type, c); });
+      $$("[data-ltp]", body).forEach(b => b.onclick = () => print89(BIZ.rows[b.dataset.ltp]));
+    } catch (e) { console.warn("p89 letters", e); }
+  };
+  const hr = MODS32.find(m => m.id === "hr"); if (hr) { const T = hr.groups.Transactions ||= []; if (!T.some(c => c[2]?.h62 === "letters")) { const c = ["Offer & appointment letters", "hrx", { h62: "letters" }, "Offer, internship-cum-placement and appointment letters - editable"]; T.unshift(c); try { CARDMOD64.set(c, "hr"); } catch { } } const c2 = ["Attendance (fingerprint)", "hr", { hr: "att" }, "Who came, who did not - from the device"]; if (!T.some(x => x[0] === c2[0])) { T.unshift(c2); try { CARDMOD64.set(c2, "hr"); } catch { } } }
+}
+/* HR home: who has not come today */
+{
+  const _q = queue37;
+  queue37 = function () { const Q = _q.apply(this, arguments); try { if (in84("hr", "mgmt") && can29("emp")) { const now = new Date(), V = dayView89(todayISO()); if (V.any && now.getHours() * 60 + now.getMinutes() >= 9 * 60 + 30 && V.absent.length) Q.unshift({ label: `Not came today (${V.absent.length} of ${V.total})`, items: V.absent.map(e => [e.name, e.designation || e.dept || "", () => go32("hr", { hr: "att" })]), tone: "warn" }); } } catch { } return Q; };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.att89 header{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}.att89-g{display:grid;grid-template-columns:1fr 1fr;gap:16px}.att89-g h3{font-size:.8rem;text-transform:uppercase;letter-spacing:.05em;color:#5b6b80;margin:0 0 6px}
+.a89r{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid #eef1f5}.a89r span{font-variant-numeric:tabular-nums}.a89r .late{color:#b35c00;font-weight:700}
+@media(max-width:760px){.att89-g{grid-template-columns:1fr}}
+.st89 li{margin:5px 0}.lt89-c{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:10px}.lt89-o{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:1px solid var(--line,#dfe5ee);background:var(--surface,#fff);border-radius:12px;padding:14px;cursor:pointer;font:inherit;color:inherit}.lt89-o span{font-size:1.5rem}.lt89-o small{color:#5b6b80}.lt89-o:hover{border-color:#e8590c;background:#fff8f2}
+</style>`);
+
 boot();
 
 </script>
