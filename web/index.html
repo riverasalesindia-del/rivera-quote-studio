@@ -15292,6 +15292,62 @@ async function printBoth90(list) {
   const hr = MODS32.find(m => m.id === "hr"); if (hr) { const T = hr.groups.Transactions ||= []; const c = ["Joining kit (offer + appointment)", "hrx", { h62: "letters" }, "Type details once - both letters ready"]; if (!T.some(x => x[0] === c[0])) { T.unshift(c); try { CARDMOD64.set(c, "hr"); } catch { } } }
 }
 
+/* p90b: employee panel shows what is linked to the person in other departments - assets with them (Admin), leave (HR), attendance this month */
+function linked90(e) {
+  const nm = s => String(s || "").toLowerCase().replace(/[^a-z]/g, ""), en = nm(e.name), mail = String(e.email || "").toLowerCase();
+  const tm = (window.W62?.team || []).find(u => (mail && String(u.email).toLowerCase() === mail) || (en && nm(u.name) === en));
+  const who = tm?.email || mail;
+  const A = all28("fa").filter(a => a.holder && (String(a.holder).toLowerCase() === who || nm(a.holder) === en));
+  const LV = all28("lv").filter(l => (who && l.who === who) || (en && nm(l.whoName) === en) || l.emp === e.id).sort((a, b) => String(b.from).localeCompare(String(a.from))).slice(0, 6);
+  let att = ""; try { const s = attSum29(attDays29(e.id, month29(todayISO()))); att = `P ${s.P} · Half ${s.H} · Absent ${s.A} · Leave ${s.L}`; } catch { }
+  return `<section class="dr26-sec" id="l90"><h3>🔗 Linked</h3>${att ? `<div class="a89r"><span>Attendance this month</span><b>${att}</b></div>` : ""}
+    <div class="a89r"><span>Assets with ${esc(e.name.split(" ")[0])}</span><span>${A.map(a => `<button type="button" class="btn sm" data-l90a="${a.id}">${esc(a.name)} ${esc(a.tag || "")}</button>`).join(" ") || '<span class="small muted">None</span>'}</span></div>
+    <div class="a89r"><span>Leave</span><span class="small">${LV.map(l => `${esc(l.type || "")} ${dmy(l.from)}${l.to && l.to !== l.from ? "–" + dmy(l.to) : ""} (${esc(l.status)})`).join("<br>") || '<span class="muted">None</span>'}</span></div></section>`;
+}
+{
+  const _e = empPanel29;
+  empPanel29 = function (src) { _e.apply(this, arguments); try { if (!src?.id) return; const anchor = $("#d90") || $("#dr26 .fields"); if (!anchor || $("#l90")) return; anchor.insertAdjacentHTML("afterend", linked90(BIZ.rows[src.id] || src)); $$("[data-l90a]").forEach(b => b.onclick = () => faPanel62(BIZ.rows[b.dataset.l90a])); } catch (er) { console.warn("p90b", er); } };
+}
+
+/* p90c: Supplier repository - every supplier with POs, receipts (GRN), bills, payments, what we still owe, and the products bought from them (Purchase + Accounts + Admin) */
+function sups90() {
+  const M = new Map(), key = s => String(s || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+  const get = n => { const k = key(n); if (!k) return null; return M.get(k) || (M.set(k, { name: String(n).trim(), po: [], rn: [], bill: [], spay: [], gst: "" }), M.get(k)); };
+  ["po", "rn", "bill", "spay"].forEach(k => all28(k).forEach(x => { if (k === "po" && x.status === "cancelled") return; const s = get(x.supplier); if (!s) return; s[k].push(x); s.gst ||= x.gstin || x.gst_no || x.supGst || ""; }));
+  return [...M.values()].map(s => { const billed = s.bill.reduce((a, b) => a + (Number(b.total) || 0), 0), paid = s.spay.reduce((a, p) => a + (Number(p.amount) || 0), 0), ordered = s.po.reduce((a, p) => a + (Number(p.total) || 0), 0);
+    const owe = s.bill.reduce((a, b) => a + Math.max(0, billDue45(b)), 0), last = [...s.po, ...s.rn, ...s.bill, ...s.spay].map(x => x.date || "").sort().pop() || "";
+    const prods = [...new Set(s.po.flatMap(p => (p.lines || []).map(l => BIZ.rows[l.item]?.name || l.desc)).filter(Boolean))];
+    return { ...s, billed, paid, ordered, owe, last, prods }; }).sort((a, b) => b.last.localeCompare(a.last) || a.name.localeCompare(b.name));
+}
+function supPanel90(s) {
+  const row = x => `<button type="button" class="dr26-li" data-s90o="${x.id}"><b>${esc(x.no || x.kind.toUpperCase())} · ${x.date ? dmy(x.date) : ""}</b><small>${x.kind === "spay" ? "Paid " : ""}${x.total || x.amount ? inr28(Number(x.total || x.amount)) : ""}${x.kind === "bill" && billDue45(x) > 0 ? " · due " + inr28(billDue45(x)) : ""}${x.status ? " · " + esc(x.status) : ""}</small></button>`;
+  const sec = (t, L) => L.length ? `<section class="dr26-sec"><h3>${t} · ${L.length}</h3>${L.slice().sort((a, b) => String(b.date).localeCompare(String(a.date))).slice(0, 15).map(row).join("")}</section>` : "";
+  const D = panel28({ title: s.name, chips: `${s.gst ? `<span class="chip">GST ${esc(s.gst)}</span>` : ""}${s.owe > 0 ? `<span class="chip warn">We owe ${inr28(s.owe)}</span>` : '<span class="chip ok">Nothing due</span>'}`,
+    body: `<div class="dr26-k"><div><span>Ordered</span><b>${inr28(s.ordered)}</b></div><div><span>Billed</span><b>${inr28(s.billed)}</b></div><div><span>Paid</span><b>${inr28(s.paid)}</b></div><div><span>Due</span><b>${inr28(s.owe)}</b></div></div>
+      ${s.prods.length ? `<section class="dr26-sec"><h3>Products bought · ${s.prods.length}</h3><p class="small">${s.prods.map(esc).join(" · ")}</p></section>` : ""}${sec("Purchase orders", s.po)}${sec("Goods received (GRN)", s.rn)}${sec("Bills", s.bill)}${sec("Payments", s.spay)}`,
+    foot: `<span style="flex:1"></span>${typeof payPanel85 === "function" ? '<button class="btn" id="s90a" type="button">Advance payment</button>' : ""}<button class="btn primary" id="s90n" type="button">New PO to this supplier</button>` });
+  $$("[data-s90o]", D).forEach(b => b.onclick = () => open85(b.dataset.s90o));
+  $("#s90n", D).onclick = () => poPanel28({ kind: "po", status: "indent", date: todayISO(), reqBy: me28(), supplier: s.name, lines: [] });
+  $("#s90a", D) && ($("#s90a", D).onclick = () => payPanel85("advance", { supplier: s.name }));
+}
+if (!ROUTES.some(x => x[0] === "sup90")) ROUTES.push(["sup90", "Supplier repository", "box28"]);
+ALWAYS34.push("sup90");
+VIEWS.sup90 = v => {
+  bizSync28(); const U = BIZ.ui, q = U.s90q || "", L = sups90().filter(s => has71([s.name, s.gst, s.prods.join(" ")], q));
+  v.innerHTML = top62("Purchase · Accounts", "Supplier repository", `${L.length} suppliers · what we ordered, received, were billed, paid and still owe`, `<button type="button" class="btn" id="s90x">⬇ Sheet</button>`)
+    + `<section class="panel"><div class="body"><div class="row" style="margin-bottom:10px">${srch71(U, "s90q", "Search supplier, GST, product…")}</div><div style="overflow:auto"><table class="t"><thead><tr><th>Supplier</th><th class="n">POs</th><th class="n">Ordered ₹</th><th class="n">Billed ₹</th><th class="n">Paid ₹</th><th class="n">Due ₹</th><th>Last</th></tr></thead><tbody>${L.map((s, i) => `<tr data-s90="${i}" style="cursor:pointer"><td><b>${esc(s.name)}</b><div class="small muted">${esc(s.prods.slice(0, 3).join(", "))}${s.prods.length > 3 ? "…" : ""}</div></td><td class="n">${s.po.length}</td><td class="n">${inr28(s.ordered)}</td><td class="n">${inr28(s.billed)}</td><td class="n">${inr28(s.paid)}</td><td class="n">${s.owe > 0 ? `<b style="color:#b35c00">${inr28(s.owe)}</b>` : "—"}</td><td>${s.last ? dmy(s.last) : "—"}</td></tr>`).join("") || '<tr><td colspan="7" class="muted">No suppliers yet - they appear from POs, GRNs, bills and payments.</td></tr>'}</tbody></table></div></div></section>`;
+  wireSrch71(v, U);
+  $$("[data-s90]", v).forEach(r => r.onclick = () => supPanel90(L[+r.dataset.s90]));
+  $("#s90x", v).onclick = () => xlsx71("supplier-repository.xlsx", [["Supplier", "GST", "POs", "Ordered", "Billed", "Paid", "Due", "Last", "Products"], ...L.map(s => [s.name, s.gst, s.po.length, s.ordered, s.billed, s.paid, s.owe, s.last, s.prods.join(", ")])]);
+};
+{
+  const put = (mod, grp, c) => { const m = MODS32.find(x => x.id === mod); if (!m) return; const G = m.groups[grp] ||= []; if (G.some(x => x[1] === c[1])) return; G.unshift(c); try { CARDMOD64.set(c, mod); } catch { } };
+  const c = ["Supplier repository", "sup90", {}, "Every supplier - POs, GRN, bills, paid, due, products"];
+  put("purchase", "Masters", c); put("accounts", "Masters", [...c]); put("admin", "Masters", [...c]);
+  if (window.DEPT63?.purchase && !DEPT63.purchase.extra.includes("sup90")) DEPT63.purchase.extra.push("sup90");
+  if (window.DEPT63?.accounts && !DEPT63.accounts.extra.includes("sup90")) DEPT63.accounts.extra.push("sup90");
+}
+
 boot();
 
 </script>
