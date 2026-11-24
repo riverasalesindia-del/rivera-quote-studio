@@ -15701,6 +15701,39 @@ async function stkImport95(file, date) {
   if (_v) VIEWS.stock88 = v => { _v(v); try { const bar = v.querySelector(".topbar .row"); if (bar && !$("#stk95", v)) { bar.insertAdjacentHTML("afterbegin", `<label class="btn">⬆ Import stock Excel<input type="file" id="stk95" accept=".xlsx,.xls" hidden></label>`); $("#stk95", v).onchange = e => e.target.files[0] && stkImport95(e.target.files[0]); } } catch { } };
 }
 
+/* ===================== p96: wide tables readable to the last column - compact attendance grid that fits a laptop,
+   names and dates stay fixed while scrolling, and a "⛶ Full screen" button on every table that is wider than the screen ===================== */
+document.head.insertAdjacentHTML("beforeend", `<style>
+.att29 th,.att29 td{padding:2px 1px!important}.att29 button.at29{min-width:0!important;width:27px!important;height:26px!important;font-size:.68rem!important;border-radius:5px!important}
+.att29 thead th{position:sticky;top:0;z-index:2;background:var(--surface,#fff)}.att29 thead th:first-child{z-index:3}.att29 td:first-child b{display:inline-block;max-width:150px;overflow:hidden;text-overflow:ellipsis;vertical-align:middle}
+.att29 td:last-child,.att29 th:last-child{position:sticky;right:0;background:var(--surface,#fff);z-index:1;box-shadow:-6px 0 8px -6px rgba(0,0,0,.18)}.att29 thead th:last-child{z-index:3}
+.fs96b{display:flex;justify-content:flex-end;margin:0 0 6px}.fs96b button{font-size:.78rem}
+.fs96{position:fixed!important;inset:0!important;z-index:9000!important;margin:0!important;border-radius:0!important;background:var(--bg,#f4f6f9)!important;display:flex!important;flex-direction:column;padding:10px 12px!important;max-width:none!important;width:auto!important}
+.fs96>.fs96h{display:flex;align-items:center;gap:10px;margin-bottom:8px}.fs96>.fs96h b{flex:1;font-size:1rem}.fs96 .tablewrap,.fs96 .fs96s{flex:1;overflow:auto!important;max-height:none!important}
+.fs96 table thead th{position:sticky;top:0;z-index:2;background:var(--surface,#fff)}.fs96 table td:first-child,.fs96 table th:first-child{position:sticky;left:0;background:var(--surface,#fff);z-index:1}.fs96 table thead th:first-child{z-index:3}
+body.fs96on{overflow:hidden}
+</style>`);
+function fs96(sec, title) {
+  if (sec.classList.contains("fs96")) { sec.classList.remove("fs96"); $(".fs96h", sec)?.remove(); document.body.classList.remove("fs96on"); return; }
+  sec.classList.add("fs96"); document.body.classList.add("fs96on");
+  sec.insertAdjacentHTML("afterbegin", `<div class="fs96h"><b>${esc(title || document.querySelector("#view h1")?.textContent || "")}</b>${$("#at29s") && sec.querySelector(".att29") ? '<button type="button" class="btn sm" data-fs96s>Mark today present for all</button><button type="button" class="btn sm primary" data-fs96v>💾 Save attendance</button>' : ""}<button type="button" class="btn sm" data-fs96x>✕ Close full screen</button></div>`);
+  $("[data-fs96x]", sec).onclick = () => fs96(sec);
+  $("[data-fs96s]", sec) && ($("[data-fs96s]", sec).onclick = () => $("#at29all")?.click());
+  $("[data-fs96v]", sec) && ($("[data-fs96v]", sec).onclick = () => { const b = $("#at29s"); if (!b || b.disabled) return toast("Nothing changed yet"); fs96(sec); b.click(); });
+}
+document.addEventListener("keydown", e => { if (e.key === "Escape") { const s = $(".fs96"); if (s) fs96(s); } });
+{
+  const _r = render;
+  render = function () { const out = _r.apply(this, arguments); setTimeout(() => { try {
+      const v = $("#view"); if (!v) return; document.body.classList.remove("fs96on");
+      $$("table", v).forEach(t => { const box = t.closest(".tablewrap") || t.parentElement; if (!box || box.dataset.fs96) return; const sec = t.closest("section.panel") || box; if (sec.dataset.fs96 || sec.classList.contains("fs96")) return;
+        const wide = t.classList.contains("att29") || t.scrollWidth > box.clientWidth + 24; if (!wide) return; box.dataset.fs96 = sec.dataset.fs96 = 1;
+        if (!box.classList.contains("tablewrap")) { box.classList.add("fs96s"); box.style.overflow = "auto"; }
+        sec.insertAdjacentHTML("beforebegin", `<div class="fs96b"><button type="button" class="btn sm">⛶ Full screen${t.classList.contains("att29") ? " (all days)" : ""}</button></div>`);
+        sec.previousElementSibling.querySelector("button").onclick = () => fs96(sec, t.classList.contains("att29") ? "Attendance · " + ($("#view [type=month]")?.value || "") : ""); });
+    } catch (e) { console.warn("p96", e); } }, 150); return out; };
+}
+
 boot();
 
 </script>
