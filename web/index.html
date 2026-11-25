@@ -5309,7 +5309,7 @@ VIEWS.intel = v => {
     const gaps = L.filter(r => r.l1 && r.our).map(r => (r.our - r.l1) / r.l1 * 100);
     B.innerHTML = `<section class="panel"><div class="body"><label class="f">Item, buyer or bid<input type="text" id="pqQ" value="${esc(S.pq)}" placeholder="stator coil, roebel bar, NCL…"></label>
       <div class="grid g3" style="margin-top:12px"><div class="panel kpi"><span class="eyebrow">Results found</span><span class="v">${L.length}</span></div><div class="panel kpi"><span class="eyebrow">Median L1</span><span class="v">${med ? "₹" + Math.round(med).toLocaleString("en-IN") : "—"}</span></div><div class="panel kpi"><span class="eyebrow">Rivera vs L1 (avg)</span><span class="v">${gaps.length ? (gaps.reduce((a, b) => a + b, 0) / gaps.length).toFixed(1) + "%" : "—"}</span></div></div></div></section>
-      <section class="panel" style="margin-top:16px"><div class="scroll">${L.length ? `<table class="t"><thead><tr><th>Date</th><th>Buyer</th><th>Bid / PO</th><th>Item</th><th class="n">L1 ₹</th><th class="n">Rivera ₹</th><th>Winner</th></tr></thead><tbody>${L.slice(0, 300).map(r => `<tr><td>${r.date ? dmy(r.date) : "—"}</td><td>${esc(r.org || "—")}</td><td class="mono small">${esc(r.bid)}</td><td class="small" style="max-width:320px">${esc(String(r.item).slice(0, 110))}</td><td class="n">${r.l1 ? r.l1.toLocaleString("en-IN") : "—"}</td><td class="n">${r.our ? r.our.toLocaleString("en-IN") : "—"}</td><td>${esc(r.win || "—")}</td></tr>`).join("")}</tbody></table>` : `<div class="empty"><b>No prices yet</b>Record results (L1 and Rivera's price) on decided tenders and they build up here.</div>`}</div></section>`;
+      <section class="panel" style="margin-top:16px"><div class="scroll">${L.length ? `<table class="t"><thead><tr><th>Date</th><th>Buyer</th><th>Bid / PO</th><th>Item</th><th class="n">L1 ₹</th><th class="n">Rivera ₹</th><th>Winner</th></tr></thead><tbody>${L.slice(0, 300).map(r => `<tr><td>${r.date ? dmy(r.date) : "—"}</td><td>${esc(r.org || "—")}</td><td class="mono small">${esc(r.bid)}</td><td class="small" style="max-width:320px">${esc(String(r.item).slice(0, 110))}</td><td class="n">${r.l1 ? (+(r.l1) || 0).toLocaleString("en-IN") : "—"}</td><td class="n">${r.our ? (+(r.our) || 0).toLocaleString("en-IN") : "—"}</td><td>${esc(r.win || "—")}</td></tr>`).join("")}</tbody></table>` : `<div class="empty"><b>No prices yet</b>Record results (L1 and Rivera's price) on decided tenders and they build up here.</div>`}</div></section>`;
     $("#pqQ").oninput = e => { S.pq = e.target.value; clearTimeout(S._pt); S._pt = setTimeout(() => { const p = $("#pqQ")?.selectionStart; render(); const i = $("#pqQ"); if (i) { i.focus(); i.setSelectionRange(p, p); } }, 250); };
   } else if (keep === "auto") {
     const A = FEED.auto || {}, admin = AUTH.isAdmin;
@@ -5335,7 +5335,7 @@ function misReport() {
   const by = f => Object.entries(ts.reduce((m, t) => { const k = f(t) || "—", b = m[k] ||= { n: 0, sub: 0, won: 0, val: 0 }; b.n++; if (["submitted", "technical", "ra", "awarded", "not_awarded"].includes(t.status)) b.sub++; if (t.status === "awarded") { b.won++; b.val += num(t.value); } return m; }, {})).sort((a, b) => b[1].n - a[1].n);
   const live = ts.filter(t => LIVE14.includes(t.status) && (!t.closing || t.closing >= T)).sort((a, b) => String(a.closing).localeCompare(String(b.closing)));
   const tbl = (head, rows, widths) => ({ widths, table: [head.map(t => ({ t, b: true })), ...rows.map(r => r.map(t => ({ t: String(t) })))] });
-  const stat = rows => rows.map(([k, b]) => [k, b.n, b.sub, b.won, b.sub ? Math.round(b.won / b.sub * 100) + "%" : "—", b.val ? b.val.toLocaleString("en-IN") : "—"]);
+  const stat = rows => rows.map(([k, b]) => [k, b.n, b.sub, b.won, b.sub ? Math.round(b.won / b.sub * 100) + "%" : "—", b.val ? (+(b.val) || 0).toLocaleString("en-IN") : "—"]);
   const blocks = () => [{ logo: true },
     { t: "TENDER MIS REPORT", b: true, sz: 15, color: "02315B", align: "center", after: 40 }, { t: `Rivera Coil Manufacturing (I) Pvt Ltd · as on ${dmy(T)}`, align: "center", sz: 10, after: 200 },
     { t: `Tracked ${ts.length} · live ${live.length} · awarded ${ts.filter(t => t.status === "awarded").length} · not awarded ${ts.filter(t => t.status === "not_awarded").length}`, sz: 11, after: 120 },
@@ -5386,7 +5386,7 @@ function tdbSearch(B, S) {
   const f = S.f, body = { ...f, page: S.page, size: 50 }, key = "q:" + JSON.stringify(body), c = S.cache[key] || (tdbLoad(key, "tdbQuery", body), S.cache[key]);
   const d = c?.d, cn = d?.counts || {}, mine = new Set((STATE.data.tenders || []).map(t => t.bid));
   const opts = (list, cur, all) => `<option value="">${all}</option>` + (list || []).map(x => { const [k, n] = Array.isArray(x) ? x : [x, ""]; return `<option value="${esc(k)}" ${cur === k ? "selected" : ""}>${esc(k)}${n ? " (" + n + ")" : ""}</option>`; }).join("");
-  B.innerHTML = `<div class="hero-strip"><div><span>In database</span><b>${d ? cn.all.toLocaleString("en-IN") : "…"}</b></div><div><span>Live now</span><b>${d ? cn.live.toLocaleString("en-IN") : "…"}</b></div><div><span>Closed (archive)</span><b>${d ? cn.closed.toLocaleString("en-IN") : "…"}</b></div><div><span>Tenders with results</span><b>${d ? cn.resultTenders.toLocaleString("en-IN") : "…"}</b></div><div><span>Bidder prices</span><b>${d ? cn.results.toLocaleString("en-IN") : "…"}</b></div></div>
+  B.innerHTML = `<div class="hero-strip"><div><span>In database</span><b>${d ? (+(cn.all) || 0).toLocaleString("en-IN") : "…"}</b></div><div><span>Live now</span><b>${d ? (+(cn.live) || 0).toLocaleString("en-IN") : "…"}</b></div><div><span>Closed (archive)</span><b>${d ? (+(cn.closed) || 0).toLocaleString("en-IN") : "…"}</b></div><div><span>Tenders with results</span><b>${d ? (+(cn.resultTenders) || 0).toLocaleString("en-IN") : "…"}</b></div><div><span>Bidder prices</span><b>${d ? (+(cn.results) || 0).toLocaleString("en-IN") : "…"}</b></div></div>
   <section class="panel"><div class="body"><div class="fields">
     <label class="f" style="grid-column:span 2">Product, keyword, bid no., buyer, city<input type="text" id="tq" value="${esc(f.q)}" placeholder="stator coil, armature, NTPC, GEM/2026/B/…"></label>
     <label class="f">Show<select id="tst">${[["live", "Live tenders"], ["closed", "Closed / archive"], ["all", "Everything"]].map(([k, l]) => `<option value="${k}" ${f.status === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
@@ -5398,16 +5398,16 @@ function tdbSearch(B, S) {
     <label class="f">Rivera match<select id="tfi">${[["", "Any"], ["25", "25%+"], ["50", "50%+ (good)"], ["75", "75%+ (strong)"]].map(([k, l]) => `<option value="${k}" ${String(f.fit) === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
     <label class="f">Sort<select id="tso">${[["", "Default"], ["closing", "Closing date (soonest)"], ["recent", "Newest first"], ["value", "Value (highest)"], ["fit", "Rivera match"]].map(([k, l]) => `<option value="${k}" ${f.sort === k ? "selected" : ""}>${l}</option>`).join("")}</select></label>
   </div><div class="row" style="margin-top:10px;gap:8px"><label class="chip"><input type="checkbox" id="thr" ${f.hasResult ? "checked" : ""}> Only tenders with results</label><button class="btn sm" id="tclr">Clear filters</button><button class="btn sm" id="txl">${icon("dl")}Download list</button></div></div></section>
-  <section class="panel" style="margin-top:16px"><header><h2>${d ? d.total.toLocaleString("en-IN") + " tender" + (d.total === 1 ? "" : "s") : "Searching…"}</h2>${d && d.total > d.size ? `<span class="muted small">page ${d.page} of ${Math.ceil(d.total / d.size)}</span>` : ""}</header>
-  ${c?.err ? `<div class="empty"><b>Couldn't load</b>${esc(c.err)}. If the server was just updated, redeploy it (Sources & automation tab).</div>` : !d ? tdbSpinner() : !d.rows.length ? `<div class="empty"><b>No tenders match</b>${cn.all ? "Widen the filters or switch Show to Everything." : "The database is empty — turn on automation, start the old-mail backfill or import an Excel (see the other tabs)."}</div>` :
-  `<div class="scroll"><table class="t"><thead><tr><th>Closing</th><th>Bid / tender no.</th><th>Buyer</th><th>Item / work</th><th>State</th><th>Portal</th><th class="n">Value</th><th class="n">EMD</th><th class="n">Match</th><th>Result</th><th></th></tr></thead><tbody>${d.rows.map((r, i) => `<tr>
+  <section class="panel" style="margin-top:16px"><header><h2>${d ? (+(d.total) || 0).toLocaleString("en-IN") + " tender" + (d.total === 1 ? "" : "s") : "Searching…"}</h2>${d && d.total > d.size ? `<span class="muted small">page ${d.page} of ${Math.ceil(d.total / d.size)}</span>` : ""}</header>
+  ${c?.err ? `<div class="empty"><b>Couldn't load</b>${esc(c.err)}. If the server was just updated, redeploy it (Sources & automation tab).</div>` : !d ? tdbSpinner() : !(d.rows || []).length ? `<div class="empty"><b>No tenders match</b>${cn.all ? "Widen the filters or switch Show to Everything." : "The database is empty — turn on automation, start the old-mail backfill or import an Excel (see the other tabs)."}</div>` :
+  `<div class="scroll"><table class="t"><thead><tr><th>Closing</th><th>Bid / tender no.</th><th>Buyer</th><th>Item / work</th><th>State</th><th>Portal</th><th class="n">Value</th><th class="n">EMD</th><th class="n">Match</th><th>Result</th><th></th></tr></thead><tbody>${(d.rows || []).map((r, i) => `<tr>
     <td>${r.closing ? dueChip(r.closing, r.status !== "live") : "—"}${Number(r.corr) ? `<div class="small muted">${r.corr} date change${r.corr > 1 ? "s" : ""}</div>` : ""}</td>
     <td class="mono" style="font-size:.74rem">${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.bid)}</a>` : esc(r.bid)}</td><td style="min-width:150px">${esc(r.org || "—")}</td><td class="small" style="min-width:220px">${esc(String(r.item || r.subject || "").slice(0, 160))}</td>
     <td class="small">${esc(r.state || "")}${r.city ? `<div class="muted">${esc(r.city)}</div>` : ""}</td><td class="small">${esc(r.portal || "")}</td><td class="n">${tdbMoney(r.value)}</td><td class="n">${tdbMoney(r.emd)}</td>
     <td class="n"><span class="chip ${r.fit >= 75 ? "ok" : r.fit >= 50 ? "warn" : ""}">${num(r.fit)}%</span></td>
     <td class="small">${r.result ? `${r.result.l1 ? `L1 <b>${esc(r.result.l1.bidder || "?")}</b> ${tdbMoney(r.result.l1.price)}` : ""}${r.result.rivera ? `<div>Rivera ${tdbMoney(r.result.rivera.price)}${r.result.rivera.rank ? " (L" + r.result.rivera.rank + ")" : ""}</div>` : ""}<div><a href="#tdb" data-tres="${esc(r.bid)}">${r.result.n} bidder${r.result.n > 1 ? "s" : ""}</a></div>` : `<a href="#tdb" data-tadd="${i}">+ Add result</a>`}</td>
     <td>${r.tracked || mine.has(r.bid) ? `<span class="chip ok">${esc(TENDER_ST[r.tracked?.status]?.[0] || "Tracked")}</span>` : r.status === "live" ? `<button class="btn sm primary" data-ttr="${i}">Track</button>` : ""}</td></tr>`).join("")}</tbody></table></div>
-  ${d.total > d.size ? `<div class="row" style="padding:12px 16px;gap:8px"><button class="btn sm" id="tpv" ${d.page <= 1 ? "disabled" : ""}>‹ Previous</button><span class="small muted">Showing ${(d.page - 1) * d.size + 1}–${Math.min(d.total, d.page * d.size)} of ${d.total.toLocaleString("en-IN")}</span><button class="btn sm" id="tnx" ${d.page * d.size >= d.total ? "disabled" : ""}>Next ›</button></div>` : ""}`}</section>
+  ${d.total > d.size ? `<div class="row" style="padding:12px 16px;gap:8px"><button class="btn sm" id="tpv" ${d.page <= 1 ? "disabled" : ""}>‹ Previous</button><span class="small muted">Showing ${(d.page - 1) * d.size + 1}–${Math.min(d.total, d.page * d.size)} of ${(+(d.total) || 0).toLocaleString("en-IN")}</span><button class="btn sm" id="tnx" ${d.page * d.size >= d.total ? "disabled" : ""}>Next ›</button></div>` : ""}`}</section>
   ${d && Object.keys(d.byYear || {}).length > 1 ? `<section class="panel" style="margin-top:16px"><header><h2>Matching tenders by year</h2></header><div class="body row" style="gap:16px;align-items:flex-end">${Object.entries(d.byYear).sort().map(([y, n]) => { const mx = Math.max(...Object.values(d.byYear)); return `<div style="text-align:center"><div style="width:34px;height:${Math.max(4, n / mx * 110)}px;background:var(--navy,#02315B);border-radius:3px 3px 0 0;margin:0 auto" title="${n}"></div><div class="small mono">${y}</div><div class="small muted">${n}</div></div>`; }).join("")}</div></section>` : ""}`;
   const set = (k, val) => { f[k] = val; S.page = 1; render(); };
   $("#tq").oninput = e => { f.q = e.target.value; clearTimeout(S._t); S._t = setTimeout(() => { S.page = 1; const p = $("#tq")?.selectionStart; render(); const i = $("#tq"); if (i) { i.focus(); i.setSelectionRange(p, p); } }, 400); };
@@ -5440,7 +5440,7 @@ function tdbResults(B, S) {
     <div class="row" style="margin-top:10px"><button class="btn primary" id="raGo">${icon("save")}Save result</button></div></div></section>
   <section class="panel" style="margin-top:16px"><div class="body"><div class="fields"><label class="f" style="grid-column:span 2">Search results — bidder, buyer, item, bid no.<input type="text" id="rq" value="${esc(R.q)}" placeholder="competitor name, NCL, armature…"></label>
     ${R.bid || R.bidder ? `<div class="f"><span>Filter</span><div class="row" style="gap:6px">${R.bid ? `<span class="chip navy">Bid ${esc(R.bid)}</span>` : ""}${R.bidder ? `<span class="chip navy">Bidder ${esc(R.bidder)}</span>` : ""}<button class="btn sm" id="rclr">Show all</button></div></div>` : ""}</div></div></section>
-  <section class="panel" style="margin-top:16px"><header><h2>${d ? d.total.toLocaleString("en-IN") + " bidder price" + (d.total === 1 ? "" : "s") + " · " + groups.length + " tender" + (groups.length === 1 ? "" : "s") : "Loading…"}</h2></header>
+  <section class="panel" style="margin-top:16px"><header><h2>${d ? (+(d.total) || 0).toLocaleString("en-IN") + " bidder price" + (d.total === 1 ? "" : "s") + " · " + groups.length + " tender" + (groups.length === 1 ? "" : "s") : "Loading…"}</h2></header>
   ${c?.err ? `<div class="empty"><b>Couldn't load</b>${esc(c.err)}</div>` : !d ? tdbSpinner() : !groups.length ? `<div class="empty"><b>No results yet</b>Results come from result / award mails automatically, from Rivera's own recorded results, from Excel import, or add them above.</div>` :
   `<div class="body stack" style="gap:12px">${groups.map(g => { const lo = Math.min(...g.rows.map(r => num(r.price) || Infinity)); return `<div class="panel" style="box-shadow:none"><header style="flex-wrap:wrap"><div><b class="mono small">${g.link ? `<a href="${esc(g.link)}" target="_blank" rel="noopener">${esc(g.bid)}</a>` : esc(g.bid)}</b> <span class="muted small">${esc(g.org || "")}${g.date ? " · " + dmy(g.date) : ""}</span><div class="small">${esc(String(g.item || "").slice(0, 140))}</div></div></header>
     <div class="scroll"><table class="t"><thead><tr><th class="n">Rank</th><th>Bidder</th><th class="n">Price ₹</th><th class="n">vs L1</th><th>Awarded</th><th>Source</th><th></th></tr></thead><tbody>${g.rows.map(r => `<tr${/rivera/i.test(r.bidder) ? ' style="background:var(--ok-soft)"' : ""}><td class="n">${r.rank ? "L" + r.rank : "—"}</td><td><a href="#tdb" data-rbd="${esc(r.bidder)}"><b>${esc(r.bidder || "(not named)")}</b></a></td><td class="n mono">${num(r.price) ? fmt(num(r.price), "INR", 0) : "—"}</td><td class="n">${num(r.price) && isFinite(lo) && num(r.price) > lo ? "+" + ((num(r.price) - lo) / lo * 100).toFixed(1) + "%" : num(r.price) === lo ? "L1" : "—"}</td><td>${r.awarded === "yes" ? '<span class="chip ok">Awarded</span>' : r.awarded === "no" ? '<span class="chip">No</span>' : ""}</td><td class="small muted">${esc(r.source || "")}</td><td>${AUTH.isAdmin || r.by === AUTH.user?.email ? `<button class="btn sm" data-rdel="${esc(r.key)}" aria-label="Delete">${icon("x")}</button>` : ""}</td></tr>`).join("")}</tbody></table></div></div>`; }).join("")}</div>
@@ -5548,7 +5548,7 @@ function tdbSources(B, S) {
   const ago = iso => { if (!iso) return "never"; const m = Math.round((Date.now() - new Date(iso)) / 6e4); return m < 60 ? m + " min ago" : m < 2880 ? Math.round(m / 60) + " h ago" : dmy(iso.slice(0, 10)); };
   const bf = d?.backfill || {}, g = d?.gem || {};
   B.innerHTML = c?.err ? `<section class="panel"><div class="empty"><b>The server doesn't have the tender database yet</b>${esc(c.err)}. Paste the new <span class="mono">server/Code.gs</span> into the Apps Script project and deploy a new version (Deploy ▸ Manage deployments ▸ Edit ▸ Version: New).</div></section>` : !d ? tdbSpinner() : `
-  <div class="grid g4" style="margin-bottom:16px"><div class="panel kpi"><span class="eyebrow">Tenders stored</span><span class="v">${d.tenders.toLocaleString("en-IN")}</span><span class="s">TenderDB sheet</span></div><div class="panel kpi"><span class="eyebrow">Bidder prices</span><span class="v">${d.results.toLocaleString("en-IN")}</span><span class="s">TenderResults sheet</span></div><div class="panel kpi"><span class="eyebrow">Last update</span><span class="v" style="font-size:1.1rem">${ago(d.last?.at)}</span><span class="s">+${d.last?.email || 0} email · +${d.last?.gem || 0} GeM · +${d.last?.results || 0} results</span></div><div class="panel kpi"><span class="eyebrow">Hourly automation</span><span class="v" style="font-size:1.1rem">${d.auto?.on ? "On" : "Off"}</span><span class="s">${d.auto?.on ? "every hour + 8:30 digest" : "turn on in Health & automation"}</span></div></div>
+  <div class="grid g4" style="margin-bottom:16px"><div class="panel kpi"><span class="eyebrow">Tenders stored</span><span class="v">${(+(d.tenders) || 0).toLocaleString("en-IN")}</span><span class="s">TenderDB sheet</span></div><div class="panel kpi"><span class="eyebrow">Bidder prices</span><span class="v">${(+(d.results) || 0).toLocaleString("en-IN")}</span><span class="s">TenderResults sheet</span></div><div class="panel kpi"><span class="eyebrow">Last update</span><span class="v" style="font-size:1.1rem">${ago(d.last?.at)}</span><span class="s">+${d.last?.email || 0} email · +${d.last?.gem || 0} GeM · +${d.last?.results || 0} results</span></div><div class="panel kpi"><span class="eyebrow">Hourly automation</span><span class="v" style="font-size:1.1rem">${d.auto?.on ? "On" : "Off"}</span><span class="s">${d.auto?.on ? "every hour + 8:30 digest" : "turn on in Health & automation"}</span></div></div>
   <section class="panel"><header><h2>Where the data comes from</h2></header><div class="scroll"><table class="t"><thead><tr><th>Source</th><th>How</th><th>Status</th><th></th></tr></thead><tbody>
     <tr><td><b>Email alerts</b><div class="small muted">GeM, CPPP (eprocure), Coal India, NIC state portals, NTPC/BHEL, Tender247, TenderTiger, BidAssist, TendersInfo</div></td><td class="small">Every alert mail in the Rivera Gmail is read each hour — every tender is stored, not only Rivera matches</td><td>${d.auto?.on ? '<span class="chip ok">Every hour</span>' : '<span class="chip warn">Automation off</span>'}</td><td><button class="btn sm" data-trun="all">Run now</button></td></tr>
     <tr><td><b>GeM direct</b><div class="small muted">bidplus.gem.gov.in public “All bids” search for each Rivera keyword</div></td><td class="small">Every 6 hours, live GeM bids only. GeM can change its site at any time — if it stops, email alerts still work.</td><td>${!d.gemOn ? '<span class="chip">Off</span>' : g.at ? (g.ok ? `<span class="chip ok">Working · ${g.n} bids · ${ago(g.at)}</span>` : `<span class="chip bad">Blocked · ${esc(g.err)}</span>`) : '<span class="chip">Not run yet</span>'}</td><td class="row" style="gap:6px"><button class="btn sm" data-trun="gem">Fetch now</button>${AUTH.isAdmin ? `<button class="btn sm" id="tgemT">${d.gemOn ? "Turn off" : "Turn on"}</button>` : ""}</td></tr>
@@ -5680,10 +5680,10 @@ VIEWS.intel = v => {
   const key = "gemf:" + JSON.stringify(body), c = T.cache[key] || (tdbLoad(key, "tdbQuery", body), T.cache[key]), d = c?.d;
   const mine = new Set((STATE.data.tenders || []).map(t => t.bid));
   const B = $("#intelBody"); if (!B) return;
-  B.insertAdjacentHTML("beforeend", `<section class="panel" style="margin-top:16px" id="gemAll16"><header style="flex-wrap:wrap;gap:8px"><div><h2>GeM portal — every live bid for Rivera's keywords</h2><span class="muted small">Pulled from GeM search (all pages) and the full CPPP list of GeM bids · refreshed every 3 hours</span></div><div class="row" style="gap:6px"><span class="chip navy">${d ? d.total.toLocaleString("en-IN") + " bids" : "…"}</span><a class="btn sm" href="#tdb">Open Tender database</a></div></header>
-    ${c?.err ? `<div class="empty"><b>Couldn't load GeM bids</b>${esc(c.err)}</div>` : !d ? `<div class="empty"><b>Loading GeM bids…</b></div>` : !d.rows.length ? `<div class="empty"><b>No live GeM bids in the database yet</b>The first full GeM pull runs automatically after the server update (Tender database ▸ Sources & automation ▸ Full GeM pull now).</div>` :
-    `<div class="body stack" style="gap:8px">${d.rows.map((r, i) => `<div class="feed-row ${r.fit >= 50 ? "hot" : ""}"><div class="feed-fit" title="Match with Rivera's keywords">${num(r.fit)}%</div><div style="min-width:0;flex:1"><b class="mono small">${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.bid)}</a>` : esc(r.bid)}</b> ${r.closing ? dueChip(r.closing) : ""} ${Number(r.corr) ? `<span class="chip warn">date changed</span>` : ""}<div class="small"><b>${esc(r.org || "—")}</b> · ${esc(String(r.item || "").slice(0, 160))}</div><div class="small muted">${r.state ? esc(r.state) + " · " : ""}${esc(r.source || "")}</div></div>${mine.has(r.bid) || r.tracked ? `<span class="chip ok">Tracked</span>` : `<button class="btn sm primary" data-g16="${i}">Track</button>`}</div>`).join("")}</div>
-    ${d.total > d.rows.length ? `<div class="row" style="padding:12px 16px;gap:8px;justify-content:center"><span class="small muted">Showing ${d.rows.length.toLocaleString("en-IN")} of ${d.total.toLocaleString("en-IN")}</span><button class="btn sm primary" id="g16more">Show ${Math.min(200, d.total - d.rows.length)} more</button><button class="btn sm" id="g16all">Show all</button></div>` : d.total ? `<div class="small muted" style="padding:12px 16px;text-align:center">All ${d.total.toLocaleString("en-IN")} bids shown</div>` : ""}`}</section>`);
+  B.insertAdjacentHTML("beforeend", `<section class="panel" style="margin-top:16px" id="gemAll16"><header style="flex-wrap:wrap;gap:8px"><div><h2>GeM portal — every live bid for Rivera's keywords</h2><span class="muted small">Pulled from GeM search (all pages) and the full CPPP list of GeM bids · refreshed every 3 hours</span></div><div class="row" style="gap:6px"><span class="chip navy">${d ? (+(d.total) || 0).toLocaleString("en-IN") + " bids" : "…"}</span><a class="btn sm" href="#tdb">Open Tender database</a></div></header>
+    ${c?.err ? `<div class="empty"><b>Couldn't load GeM bids</b>${esc(c.err)}</div>` : !d ? `<div class="empty"><b>Loading GeM bids…</b></div>` : !(d.rows || []).length ? `<div class="empty"><b>No live GeM bids in the database yet</b>The first full GeM pull runs automatically after the server update (Tender database ▸ Sources & automation ▸ Full GeM pull now).</div>` :
+    `<div class="body stack" style="gap:8px">${(d.rows || []).map((r, i) => `<div class="feed-row ${r.fit >= 50 ? "hot" : ""}"><div class="feed-fit" title="Match with Rivera's keywords">${num(r.fit)}%</div><div style="min-width:0;flex:1"><b class="mono small">${r.link ? `<a href="${esc(r.link)}" target="_blank" rel="noopener">${esc(r.bid)}</a>` : esc(r.bid)}</b> ${r.closing ? dueChip(r.closing) : ""} ${Number(r.corr) ? `<span class="chip warn">date changed</span>` : ""}<div class="small"><b>${esc(r.org || "—")}</b> · ${esc(String(r.item || "").slice(0, 160))}</div><div class="small muted">${r.state ? esc(r.state) + " · " : ""}${esc(r.source || "")}</div></div>${mine.has(r.bid) || r.tracked ? `<span class="chip ok">Tracked</span>` : `<button class="btn sm primary" data-g16="${i}">Track</button>`}</div>`).join("")}</div>
+    ${d.total > (d.rows || []).length ? `<div class="row" style="padding:12px 16px;gap:8px;justify-content:center"><span class="small muted">Showing ${(+((d.rows || []).length) || 0).toLocaleString("en-IN")} of ${(+(d.total) || 0).toLocaleString("en-IN")}</span><button class="btn sm primary" id="g16more">Show ${Math.min(200, d.total - (d.rows || []).length)} more</button><button class="btn sm" id="g16all">Show all</button></div>` : d.total ? `<div class="small muted" style="padding:12px 16px;text-align:center">All ${(+(d.total) || 0).toLocaleString("en-IN")} bids shown</div>` : ""}`}</section>`);
   $$("[data-g16]", B).forEach(b => b.onclick = () => tdbTrack(d.rows[+b.dataset.g16]));
   $("#g16more")?.addEventListener("click", () => { S.gsize = (S.gsize || 100) + 200; render(); }); $("#g16all")?.addEventListener("click", () => { S.gsize = 5000; render(); });
   // typing a new keyword starts the GeM list from page 1
@@ -5699,7 +5699,7 @@ tdbSources = function (B, S) {
   const cpPct = w.cpTotal ? Math.min(100, Math.round(((w.cp || 1) - 1) * 10 / w.cpTotal * 100)) : 0;
   B.insertAdjacentHTML("afterbegin", `<section class="panel" style="margin-bottom:16px"><header><h2>Full GeM pull</h2><span class="chip ${w.done ? "ok" : w.started ? "warn" : ""}">${w.done ? "Complete · " + new Date(w.done).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }) : w.started ? "Running" : "Not run yet"}</span></header><div class="body stack">
     <div class="grid g4"><div class="panel kpi"><span class="eyebrow">GeM search results read</span><span class="v">${(w.gemSeen || 0).toLocaleString("en-IN")}</span><span class="s">${w.gemErr ? esc(w.gemErr) : `${Math.min(w.ki || 0, d.kw || 0)} of ${d.kw || 0} keywords done`}</span></div>
-    <div class="panel kpi"><span class="eyebrow">CPPP GeM list read</span><span class="v">${(w.cpSeen || 0).toLocaleString("en-IN")}</span><span class="s">${w.cpErr ? esc(w.cpErr) : w.cpTotal ? `${cpPct}% of ${w.cpTotal.toLocaleString("en-IN")} live GeM bids` : "—"}</span></div>
+    <div class="panel kpi"><span class="eyebrow">CPPP GeM list read</span><span class="v">${(w.cpSeen || 0).toLocaleString("en-IN")}</span><span class="s">${w.cpErr ? esc(w.cpErr) : w.cpTotal ? `${cpPct}% of ${(+(w.cpTotal) || 0).toLocaleString("en-IN")} live GeM bids` : "—"}</span></div>
     <div class="panel kpi"><span class="eyebrow">Matched Rivera keywords</span><span class="v">${(w.matched || 0).toLocaleString("en-IN")}</span><span class="s">${(w.added || 0).toLocaleString("en-IN")} new in the database</span></div>
     <div class="panel kpi"><span class="eyebrow">Auto-added to Tenders</span><span class="v" style="font-size:1.1rem">75%+ match</span><span class="s">weaker matches stay in the database</span></div></div>
     ${kw.length ? `<div class="small"><b>GeM bids per keyword:</b> ${kw.map(([k, n]) => `${esc(k)} <b>${n}</b>`).join(" · ")}</div>` : ""}
@@ -8564,7 +8564,7 @@ function flowBar39() {
   const cur = flowStep39();
   let n = []; try { n = ok.map(s => s[4]()); } catch { n = ok.map(() => 0); }
   v.insertAdjacentHTML("afterbegin", `<nav id="flow39" class="fl39" aria-label="Sales flow">${ok.map((s, i) => `<button type="button" class="fl39-s ${s[0] === cur ? "on" : ""}" data-fl="${i}" ${s[0] === cur ? 'aria-current="step"' : ""}><i>${i + 1}</i><span>${s[1]}</span>${n[i] ? `<em>${n[i]}</em>` : ""}</button>${i < ok.length - 1 ? '<span class="fl39-a" aria-hidden="true">›</span>' : ""}`).join("")}</nav>`);
-  $$("[data-fl]", v).forEach(b => b.onclick = () => { const s = ok[+b.dataset.fl]; go32(s[2], s[3]); });
+  $$("#flow39 [data-fl]", v).forEach(b => b.onclick = () => { const s = ok[+b.dataset.fl]; if (s) go32(s[2], s[3]); });
 }
 /* Close button: every page except the module home goes back to All modules; Esc closes an open panel first */
 function close39() {
@@ -11305,8 +11305,8 @@ async function printForm462(E) {
   printHtml28("Form IV - Employee register", `<style>@page{size:A3 landscape}table{font-size:9px}th,td{padding:3px!important}</style><h1 style="text-align:center">FORM IV<br><small>[See rule 51(3)]</small><br>EMPLOYEE REGISTER</h1><p>Name of the establishment: <b>${esc(co)}</b> &nbsp; Name of the employer: ________ &nbsp; PAN/TAN of the employer: ________ &nbsp; LIN: ________</p><table><tr>${H.map((h, i) => `<th>${esc(h)}<br><small>${i + 1}</small></th>`).join("")}</tr>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c ?? "")}</td>`).join("")}</tr>`).join("")}</table><p><small>*Category: HS - highly skilled, S - skilled, SS - semi-skilled, US - unskilled.</small></p>`);
 }
 async function cert62(btn) {
-  const e = BIZ.rows[$("#ce62e").value]; if (!e) return toast("Add employees first", "bad");
-  const type = $("#ce62t").value, date = $("#ce62d").value, purpose = $("#ce62p").value.trim(), extra = $("#ce62x").value.trim(), co = coName62(), he = /^f/i.test(e.gender || "") ? ["She", "her", "Ms."] : ["He", "his", "Mr."];
+  const e = BIZ.rows[$("#ce62e")?.value]; if (!e) return toast("Choose the employee first", "bad");
+  const type = $("#ce62t")?.value || BIZ.ui.ce || "salary", date = $("#ce62d")?.value || todayISO(), purpose = ($("#ce62p")?.value || "").trim(), extra = ($("#ce62x")?.value || "").trim(), co = coName62(), he = /^f/i.test(e.gender || "") ? ["She", "her", "Ms."] : ["He", "his", "Mr."];
   const gross = (+e.basic || 0) + (+e.hra || 0) + (+e.allow || 0), nm = `${he[2]} ${esc(e.name)}${e.surname ? " " + esc(e.surname) : ""}`, since = dmy62(e.doj), till = e.exit ? dmy62(e.exit) : "";
   const text = {
     salary: `<p>This is to certify that ${nm} (Employee code ${esc(e.code || e.no)}) is working with ${esc(co)} as <b>${esc(e.designation || "")}</b> since ${since}.</p><p>${he[0]} draws a gross monthly salary of <b>${inr28(gross)}</b> (Basic + DA ${inr28(e.basic)}, HRA ${inr28(e.hra)}, other allowances ${inr28(e.allow)}).</p><p>This certificate is issued at ${he[1]} request${purpose ? " for the purpose of " + esc(purpose) : ""}.</p>`,
@@ -15953,7 +15953,7 @@ document.addEventListener("click", e => { const b = e.target.closest?.("#qPdf");
     _v(v);
     $$(".fu32 .fu32-a", v).forEach(a => { const id = a.querySelector("[data-fe]")?.dataset.fe; if (!id) return;
       a.insertAdjacentHTML("beforeend", `<button class="btn sm" data-fq100="${id}" type="button" title="Edit the quotation">✎ Edit</button><button class="btn sm ghost" data-fx100="${id}" type="button" title="Remove from follow-ups">✕ Remove</button>`); });
-    $$("[data-fq100]", v).forEach(b => b.onclick = () => { const q = STATE.quotes.find(x => x.id === b.dataset.fq100); if (!q) return; STATE.quote = { ...clone(q.quote), regId: q.id }; saveDrafts(); location.hash = "quote"; });
+    $$("[data-fq100]", v).forEach(b => b.onclick = () => { const q = STATE.quotes.find(x => x.id === b.dataset.fq100); if (!q) return; const base = q.quote && q.quote.to ? clone(q.quote) : Object.assign(blankQuote(), { no: q.no || "", rev: q.rev || 0, date: String(q.date || todayISO()).slice(0, 10), subject: q.subject || "", to: { ...(blankQuote().to || {}), name: q.customer || "" } }); STATE.quote = { ...base, regId: q.id }; saveDrafts(); location.hash = "quote"; });
     $$("[data-fx100]", v).forEach(b => { b.dataset.l = "✕ Remove"; b.onclick = () => { const q = STATE.quotes.find(x => x.id === b.dataset.fx100); if (!q) return;
       sure71(b, () => fuSave32(q, { fuOff: todayISO(), fuOffBy: me28() }, "Removed from follow-ups (the quotation stays in the register)"), "Tap again to remove"); }; });
     const off = (STATE.quotes || []).filter(q => q.fuOff && ["sent", "negotiation"].includes(q.status || "sent"));
@@ -16193,13 +16193,14 @@ LHDOC86.test = () => false;          /* the old letterhead step stands down - th
 
 /* =============== p103: the date beside each e-signature, written automatically (as people write it by hand on the papers: 18/11/26)
    - uses the document's own date (quotation date, PO date, voucher date, letter date), else today =============== */
-let SIGD103 = null;
+let SIGD103 = null; const SIGDATE_ON = false;
 try { document.head.insertAdjacentHTML("beforeend", `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap">`); } catch { }
 const sigDate103 = d => { const s = String(d || todayISO()).slice(0, 10), m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : s; };
 {
   const _s = sigBlock99;
   sigBlock99 = function (doc, opt = {}) {
     const h = _s.apply(this, arguments), d = sigDate103(opt.date || SIGD103);
+    if (!SIGDATE_ON) return h; /* no date beside e-signatures (asked 25-11-2026) */
     return h.replace(/<img src="([^"]+)" style="max-height:54px;max-width:160px">/g,
       (all, src) => `<span style="position:relative;display:inline-block;padding-right:50px">${all}<span class="sgd103" style="position:absolute;right:0;bottom:-6px;font:500 16px/1 'Segoe Print',Caveat,'Bradley Hand','Comic Sans MS',cursive;color:#1d2f8f;transform:rotate(-6deg)">${d}</span></span>`);
   };
@@ -16300,7 +16301,7 @@ async function quoteDocx105(Q) {
   B.push(P(R("Hope our quotation is in line with your expectation, and we look forward to your valuable Purchase Order.", { b: true, color: GREEN }), { before: 240, after: 200 }));
   const L = 'w:left="4600"';
   B.push(P(R(`For ${coName},`, { b: true }), { ind: L, after: 60 }));
-  if (sImg || seImg) B.push(P([inline(seImg, 2.4), R("  "), inline(sImg, 3.4), R("  " + sigDate103(Q.date), { color: "1D2F8F", sz: 11 })], { ind: L, after: 0 }));
+  if (sImg || seImg) B.push(P([inline(seImg, 2.4), R("  "), inline(sImg, 3.4), R("")], { ind: L, after: 0 }));
   else B.push(P("", { after: 900 }));
   B.push(P(R("Authorized Signature", { b: true }), { ind: 'w:left="6200"' }));
   /* parts */
@@ -16328,6 +16329,87 @@ document.addEventListener("click", async e => {
     d.insertAdjacentHTML("afterend", `<label class="btn" style="gap:6px" title="Untick to leave the signature and seal blank (sign by hand)"><input type="checkbox" id="qSig105" ${STATE.quote.manualSign ? "" : "checked"}> ✍ e-signature &amp; seal</label>`);
     $("#qSig105").onchange = ev => { STATE.quote.manualSign = !ev.target.checked; saveDrafts(); const p = $("#paper"); if (p) p.innerHTML = paperHtml(STATE.quote); toast(ev.target.checked ? "Signature and seal will print by themselves" : "Left blank - sign by hand"); };
   } catch { } };
+}
+
+
+/* =============== p106: every download / print that carries signatures first asks "E-signature & seal" or "Sign by hand";
+   the quotation workings Excel is a real Excel again (live formulas, Indian number format, clean layout) =============== */
+function askSign106(what) {
+  return new Promise(ok => {
+    const ov = document.createElement("div"); ov.className = "sg106o";
+    ov.innerHTML = `<div class="sg106c" role="dialog" aria-modal="true"><b>${esc(what || "Download")}</b><p>How should this document be signed?</p>
+      <button type="button" data-a="e" class="sg106e">✍️ <span><b>E-signature &amp; seal</b><small>Signatures and seal print by themselves</small></span></button>
+      <button type="button" data-a="hand" class="sg106h">🖊 <span><b>Sign by hand</b><small>Leaves blank space to sign on paper</small></span></button>
+      <button type="button" data-a="" class="sg106x">Cancel</button></div>`;
+    document.body.appendChild(ov);
+    const done = a => { ov.remove(); ok(a); };
+    ov.onclick = e => { const b = e.target.closest("[data-a]"); if (b) done(b.dataset.a || null); else if (e.target === ov) done(null); };
+    addEventListener("keydown", function k(e) { if (e.key === "Escape") { removeEventListener("keydown", k); if (ov.isConnected) done(null); } });
+    $(".sg106e", ov).focus();
+  });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.sg106o{position:fixed;inset:0;background:rgba(2,20,40,.45);z-index:9999;display:grid;place-items:center;padding:16px}
+.sg106c{background:var(--surface,#fff);border-radius:16px;padding:20px;width:min(420px,100%);display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 50px rgba(0,0,0,.25)}.sg106c>b{font-size:17px}.sg106c p{margin:0 0 4px;color:var(--muted,#5d6878)}
+.sg106c button{display:flex;align-items:center;gap:12px;text-align:left;border:1.5px solid var(--line,#dde3ea);background:var(--surface,#fff);border-radius:12px;padding:12px 14px;font:inherit;font-size:22px;cursor:pointer;color:inherit}.sg106c button span{display:flex;flex-direction:column;font-size:14px}.sg106c button small{color:var(--muted,#5d6878);font-size:12px}
+.sg106c .sg106e{border-color:#02315B;background:#eef4fb}.sg106c .sg106x{justify-content:center;font-size:14px;border:0;background:transparent;color:var(--muted,#5d6878)}
+label:has(#qSig105){display:none!important}</style>`);
+/* mark every signature block so the print step knows where signatures are */
+{ const _s = sigBlock99; sigBlock99 = function () { const h = _s.apply(this, arguments); return /<img /.test(h) ? `<div class="sg106">${h}</div>` : h; }; }
+const handSign106 = h => h.replace(/<div class="sg106">([\s\S]*?<\/table>)<\/div>/g, (a, t) => t.replace(/<img [^>]*>/g, "").replace(/<span class="sgd103"[^>]*>[^<]*<\/span>/g, ""));
+{
+  const _p = printHtml28;
+  printHtml28 = function (title, inner) {
+    const h = String(inner || ""), self = this;
+    if (!/<div class="sg106">/.test(h)) return _p.call(self, title, h);
+    askSign106(title).then(a => { if (!a) return; _p.call(self, title, a === "hand" ? handSign106(h) : h.replace(/<div class="sg106">/g, "<div>")); });
+  };
+}
+/* Word quotation: ask first, then build */
+addEventListener("click", async e => {
+  const b = e.target.closest?.("#qDocx"); if (!b || !STATE.quote) return; e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation();
+  const a = await askSign106("Quotation " + (STATE.quote.no || "") + " (Word)"); if (!a) return;
+  const Q = { ...STATE.quote, manualSign: a === "hand" };
+  try { b.disabled = true; const blob = await quoteDocx105(Q); saveFile(safeName(`${Q.no.replace(/\//g, "_")}${Q.rev ? "R" + Q.rev : ""}_${Q.to?.name || "quotation"}`) + ".docx", blob); } catch (er) { toast("Word failed: " + er.message, "bad"); } finally { b.disabled = false; }
+}, true);
+/* preview always shows the e-signature (the choice is made when downloading) */
+{ const _q = quoteHtml99; quoteHtml99 = function (Q, forPrint) { return _q.call(this, Q && Q.manualSign ? { ...Q, manualSign: false } : Q, forPrint); }; paperHtml = function (Q) { try { return quoteHtml99(Q, false); } catch (er) { console.warn("p106 quote", er); return ""; } }; }
+
+/* ---- quotation workings: real Excel with formulas (the PDF-only switch stays for every other report) ---- */
+{
+  const _w = workingsSheet; workingsSheet = function () { const s = _w.apply(this, arguments); s.realXlsx = true; return s; };
+  const _sc = typeof scanSheet === "function" ? scanSheet : null; if (_sc) scanSheet = function () { const s = _sc.apply(this, arguments); s.realXlsx = true; return s; };
+  const INR106 = `[&gt;=10000000]##\\,##\\,##\\,##0.00;[&gt;=100000]##\\,##\\,##0.00;##,##0.00`;
+  const realXlsx106 = async sheets => {
+    sheets.forEach(s => { if (!s.realXlsx) return;
+      s.cols = s.cols && s.cols.length ? s.cols.map((w, i) => i === 0 ? Math.max(w || 0, 8) : i === 1 ? Math.max(w || 0, 34) : Math.max(w || 0, 14)) : [8, 34, 14, 14, 10, 18];
+      /* label rows (Basic / Profit / Total…): label spans A:B so it is never cut */
+      (s.cells || []).forEach((row, ri) => { if (!row || ri < 2) return; const a = row[0], b = row[1]; const av = a && typeof a === "object" ? a.v : a, bv = b && typeof b === "object" ? b.v : b;
+        if (typeof av === "string" && av && (bv === "" || bv == null)) { const ref = `A${ri + 1}:B${ri + 1}`; s.merges ||= []; if (!s.merges.some(m => m.startsWith(`A${ri + 1}:`))) s.merges.push(ref); } });
+    });
+    const blob = await _buildXlsx12(sheets), Z = await getZip(), z = await Z.loadAsync(blob);
+    let st = await z.file("xl/styles.xml").async("string"); st = st.replace('formatCode="#,##0.00"', `formatCode="${INR106}"`).replace('formatCode="#,##0.##"', 'formatCode="#,##0.###"'); z.file("xl/styles.xml", st);
+    return z.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  };
+  const _b = buildXlsx; buildXlsx = async sheets => (sheets || []).some(s => s && s.realXlsx) ? realXlsx106(sheets) : _b(sheets);
+}
+
+
+/* =============== p107: fixes found by the full click-test (132 screens, 1,134 buttons) =============== */
+/* 1. a quotation opened from the register / follow-ups that has no saved layout never breaks the quotation screen */
+function fixQuote107(Q) {
+  if (!Q || typeof Q !== "object") return Q; const B = blankQuote();
+  Q.to = { ...(B.to || {}), ...(Q.to || {}) }; if (!Array.isArray(Q.lines) || !Q.lines.length) Q.lines = clone(B.lines || []); if (!Array.isArray(Q.clauses)) Q.clauses = clone(B.clauses || []);
+  ["currency", "incoterm", "intro", "date", "no"].forEach(k => { if (Q[k] == null || Q[k] === "") Q[k] = B[k]; }); return Q;
+}
+{ const _v = VIEWS.quote; VIEWS.quote = function (v) { try { if (STATE.quote) fixQuote107(STATE.quote); } catch (e) { console.warn("p107", e); } return _v.apply(this, arguments); }; }
+document.addEventListener("click", e => { const b = e.target.closest?.("[data-oq]"); if (!b) return; const q = (STATE.quotes || []).find(x => x.id === b.dataset.oq); if (!q || (q.quote && q.quote.to)) return;
+  e.preventDefault(); e.stopImmediatePropagation(); STATE.quote = { ...fixQuote107(Object.assign(blankQuote(), { no: q.no || "", rev: q.rev || 0, date: String(q.date || todayISO()).slice(0, 10), subject: q.subject || "" , to: { name: q.customer || "" } })), regId: q.id }; saveDrafts(); location.hash = "quote"; }, true);
+/* 2. company details exactly as on the letterhead */
+{
+  const fixCo = () => { const C = SETTINGS.company; if (!C) return; if (!C.web) C.web = "www.riveracoilmanufacturing.com"; if (!C.cin) C.cin = "U31904TZ2021PTC037487";
+    if (!/Veerappampalayam/i.test(C.address || "")) C.address = "191/1, Perundurai Main Road, Opp Veerappampalayam By-Pass Road, Thindal (Post), Erode – 638 012, Tamil Nadu, India";
+    if (!C.pan) C.pan = "AALCR4223N"; if (!C.tan) C.tan = "CMBR09105F"; };
+  try { fixCo(); } catch { } const _r = render; render = function () { try { fixCo(); } catch { } return _r.apply(this, arguments); };
 }
 
 boot();
