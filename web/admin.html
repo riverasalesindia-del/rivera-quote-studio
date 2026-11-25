@@ -16293,6 +16293,53 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 @media print{.top92,.pg92{display:none}}
 </style>`);
 
+/* ===================== p106: Tender search — tap the "Closing", "Value" or "Match" column heading to sort by it (tap again to go back to the default order, ▲ / ▼ shows the sort),
+   and tap the counts on top ("In database", "Live now", "Closed (archive)", "Tenders with results") to show exactly those tenders (Tender247-style, fewer clicks). Client-side only — no server change ===================== */
+{
+  const COL106 = { "closing": ["closing", "▲", "Sort by closing date (soonest first)"], "value": ["value", "▼", "Sort by value (highest first)"], "match": ["fit", "▼", "Sort by Rivera match (best first)"] };
+  function th106(B, S) {
+    const tbl = $("table.t", B); if (!tbl || tbl.dataset.s106) return; tbl.dataset.s106 = "1";
+    $$("thead th", tbl).forEach(th => {
+      const c = COL106[th.textContent.trim().toLowerCase()]; if (!c) return;
+      const [k, arrow, tip] = c, on = S.f.sort === k;
+      th.classList.add("s106"); if (on) th.classList.add("on");
+      th.tabIndex = 0; th.setAttribute("role", "button"); th.title = on ? "Back to the default order" : tip;
+      th.setAttribute("aria-sort", on ? (arrow === "▲" ? "ascending" : "descending") : "none");
+      th.insertAdjacentHTML("beforeend", `<i class="s106-a" aria-hidden="true">${on ? arrow : "↕"}</i>`);
+      const go = () => { S.f.sort = on ? "" : k; S.page = 1; render(); };
+      th.addEventListener("click", go);
+      th.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    });
+  }
+  const HS106 = { "in database": f => { f.status = "all"; f.hasResult = false; }, "live now": f => { f.status = "live"; f.hasResult = false; },
+    "closed (archive)": f => { f.status = "closed"; f.hasResult = false; }, "tenders with results": f => { f.status = "all"; f.hasResult = true; } };
+  const ON106 = { "in database": f => f.status === "all" && !f.hasResult, "live now": f => f.status === "live" && !f.hasResult, "closed (archive)": f => f.status === "closed" && !f.hasResult, "tenders with results": f => !!f.hasResult };
+  function hs106(B, S) {
+    const hs = B.querySelector(":scope > .hero-strip"); if (!hs || hs.dataset.h106) return; hs.dataset.h106 = "1";
+    [...hs.children].forEach(d => {
+      const l = (d.querySelector("span")?.textContent || "").trim().toLowerCase(), set = HS106[l]; if (!set) return;
+      d.classList.add("h106"); if (ON106[l](S.f)) d.classList.add("on");
+      d.tabIndex = 0; d.setAttribute("role", "button"); d.title = "Show these tenders";
+      const go = () => { set(S.f); S.page = 1; render(); };
+      d.addEventListener("click", go);
+      d.addEventListener("keydown", e => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); go(); } });
+    });
+  }
+  const _tdb106 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb106(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
+    try { th106(B, S); } catch (e) { console.warn("p106 sort", e); }
+    try { hs106(B, S); } catch (e) { console.warn("p106 strip", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+th.s106{cursor:pointer;user-select:none;white-space:nowrap}th.s106:hover,th.s106:focus-visible{color:var(--copper,#E26A0C);outline:none}
+th.s106 .s106-a{font-style:normal;margin-left:4px;font-size:.75em;color:var(--muted,#6b7280)}th.s106.on,th.s106.on .s106-a{color:var(--copper,#E26A0C)}
+.hero-strip>.h106{cursor:pointer;transition:filter .15s}.hero-strip>.h106:hover{filter:brightness(1.18)}.hero-strip>.h106:focus-visible{outline:2px solid var(--copper,#E26A0C);outline-offset:-2px}
+.hero-strip>.h106.on{box-shadow:inset 0 -3px 0 var(--copper,#E26A0C)}
+</style>`);
+
 boot();
 
 </script>
