@@ -1106,10 +1106,10 @@ function setup() { secret(); users(); sessions(); sheet("Log", ["time", "email",
 
 /* ================= p28: business records (GrowSmart-style) — leads & follow-ups, repair jobs, purchase orders, stock, tasks ================= */
 var RCH = ["id", "kind", "no", "data", "by", "at", "del"];
-var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN", cq: "CQ", sr: "RT", wk: "WK", wd: "DU", cr: "CR", ho: "HO", fa: "FA", vlt: "VL", qap: "QA", qtr: "TR", pret: "PR", pcs: "CS", cert: "CE", rm: "RM", lv: "LVR", onb: "NE", vis: "VS", appt: "AP", tqs: "TQ", cw: "CW", pl: "PL", mg: "MG", vr: "VR", mkt: "MK", dc: "DC", rn: "GRN", rq: "RQ", ph: "PH", pd: "PD" };
+var REC_KINDS = { lead: "LD", job: "RJ", po: "PO", item: "IT", move: "MV", task: "TK", svc: "SR", amc: "AMC", asset: "EQ", proj: "PRJ", inv: "INV", rcpt: "RC", exp: "EX", bill: "BL", spay: "PY", emp: "EMP", att: "AT", leave: "LV", sal: "SAL", cmt: "CM", so: "SO", dn: "DN", cq: "CQ", sr: "RT", wk: "WK", wd: "DU", cr: "CR", ho: "HO", fa: "FA", vlt: "VL", qap: "QA", qtr: "TR", pret: "PR", pcs: "CS", cert: "CE", rm: "RM", lv: "LVR", onb: "NE", vis: "VS", appt: "AP", tqs: "TQ", cw: "CW", pl: "PL", mg: "MG", vr: "VR", mkt: "MK", dc: "DC", rn: "GRN", rq: "RQ", ph: "PH", pd: "PD", pp: "PP", sig: "SG" };
 /* who may see / change each kind (admin always) — salaries and books stay with admin + finance */
 var REC_ACCESS = { vlt: ["-"], fa: ["finance", "operation"], qap: ["operation"], qtr: ["operation"], pret: ["operation", "finance"], pcs: ["operation", "finance"], cert: ["finance"], emp: ["finance"], att: ["finance"], sal: ["finance"], exp: ["finance"], bill: ["finance"], spay: ["finance"], inv: ["finance", "sales"], rcpt: ["finance", "sales"] };
-var KIND_PAGE = { lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase", cq: "compq", sr: "salesret", fa: "assets62", vlt: "vault", qap: "quality", qtr: "quality", pret: "pur62", pcs: "pur62", cert: "hrx", onb: "hrx", tqs: "tqs71", cw: "coil71", pl: "coil71", mg: "gate71", vr: "vreg71", mkt: "mkt71", dc: "docs71", rn: "purchase", ph: "purchase", pd: "hr" };
+var KIND_PAGE = { sig: "admin", lead: "crm", job: "jobs", po: "purchase", item: "purchase", move: "purchase", svc: "service", amc: "service", asset: "service", proj: "projects", inv: "accounts", rcpt: "accounts", exp: "accounts", bill: "accounts", spay: "accounts", emp: "hr", att: "hr", sal: "hr", so: "purchase", dn: "purchase", cq: "compq", sr: "salesret", fa: "assets62", vlt: "vault", qap: "quality", qtr: "quality", pret: "pur62", pcs: "pur62", cert: "hrx", onb: "hrx", tqs: "tqs71", cw: "coil71", pl: "coil71", mg: "gate71", vr: "vreg71", mkt: "mkt71", dc: "docs71", rn: "purchase", ph: "purchase", pd: "hr" };
 /* a department login (pages ticked) may still save what its role could save before pages were ticked - pages decide what it sees, not what breaks */
 function roleCan74(kind, me) { if (me.role === "viewer" || kind === "vlt") return false; var a = REC_ACCESS[kind]; return !a || a.indexOf(me.role) >= 0; }
 var KN74 = { lead: "lead", job: "work order", po: "purchase order / indent", item: "stock item", move: "stock entry", svc: "service call", inv: "invoice", rcpt: "receipt", exp: "expense", bill: "supplier bill", emp: "employee", so: "sales order", dn: "delivery note", wk: "work", wd: "work update", cr: "courier", ho: "handover", lv: "leave", vis: "visitor", appt: "appointment", qtr: "test report", tqs: "test sheet", mg: "gate pass", dc: "document", onb: "joining form", rn: "receipt note", rq: "request", ph: "past purchase", pd: "attendance punch" };
@@ -1126,7 +1126,7 @@ function recRows() { return fastRead("Records", RCH, recSheet); }
 function recOut(r) { var o = {}; try { o = JSON.parse(r.data || "{}"); } catch (e) { } o.id = r.id; o.kind = r.kind; o.no = r.no; o.by = r.by; o.at = r.at; return o; }
 function recList(d, me) {
   var kinds = (d.kinds || Object.keys(REC_KINDS)).filter(function (k) { return REC_KINDS[k]; }), since = String(d.since || "");
-  var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (recCan(r.kind, me) || linkedRead(r, me)) && vis62(r, me) && (!since ? r.del !== "1" : String(r.at) > since); });
+  var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (recCan(r.kind, me) || linkedRead(r, me) || r.kind === "sig" || r.kind === "pp") && vis62(r, me) && (!since ? r.del !== "1" : String(r.at) > since); });
   return { ok: true, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.kind === "po" && !recCan("po", me)) o = poLite(o); if (r.del === "1") o._del = 1; return o; }) };
 }
 /* Order flow: anyone who can see sales orders also sees (read-only) the work orders and indents / POs made for a sales order,
@@ -1231,7 +1231,7 @@ function recDigest() {
 /* ================= p62: Work Board inside Quote Studio — work given to people, Today's plan, evening daily update (From / To time
    for every work), courier register, handover, asset register, password vault (encrypted in the browser), QAP & test reports,
    HR certificates, purchase comparative statement & purchase return. Each login sees only its own work; admin sees everything. ================= */
-var OPEN62 = ["wk", "wd", "cr", "ho", "rm", "lv", "vis", "appt"];
+var OPEN62 = ["wk", "wd", "cr", "ho", "rm", "lv", "vis", "appt", "pp"];
 function data62(r) { try { return JSON.parse(r.data || "{}"); } catch (e) { return {}; } }
 function md62() { return String(props().getProperty("WORK_MD") || "info@rivera.co.in").toLowerCase(); }
 /* who is part of a record: the giver and the receiver of a work, the writer of a daily update, the sender / receiver of a courier,
@@ -1248,12 +1248,14 @@ function own62(r, me) {
   return true;
 }
 function vis62(r, me) {
+  if (r.kind === "pp" || r.kind === "sig") return true;
   if (r.kind === "dc" && /^HR/.test(data62(r).folder || "")) return me.role === "admin" || me.email === ADMIN || me.role === "finance" || userPages(me).some(function (p) { return /^hrx/.test(p); });
   if (OPEN62.indexOf(r.kind) < 0) return true;
   if (me.role === "admin" || me.email === ADMIN || me.role === "viewer" || me.email === md62()) return true;
   var P = userPages(me);
   if (r.kind === "cr" && P.indexOf("courier.all") >= 0) return true;
   if (r.kind === "ho" && P.indexOf("handover.approve") >= 0) return true;
+  if (r.kind === "ho" && (me.email === "agm@rivera.co.in" || me.email === "hr@rivera.co.in")) return true;
   if ((r.kind === "vis" || r.kind === "appt") && P.indexOf("courier.all") >= 0) return true;
   if ((r.kind === "wk" || r.kind === "wd" || r.kind === "rm") && P.indexOf("work.dash") >= 0 && P.indexOf("work.team") >= 0) return true;
   return own62(r, me);
@@ -1282,17 +1284,19 @@ function mails62(kind, x, before, r, me, mails) {
     if (x.status === "done" && (!before || before.status !== "done") && /@/.test(x.from || "") && x.from !== me.email && x.from !== md && x.src !== "plan" && x.src !== "courier")
       mails.push([x.from, "Completed: " + clean(x.title, 110), "<p><b>" + nm + "</b> completed the work you gave:</p><p><b>" + esc(x.title) + "</b></p>" + btn(link62("work"), "Open", "#1e8e3e")]);
   }
-  if (kind === "cr" && x.dir === "in" && !before) {
-    var crTo = crNotify62().concat(/@/.test(x.forEmail || "") ? [String(x.forEmail).toLowerCase()] : []).filter(function (e, i, a) { return e && e !== me.email && e !== md62() && a.indexOf(e) === i; });
+  if (kind === "cr" && !before && (x.dir === "in" || x.sendTo)) {
+    /* courier app: big "Send to AGM" / "Send to HR" buttons; the phone may also name rivera.co.in addresses */
+    var crBase = x.sendTo ? [x.sendTo === "HR" ? "hr@rivera.co.in" : "agm@rivera.co.in"].concat(String(x.notify || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /^[^@\s]+@rivera\.co\.in$/.test(s); }).slice(0, 4)) : crNotify62();
+    var crTo = crBase.concat(/@/.test(x.forEmail || "") ? [String(x.forEmail).toLowerCase()] : []).filter(function (e, i, a) { return e && e !== me.email && e !== md62() && a.indexOf(e) === i; });
     var crAtt = []; try { if (x.scan) { var fz = fileGet(x.scan); crAtt = [Utilities.newBlob(Utilities.base64Decode(fz.b64), fz.type || "image/jpeg", fz.name || (r.no + ".jpg"))]; } } catch (eA) { }
-    var crHtml = "<p>A courier has come to the office" + (x.forName ? " for <b>" + esc(x.forName) + "</b>" : "") + ".</p><table style='border-collapse:collapse;font-size:14px'>" + [["Courier no.", r.no], ["From", x.party], ["Place", x.place], ["Courier company", x.company], ["Docket / AWB", x.docket], ["Contents", x.contents], ["Reference", x.ref], ["Received", (x.date || "") + " " + (x.time || "")], ["Received by", x.handler]].filter(function (p) { return p[1]; }).map(function (p) { return "<tr><td style='padding:4px 12px 4px 0;color:#555'>" + p[0] + "</td><td style='padding:4px 0'><b>" + esc(p[1]) + "</b></td></tr>"; }).join("") + "</table>" + (crAtt.length ? "<p>The scan is attached.</p>" : "") + btn(link62("courier"), "Open courier register", "#02315B");
-    crTo.forEach(function (to) { mails.push([to, "Courier received: " + clean(x.party, 70) + (x.forName ? " for " + clean(x.forName, 40) : "") + " (" + r.no + ")", crHtml, crAtt]); });
+    var crHtml = (x.dir === "out" ? "<p>A courier was sent from the office" : "<p>A courier has come to the office") + (x.forName ? " for <b>" + esc(x.forName) + "</b>" : "") + ".</p><table style='border-collapse:collapse;font-size:14px'>" + [["Courier no.", r.no], [x.dir === "out" ? "To" : "From", x.party], ["Place", x.place], ["Courier company", x.company], ["Docket / AWB", x.docket], ["Contents", x.contents], ["Reference", x.ref], ["Received", (x.date || "") + " " + (x.time || "")], ["Received by", x.handler]].filter(function (p) { return p[1]; }).map(function (p) { return "<tr><td style='padding:4px 12px 4px 0;color:#555'>" + p[0] + "</td><td style='padding:4px 0'><b>" + esc(p[1]) + "</b></td></tr>"; }).join("") + "</table>" + (crAtt.length ? "<p>The scan is attached.</p>" : "") + btn(link62("courier"), "Open courier register", "#02315B");
+    crTo.forEach(function (to) { mails.push([to, (x.dir === "out" ? "Courier sent: " : "Courier received: ") + clean(x.party, 70) + (x.forName ? " for " + clean(x.forName, 40) : "") + " (" + r.no + ")", crHtml, crAtt]); });
   }
     mails.push([x.forEmail, "Courier for you: " + clean(x.party, 80) + " (" + r.no + ")", "<p>A courier has come for you at the office.</p><p><b>" + esc(x.party) + "</b>" + (x.place ? ", " + esc(x.place) : "") + "<br>" + esc([x.company, x.docket, x.contents].filter(Boolean).join(" · ")) + "</p>" + btn(link62("courier"), "Acknowledge - I received it", "#1e8e3e")]);
   if (kind === "ho" && x.status !== (before && before.status)) {
     var who = esc(x.empName || x.emp);
-    if (x.status === "submitted") approvers62("handover.approve").forEach(function (a) { mails.push([a, "Handover for review: " + clean(x.empName || x.emp, 60), "<p><b>" + who + "</b> has submitted a handover to <b>" + esc(x.toName || x.to) + "</b>. The checklist was cross-checked by the app. Please verify and approve, or send it back.</p>" + btn(link62("handover"), "Review handover", "#5b2c83")]); });
-    if (x.status === "admin_ok") mails.push([md62(), "Handover ready for your approval: " + clean(x.empName || x.emp, 60) + " → " + clean(x.toName || x.to, 60), "<p>Dear Sir,</p><p>The handover of <b>" + who + "</b> to <b>" + esc(x.toName || x.to) + "</b> has been checked by the Admin department and is ready for your approval.</p>" + btn(link62("handover"), "Review and approve", "#1e8e3e")]);
+    if (x.status === "submitted") ["agm@rivera.co.in", "hr@rivera.co.in"].forEach(function (a) { mails.push([a, "Handover for review: " + clean(x.empName || x.emp, 60), "<p><b>" + who + "</b> has submitted a handover to <b>" + esc(x.toName || x.to) + "</b>. The checklist was cross-checked by the app. AGM and HR both need to approve - please verify and approve, or send it back.</p>" + btn(link62("handover"), "Review handover", "#5b2c83")]); });
+    if (x.status === "admin_ok") { var left = x.agmBy ? "hr@rivera.co.in" : "agm@rivera.co.in"; mails.push([left, "Handover waiting for your approval: " + clean(x.empName || x.emp, 60) + " → " + clean(x.toName || x.to, 60), "<p>The handover of <b>" + who + "</b> to <b>" + esc(x.toName || x.to) + "</b> was approved by " + (x.agmBy ? "AGM" : "HR") + ". Your approval completes it.</p>" + btn(link62("handover"), "Review and approve", "#1e8e3e")]); }
     if (x.status === "returned" && /@/.test(x.emp || "")) mails.push([x.emp, "Handover sent back - please complete", "<p>Your handover was sent back:</p><p><i>" + esc(x.note || "") + "</i></p>" + btn(link62("handover"), "Open handover", "#E26A0C")]);
     if (x.status === "approved") [x.emp, x.to].forEach(function (t) { if (/@/.test(t || "")) mails.push([t, "Handover approved: " + clean(x.empName || x.emp, 60) + " → " + clean(x.toName || x.to, 60), "<p>The handover is approved. Open work has moved to <b>" + esc(x.toName || x.to) + "</b>.</p>" + btn(link62("handover"), "Open", "#02315B")]); });
   }
