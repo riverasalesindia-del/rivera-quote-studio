@@ -16165,7 +16165,7 @@ LHDOC86.test = () => false;          /* the old letterhead step stands down - th
       .lhB102{padding:0 17.5mm 0 20mm}.hd,.lh85{display:none!important}.lhB102,.lhB102 *:not(.sgd103){font-family:Cambria,Caladea,Georgia,"Times New Roman",serif!important}.lhB102>:last-child{margin-bottom:0!important}.lhB102 .q99{padding:0!important;max-width:none!important}
       @media screen{.lhH102,.lhF102{position:static}}</style>`;
     const headH = co === "RCR" ? 33 : 30, footH = co === "RCR" ? 30 : 24;
-    const page = `${LHFONT102}${head ? `<img class="lhH102" src="${head}" alt="">` : ""}${foot ? `<img class="lhF102" src="${foot}" alt="">` : ""}<table class="lhW102"><thead><tr><td><div style="height:${head ? headH : 12}mm"></div></td></tr></thead><tfoot><tr><td><div style="height:${foot ? footH : 12}mm"></div></td></tr></tfoot><tbody><tr><td><div class="lhB102">${h}</div></td></tr></tbody></table>${css}`;
+    const page = `${head ? `<img class="lhH102" src="${head}" alt="">` : ""}${foot ? `<img class="lhF102" src="${foot}" alt="">` : ""}<table class="lhW102"><thead><tr><td><div style="height:${head ? headH : 12}mm"></div></td></tr></thead><tfoot><tr><td><div style="height:${foot ? footH : 12}mm"></div></td></tr></tfoot><tbody><tr><td><div class="lhB102">${h}</div></td></tr></tbody></table>${css}`;
     return _p.call(this, title, page);
   };
 }
@@ -16200,8 +16200,8 @@ const sigDate103 = d => { const s = String(d || todayISO()).slice(0, 10), m = s.
   const _s = sigBlock99;
   sigBlock99 = function (doc, opt = {}) {
     const h = _s.apply(this, arguments), d = sigDate103(opt.date || SIGD103);
-    return `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap">` + h.replace(/<img src="([^"]+)" style="max-height:54px;max-width:160px">/g,
-      (all, src) => `<span style="position:relative;display:inline-block;padding-right:50px">${all}<span class="sgd103" style="position:absolute;right:0;bottom:-6px;font:500 17px/1 Caveat,'Segoe Script','Bradley Hand',cursive;color:#1d2f8f;transform:rotate(-6deg)">${d}</span></span>`);
+    return h.replace(/<img src="([^"]+)" style="max-height:54px;max-width:160px">/g,
+      (all, src) => `<span style="position:relative;display:inline-block;padding-right:50px">${all}<span class="sgd103" style="position:absolute;right:0;bottom:-6px;font:500 16px/1 'Segoe Print',Caveat,'Bradley Hand','Comic Sans MS',cursive;color:#1d2f8f;transform:rotate(-6deg)">${d}</span></span>`);
   };
 }
 const withDate103 = (fn, pick) => function (...a) { SIGD103 = pick(...a); let out; try { out = fn.apply(this, a); } catch (e) { SIGD103 = null; throw e; } Promise.resolve(out).finally(() => { SIGD103 = null; }); return out; };
@@ -16210,6 +16210,28 @@ paperHtml = function (Q) { try { return quoteHtml99(Q, false); } catch (e) { con
 poPrint85 = withDate103(poPrint85, r => r?.date);
 vouch85 = withDate103(vouch85, r => r?.date);
 print89 = withDate103(print89, r => r?.date || r?.issued || r?.at);
+
+
+/* =============== p104: letterhead in the quotation preview sits exactly edge-to-edge (no cut-off logo); the PDF / Word exports use the same
+   Synology letterhead (no more "letterhead not loaded" note) =============== */
+document.head.insertAdjacentHTML("beforeend", `<style>.q99{overflow:hidden;font-size:12.5px!important}.q99 .top{font-size:12.5px!important}.q99 .it th,.q99 .it td,.q99 h4{font-size:12px!important}.q99 .n,.q99 td{font-family:inherit!important}.q99 .lh{margin:-18px -30px 14px!important;padding:0!important;border:0!important;display:block!important}.q99 .lh img{width:100%!important;max-width:100%!important;margin:0!important;display:block}
+.q99 .ft{margin:18px -30px -18px!important}.q99 .ft img{width:100%!important;max-width:100%!important;margin:0!important;display:block}.q99 .lhfoot24{display:none!important}</style>`);
+{
+  const _l24 = lh24Load;
+  lh24Load = async function () {
+    if (LH24.head) return LH24;
+    try {
+      const h = lhImg102("RCM", "head"), f = lhImg102("RCM", "foot");
+      if (h) {
+        const toPng = async u => { const im = new Image(); im.src = u; await im.decode(); const c = document.createElement("canvas"); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext("2d").drawImage(im, 0, 0); const blob = await new Promise(r => c.toBlob(r, "image/png")); return { n: "lh.png", blob, w: c.width, h: c.height, r: c.width / c.height, png: true }; };
+        LH24.head = await toPng(h); LH24.foot = f ? await toPng(f) : null; LH24.urls = null; LH24.tried = true; $("#lh24n")?.remove(); return LH24;
+      }
+    } catch (e) { console.warn("p104 letterhead", e); }
+    return _l24.apply(this, arguments);
+  };
+  /* when the letterheads arrive from the server, use those (sharper than the built-in copy) */
+  let seen = ""; setInterval(() => { try { const k = all28("sig").filter(s => s.type === "lh").map(s => s.id).join(); if (k && k !== seen) { seen = k; Object.assign(LH24, { head: null, foot: null, urls: null, tried: false }); lh24Load(); } } catch { } }, 4000);
+}
 
 boot();
 
