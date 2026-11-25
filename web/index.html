@@ -16503,6 +16503,78 @@ async function letterPrint108(orig, self, args, list, title) {
   };
 }
 
+
+/* ---- p108 (4): Tape calculator = the production sheet A → Q (strip, turns, slot → final coil, insulation layers, tape turns, tape metres, rolls).
+   The four shop constants (0.50 slot clearance, 0.48 mm per layer, 12.5 mm tape advance, 50 m roll) can be changed; Excel download keeps every formula ---- */
+const TQ108 = [
+  ["A", "Strip width", "mm", "in"], ["B", "Strip thickness", "mm", "in"], ["C", "Covering on tape", "mm", "in"], ["D", "Strips across", "Nos", "in"], ["E", "No. of turns", "Nos", "in"],
+  ["E1", "Bar coil height", "mm", "(A + C) × D"], ["E2", "Bar coil width", "mm", "(B + C) × E"], ["F", "Slot width", "mm", "in"], ["G", "Slot depth under wedge", "mm", "in"],
+  ["H", "Final coil width", "mm", "F − clearance"], ["I", "Final coil height", "mm", "G ÷ D"], ["J", "Insulation thickness", "mm", "F − E1 (approx., rounded)"], ["K", "Layers", "Nos", "J ÷ layer build"],
+  ["L", "Length (from coil)", "mm", "in"], ["M", "Tape turns", "Nos", "L ÷ tape advance"], ["N", "Total coil width & height", "mm", "(H × 2) + (I × 2)"], ["O", "Tape requirement (1 layer)", "m", "M × N"],
+  ["P", "Total tape requirement", "m", "O × K"], ["Q", "Total tape in coil", "rolls", "P ÷ roll length"]];
+function tapeQ108(p) {
+  const n = k => Number(p[k]) || 0, r1 = x => Math.round(x * 10) / 10, v = {};
+  ["A", "B", "C", "D", "E", "F", "G", "L"].forEach(k => v[k] = n(k));
+  v.E1 = (v.A + v.C) * v.D; v.E2 = (v.B + v.C) * v.E;
+  v.H = v.F - n("clr"); v.I = v.D ? v.G / v.D : 0; v.J = r1(v.F - v.E1); v.K = n("lay") ? v.J / n("lay") : 0;
+  v.M = n("adv") ? v.L / n("adv") : 0; v.N = v.H * 2 + v.I * 2; v.O = v.M * v.N / 1000; v.P = v.O * v.K; v.Q = n("roll") ? v.P / n("roll") : 0;
+  v.coils = Math.max(1, n("coils")); v.Pall = v.P * v.coils; v.Qall = v.Q * v.coils; return v;
+}
+VIEWS.tape100 = v => {
+  let P; try { P = JSON.parse(localStorage.getItem("rqs.tape108") || "null"); } catch { }
+  P = Object.assign({ A: 5.5, B: 3, C: 0.3, D: 2, E: 13, F: 17.5, G: 100, L: 4500, clr: 0.5, lay: 0.48, adv: 12.5, roll: 50, coils: 1 }, P || {});
+  const F = (k, l, h = "") => `<label class="f"><span><b class="tq-l">${k.length < 3 ? k : ""}</b> ${l}</span><input type="number" step="any" inputmode="decimal" data-t108="${k}" value="${esc(String(P[k]))}">${h ? `<small class="muted">${h}</small>` : ""}</label>`;
+  v.innerHTML = head29("Production ▸ Tools", "Tape calculator", "Same sheet as production: type A – G and L, everything else (E1 → Q) is worked out. Download Excel keeps the formulas.", "") +
+    `<div class="t100"><section class="panel"><header><h2>Coil & slot</h2></header><div class="body"><div class="fields">
+      ${F("A", "Strip width (mm)")}${F("B", "Strip thickness (mm)")}${F("C", "Covering on tape (mm)", "normally 0.3")}${F("D", "Strips across")}${F("E", "No. of turns")}
+      ${F("F", "Slot width (mm)")}${F("G", "Slot depth under wedge (mm)")}${F("L", "Length (mm)", "length from coil")}${F("coils", "Number of coils")}</div>
+      <details style="margin-top:10px"><summary class="small"><b>Shop constants</b> (change only if the shop standard changes)</summary><div class="fields" style="margin-top:8px">
+      <label class="f">Slot clearance for H (mm)<input type="number" step="any" data-t108="clr" value="${esc(String(P.clr))}"></label>
+      <label class="f">Build per tape layer (mm)<input type="number" step="any" data-t108="lay" value="${esc(String(P.lay))}"></label>
+      <label class="f">Tape advance per turn (mm)<input type="number" step="any" data-t108="adv" value="${esc(String(P.adv))}"></label>
+      <label class="f">Tape roll length (m)<input type="number" step="any" data-t108="roll" value="${esc(String(P.roll))}"></label></div></details></div></section>
+    <section class="panel"><header><h2>Result</h2><span style="flex:1"></span><button class="btn sm" type="button" id="t108x">⬇</button><button class="btn sm" type="button" id="t108p">🖨 Print</button></header><div class="body" id="t108r"></div></section></div>`;
+  const f2 = x => (Math.round(x * 100) / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 });
+  const draw = () => { const r = tapeQ108(P), warn = [];
+    if (r.J <= 0) warn.push("J (F − E1) is zero or negative - check slot width F and strip size."); if (r.D <= 0) warn.push("D (strips across) must be more than 0.");
+    $("#t108r", v).innerHTML = `${warn.length ? `<div class="note warn" style="margin-bottom:10px">⚠ ${warn.join(" ")}</div>` : ""}<div class="t100k">
+      <div><small>Final coil (H × I)</small><b>${f2(r.H)} × ${f2(r.I)} mm</b></div><div><small>Insulation J</small><b>${f2(r.J)} mm</b></div><div><small>Layers K</small><b>${f2(r.K)}</b></div>
+      <div><small>Tape turns M</small><b>${f2(r.M)}</b></div><div class="hi"><small>Tape per coil P</small><b>${f2(r.P)} m</b></div><div class="hi"><small>Rolls per coil Q</small><b>${f2(r.Q)}</b></div>
+      ${r.coils > 1 ? `<div class="hi"><small>${r.coils} coils</small><b>${f2(r.Pall)} m · ${f2(r.Qall)} rolls</b></div>` : ""}</div>
+      <table class="tbl" style="margin-top:12px"><thead><tr><th></th><th>Item</th><th>Formula</th><th class="num">Value</th></tr></thead><tbody>
+      ${TQ108.map(([k, l, u, f]) => `<tr${f === "in" ? ' style="color:var(--muted,#667)"' : ""}><td><b>${k}</b></td><td>${l}</td><td class="small">${f === "in" ? "entered" : f.replace("clearance", P.clr).replace("layer build", P.lay).replace("tape advance", P.adv).replace("roll length", P.roll + " m")}</td><td class="num"><b>${f2(r[k])}</b> ${u}</td></tr>`).join("")}</tbody></table>`;
+    try { localStorage.setItem("rqs.tape108", JSON.stringify(P)); } catch { } };
+  $$("[data-t108]", v).forEach(i => i.oninput = () => { P[i.dataset.t108] = i.value; draw(); });
+  $("#t108p", v).onclick = () => printHtml28("Tape calculation", `<h2>Tape calculation</h2><p>Strip ${P.A} × ${P.B} mm · ${P.D} across · ${P.E} turns · slot ${P.F} × ${P.G} mm · length ${P.L} mm${P.coils > 1 ? ` · ${P.coils} coils` : ""}</p>${$("#t108r", v).innerHTML}`);
+  $("#t108x", v).onclick = async () => {
+    const r = tapeQ108(P), cells = [], put = (ri, ci, x) => { (cells[ri] ||= [])[ci] = x; };
+    put(0, 0, { v: "TAPE CALCULATION", s: 1 }); for (let i = 1; i < 5; i++) put(0, i, { v: "", s: 1 });
+    ["Ref", "Item", "Value", "Unit", "Formula"].forEach((h, i) => put(1, i, { v: h, s: 2 }));
+    const row = {}; TQ108.forEach(([k], i) => row[k] = i + 3);
+    const K = [["clr", "Slot clearance (for H)", "mm"], ["lay", "Build per tape layer", "mm"], ["adv", "Tape advance per turn", "mm"], ["roll", "Tape roll length", "m"], ["coils", "Number of coils", "Nos"]];
+    K.forEach(([k], i) => row[k] = TQ108.length + 5 + i);
+    const c = k => "C" + row[k];
+    const FX = { E1: `(${c("A")}+${c("C")})*${c("D")}`, E2: `(${c("B")}+${c("C")})*${c("E")}`, H: `${c("F")}-${c("clr")}`, I: `IF(${c("D")}=0,0,${c("G")}/${c("D")})`, J: `ROUND(${c("F")}-${c("E1")},1)`,
+      K: `IF(${c("lay")}=0,0,${c("J")}/${c("lay")})`, M: `IF(${c("adv")}=0,0,${c("L")}/${c("adv")})`, N: `${c("H")}*2+${c("I")}*2`, O: `${c("M")}*${c("N")}/1000`, P: `${c("O")}*${c("K")}`, Q: `IF(${c("roll")}=0,0,${c("P")}/${c("roll")})` };
+    TQ108.forEach(([k, l, u, f], i) => { const ri = i + 2; put(ri, 0, { v: k, s: 5 }); put(ri, 1, { v: l, s: 3 }); put(ri, 2, FX[k] ? { f: FX[k], v: r[k], s: 4 } : { v: Number(P[k]) || 0, s: 8 }); put(ri, 3, { v: u, s: 3 }); put(ri, 4, { v: f === "in" ? "entered" : f, s: 3 }); });
+    put(TQ108.length + 3, 0, { v: "Shop constants", s: 10 }); for (let i = 1; i < 5; i++) put(TQ108.length + 3, i, { v: "", s: 10 });
+    K.forEach(([k, l, u], i) => { const ri = row[k] - 1; put(ri, 0, { v: "", s: 3 }); put(ri, 1, { v: l, s: 3 }); put(ri, 2, { v: Number(P[k]) || 0, s: 8 }); put(ri, 3, { v: u, s: 3 }); put(ri, 4, { v: "change if the shop standard changes", s: 3 }); });
+    const tr = row.coils + 1; put(tr, 0, { v: "All coils", s: 10 }); put(tr, 1, { v: "Total tape (m) / rolls", s: 10 }); put(tr, 2, { f: `${c("P")}*${c("coils")}`, v: r.Pall, s: 9 }); put(tr, 3, { f: `${c("Q")}*${c("coils")}`, v: r.Qall, s: 9 }); put(tr, 4, { v: "rolls in column D", s: 10 });
+    const sh = { name: "Tape calculation", cells, merges: ["A1:E1", `A${TQ108.length + 4}:E${TQ108.length + 4}`], cols: [8, 30, 14, 10, 34], heights: { 0: 22 }, realXlsx: true, freeze108: 2 };
+    saveFile(`Tape calculation ${todayISO()}.xlsx`, await buildXlsx([sh]));
+  };
+  draw();
+};
+
+/* ---- p108 (5): buttons that give a real Excel with formulas keep the word "Excel" (an older rule renamed every Excel button to PDF,
+   so Quote workings showed two "PDF" buttons and nobody could find the Excel) ---- */
+{
+  const XL108 = ["#wX", "#t108x"];
+  const fix = () => { XL108.forEach(sel => $$(sel).forEach(b => { if (b.dataset.xl108) return; b.dataset.xl108 = 1; [...b.childNodes].filter(n => n.nodeType === 3).forEach(n => n.remove()); b.appendChild(document.createTextNode(" Excel (formulas)")); b.title = "Download Excel with live formulas"; })); };
+  const _r = render; render = function () { const o = _r.apply(this, arguments); try { fix(); } catch { } return o; };
+  new MutationObserver(() => { try { fix(); } catch { } }).observe(document.documentElement, { childList: true, subtree: true });
+}
+
 boot();
 
 </script>
