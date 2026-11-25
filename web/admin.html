@@ -11305,8 +11305,8 @@ async function printForm462(E) {
   printHtml28("Form IV - Employee register", `<style>@page{size:A3 landscape}table{font-size:9px}th,td{padding:3px!important}</style><h1 style="text-align:center">FORM IV<br><small>[See rule 51(3)]</small><br>EMPLOYEE REGISTER</h1><p>Name of the establishment: <b>${esc(co)}</b> &nbsp; Name of the employer: ________ &nbsp; PAN/TAN of the employer: ________ &nbsp; LIN: ________</p><table><tr>${H.map((h, i) => `<th>${esc(h)}<br><small>${i + 1}</small></th>`).join("")}</tr>${rows.map(r => `<tr>${r.map(c => `<td>${esc(c ?? "")}</td>`).join("")}</tr>`).join("")}</table><p><small>*Category: HS - highly skilled, S - skilled, SS - semi-skilled, US - unskilled.</small></p>`);
 }
 async function cert62(btn) {
-  const e = BIZ.rows[$("#ce62e").value]; if (!e) return toast("Add employees first", "bad");
-  const type = $("#ce62t").value, date = $("#ce62d").value, purpose = $("#ce62p").value.trim(), extra = $("#ce62x").value.trim(), co = coName62(), he = /^f/i.test(e.gender || "") ? ["She", "her", "Ms."] : ["He", "his", "Mr."];
+  const e = BIZ.rows[$("#ce62e")?.value]; if (!e) return toast("Choose the employee first", "bad");
+  const type = $("#ce62t")?.value || BIZ.ui.ce || "salary", date = $("#ce62d")?.value || todayISO(), purpose = ($("#ce62p")?.value || "").trim(), extra = ($("#ce62x")?.value || "").trim(), co = coName62(), he = /^f/i.test(e.gender || "") ? ["She", "her", "Ms."] : ["He", "his", "Mr."];
   const gross = (+e.basic || 0) + (+e.hra || 0) + (+e.allow || 0), nm = `${he[2]} ${esc(e.name)}${e.surname ? " " + esc(e.surname) : ""}`, since = dmy62(e.doj), till = e.exit ? dmy62(e.exit) : "";
   const text = {
     salary: `<p>This is to certify that ${nm} (Employee code ${esc(e.code || e.no)}) is working with ${esc(co)} as <b>${esc(e.designation || "")}</b> since ${since}.</p><p>${he[0]} draws a gross monthly salary of <b>${inr28(gross)}</b> (Basic + DA ${inr28(e.basic)}, HRA ${inr28(e.hra)}, other allowances ${inr28(e.allow)}).</p><p>This certificate is issued at ${he[1]} request${purpose ? " for the purpose of " + esc(purpose) : ""}.</p>`,
