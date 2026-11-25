@@ -16233,6 +16233,103 @@ document.head.insertAdjacentHTML("beforeend", `<style>.q99{overflow:hidden;font-
   let seen = ""; setInterval(() => { try { const k = all28("sig").filter(s => s.type === "lh").map(s => s.id).join(); if (k && k !== seen) { seen = k; Object.assign(LH24, { head: null, foot: null, urls: null, tried: false }); lh24Load(); } } catch { } }, 4000);
 }
 
+
+/* =============== p105: the Word quotation in the real Rivera format (AUSINDIA): letterhead header + address footer on every page,
+   Cambria 12, navy table head, numbered navy clause titles with bullets, bank details box, green amount-in-words / closing line,
+   authorized signature + seal + date put in by itself - or left blank to sign by hand (tick "e-signature & seal" off) =============== */
+let SIGMAN105 = false;
+{
+  const _s = sigBlock99;
+  sigBlock99 = function () { const h = _s.apply(this, arguments); return SIGMAN105 ? h.replace(/<span class="sgd103"[^>]*>[^<]*<\/span>/g, "").replace(/<img [^>]*>/g, "") : h; };
+  const _q = quoteHtml99;
+  quoteHtml99 = function (Q) { const o = SIGMAN105; SIGMAN105 = !!Q?.manualSign; try { return _q.apply(this, arguments); } finally { SIGMAN105 = o; } };
+  paperHtml = function (Q) { try { return quoteHtml99(Q, false); } catch (e) { console.warn("p105 quote", e); return ""; } };
+}
+async function png105(src) {
+  if (!src) return null;
+  const im = new Image(); im.src = src; await im.decode(); const c = document.createElement("canvas"); c.width = im.naturalWidth; c.height = im.naturalHeight; c.getContext("2d").drawImage(im, 0, 0);
+  return { b64: c.toDataURL("image/png").split(",")[1], w: c.width, h: c.height };
+}
+async function quoteDocx105(Q) {
+  const JSZip = await getZip(), z = new JSZip(), cur = Q.currency, t = quoteTotals(Q), k = SETTINGS.bank || {}, co = Q.company === "RCR" ? "RCR" : "RCM";
+  const coName = co === "RCR" ? "Rivera Coil Rewinding" : "Rivera Coil Manufacturing (I) Pvt Ltd";
+  const X = s => String(s ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  const NAVY = "001F5F", HEAD = "17365D", GREEN = "00B050";
+  const R = (txt, o = {}) => `<w:r><w:rPr><w:rFonts w:ascii="Cambria" w:hAnsi="Cambria" w:cs="Cambria"/>${o.b ? "<w:b/>" : ""}${o.u ? '<w:u w:val="single"/>' : ""}${o.color ? `<w:color w:val="${o.color}"/>` : ""}<w:sz w:val="${(o.sz || 12) * 2}"/></w:rPr>${String(txt).split("\n").map((s, i) => (i ? "<w:br/>" : "") + `<w:t xml:space="preserve">${X(s)}</w:t>`).join("")}</w:r>`;
+  const P = (runs, o = {}) => `<w:p><w:pPr>${o.tabs ? `<w:tabs>${o.tabs}</w:tabs>` : ""}<w:spacing w:before="${o.before || 0}" w:after="${o.after ?? 0}" w:line="${o.line || 276}" w:lineRule="auto"/>${o.ind ? `<w:ind ${o.ind}/>` : ""}${o.jc ? `<w:jc w:val="${o.jc}"/>` : ""}</w:pPr>${Array.isArray(runs) ? runs.join("") : runs}</w:p>`;
+  /* images */
+  const imgs = [], rels = { doc: [], hdr: [], ftr: [] }; let nid = 10;
+  const addImg = async (src, part) => { const p = await png105(src).catch(() => null); if (!p) return null; const n = imgs.length + 1, name = `img${n}.png`; imgs.push([name, p.b64]); const rid = "rIdI" + n; rels[part].push(`<Relationship Id="${rid}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/${name}"/>`); return { rid, w: p.w, h: p.h }; };
+  const pic = (img, cx, cy) => { const id = ++nid; return `<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${id}" name="p${id}"/><pic:cNvPicPr/></pic:nvPicPr><pic:blipFill><a:blip r:embed="${img.rid}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill><pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic></a:graphicData></a:graphic>`; };
+  const inline = (img, cxCm) => { if (!img) return ""; const cx = Math.round(cxCm * 360000), cy = Math.round(cx * img.h / img.w), id = ++nid; return `<w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0"><wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${id}" name="i${id}"/>${pic(img, cx, cy)}</wp:inline></w:drawing></w:r>`; };
+  const anchor = (img, yEmu, bottom) => { if (!img) return ""; const cx = 7560000, cy = Math.round(cx * img.h / img.w), id = ++nid, y = bottom ? 10692000 - cy : yEmu; return `<w:r><w:drawing><wp:anchor distT="0" distB="0" distL="0" distR="0" simplePos="0" relativeHeight="${id}" behindDoc="1" locked="1" layoutInCell="1" allowOverlap="1"><wp:simplePos x="0" y="0"/><wp:positionH relativeFrom="page"><wp:posOffset>0</wp:posOffset></wp:positionH><wp:positionV relativeFrom="page"><wp:posOffset>${y}</wp:posOffset></wp:positionV><wp:extent cx="${cx}" cy="${cy}"/><wp:effectExtent l="0" t="0" r="0" b="0"/><wp:wrapNone/><wp:docPr id="${id}" name="lh${id}"/><wp:cNvGraphicFramePr/>${pic(img, cx, cy)}</wp:anchor></w:drawing></w:r>`; };
+  const head = await addImg(lhImg102(co, "head"), "hdr"), foot = await addImg(lhImg102(co, "foot"), "ftr");
+  const m = sigCfg99().map?.quote || {}, Pp = id => all28("sig").find(s => s.id === id), signer = Pp(m.authorized), seal = Pp(m.seal);
+  const sImg = !Q.manualSign && signer?.img ? await addImg(signer.img, "doc") : null, seImg = !Q.manualSign && seal?.img ? await addImg(seal.img, "doc") : null;
+  /* body */
+  const W = 11906 - 1134 - 991, B = [];
+  B.push(P([R(Q.no + (Q.rev ? " R" + Q.rev : ""), { b: true }), R("\t" + dmy(Q.date), { b: true })], { tabs: `<w:tab w:val="right" w:pos="${W - 300}"/>`, after: 240 }));
+  B.push(P(R("To", { b: true })));
+  B.push(P(R([Q.to.contact, Q.to.name, Q.to.address, Q.to.phone && "Mob: " + Q.to.phone, Q.to.email && "Email: " + Q.to.email, Q.to.gstin && "GST No.: " + Q.to.gstin].filter(Boolean).join("\n"), { b: true }), { ind: 'w:left="180"', after: 240 }));
+  B.push(P(R("Dear Sir,"), { after: 60 }));
+  B.push(P(R("Sub: " + (Q.subject || ""), { b: true }), { after: 60 }));
+  if (Q.ref) B.push(P(R("Ref: " + Q.ref, { b: true }), { after: 60 }));
+  B.push(P(R(Q.intro || "With reference to the above we are pleased to submit our budgetary offer as below.", { b: true }), { after: 120 }));
+  const brd = c => `<w:tcBorders>${["top", "left", "bottom", "right"].map(s => `<w:${s} w:val="single" w:sz="6" w:color="${c || "000000"}"/>`).join("")}</w:tcBorders>`;
+  const TC = (txt, w, o = {}) => `<w:tc><w:tcPr><w:tcW w:w="${w}" w:type="dxa"/>${o.span ? `<w:gridSpan w:val="${o.span}"/>` : ""}${brd(o.fill)}${o.fill ? `<w:shd w:val="clear" w:color="auto" w:fill="${o.fill}"/>` : ""}<w:vAlign w:val="center"/></w:tcPr>${P(R(txt, { b: o.b, color: o.color, sz: o.sz || 11 }), { jc: o.jc || "left", before: 60, after: 60, line: 240 })}</w:tc>`;
+  const cw = [800, 4300, 1000, 1700, 1981], hd = { b: true, fill: NAVY, color: "FFFFFF", jc: "center" };
+  let tb = `<w:tbl><w:tblPr><w:tblW w:w="${W}" w:type="dxa"/><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${cw.map(w => `<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>`;
+  tb += `<w:tr><w:trPr><w:tblHeader/></w:trPr>${TC("S. No", cw[0], hd)}${TC("Description", cw[1], hd)}${TC("Qty", cw[2], hd)}${TC(`Unit Price (${cur})`, cw[3], hd)}${TC(`Total Amount (${cur})`, cw[4], hd)}</w:tr>`;
+  Q.lines.forEach((l, i) => { tb += `<w:tr>${TC(i + 1 + ".", cw[0], { jc: "center" })}${TC(l.desc, cw[1])}${TC(l.unit === "LS" ? "LS" : fmt(l.qty, cur, 0) + (l.unit && l.unit !== "Nos" ? " " + l.unit : ""), cw[2], { jc: "center" })}${TC(fmt(l.rate, cur), cw[3], { jc: "right" })}${TC(fmt(qLineAmt(l), cur), cw[4], { jc: "right" })}</w:tr>`; });
+  tb += `<w:tr>${TC("Total", cw[0] + cw[1] + cw[2] + cw[3], { span: 4, b: true, jc: "center" })}${TC(fmt(t.sub, cur), cw[4], { b: true, jc: "right" })}</w:tr>`;
+  if (Q.showGst && t.gst) tb += `<w:tr>${TC(`GST @ ${num(Q.gstPct)}%`, cw[0] + cw[1] + cw[2] + cw[3], { span: 4, jc: "center" })}${TC(fmt(t.gst, cur), cw[4], { jc: "right" })}</w:tr><w:tr>${TC("Grand Total (incl. GST)", cw[0] + cw[1] + cw[2] + cw[3], { span: 4, b: true, jc: "center" })}${TC(fmt(t.grand, cur), cw[4], { b: true, jc: "right" })}</w:tr>`;
+  B.push(tb + "</w:tbl>");
+  const total = Q.showGst && t.gst ? t.grand : t.sub;
+  B.push(P([R("Amount in Words: ", { b: true, color: GREEN }), R(`${String(Q.incoterm || "EXW").toUpperCase()} ${cur} `, { b: true }), R(amountInWords(total, cur, "").replace(/^(INR|USD|EUR)\s*/i, ""), { b: true, color: GREEN })], { before: 200, after: 200 }));
+  if (Q.note) B.push(P([R("Note: ", { b: true }), R(Q.note)], { after: 120 }));
+  B.push(P(R("TERMS AND CONDITIONS:", { b: true }), { after: 120 }));
+  Q.clauses.filter(c => c.on).forEach((c, i) => {
+    B.push(P(R(`${i + 1}. ${c.title.toUpperCase()}:`, { b: true, color: HEAD }), { before: 120, after: 60 }));
+    String(c.body || "").split(/\n+|•\s*/).map(s => s.trim()).filter(Boolean).forEach(s => B.push(P([R("•", { sz: 12 }), R("\t" + s)], { ind: 'w:left="720" w:hanging="360"', tabs: '<w:tab w:val="left" w:pos="720"/>', after: 80 })));
+  });
+  if (k.acc) {
+    const bw = [2600, 3400]; let bt = `<w:tbl><w:tblPr><w:tblW w:w="6000" w:type="dxa"/><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${bw.map(w => `<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid><w:tr>${TC("OUR BANK DETAILS", 6000, { span: 2, b: true, fill: NAVY, color: "FFFFFF" })}</w:tr>`;
+    [["Bank Name", k.name], ["Account No", k.acc], ["Account Type", k.type], ["IFSC Code", k.ifsc], ["MICR", k.micr], ["SWIFT Code", k.swift], ["Branch", k.branch]].filter(x => x[1]).forEach(([a, b]) => { bt += `<w:tr>${TC(a, bw[0], { b: true })}${TC(b, bw[1])}</w:tr>`; });
+    B.push(P("", { after: 120 })); B.push(bt + "</w:tbl>");
+  }
+  B.push(P(R("Hope our quotation is in line with your expectation, and we look forward to your valuable Purchase Order.", { b: true, color: GREEN }), { before: 240, after: 200 }));
+  const L = 'w:left="4600"';
+  B.push(P(R(`For ${coName},`, { b: true }), { ind: L, after: 60 }));
+  if (sImg || seImg) B.push(P([inline(seImg, 2.4), R("  "), inline(sImg, 3.4), R("  " + sigDate103(Q.date), { color: "1D2F8F", sz: 11 })], { ind: L, after: 0 }));
+  else B.push(P("", { after: 900 }));
+  B.push(P(R("Authorized Signature", { b: true }), { ind: 'w:left="6200"' }));
+  /* parts */
+  const NS = `xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing" xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main" xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"`;
+  const relsXml = L2 => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">${L2.join("")}</Relationships>`;
+  z.file("[Content_Types].xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Default Extension="png" ContentType="image/png"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>`);
+  z.file("_rels/.rels", relsXml([`<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/>`]));
+  z.file("word/_rels/document.xml.rels", relsXml([`<Relationship Id="rIdS" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>`, `<Relationship Id="rIdH" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/header" Target="header1.xml"/>`, `<Relationship Id="rIdF" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/footer" Target="footer1.xml"/>`, ...rels.doc]));
+  z.file("word/_rels/header1.xml.rels", relsXml(rels.hdr)); z.file("word/_rels/footer1.xml.rels", relsXml(rels.ftr));
+  z.file("word/styles.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:styles xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="Cambria" w:hAnsi="Cambria" w:cs="Cambria" w:eastAsia="Cambria"/><w:sz w:val="24"/><w:szCs w:val="24"/><w:lang w:val="en-IN"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="0" w:line="276" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/></w:style></w:styles>`);
+  z.file("word/header1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:hdr ${NS}><w:p>${anchor(head, 0)}</w:p></w:hdr>`);
+  z.file("word/footer1.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:ftr ${NS}><w:p>${anchor(foot, 0, true)}</w:p></w:ftr>`);
+  imgs.forEach(([n, b]) => z.file("word/media/" + n, b, { base64: true }));
+  z.file("word/document.xml", `<?xml version="1.0" encoding="UTF-8" standalone="yes"?><w:document ${NS}><w:body>${B.join("")}<w:sectPr><w:headerReference w:type="default" r:id="rIdH"/><w:footerReference w:type="default" r:id="rIdF"/><w:pgSz w:w="11906" w:h="16838"/><w:pgMar w:top="1950" w:right="991" w:bottom="1500" w:left="1134" w:header="286" w:footer="283" w:gutter="0"/></w:sectPr></w:body></w:document>`);
+  return z.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" });
+}
+/* Word button → the new file; a tick for "e-signature & seal" next to the buttons (off = blank space to sign by hand) */
+document.addEventListener("click", async e => {
+  const b = e.target.closest?.("#qDocx"); if (!b || !STATE.quote) return; e.preventDefault(); e.stopImmediatePropagation();
+  const Q = STATE.quote; try { b.disabled = true; const blob = await quoteDocx105(Q); saveFile(safeName(`${Q.no.replace(/\//g, "_")}${Q.rev ? "R" + Q.rev : ""}_${Q.to.name || "quotation"}`) + ".docx", blob); } catch (er) { toast("Word failed: " + er.message, "bad"); } finally { b.disabled = false; }
+}, true);
+{
+  const _r = render;
+  render = function () { _r.apply(this, arguments); try { if (STATE.route !== "quote" || !STATE.quote) return; const d = $("#qDocx"); if (!d || $("#qSig105")) return;
+    d.insertAdjacentHTML("afterend", `<label class="btn" style="gap:6px" title="Untick to leave the signature and seal blank (sign by hand)"><input type="checkbox" id="qSig105" ${STATE.quote.manualSign ? "" : "checked"}> ✍ e-signature &amp; seal</label>`);
+    $("#qSig105").onchange = ev => { STATE.quote.manualSign = !ev.target.checked; saveDrafts(); const p = $("#paper"); if (p) p.innerHTML = paperHtml(STATE.quote); toast(ev.target.checked ? "Signature and seal will print by themselves" : "Left blank - sign by hand"); };
+  } catch { } };
+}
+
 boot();
 
 </script>
