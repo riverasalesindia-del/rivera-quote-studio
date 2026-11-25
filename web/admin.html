@@ -11026,13 +11026,16 @@ const HOR62 = { sales: [["customers", "Customer list with status", "Active custo
   finance: [["bank", "Bank and payment schedule", "Upcoming payments, cheques issued.", 1], ["statutory", "GST / TDS / PF / ESI dates", "Returns due, filings pending, notices.", 1], ["receivables", "Receivables and payables", "Outstanding list with ageing.", 1]],
   operation: [["jobs", "Jobs in progress", "Each job: stage, next step, customer date.", 1], ["records", "Quality and test records", "Test reports, QC and calibration records.", 1], ["stock", "Stock and pending purchase", "Stock position, open POs, deliveries due.", 1]],
   admin: [["team", "Team and responsibilities", "Who does what, targets, approvals waiting.", 1]] };
-const HOST62 = { draft: ["Draft", ""], submitted: ["With Admin", "warn"], admin_ok: ["With MD", "navy"], approved: ["Approved", "ok"], returned: ["Sent back", "bad"] };
+const HOST62 = { draft: ["Draft", ""], submitted: ["With AGM & HR", "warn"], admin_ok: ["1 of 2 approved", "navy"], approved: ["Approved", "ok"], returned: ["Sent back", "bad"] };
+/* handover approval: AGM and HR both approve (emailed); only then is it complete */
+const HOAPR101 = { agm: "agm@rivera.co.in", hr: "hr@rivera.co.in" };
+const hoRole101 = (r, me) => { if (!["submitted", "admin_ok"].includes(r.status)) return null; const free = k => !r[k + "By"]; if (me === HOAPR101.agm && free("agm")) return "agm"; if (me === HOAPR101.hr && free("hr")) return "hr"; if (me === HOAPR101.agm || me === HOAPR101.hr) return null; if (adm62() || pg62("handover.approve")) return free("hr") ? "hr" : free("agm") ? "agm" : null; return null; };
 VIEWS.handover = v => {
   bizSync28(); team62().then(() => { if (STATE.route === "handover" && !v.dataset.t62) { v.dataset.t62 = 1; render(); } });
   const me = me28(), apr = pg62("handover.approve"), tabs = tabsFor62("handover", "ho62", [["mine", "My handover"], ["approve", "Approvals", apr]]);
   const L = all28("ho").filter(x => BIZ.ui.ho62 === "approve" ? true : x.emp === me || x.to === me).sort((a, b) => String(b.at).localeCompare(String(a.at)));
   const mineOpen = all28("ho").find(x => x.emp === me && x.status !== "approved");
-  v.innerHTML = top62("Admin", "Handover", "Leaving, transferring or long leave? Hand over everything here. The app checks it against your role, then Admin and MD sir approve.",
+  v.innerHTML = top62("Admin", "Handover", "Leaving, transferring or long leave? Hand over everything here. The app checks it against your role, then AGM and HR approve (by email link). It is complete only after both approve.",
     mineOpen ? `<button class="btn primary" id="ho62c" type="button">Continue my handover</button>` : `<button class="btn primary" id="ho62n" type="button">🔁 Start my handover</button>`)
     + (loadNote28() || `${tabs.length > 1 ? tabs28(BIZ.ui.ho62, tabs, "ho62t") : ""}<section class="panel"><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Employee</th><th>Handing over to</th><th>Reason</th><th>Status</th></tr></thead><tbody>
       ${L.map(x => `<tr data-ho="${x.id}" style="cursor:pointer"><td><b>${esc(x.empName || nm62(x.emp))}</b></td><td>${esc(x.toName || nm62(x.to))}</td><td>${esc(x.reason || "")}</td><td><span class="chip ${(HOST62[x.status] || HOST62.draft)[1]}">${(HOST62[x.status] || HOST62.draft)[0]}</span></td></tr>`).join("") || '<tr><td colspan="4" class="muted">No handovers.</td></tr>'}</tbody></table></div></section>`);
@@ -11050,7 +11053,7 @@ function hoCheck62(r) {
 function hoPanel62(src) {
   const me = me28(), role = AUTH.user?.role || "sales";
   const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "ho", emp: me, empName: AUTH.user?.name || "", status: "draft", items: [...HOC62, ...(HOR62[role] || [])].map(([key, title, hint, req]) => ({ key, title, hint, req, text: "", na: false })) };
-  const edit = r.emp === me && ["draft", "returned"].includes(r.status), canAdm = r.status === "submitted" && pg62("handover.approve"), canMd = r.status === "admin_ok" && (me === W62.md || adm62());
+  const edit = r.emp === me && ["draft", "returned"].includes(r.status), apRole = hoRole101(r, me), canAdm = !!apRole, canMd = false;
   const openWk = all28("wk").filter(x => x.to === r.emp && !["done", "cancelled"].includes(x.status)), assets = all28("fa").filter(a => a.holder === r.emp);
   const P = hoCheck62(r), done = (r.items || []).filter(i => i.na || String(i.text || "").trim()).length;
   const D = panel28({
@@ -11063,7 +11066,7 @@ function hoPanel62(src) {
       ${edit && P.length ? `<div class="note warn small"><b>Before you can submit:</b><br>${P.map(esc).join("<br>")}</div>` : ""}
       ${canAdm || canMd ? `<label class="f" style="margin-top:10px">Note (needed when sending back)<textarea id="ho62note" rows="2"></textarea></label>` : ""}
       <section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>`,
-    foot: `${r.status === "approved" ? '<button class="btn" id="ho62p" type="button">🖨 Handover summary</button>' : ""}<span style="flex:1"></span>${edit ? '<button class="btn" id="ho62s" type="button">Save</button><button class="btn primary" id="ho62go" type="button">Check and submit</button>' : ""}${canAdm || canMd ? `<button class="btn" id="ho62b" type="button">Send back</button><button class="btn primary" id="ho62ok" type="button">${canMd ? "Approve" : "Verified - send to MD"}</button>` : ""}`
+    foot: `${r.status === "approved" ? '<button class="btn" id="ho62p" type="button">🖨 Handover summary</button>' : ""}<span style="flex:1"></span>${edit ? '<button class="btn" id="ho62s" type="button">Save</button><button class="btn primary" id="ho62go" type="button">Check and submit</button>' : ""}${canAdm || canMd ? `<button class="btn" id="ho62b" type="button">Send back</button><button class="btn primary" id="ho62ok" type="button">${apRole === "agm" ? "Approve as AGM" : "Approve as HR"}${(apRole === "agm" ? r.hrBy : r.agmBy) ? " (final)" : ""}</button>` : ""}`
   });
   const read = () => { if (!edit) return; r.to = $("#ho62to").value; r.toName = nm62(r.to); r.reason = $("[data-k=reason]", D).value; r.lastDay = $("[data-k=lastDay]", D).value; $$("[data-hi]", D).forEach(t => { r.items[+t.dataset.hi].text = t.value; }); $$("[data-hn]", D).forEach(c => { r.items[+c.dataset.hn].na = c.checked; }); };
   const put = async (btn, extra, type, text, msg, more = []) => { read(); Object.assign(r, extra); logAdd28(r, type, text); if (await save28(btn, [r, ...more], msg)) { closeDrawer26(); render(); return true; } };
@@ -11072,10 +11075,11 @@ function hoPanel62(src) {
   const note = () => ($("#ho62note")?.value || "").trim();
   $("#ho62b") && ($("#ho62b").onclick = e => { if (!note()) return toast("Write what is missing", "bad"); put(e.target, { status: "returned", note: note() }, "Sent back", note(), "Sent back"); });
   $("#ho62ok") && ($("#ho62ok").onclick = e => {
-    if (canMd) { const moves = openWk.map(x => { const w = { ...x, to: r.to, toName: r.toName, status: x.status === "new" ? "new" : "accepted" }; logAdd28(w, "Reassigned", "Handover from " + (r.empName || nm62(r.emp))); return w; }); put(e.target, { status: "approved", mdBy: me, mdAt: now62(), note: note() }, "Approved", note() || "Approved by MD", "Approved - open work moved", moves); }
-    else put(e.target, { status: "admin_ok", adminBy: me, adminAt: now62(), note: note() }, "Admin verified", note(), "Sent to MD sir");
+    const other = apRole === "agm" ? "hr" : "agm", stamp = { [apRole + "By"]: me, [apRole + "At"]: now62(), note: note() }, who = apRole === "agm" ? "AGM" : "HR";
+    if (r[other + "By"]) { const moves = openWk.map(x => { const w = { ...x, to: r.to, toName: r.toName, status: x.status === "new" ? "new" : "accepted" }; logAdd28(w, "Reassigned", "Handover from " + (r.empName || nm62(r.emp))); return w; }); put(e.target, { ...stamp, status: "approved", mdBy: me, mdAt: now62() }, "Approved", (note() ? note() + " - " : "") + "Approved by " + who + " (both approved)", "Approved - handover complete, open work moved", moves); }
+    else put(e.target, { ...stamp, status: "admin_ok" }, "Approved", (note() ? note() + " - " : "") + "Approved by " + who, `Approved - waiting for ${other === "hr" ? "HR" : "AGM"}`);
   });
-  $("#ho62p") && ($("#ho62p").onclick = async () => printHtml28("Handover " + (r.empName || ""), `${await lhImg62()}<h1>Handover - ${esc(r.empName || nm62(r.emp))}</h1><p>To <b>${esc(r.toName)}</b> · ${esc(r.reason || "")} · last day ${esc(dmy62(r.lastDay))} · Admin ${esc(nm62(r.adminBy || ""))} ${esc(dt62(r.adminAt))} · MD ${esc(dt62(r.mdAt))}</p><table><tr><th>Item</th><th>Details</th></tr>${r.items.map(i => `<tr><td><b>${esc(i.title)}</b></td><td style="white-space:pre-wrap">${esc(i.na ? "Not applicable: " + i.text : i.text)}</td></tr>`).join("")}</table><p><small>Passwords are not kept in this document.</small></p>`));
+  $("#ho62p") && ($("#ho62p").onclick = async () => printHtml28("Handover " + (r.empName || ""), `${await lhImg62()}<h1>Handover - ${esc(r.empName || nm62(r.emp))}</h1><p>To <b>${esc(r.toName)}</b> · ${esc(r.reason || "")} · last day ${esc(dmy62(r.lastDay))} · AGM ${esc(nm62(r.agmBy || ""))} ${esc(dt62(r.agmAt))} · HR ${esc(nm62(r.hrBy || ""))} ${esc(dt62(r.hrAt))}</p><table><tr><th>Item</th><th>Details</th></tr>${r.items.map(i => `<tr><td><b>${esc(i.title)}</b></td><td style="white-space:pre-wrap">${esc(i.na ? "Not applicable: " + i.text : i.text)}</td></tr>`).join("")}</table><p><small>Passwords are not kept in this document.</small></p>`));
 }
 
 /* ---------------- ASSET REGISTER ---------------- */
@@ -15777,6 +15781,355 @@ document.addEventListener("keydown", e => { if (e.key === "Escape") { const s = 
 
 { const X = { "001-300": [290, 100, 120, 20], "003-1300": [328.6, 100, 80, 20], "004-1450": [460, 100, 80, 0], "008-400": [360, 220, 100, 25], "009-525": [285, 200, 100, 25], "010-750": [326, 200, 100, 25], "011-1010": [285, 200, 120, 25], "012-336": [240, 200, 80, 20], "013-800": [340, 220, 120, 25], "015-350": [275, 200, 130, 25], "016-1045": [382, 100, 60, 20], "017-450": [250, 220, 120, 20] };
   COILS78.forEach(c => { const x = X[c.id]; if (c.calc && x) Object.assign(c.calc, { span: x[0], lead: x[1], oh: x[2], pin: x[3] }); }); }
+
+/* ===================== p98: every list shows everything straight away - the search box only narrows it down as you type (no "press Search to see" step) ===================== */
+try { Object.defineProperty(GS44, "open", { get: () => true, set() { }, configurable: true }); } catch { }
+gate44 = function () { };
+document.head.insertAdjacentHTML("beforeend", `<style>.g44h{display:revert!important}.g44-ph,.g44-bar,.g44-btns{display:none!important}</style>`);
+/* Profile photos: HR adds a photo in the employee drawer; everyone can set their own photo from the name menu (top right). Stored small (about 10 KB) so lists stay fast */
+async function thumb98(file, px = 220) {
+  const bm = await createImageBitmap(file), s = Math.min(1, px / Math.min(bm.width, bm.height)), w = Math.round(bm.width * s), h = Math.round(bm.height * s), side = Math.min(w, h);
+  const c = document.createElement("canvas"); c.width = c.height = Math.min(px, side); const x = c.getContext("2d");
+  x.drawImage(bm, (bm.width - Math.min(bm.width, bm.height)) / 2, (bm.height - Math.min(bm.width, bm.height)) / 2, Math.min(bm.width, bm.height), Math.min(bm.width, bm.height), 0, 0, c.width, c.height);
+  return c.toDataURL("image/jpeg", 0.78);
+}
+const nm98 = s => String(s || "").toLowerCase().replace(/[^a-z]/g, "");
+function photoOf98(e) { if (!e) return ""; if (e.photo) return e.photo; const P = all28("pp"), em = String(e.email || "").toLowerCase(); const p = P.find(x => em && x.who === em) || P.find(x => x.name && nm98(x.name) === nm98(e.name)); return p?.img || ""; }
+const av98 = (e, sz = 34) => { const p = photoOf98(e); return p ? `<img class="av98" src="${p}" alt="" style="width:${sz}px;height:${sz}px">` : `<span class="av98 i" style="width:${sz}px;height:${sz}px;font-size:${Math.round(sz * .4)}px">${esc(String(e?.name || "?").trim()[0] || "?")}</span>`; };
+document.head.insertAdjacentHTML("beforeend", `<style>.av98{border-radius:50%;object-fit:cover;flex:none;display:inline-grid;place-items:center;vertical-align:middle;margin-right:8px;border:2px solid #fff;box-shadow:0 0 0 1px var(--line,#dfe5ee)}.av98.i{background:linear-gradient(135deg,#E26A0C,#02315B);color:#fff;font-weight:700}
+.ph98{display:flex;align-items:center;gap:14px;padding:12px;border:1px dashed var(--line,#cfd8e3);border-radius:14px;margin:0 0 12px}.ph98 .av98{margin:0}</style>`);
+{
+  const _e = empPanel29;
+  empPanel29 = function (src) { _e.apply(this, arguments); try { const f = $("#dr26 .fields"); if (!f || $("#ph98")) return; if (!src?.id) return; const e = BIZ.rows[src.id] || src;
+    f.insertAdjacentHTML("beforebegin", `<div class="ph98" id="ph98">${av98(e, 76)}<div><b>Profile photo</b><div class="small muted">A clear face photo - it shows on the employee list, ID card and work board.</div><div class="row" style="gap:6px;margin-top:6px"><label class="btn sm primary">📷 ${photoOf98(e) ? "Change photo" : "Upload photo"}<input type="file" accept="image/*" capture="user" id="ph98f" hidden></label>${e.photo ? `<button type="button" class="btn sm ghost" id="ph98x">Remove</button>` : ""}</div></div></div>`);
+    $("#ph98f").onchange = async ev => { const fl = ev.target.files[0]; if (!fl) return; try { const img = await thumb98(fl); await bizPut28({ ...BIZ.rows[e.id], photo: img }); toast("Photo saved"); empPanel29(BIZ.rows[e.id]); } catch (er) { toast(er.message, "bad"); } };
+    $("#ph98x") && ($("#ph98x").onclick = async () => { await bizPut28({ ...BIZ.rows[e.id], photo: "" }); toast("Photo removed"); empPanel29(BIZ.rows[e.id]); });
+  } catch (er) { console.warn("p98 photo", er); } };
+}
+/* employee list: photo before every name */
+{
+  const _hr = VIEWS.hr;
+  VIEWS.hr = v => { _hr(v); try { $$("tr[data-em]", v).forEach(r => { const e = BIZ.rows[r.dataset.em]; const c = r.cells[0]; if (e && c && !c.querySelector(".av98")) { c.style.whiteSpace = "nowrap"; c.insertAdjacentHTML("afterbegin", av98(e, 30)); } }); } catch { } };
+}
+/* my own photo: name menu ▸ My photo */
+async function myPhoto98() {
+  const i = document.createElement("input"); i.type = "file"; i.accept = "image/*"; i.onchange = async () => { const f = i.files[0]; if (!f) return; try { const img = await thumb98(f), me = me28(), old = all28("pp").find(x => x.who === me);
+    await bizPut28({ ...(old || { kind: "pp" }), who: me, name: AUTH.user?.name || "", img }); const e = all28("emp").find(x => String(x.email || "").toLowerCase() === me); toast("Your photo is updated"); render(); } catch (er) { toast(er.message, "bad"); } }; i.click();
+}
+{
+  const _r = render;
+  render = function () { const out = _r.apply(this, arguments); try { const m = $(".n51-u .n51-p"); if (m && !m.querySelector("[data-ph98]")) { m.querySelector(".n51-g")?.insertAdjacentHTML("afterend", `<button type="button" data-ph98>📷 My photo</button>`); m.querySelector("[data-ph98]").onclick = myPhoto98; }
+      const b = $(".n51-u > .n51-i"); const mine = all28("pp").find(x => x.who === me28()); if (b && mine?.img && !b.querySelector(".av98")) { b.querySelector("svg")?.remove(); b.insertAdjacentHTML("afterbegin", `<img class="av98" src="${mine.img}" alt="" style="width:22px;height:22px;margin-right:6px">`); } } catch { } return out; };
+}
+
+/* ===================== p99: Signatures & seals - Admin keeps each signer's e-signature and the company seals; for every document
+   you tick who signs as Prepared by / Verified / Receiver / Authorized and which seal goes on it; prints add them automatically.
+   Payments: NEFT / RTGS / IMPS / UPI / cheque separately, our bank account, beneficiary bank details on the voucher.
+   Quotations: the Rivera letterhead format (as the AUSINDIA quote) - bank details in a table, authorized signature + seal ===================== */
+const SIGDOCS99 = [["quote", "Quotation"], ["po", "Purchase order"], ["spay", "Payment voucher"], ["rcpt", "Receipt voucher"], ["inv", "Tax invoice"], ["dn", "Delivery challan"], ["letter", "Offer / appointment letter"], ["cert", "HR certificates (salary, experience…)"], ["gp", "Gate pass"]];
+const SIGROLES99 = [["prepared", "Prepared by"], ["verified", "Verified"], ["receiver", "Receiver signature"], ["authorized", "Authorized signature"]];
+const sigPeople99 = () => all28("sig").filter(s => s.type === "person" && !s.off).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+const sigSeals99 = () => all28("sig").filter(s => s.type === "seal" && !s.off);
+const sigCfg99 = () => all28("sig").find(s => s.type === "config") || { kind: "sig", type: "config", map: {} };
+function sigBlock99(doc, opt = {}) {
+  const m = sigCfg99().map?.[doc] || {}, roles = SIGROLES99.filter(([k]) => m[k + "On"] !== false && (m[k + "On"] || (doc === "quote" ? k === "authorized" : k !== "receiver" || /spay|rcpt|dn|gp/.test(doc))));
+  const P = id => all28("sig").find(s => s.id === id), seal = P(m.seal), co = opt.company || "Rivera Coil Manufacturing (I) Pvt Ltd";
+  const cell = ([k, l]) => { const p = P(m[k]); return `<td style="vertical-align:bottom;text-align:center;border:0;padding:4px 6px;width:${100 / roles.length}%"><div style="height:64px;display:flex;align-items:flex-end;justify-content:center;gap:6px;position:relative">${k === "authorized" && seal?.img ? `<img src="${seal.img}" style="height:78px;opacity:.92;margin-bottom:-10px">` : ""}${p?.img ? `<img src="${p.img}" style="max-height:52px;max-width:150px">` : ""}</div><div style="border-top:1px solid #555;padding-top:3px;font-weight:700">${esc(l)}</div>${p ? `<div style="font-size:11px;color:#444">${esc(p.name)}${p.desig ? ", " + esc(p.desig) : ""}</div>` : ""}</td>`; };
+  const one = roles.length === 1, fr = roles.some(r => r[0] === "authorized") ? `<tr>${roles.map(([k]) => `<td style="border:0;padding:0 6px;text-align:center;font-weight:700">${k === "authorized" ? `For ${esc(co)},` : ""}</td>`).join("")}</tr>` : "";
+  return `<table style="width:${one ? "320px" : "100%"};${one ? "margin-left:auto;" : ""}border:0;margin-top:26px;border-collapse:collapse">${fr}<tr>${roles.map(cell).join("")}</tr></table>`;
+}
+/* ---- Admin ▸ Signatures & seals ---- */
+async function sigImg99(file) { const bm = await createImageBitmap(file), s = Math.min(1, 420 / bm.width), c = document.createElement("canvas"); c.width = Math.round(bm.width * s); c.height = Math.round(bm.height * s); c.getContext("2d").drawImage(bm, 0, 0, c.width, c.height); return c.toDataURL("image/png"); }
+function sigPerson99(src) {
+  const r = src ? { ...src } : { kind: "sig", type: "person", name: "", desig: "", img: "" }, emps = all28("emp").filter(e => e.status !== "left").map(e => e.name);
+  const D = panel28({ title: src ? r.name : "Add signer", body: `<div class="fields">${field28(["name", "Name *", "list", emps], r)}${field28(["desig", "Designation", "text"], r)}${field28(["company", "Company", "select", [["", "Both"], ["RCM", "RCM"], ["RCR", "RCR"]]], r)}</div>
+      <div class="ph98" style="margin-top:10px"><div id="sg99p" style="min-width:200px;min-height:70px;display:grid;place-items:center;background:#fff;border:1px solid #e3e8ef;border-radius:10px">${r.img ? `<img src="${r.img}" style="max-height:70px;max-width:220px">` : '<span class="small muted">No signature yet</span>'}</div><div><b>Signature image</b><div class="small muted">Sign on white paper with a blue pen, take a clear photo and upload - the paper is made see-through.</div><label class="btn sm primary" style="margin-top:6px">⬆ Upload signature<input type="file" accept="image/*" id="sg99f" hidden></label></div></div>`,
+    foot: `${src ? `<button class="btn ghost" id="sg99d" type="button">Remove signer</button>` : ""}<span style="flex:1"></span><button class="btn primary" id="sg99s" type="button">Save</button>` });
+  $("#sg99f", D).onchange = async e => { const f = e.target.files[0]; if (!f) return; r.img = await inkOnly99(await sigImg99(f)); $("#sg99p", D).innerHTML = `<img src="${r.img}" style="max-height:70px;max-width:220px">`; };
+  $("#sg99s", D).onclick = async e => { readForm28(D, r); if (!r.name) return toast("Name is needed", "bad"); if (await save28(e.target, r, "Signer saved")) { closeDrawer26(); render(); } };
+  $("#sg99d", D) && ($("#sg99d", D).onclick = e => sure71(e.target, async () => { await bizPut28({ ...r, off: true }); closeDrawer26(); render(); toast("Removed"); }));
+}
+/* make the paper see-through: keep only the ink */
+async function inkOnly99(url) { const im = new Image(); im.src = url; await im.decode(); const c = document.createElement("canvas"); c.width = im.width; c.height = im.height; const x = c.getContext("2d"); x.drawImage(im, 0, 0); const d = x.getImageData(0, 0, c.width, c.height), p = d.data;
+  let bg = 0, n = 0; for (let i = 0; i < p.length; i += 40) { bg += (p[i] + p[i + 1] + p[i + 2]) / 3; n++; } bg = bg / n;
+  for (let i = 0; i < p.length; i += 4) { const l = (p[i] + p[i + 1] + p[i + 2]) / 3, a = Math.max(0, Math.min(255, (bg - 25 - l) * 3)); p[i + 3] = Math.min(p[i + 3], a); } x.putImageData(d, 0, 0); return c.toDataURL("image/png"); }
+function sigSeal99(src) {
+  const r = src ? { ...src } : { kind: "sig", type: "seal", name: "", company: "RCM", img: "" };
+  const D = panel28({ title: src ? r.name : "Add seal", body: `<div class="fields">${field28(["name", "Seal name *", "text"], r)}${field28(["company", "Company", "select", [["RCM", "RCM"], ["RCR", "RCR"], ["Finance", "Finance / accounts"]]], r)}</div>
+      <div class="ph98" style="margin-top:10px"><div id="se99p" style="width:110px;height:110px;display:grid;place-items:center;background:#fff;border:1px solid #e3e8ef;border-radius:10px">${r.img ? `<img src="${r.img}" style="max-width:104px;max-height:104px">` : '<span class="small muted">No seal</span>'}</div><div><b>Seal image</b><div class="small muted">Stamp on white paper, photo or scan it, upload.</div><label class="btn sm primary" style="margin-top:6px">⬆ Upload seal<input type="file" accept="image/*" id="se99f" hidden></label></div></div>`,
+    foot: `${src ? `<button class="btn ghost" id="se99d" type="button">Remove seal</button>` : ""}<span style="flex:1"></span><button class="btn primary" id="se99s" type="button">Save</button>` });
+  $("#se99f", D).onchange = async e => { const f = e.target.files[0]; if (!f) return; r.img = await inkOnly99(await sigImg99(f)); $("#se99p", D).innerHTML = `<img src="${r.img}" style="max-width:104px;max-height:104px">`; };
+  $("#se99s", D).onclick = async e => { readForm28(D, r); if (!r.name) return toast("Name is needed", "bad"); if (await save28(e.target, r, "Seal saved")) { closeDrawer26(); render(); } };
+  $("#se99d", D) && ($("#se99d", D).onclick = e => sure71(e.target, async () => { await bizPut28({ ...r, off: true }); closeDrawer26(); render(); toast("Removed"); }));
+}
+if (!ROUTES.some(x => x[0] === "sig99")) ROUTES.push(["sig99", "Signatures & seals", "check"]);
+ALWAYS34.push("sig99");
+VIEWS.sig99 = v => {
+  bizSync28(); const P = sigPeople99(), S = sigSeals99(), C = sigCfg99(), M = C.map || {}, adm = isAdmin28() || myDepts63?.().includes?.("admin");
+  const opt = (sel, list, none) => `<option value="">${none}</option>` + list.map(p => `<option value="${p.id}" ${sel === p.id ? "selected" : ""}>${esc(p.name)}</option>`).join("");
+  v.innerHTML = top62("Admin", "Signatures & seals", "Who signs which document - tick the box and pick the person. Their e-signature and the seal print by themselves. Leave a box un-ticked to keep it off the paper.", "")
+    + `<section class="panel"><header><h2>Signers</h2>${adm ? `<button class="btn sm primary" id="sg99n" type="button">+ Add signer</button>` : ""}</header><div class="body sg99g">${P.map(p => `<button type="button" class="sg99c" data-sg99="${p.id}"><div class="sg99i">${p.img ? `<img src="${p.img}">` : '<span class="small muted">Signature not uploaded</span>'}</div><b>${esc(p.name)}</b><small>${esc(p.desig || "")}${p.company ? " · " + p.company : ""}</small></button>`).join("") || '<p class="muted">No signers yet.</p>'}</div></section>
+    <section class="panel"><header><h2>Seals</h2>${adm ? `<button class="btn sm primary" id="se99n" type="button">+ Add seal</button>` : ""}</header><div class="body sg99g">${S.map(p => `<button type="button" class="sg99c" data-se99="${p.id}"><div class="sg99i" style="height:96px">${p.img ? `<img src="${p.img}" style="max-height:90px">` : '<span class="small muted">No image</span>'}</div><b>${esc(p.name)}</b><small>${esc(p.company || "")}</small></button>`).join("") || '<p class="muted">No seals yet.</p>'}</div></section>
+    <section class="panel"><header><h2>Which signature goes on which document</h2></header><div class="body" style="overflow:auto"><table class="t sg99t"><thead><tr><th>Document</th>${SIGROLES99.map(([, l]) => `<th>${esc(l)}</th>`).join("")}<th>Seal</th></tr></thead><tbody>
+      ${SIGDOCS99.map(([d, l]) => { const m = M[d] || {}; return `<tr><td><b>${esc(l)}</b></td>${SIGROLES99.map(([k]) => { const on = m[k + "On"] ?? (d === "quote" ? k === "authorized" : k !== "receiver" || /spay|rcpt|dn|gp/.test(d)); return `<td><label class="sg99k"><input type="checkbox" data-on="${d}.${k}" ${on ? "checked" : ""} ${adm ? "" : "disabled"}><select data-who="${d}.${k}" ${adm ? "" : "disabled"}>${opt(m[k], P, "Sign by hand")}</select></label></td>`; }).join("")}<td><select data-seal="${d}" ${adm ? "" : "disabled"}>${opt(m.seal, S, "No seal")}</select></td></tr>`; }).join("")}</tbody></table>
+      <p class="small muted" style="margin-top:8px">✔ ticked + a name = that person's e-signature prints · ✔ ticked + "Sign by hand" = an empty line to sign on paper · un-ticked = not printed.</p>${adm ? `<div class="row" style="justify-content:flex-end;margin-top:8px"><button class="btn primary" id="sg99sv" type="button">Save</button></div>` : ""}</div></section>`;
+  $("#sg99n", v) && ($("#sg99n", v).onclick = () => sigPerson99()); $("#se99n", v) && ($("#se99n", v).onclick = () => sigSeal99());
+  $$("[data-sg99]", v).forEach(b => b.onclick = () => adm && sigPerson99(BIZ.rows[b.dataset.sg99])); $$("[data-se99]", v).forEach(b => b.onclick = () => adm && sigSeal99(BIZ.rows[b.dataset.se99]));
+  $("#sg99sv", v) && ($("#sg99sv", v).onclick = async e => { const map = {}; SIGDOCS99.forEach(([d]) => { map[d] = { seal: $(`[data-seal="${d}"]`, v).value }; SIGROLES99.forEach(([k]) => { map[d][k] = $(`[data-who="${d}.${k}"]`, v).value; map[d][k + "On"] = $(`[data-on="${d}.${k}"]`, v).checked; }); }); await save28(e.target, { ...C, map }, "Saved - prints now use these signatures"); render(); });
+};
+document.head.insertAdjacentHTML("beforeend", `<style>.sg99g{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px}.sg99c{display:flex;flex-direction:column;gap:2px;text-align:left;border:1px solid var(--line,#e3e8ef);border-radius:12px;padding:10px;background:var(--card,#fff);cursor:pointer;font:inherit;color:inherit}.sg99i{height:64px;display:grid;place-items:center;background:#fff;border-radius:8px;margin-bottom:6px;border:1px dashed #e3e8ef}.sg99i img{max-height:58px;max-width:100%}.sg99c small{color:var(--muted,#64748b)}
+.sg99k{display:flex;align-items:center;gap:6px}.sg99t select{min-width:130px}.sg99t td{vertical-align:middle}</style>`);
+{ const put = (mod, grp, c) => { const m = MODS32.find(x => x.id === mod); if (!m) return; const G = m.groups[grp] ||= []; if (!G.some(x => x[1] === c[1])) { G.unshift(c); try { CARDMOD64.set(c, mod); } catch { } } };
+  put("admin", "Masters", ["Signatures & seals", "sig99", {}, "Who signs which document - e-signatures and seals"]); put("accounts", "Masters", ["Signatures & seals", "sig99", {}, "Who signs which document"]); }
+/* ---- prints use the signature table ---- */
+{
+  const _v = vouch85;
+  vouch85 = function (r, inOut) { const _p = printHtml28; printHtml28 = (t, h) => _p(t, h.replace(/<table class="sg85">[\s\S]*?<\/table>/, sigBlock99(inOut === "in" ? "rcpt" : "spay"))
+    .replace(/(<tr><td>Mode<\/td>[\s\S]*?<\/tr>)/, `$1${r.fromBank ? `<tr><td>${inOut === "in" ? "Received in" : "Paid from"}</td><td colspan="3">${esc(r.fromBank)}</td></tr>` : ""}${r.benName || r.benAcc ? `<tr><td>Beneficiary bank</td><td colspan="3">${esc([r.benName, r.benBank, r.benAcc && "A/c " + r.benAcc, r.benIfsc && "IFSC " + r.benIfsc].filter(Boolean).join(" · "))}</td></tr>` : ""}`)); try { return _v.call(this, r, inOut); } finally { printHtml28 = _p; } };
+}
+{
+  const _po = poPrint85;
+  poPrint85 = async function (r) { const _p = printHtml28; printHtml28 = (t, h) => _p(t, h.replace(/<div class="sg">[\s\S]*?<\/div><\/div><\/div>/, `${sigBlock99("po", { company: r.company === "RCR" ? "Rivera Coil Rewinding" : "" })}</div>`)); try { return await _po.call(this, r); } finally { printHtml28 = _p; } };
+}
+{
+  const _l = print89;
+  print89 = async function (r) { const _p = printHtml28; printHtml28 = (t, h) => _p(t, h.replace(/<br><p>For <b>Rivera Coil Manufacturing India Pvt Ltd<\/b>,<\/p><br><br><p><b>([^<]*)<\/b><br>([^<]*)<\/p>/, (m0) => { const m = sigCfg99().map?.letter || {}; return m.authorized ? sigBlock99("letter", { company: "Rivera Coil Manufacturing India Pvt Ltd" }) : m0; })); try { return await _l.call(this, r); } finally { printHtml28 = _p; } };
+}
+/* ---- payments: separate NEFT / RTGS, our bank, beneficiary bank ---- */
+MODES85.splice(0, MODES85.length, "NEFT", "RTGS", "IMPS", "UPI", "Cheque", "Cash", "Demand draft");
+const OURBANKS99 = () => [...new Set([...(SETTINGS.bank?.acc ? [`${SETTINGS.bank.name} · A/c ${SETTINGS.bank.acc}`] : []), "SBI - SME Branch · A/c 43098912447", "SBI · A/c ending 4651", "SBI · A/c ending 6768", "SBI · A/c ending 2447", "CUB · A/c ending 6407", "Axis Bank (OD)", ...all28("spay").map(p => p.fromBank).filter(Boolean)])];
+function bankBox99(D, r, out) {
+  const f = $(".fields", D); if (!f || $("#bk99", D)) return;
+  if (/NEFT \/ RTGS/.test(r.mode || "")) r.mode = "NEFT";
+  const benList = [...new Set(all28("spay").map(p => p.benBank).filter(Boolean))];
+  f.insertAdjacentHTML("beforeend", `<div id="bk99" style="grid-column:1/-1;border:1px solid var(--line,#e3e8ef);border-radius:12px;padding:10px 12px;margin-top:4px"><b style="font-size:.85rem">🏦 Bank details</b><div class="fields" style="margin-top:6px">${field28(["fromBank", out ? "Paid from (our bank)" : "Received in (our bank)", "list", OURBANKS99()], r)}${out ? field28(["benName", "Beneficiary / account holder name", "text"], r) + field28(["benBank", "Beneficiary bank name", "list", benList], r) + field28(["benAcc", "Beneficiary account no", "text"], r) + field28(["benIfsc", "IFSC", "text"], r) : field28(["payerBank", "Payer's bank", "text"], r)}</div></div>`);
+  const md = $("#f28_mode", D); if (md && /NEFT \/ RTGS/.test(md.value)) md.value = "NEFT";
+  const nm = $("#f28_supplier", D) || $("#f28_payee", D), bn = $("#f28_benName", D); if (nm && bn) nm.addEventListener("change", () => { if (!bn.value) bn.value = nm.value; const last = all28("spay").filter(p => (p.supplier || p.payee) === nm.value && p.benAcc).pop(); if (last) { ["benBank", "benAcc", "benIfsc"].forEach(k => { const el = $("#f28_" + k, D); if (el && !el.value) el.value = last[k] || ""; }); } });
+}
+{
+  const _p = payPanel85; payPanel85 = function (type, src, preset) { _p.apply(this, arguments); try { bankBox99($("#dr26"), src || { mode: "NEFT" }, true); } catch (e) { console.warn("p99 pay", e); } };
+  const _r = recPanel85; recPanel85 = function (type, src, preset) { _r.apply(this, arguments); try { bankBox99($("#dr26"), src || { mode: "NEFT" }, false); } catch (e) { console.warn("p99 rec", e); } };
+}
+/* ---- quotation in the Rivera letterhead format ---- */
+const QCSS99 = `.q99{font-family:"Times New Roman",Georgia,serif;font-size:12.5px;line-height:1.5;color:#111;background:#fff;max-width:820px;margin:0 auto;padding:18px 30px}
+.q99 .lh img{width:100%;display:block}.q99 .top{display:flex;justify-content:space-between;font-weight:700;margin:12px 0}.q99 .to{font-weight:700;margin:0 0 10px}.q99 table.it{width:100%;border-collapse:collapse;margin:8px 0}.q99 .it th{background:#0B2A5B;color:#fff;font-weight:700;padding:7px 6px;border:1px solid #0B2A5B}.q99 .it td{border:1px solid #333;padding:6px}.q99 .n{text-align:right;white-space:nowrap}
+.q99 .aw{color:#1a8a3a;font-weight:700}.q99 h4{color:#0B2A5B;font-size:12.5px;margin:12px 0 3px}.q99 ul{margin:2px 0 0 18px;padding:0}.q99 li{margin:3px 0}.q99 .bank{border-collapse:collapse;margin:14px 0;min-width:360px}.q99 .bank td{border:1px solid #0B2A5B;padding:5px 10px}.q99 .bank tr:first-child td{background:#0B2A5B;color:#fff;font-weight:700}
+.q99 .close{color:#1a8a3a;font-weight:700;margin-top:14px}.q99 .ft img{width:100%;display:block;margin-top:14px}`;
+function quoteHtml99(Q, forPrint) {
+  const C = SETTINGS.company, cur = Q.currency, t = quoteTotals(Q), k = SETTINGS.bank || {}, head = !forPrint && LHD86.head ? `<div class="lh"><img src="${LHD86.head}" alt="Rivera letterhead"></div>` : (!forPrint ? `<div class="lh" style="display:flex;gap:12px;align-items:center;border-bottom:3px solid #FE6902;padding-bottom:8px"><img src="${esc(brandLogo())}" style="width:60px"><b style="color:#02315B;font-size:17px">${esc(C.name)}</b></div>` : "");
+  const bullets = s => { const L = String(s || "").split(/\n+|•\s*/).map(x => x.trim()).filter(Boolean); return L.length > 1 ? `<ul>${L.map(x => `<li>${esc(x)}</li>`).join("")}</ul>` : `<ul><li>${esc(L[0] || "")}</li></ul>`; };
+  const total = Q.showGst && t.gst ? t.grand : t.sub;
+  return `<style>${QCSS99}</style><div class="q99">${head}<div class="top"><span>${esc(Q.no)}${Q.rev ? " R" + Q.rev : ""}</span><span>${dmy(Q.date)}</span></div>
+  <p style="margin:0"><b>To</b></p><p class="to" style="white-space:pre-line">${esc([Q.to.contact, Q.to.name, Q.to.address, Q.to.phone && "Mob: " + Q.to.phone, Q.to.email && "Email: " + Q.to.email, Q.to.gstin && "GST No.: " + Q.to.gstin].filter(Boolean).join("\n"))}</p>
+  <p style="margin:0">Dear Sir,</p><p style="margin:4px 0"><b>Sub: ${esc(Q.subject)}</b></p>${Q.ref ? `<p style="margin:4px 0"><b>Ref: ${esc(Q.ref)}</b></p>` : ""}<p style="margin:4px 0"><b>${esc(Q.intro)}</b></p>
+  <table class="it"><thead><tr><th style="width:7%">S. No</th><th>Description</th><th style="width:12%">Qty</th><th style="width:17%">Unit Price (${esc(cur)})</th><th style="width:18%">Total Amount (${esc(cur)})</th></tr></thead><tbody>
+  ${Q.lines.map((l, i) => `<tr><td style="text-align:center">${i + 1}.</td><td>${esc(l.desc)}</td><td style="text-align:center">${l.unit === "LS" ? "LS" : fmt(l.qty, cur, 0) + (l.unit && l.unit !== "Nos" ? " " + esc(l.unit) : "")}</td><td class="n">${fmt(l.rate, cur)}</td><td class="n">${fmt(qLineAmt(l), cur)}</td></tr>`).join("")}
+  <tr><td colspan="4" style="text-align:center"><b>Total</b></td><td class="n"><b>${fmt(t.sub, cur)}</b></td></tr>
+  ${Q.showGst && t.gst ? `<tr><td colspan="4" style="text-align:center">GST @ ${num(Q.gstPct)}%</td><td class="n">${fmt(t.gst, cur)}</td></tr><tr><td colspan="4" style="text-align:center"><b>Grand Total (incl. GST)</b></td><td class="n"><b>${fmt(t.grand, cur)}</b></td></tr>` : ""}</tbody></table>
+  <p class="aw">Amount in Words: <span style="color:#111">${esc(String(Q.incoterm || "EXW").toUpperCase())} ${esc(cur)}</span> ${esc(amountInWords(total, cur, "").replace(/^(INR|USD|EUR)\s*/i, ""))}</p>${Q.note ? `<p><b>Note:</b> ${esc(Q.note)}</p>` : ""}
+  <p><b>TERMS AND CONDITIONS:</b></p>${Q.clauses.filter(c => c.on).map((c, i) => `<h4>${i + 1}. ${esc(c.title.toUpperCase())}:</h4>${bullets(c.body)}`).join("")}
+  ${k.acc ? `<table class="bank"><tr><td colspan="2">OUR BANK DETAILS</td></tr>${[["Bank Name", k.name], ["Account No", k.acc], ["Account Type", k.type], ["IFSC Code", k.ifsc], ["MICR", k.micr], ["SWIFT Code", k.swift], ["Branch", k.branch]].filter(x => x[1]).map(([a, b]) => `<tr><td><b>${a}</b></td><td>${esc(b)}</td></tr>`).join("")}</table>` : ""}
+  <p class="close">Hope our quotation is in line with your expectation, and we look forward to your valuable Purchase Order.</p>
+  ${sigBlock99("quote", { company: C.name })}</div>`;
+}
+paperHtml = function (Q) { try { return quoteHtml99(Q, false); } catch (e) { console.warn("p99 quote", e); return ""; } };
+/* PDF button: print the letterhead version (Save as PDF in the print window) */
+document.addEventListener("click", e => { const b = e.target.closest?.("#qPdf"); if (!b || !STATE.quote) return; e.preventDefault(); e.stopImmediatePropagation(); const Q = STATE.quote; printHtml28("Quotation " + Q.no, quoteHtml99(Q, true)); toast('In the print window choose "Save as PDF"'); }, true);
+{ const _b = blankQuote; blankQuote = function () { const Q = _b.apply(this, arguments); if (Q.bank === undefined || Q.bank === false) Q.bank = true; return Q; }; }
+
+
+/* =============== p100: quote follow-ups edit / remove · Country list · Tape calculator · courier Send to AGM / HR =============== */
+/* ---- 1. quote follow-ups: ✎ Edit opens the quotation, ✕ Remove takes it off the follow-up list (the quote stays in the register) ---- */
+{
+  const _l = qfuList32; qfuList32 = function () { return _l.apply(this, arguments).filter(x => !x.q.fuOff); };
+  const _v = VIEWS.qfu;
+  VIEWS.qfu = v => {
+    _v(v);
+    $$(".fu32 .fu32-a", v).forEach(a => { const id = a.querySelector("[data-fe]")?.dataset.fe; if (!id) return;
+      a.insertAdjacentHTML("beforeend", `<button class="btn sm" data-fq100="${id}" type="button" title="Edit the quotation">✎ Edit</button><button class="btn sm ghost" data-fx100="${id}" type="button" title="Remove from follow-ups">✕ Remove</button>`); });
+    $$("[data-fq100]", v).forEach(b => b.onclick = () => { const q = STATE.quotes.find(x => x.id === b.dataset.fq100); if (!q) return; STATE.quote = { ...clone(q.quote), regId: q.id }; saveDrafts(); location.hash = "quote"; });
+    $$("[data-fx100]", v).forEach(b => { b.dataset.l = "✕ Remove"; b.onclick = () => { const q = STATE.quotes.find(x => x.id === b.dataset.fx100); if (!q) return;
+      sure71(b, () => fuSave32(q, { fuOff: todayISO(), fuOffBy: me28() }, "Removed from follow-ups (the quotation stays in the register)"), "Tap again to remove"); }; });
+    const off = (STATE.quotes || []).filter(q => q.fuOff && ["sent", "negotiation"].includes(q.status || "sent"));
+    if (off.length) { v.insertAdjacentHTML("beforeend", `<details class="panel" style="margin-top:12px;padding:10px 14px"><summary style="cursor:pointer"><b>Removed from follow-ups (${off.length})</b></summary><div class="stack" style="gap:6px;margin-top:8px">${off.map(q => `<div class="row" style="gap:8px;align-items:center"><span style="flex:1">${esc(q.customer || "")} · ${esc(q.no || "")} <small class="muted">removed ${dmy(q.fuOff)}</small></span><button class="btn sm" data-fb100="${q.id}" type="button">↺ Bring back</button></div>`).join("")}</div></details>`);
+      $$("[data-fb100]", v).forEach(b => b.onclick = () => { const q = STATE.quotes.find(x => x.id === b.dataset.fb100); if (q) fuSave32(q, { fuOff: "" }, "Back on the follow-up list"); }); }
+  };
+}
+
+/* ---- 2. Country → State → District: every Country box is a list (India first); State/District lists stay as before ---- */
+const COUNTRIES100 = ["India", "United Arab Emirates", "Saudi Arabia", "Qatar", "Oman", "Kuwait", "Bahrain", "Sri Lanka", "Bangladesh", "Nepal", "Bhutan", "Maldives", "Singapore", "Malaysia", "Indonesia", "Thailand", "Vietnam", "Philippines", "China", "Japan", "South Korea", "Australia", "New Zealand", "United Kingdom", "Germany", "France", "Italy", "Spain", "Netherlands", "Belgium", "Switzerland", "Sweden", "Poland", "Turkey", "Russia", "United States", "Canada", "Mexico", "Brazil", "South Africa", "Kenya", "Nigeria", "Egypt", "Other"];
+{
+  const _e = enh71;
+  enh71 = function (root = document) {
+    $$("input[data-k=country]:not([data-c100]), input[name=country]:not([data-c100]), input[id$=_country]:not([data-c100])", root).forEach(el => {
+      el.dataset.c100 = 1; if (el.readOnly || el.disabled || el.closest(".no71")) return;
+      const s = toSelect71(el, `<option value="">- choose country -</option>${COUNTRIES100.map(c => `<option>${esc(c)}</option>`).join("")}`, "data-c100");
+      if (!s.value) s.value = "India";
+      s.addEventListener("change", () => { const st = $$("[data-st71]", scope71(s))[0]; if (st) st.closest("label").style.opacity = s.value && s.value !== "India" ? ".45" : ""; });
+    });
+    return _e.apply(this, arguments);
+  };
+}
+
+/* ---- 3. Tape calculator (from the production notebook): bare coil → final coil → tape metres → rolls ---- */
+const TAPES100 = [["Resin tape", 0.5, 600, 1], ["Pump tape", 0.5, 300, 5 / 8], ["CT (cotton tape)", 0.5, 300, 0.5 / 8], ["SCT", 0.5, 600, 0.2 / 8]];
+function tapeCalc100(p) {
+  const n = k => Number(p[k]) || 0;
+  const cw = n("sw") + n("cov"), ct = n("st") + n("cov");                        /* covered strip, e.g. 5.5 + 0.3 = 5.8 */
+  const bw = n("across") * cw, bh = n("layers") * ct;                           /* bare coil 11.6 × 42.9 */
+  const fw = n("fw") || bw + n("ins"), fh = n("fh") || bh + n("ins");          /* final coil: as drawn (17 × 50) or bare + insulation */
+  const per = 2 * (Math.round(fw) + Math.round(fh));                              /* tape path round the section, mm (17+17+50+50 = 134) */
+  const turns = n("pitch") ? Math.ceil(n("mlt") / n("pitch")) : 0;               /* 4500 / 12.5 = 360 turns of tape */
+  const perLayer = turns * per / 1000;                                            /* m of tape for one layer */
+  const tl = n("tt") ? Math.round(n("ins") / n("tt")) : 0;                       /* 7 mm / 0.5 = 14 layers (as in the notebook) */
+  const total = perLayer * tl, coils = Math.max(1, n("coils"));
+  return { cw, ct, bw, bh, fw, fh, per, turns, perLayer, tl, total, coils, all: total * coils };
+}
+if (!ROUTES.some(x => x[0] === "tape100")) ROUTES.push(["tape100", "Tape calculator", "doc"]);
+ALWAYS34.push("tape100");
+VIEWS.tape100 = v => {
+  let P; try { P = JSON.parse(localStorage.getItem("rqs.tape100") || "null"); } catch { }
+  P = Object.assign({ sw: 5.5, st: 3, cov: 0.3, across: 2, layers: 13, ins: 7, fw: 17, fh: 50, tt: 0.5, mlt: 4500, pitch: 12.5, coils: 1, roll: 600, sides: "1085, 1040, 2280" }, P || {});
+  const F = (k, l, h = "") => `<label class="f">${l}<input type="number" step="any" data-t100="${k}" value="${esc(String(P[k]))}">${h ? `<small class="muted">${h}</small>` : ""}</label>`;
+  v.innerHTML = head29("Production ▸ Tools", "Tape calculator", "Bare coil size → final coil size → how much insulation tape and how many rolls. Same working as the production notebook (strip 5.5 × 3, 2 across, 13 high, 7 mm insulation, final 17 × 50).", "") +
+    `<div class="t100"><section class="panel"><header><h2>Coil</h2></header><div class="body"><div class="fields">
+      ${F("sw", "Strip width (mm)")}${F("st", "Strip thickness (mm)")}${F("cov", "Covering on strip (mm)", "5.5 → 5.8 = 0.3")}${F("across", "Strips across")}${F("layers", "Strips high (layers)")}
+      ${F("ins", "Insulation thickness (mm)", "≈7 mm")}${F("fw", "Final coil width (mm)", "from the drawing; blank = bare + insulation")}${F("fh", "Final coil height (mm)")}${F("tt", "Tape build per layer (mm)", "half-lap 0.25 tape = 0.5")}
+      <label class="f">Mean turn length (mm)<input type="number" step="any" data-t100="mlt" value="${esc(String(P.mlt))}"><small class="muted">or add the sides: <input data-t100="sides" value="${esc(P.sides)}" style="width:150px;padding:2px 6px" title="Sides in mm, comma separated"> <button class="btn sm" type="button" id="t100s">Add up</button></small></label>
+      ${F("pitch", "Tape advance per wrap (mm)", "25 mm tape half-lap = 12.5")}${F("coils", "Number of coils")}${F("roll", "Metres per roll")}
+    </div></div></section><section class="panel"><header><h2>Result</h2><span style="flex:1"></span><button class="btn sm" type="button" id="t100p">🖨 Print</button></header><div class="body" id="t100r"></div></section></div>`;
+  const draw = () => { const r = tapeCalc100(P), f1 = x => (Math.round(x * 10) / 10).toLocaleString("en-IN"), rl = Number(P.roll) || 1;
+    $("#t100r", v).innerHTML = `<div class="t100k">
+      <div><small>Covered strip</small><b>${f1(r.cw)} × ${f1(r.ct)}</b></div><div><small>Bare coil</small><b>${f1(r.bw)} × ${f1(r.bh)}</b></div><div><small>Final coil size</small><b>${f1(r.fw)} × ${f1(r.fh)}</b></div>
+      <div><small>Tape path round section</small><b>${r.per} mm</b></div><div><small>Wraps per layer</small><b>${r.turns}</b></div><div><small>Tape per layer</small><b>${f1(r.perLayer)} m</b></div>
+      <div><small>Tape layers</small><b>${r.tl}</b></div><div class="hi"><small>Tape per coil</small><b>${f1(r.total)} m</b></div><div class="hi"><small>${r.coils} coil${r.coils > 1 ? "s" : ""}</small><b>${f1(r.all)} m · ${f1(r.all / rl)} rolls</b></div></div>
+      <table class="tbl" style="margin-top:12px"><thead><tr><th>Working</th><th class="num">Value</th></tr></thead><tbody>
+      <tr><td>${P.sw} + ${P.cov} = ${f1(r.cw)} ; ${P.across} across = ${f1(r.bw)}</td><td class="num">${f1(r.bw)} mm</td></tr>
+      <tr><td>${P.layers} × ${f1(r.ct)}</td><td class="num">${f1(r.bh)} mm</td></tr>
+      <tr><td>Section ${Math.round(r.fw)} + ${Math.round(r.fw)} + ${Math.round(r.fh)} + ${Math.round(r.fh)}</td><td class="num">${r.per} mm</td></tr>
+      <tr><td>${P.mlt} mm ÷ ${P.pitch} = ${r.turns} wraps × ${r.per}</td><td class="num">${f1(r.perLayer)} m</td></tr>
+      <tr><td>${P.ins} mm ÷ ${P.tt} = ${r.tl} layers × ${f1(r.perLayer)} m</td><td class="num">${f1(r.total)} m</td></tr>
+      </tbody></table>`;
+    try { localStorage.setItem("rqs.tape100", JSON.stringify(P)); } catch { } };
+  $$("[data-t100]", v).forEach(i => i.oninput = () => { P[i.dataset.t100] = i.dataset.t100 === "sides" ? i.value : i.value; draw(); });
+  $("#t100s", v).onclick = () => { const s = String(P.sides).split(/[,+\s]+/).map(Number).filter(x => x > 0).reduce((a, b) => a + b, 0); if (s) { P.mlt = s; $("[data-t100=mlt]", v).value = s; draw(); } };
+  $("#t100p", v).onclick = () => printHtml28("Tape calculation", `<h2>Tape calculation</h2><p>Strip ${P.sw} × ${P.st} mm · ${P.across} across × ${P.layers} high · insulation ${P.ins} mm · mean turn ${P.mlt} mm</p>${$("#t100r", v).innerHTML}`);
+  draw();
+};
+document.head.insertAdjacentHTML("beforeend", `<style>.t100{display:grid;grid-template-columns:minmax(300px,1fr) minmax(300px,1fr);gap:12px}@media(max-width:900px){.t100{grid-template-columns:1fr}}
+.t100k{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.t100k div{border:1px solid var(--line,#e3e8ef);border-radius:10px;padding:8px 10px;display:flex;flex-direction:column}.t100k small{color:var(--muted,#667)}.t100k b{font-size:17px}.t100k .hi{background:#eef5ff;border-color:#b9d3f5}</style>`);
+{ const m = MODS32.find(x => x.id === "prod"); if (m) { const c = ["Tape calculator", "tape100", {}, "Coil size → insulation tape metres and rolls"]; const G = m.groups.Masters ||= []; if (!G.some(x => x[1] === "tape100")) { G.unshift(c); try { CARDMOD64.set(c, "prod"); } catch { } } }
+  try { DEPT63.prod && DEPT63.prod.extra.push("tape100"); } catch { } }
+
+/* ---- 4. courier app: two big buttons - SEND TO AGM / SEND TO HR (no reading needed), plus ⚙ extra emails set on the phone ---- */
+const CKN100 = "rqs.ck81.notify";
+{
+  const _f = form81;
+  form81 = function (dir, key, team, done) {
+    _f.apply(this, arguments);
+    const ov = $$(".k81-f").pop(); if (!ov) return; const sv = $(".k81-sv", ov); if (!sv) return;
+    sv.insertAdjacentHTML("beforebegin", `<div class="k100"><button type="button" class="k100-a" data-s100="AGM">👔<b>SEND TO AGM</b></button><button type="button" class="k100-h" data-s100="HR">👩‍💼<b>SEND TO HR</b></button></div>`);
+    sv.style.display = "none";
+    $$("[data-s100]", ov).forEach(b => b.onclick = () => {
+      let extra = ""; try { extra = localStorage.getItem(CKN100) || ""; } catch { }
+      /* the original Save reads every [data-f] box - add two hidden ones so the choice goes with the record */
+      $$("[data-f=sendTo],[data-f=notify]", ov).forEach(x => x.remove());
+      sv.insertAdjacentHTML("beforebegin", `<input type="hidden" data-f="sendTo" value="${b.dataset.s100}"><input type="hidden" data-f="notify" value="${esc(extra)}">`);
+      $$("[data-s100]", ov).forEach(x => x.disabled = true); b.querySelector("b").textContent = "SENDING…"; sv.click();
+      setTimeout(() => { if (document.body.contains(ov)) { $$("[data-s100]", ov).forEach(x => x.disabled = false); b.querySelector("b").textContent = "SEND TO " + b.dataset.s100; } }, 1500);
+    });
+  };
+  const _k = kiosk81;
+  kiosk81 = async function () {
+    const out = await _k.apply(this, arguments);
+    try { const h = $(".k81-h"); if (h && !$("#k100c", h)) { h.insertAdjacentHTML("beforeend", `<button type="button" id="k100c" title="Emails">⚙</button>`); $("#k81r") && ($("#k100c").style.cssText = $("#k81r").style.cssText);
+      $("#k100c").onclick = () => { let cur = ""; try { cur = localStorage.getItem(CKN100) || ""; } catch { }
+        const ov = document.createElement("div"); ov.className = "k81-f"; ov.innerHTML = `<div class="k81-fc"><header><b>⚙ Who gets the email</b><button type="button" class="k81-x2">✕</button></header>
+          <p style="margin:0;color:#5d6878;font-size:13.5px">"SEND TO AGM" always emails agm@rivera.co.in, "SEND TO HR" emails hr@rivera.co.in, and the person chosen in "For". Add more company emails here (only @rivera.co.in), comma separated.</p>
+          <label>Also email<input id="k100e" value="${esc(cur)}" placeholder="purchase@rivera.co.in, accounts@rivera.co.in" inputmode="email"></label><button type="button" class="k81-sv" id="k100s">Save</button></div>`;
+        document.body.appendChild(ov); $(".k81-x2", ov).onclick = () => ov.remove();
+        $("#k100s", ov).onclick = () => { const L = $("#k100e", ov).value.split(/[,;\s]+/).map(s => s.trim().toLowerCase()).filter(Boolean), bad = L.filter(s => !/^[^@\s]+@rivera\.co\.in$/.test(s));
+          if (bad.length) return toast("Only @rivera.co.in emails: " + bad.join(", "), "bad"); try { localStorage.setItem(CKN100, L.slice(0, 4).join(",")); } catch { } ov.remove(); toast("Saved"); }; }; } } catch { }
+    return out;
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.k100{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:6px}.k100 button{border:0;border-radius:18px;padding:22px 8px;color:#fff;font-size:38px;display:flex;flex-direction:column;align-items:center;gap:6px;box-shadow:0 8px 20px rgba(2,49,91,.22);font-family:inherit}.k100 b{font-size:19px;letter-spacing:.5px}.k100-a{background:linear-gradient(135deg,#02315B,#0b5394)}.k100-h{background:linear-gradient(135deg,#8e2c83,#c2185b)}.k100 button:disabled{opacity:.6}
+#k100c{border:0;background:rgba(255,255,255,.15);color:#fff;border-radius:50%;width:40px;height:40px;font-size:18px}</style>`);
+
+
+/* =============== p101: Asset repository folders (rename / new) + files kept inside the app · Password repository folders + email to the holder
+   · Handover in every module menu =============== */
+const faFolder101 = a => a.folder || (a.company ? a.company + " assets" : "General");
+const FAFOLD101 = "rqs.fa101.folders";
+const faFolders101 = () => { let extra = []; try { extra = JSON.parse(localStorage.getItem(FAFOLD101) || "[]"); } catch { } return [...new Set([...all28("fa").map(faFolder101), ...extra])].sort((a, b) => a.localeCompare(b)); };
+{
+  const _v = VIEWS.assets62;
+  VIEWS.assets62 = v => {
+    _v(v);
+    try {
+      const top = $(".topbar", v); if (!top || $("#fa101", v)) return; const U = BIZ.ui, F = faFolders101(), cnt = {}; all28("fa").forEach(a => cnt[faFolder101(a)] = (cnt[faFolder101(a)] || 0) + 1);
+      if (U.fa101 && !F.includes(U.fa101)) U.fa101 = "";
+      top.insertAdjacentHTML("afterend", `<div id="fa101" class="fa101"><button type="button" class="fa101f ${!U.fa101 ? "on" : ""}" data-f101="">📁 All folders <span>${all28("fa").length}</span></button>${F.map(f => `<button type="button" class="fa101f ${U.fa101 === f ? "on" : ""}" data-f101="${esc(f)}">📁 ${esc(f)} <span>${cnt[f] || 0}</span></button>`).join("")}
+        <button type="button" class="btn sm" id="fa101n">＋ New folder</button>${U.fa101 ? `<button type="button" class="btn sm" id="fa101r">✎ Rename "${esc(U.fa101)}"</button>` : ""}</div>`);
+      $$("[data-f101]", v).forEach(b => b.onclick = () => { U.fa101 = b.dataset.f101; render(); });
+      if (U.fa101) $$("tr[data-fa]", v).forEach(tr => { const a = BIZ.rows[tr.dataset.fa]; if (a && faFolder101(a) !== U.fa101) tr.remove(); });
+      $$("tr[data-fa]", v).forEach(tr => { const a = BIZ.rows[tr.dataset.fa]; const n = (() => { try { return JSON.parse(a?.filesJson || "[]").length; } catch { return 0; } })(); if (n) tr.cells[0].insertAdjacentHTML("beforeend", ` <span class="chip" title="Files">📎 ${n}</span>`); });
+      $("#fa101n", v).onclick = () => { const n = (prompt("New folder name (e.g. RCM Office, RCR Shop floor, Vehicles):") || "").trim(); if (!n) return; let L = []; try { L = JSON.parse(localStorage.getItem(FAFOLD101) || "[]"); } catch { } if (!L.includes(n)) L.push(n); try { localStorage.setItem(FAFOLD101, JSON.stringify(L)); } catch { } U.fa101 = n; render(); toast(`Folder "${n}" ready - add assets into it (Folder box in the asset)`); };
+      $("#fa101r", v) && ($("#fa101r", v).onclick = async e => { const old = U.fa101, n = (prompt(`Rename folder "${old}" to:`, old) || "").trim(); if (!n || n === old) return;
+        const R = all28("fa").filter(a => faFolder101(a) === old).map(a => ({ ...a, folder: n })); e.target.disabled = true;
+        try { for (let i = 0; i < R.length; i += 150) await bizPut28(R.slice(i, i + 150)); let L = []; try { L = JSON.parse(localStorage.getItem(FAFOLD101) || "[]"); } catch { } localStorage.setItem(FAFOLD101, JSON.stringify(L.map(x => x === old ? n : x))); U.fa101 = n; toast(`Renamed - ${R.length} assets moved to "${n}"`); render(); } catch (er) { toast(er.message, "bad"); e.target.disabled = false; } });
+    } catch (e) { console.warn("p101 assets", e); }
+  };
+  const _p = faPanel62;
+  faPanel62 = function (src) {
+    _p.apply(this, arguments);
+    try {
+      const D = $("#dr26"), f = $(".fields", D); if (!f) return; const r = src || {}, cur = src ? faFolder101(src) : (BIZ.ui.fa101 || faFolders101()[0] || "General");
+      let files = []; try { files = JSON.parse(r.filesJson || "[]"); } catch { }
+      f.insertAdjacentHTML("afterbegin", `<label class="f">Folder<input data-k="folder" list="fa101dl" value="${esc(cur)}"><datalist id="fa101dl">${faFolders101().map(x => `<option value="${esc(x)}">`).join("")}</datalist></label>`);
+      f.insertAdjacentHTML("afterend", `<input type="hidden" data-k="filesJson" id="fa101j" value="${esc(JSON.stringify(files))}"><section class="dr26-sec"><h3>📎 Files (invoice, photo, warranty card, manual)</h3><div id="fa101l"></div><label class="btn sm" style="margin-top:6px">⬆ Add files<input type="file" multiple hidden id="fa101u"></label><small class="muted"> up to 8 MB each, kept inside the app</small></section>`);
+      const draw = () => { $("#fa101l", D).innerHTML = files.map((x, i) => `<div class="row" style="gap:8px;align-items:center;padding:4px 0;border-bottom:1px solid var(--line)"><span style="flex:1">${/^image\//.test(x.type || "") ? "🖼" : /pdf/.test(x.type || "") ? "📄" : "📎"} ${esc(x.name)} <small class="muted">${x.size ? Math.round(x.size / 1024) + " KB" : ""}</small></span><button class="btn sm" type="button" data-o101="${i}">Open</button><button class="btn sm ghost" type="button" data-x101="${i}">✕</button></div>`).join("") || '<span class="small muted">No files yet.</span>';
+        $$("[data-o101]", D).forEach(b => b.onclick = () => openFile62(files[+b.dataset.o101].id, files[+b.dataset.o101].name));
+        $$("[data-x101]", D).forEach(b => { b.dataset.l = "✕"; b.onclick = () => sure71(b, async () => { files.splice(+b.dataset.x101, 1); await keep(); draw(); }, "Remove?"); }); };
+      const keep = async () => { $("#fa101j", D).value = JSON.stringify(files); if (src?.id) { const rec = { ...BIZ.rows[src.id], filesJson: JSON.stringify(files) }; await bizPut28([rec]); } };
+      $("#fa101u", D).onchange = async e => { const L = [...e.target.files]; for (const fl of L) { try { toast("Uploading " + fl.name + "…"); files.push(await upFile71(await shrink71(fl, 1800).catch(() => fl), "fa")); } catch (er) { toast(er.message, "bad"); } } await keep().catch(er => toast(er.message, "bad")); draw(); toast(src?.id ? "Files saved" : "Files added - press Save"); e.target.value = ""; };
+      draw();
+    } catch (e) { console.warn("p101 fa panel", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.fa101{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;align-items:center}.fa101f{border:1px solid var(--line,#e3e8ef);background:var(--surface,#fff);border-radius:10px;padding:7px 11px;font:inherit;font-size:13px;cursor:pointer;color:inherit}.fa101f span{background:#eef2f7;border-radius:8px;padding:1px 7px;margin-left:4px;font-size:11.5px}.fa101f.on{background:#02315B;color:#fff;border-color:#02315B}.fa101f.on span{background:rgba(255,255,255,.2)}</style>`);
+
+/* ---- Password repository: folders (the category) as tabs, new / rename folder, and "📧 Email to the person" (MD / Admin presses it, their own mail app sends) ---- */
+const VFOLD101 = "rqs.vt101.folders";
+try { JSON.parse(localStorage.getItem(VFOLD101) || "[]").forEach(c => { if (!VCAT62.includes(c)) VCAT62.splice(VCAT62.length - 1, 0, c); }); } catch { }
+{
+  const _v = VIEWS.vault;
+  VIEWS.vault = async v => {
+    await _v(v);
+    try {
+      if (!VT62.key) return; const U = BIZ.ui, cnt = {}; VT62.items.forEach(i => cnt[i.category || "Other"] = (cnt[i.category || "Other"] || 0) + 1);
+      const F = [...new Set([...VCAT62, ...Object.keys(cnt)])].filter(c => cnt[c] || !["Other"].includes(c));
+      const q = $("#vt62q", v); if (!q || $("#vt101", v)) return;
+      q.insertAdjacentHTML("afterend", `<div id="vt101" class="fa101"><button type="button" class="fa101f ${!U.vt101 ? "on" : ""}" data-v101="">🗂 All <span>${VT62.items.length}</span></button>${F.map(c => `<button type="button" class="fa101f ${U.vt101 === c ? "on" : ""}" data-v101="${esc(c)}">📁 ${esc(c)} <span>${cnt[c] || 0}</span></button>`).join("")}<button type="button" class="btn sm" id="vt101n">＋ New folder</button>${U.vt101 ? `<button type="button" class="btn sm" id="vt101r">✎ Rename</button>` : ""}</div>`);
+      $$("[data-v101]", v).forEach(b => b.onclick = () => { U.vt101 = b.dataset.v101; render(); });
+      if (U.vt101) { $$(".vt62r", v).forEach(r => { const id = r.querySelector("[data-ve]")?.dataset.ve, it = VT62.items.find(x => x.id === id); if (it && (it.category || "Other") !== U.vt101) r.remove(); }); $$(".vt92h", v).forEach(h => { if (!h.textContent.startsWith(U.vt101)) h.remove(); }); }
+      $("#vt101n", v).onclick = () => { const n = (prompt("New folder name (e.g. Synology, Website, Bank - RCR):") || "").trim(); if (!n) return; if (!VCAT62.includes(n)) VCAT62.splice(VCAT62.length - 1, 0, n); let L = []; try { L = JSON.parse(localStorage.getItem(VFOLD101) || "[]"); } catch { } if (!L.includes(n)) L.push(n); try { localStorage.setItem(VFOLD101, JSON.stringify(L)); } catch { } U.vt101 = n; render(); toast(`Folder "${n}" ready - choose it in an entry's Category`); };
+      $("#vt101r", v) && ($("#vt101r", v).onclick = async e => { const old = U.vt101, n = (prompt(`Rename folder "${old}" to:`, old) || "").trim(); if (!n || n === old) return; const R = VT62.items.filter(i => (i.category || "Other") === old).map(i => { const r = { ...BIZ.rows[i.id] }; r.category = n; return r; });
+        e.target.disabled = true; try { if (R.length) await bizPut28(R); const ix = VCAT62.indexOf(old); if (ix >= 0) VCAT62[ix] = n; else VCAT62.splice(VCAT62.length - 1, 0, n); let L = []; try { L = JSON.parse(localStorage.getItem(VFOLD101) || "[]"); } catch { } localStorage.setItem(VFOLD101, JSON.stringify([...L.filter(x => x !== old), n])); U.vt101 = n; toast(`Renamed - ${R.length} entries`); render(); } catch (er) { toast(er.message, "bad"); e.target.disabled = false; } });
+      /* email to the person who uses it */
+      $$(".vt62r", v).forEach(r => { const id = r.querySelector("[data-ve]")?.dataset.ve, it = VT62.items.find(x => x.id === id); if (!it || !/@/.test(it.holder || "")) return;
+        r.querySelector("[data-ve]").insertAdjacentHTML("beforebegin", `<button class="btn sm" type="button" data-m101="${it.id}" title="Email this login to ${esc(nm62(it.holder))}">📧</button>`); });
+      $$("[data-m101]", v).forEach(b => b.onclick = () => { const it = VT62.items.find(x => x.id === b.dataset.m101); if (!it) return;
+        const body = `Dear ${nm62(it.holder)},\n\nYour login for ${it.title}${it.url ? " (" + it.url + ")" : ""}:\n\nUser name: ${it.d.username || ""}\nPassword: ${it.d.password || ""}\n\nPlease change it after you sign in, and do not forward this email. Delete this email once you have saved the password.\n\nRegards,\n${AUTH.user?.name || "Admin"}`;
+        openLink(`mailto:${encodeURIComponent(it.holder)}?subject=${encodeURIComponent("Your login: " + it.title)}&body=${encodeURIComponent(body)}`); toast("Your mail app opened - check and send"); });
+    } catch (e) { console.warn("p101 vault", e); }
+  };
+}
+
+/* ---- Handover (relieving / transfer) in every department menu ---- */
+{ const c0 = ["Handover (relieving)", "handover", {}, "Leaving or moving? Hand over here - AGM and HR approve"];
+  MODS32.forEach(m => { const G = m.groups.Transactions || m.groups[Object.keys(m.groups)[0]]; if (!G || Object.values(m.groups).flat().some(x => x[1] === "handover")) return; const c = [...c0]; G.push(c); try { CARDMOD64.set(c, m.id); } catch { } });
+  if (!ALWAYS34.includes("handover")) ALWAYS34.push("handover"); }
 
 boot();
 
