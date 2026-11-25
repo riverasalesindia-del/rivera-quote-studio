@@ -16137,6 +16137,80 @@ try { JSON.parse(localStorage.getItem(VFOLD101) || "[]").forEach(c => { if (!VCA
   MODS32.forEach(m => { const G = m.groups.Transactions || m.groups[Object.keys(m.groups)[0]]; if (!G || Object.values(m.groups).flat().some(x => x[1] === "handover")) return; const c = [...c0]; G.push(c); try { CARDMOD64.set(c, m.id); } catch { } });
   if (!ALWAYS34.includes("handover")) ALWAYS34.push("handover"); }
 
+
+/* =============== p102: the real company letterheads on every printed paper (from Synology: HR/RCM LETTERHEAD.docx, MARKETING/RCR/LetterHead-1.docx)
+   header edge-to-edge on top of every page, address footer at the bottom of every page, Word margins, Cambria font,
+   RCR papers get the Rivera Coil Rewinding letterhead; quotation styled exactly like the AUSINDIA quote =============== */
+const LHSTATIC102 = { RCM: { head: "lh/rcm-head.png", foot: "lh/rcm-foot.png" }, RCR: {} };
+function lhImg102(co, part) {
+  const r = all28("sig").filter(s => s.type === "lh" && s.company === co && s.part === part && !s.off).sort((a, b) => String(b.at || "").localeCompare(String(a.at || "")))[0];
+  if (r?.img) return r.img; const u = LHSTATIC102[co]?.[part]; return u ? new URL(u, location.href).href : (co !== "RCM" ? lhImg102("RCM", part) : "");
+}
+const coOfHtml102 = h => /<!--co:RCR-->/.test(h) || (/Rivera Coil Rewinding/i.test(h) && !/Rivera Coil Manufacturing/i.test(h)) ? "RCR" : "RCM";
+const LHFONT102 = `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caladea:ital,wght@0,400;0,700;1,400&display=swap">`;
+try { document.head.insertAdjacentHTML("beforeend", LHFONT102); } catch { }
+LHDOC86.test = () => false;          /* the old letterhead step stands down - this one does it */
+{
+  const _p = printHtml28;
+  printHtml28 = function (title, inner) {
+    let h = String(inner || "");
+    if (/<!--nolh-->/.test(h)) return _p.call(this, title, h);
+    h = h.replace(/<!--lh85s-->[\s\S]*?<!--lh85e-->/g, "").replace(/<img class="lh86"[^>]*>/g, "").replace(/<div class="ft8[56]">[\s\S]*?<\/div>/g, "")
+      .replace(/<img src="(?:blob|data):[^"]*" style="width:100%;margin-bottom:8px" alt="">/g, "").replace(/<div class="lh"[^>]*>[\s\S]*?<\/div>/, "");
+    const co = coOfHtml102(h), head = lhImg102(co, "head"), foot = lhImg102(co, "foot");
+    const css = `<style>@page{size:A4;margin:0}html,body{margin:0!important;padding:0!important}body{font-family:Cambria,Caladea,Georgia,"Times New Roman",serif!important;font-size:12.5px;color:#000}
+      *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+      .lhH102{position:fixed;top:0;left:0;width:210mm;display:block}.lhF102{position:fixed;bottom:0;left:0;width:210mm;display:block}
+      table.lhW102{width:100%!important;border:0!important;margin:0!important;border-collapse:collapse}table.lhW102>thead>tr>td,table.lhW102>tfoot>tr>td,table.lhW102>tbody>tr>td{border:0!important;padding:0!important;background:none!important}
+      .lhB102{padding:0 17.5mm 0 20mm}.hd,.lh85{display:none!important}.lhB102,.lhB102 *:not(.sgd103){font-family:Cambria,Caladea,Georgia,"Times New Roman",serif!important}.lhB102>:last-child{margin-bottom:0!important}.lhB102 .q99{padding:0!important;max-width:none!important}
+      @media screen{.lhH102,.lhF102{position:static}}</style>`;
+    const headH = co === "RCR" ? 33 : 30, footH = co === "RCR" ? 30 : 24;
+    const page = `${LHFONT102}${head ? `<img class="lhH102" src="${head}" alt="">` : ""}${foot ? `<img class="lhF102" src="${foot}" alt="">` : ""}<table class="lhW102"><thead><tr><td><div style="height:${head ? headH : 12}mm"></div></td></tr></thead><tfoot><tr><td><div style="height:${foot ? footH : 12}mm"></div></td></tr></tfoot><tbody><tr><td><div class="lhB102">${h}</div></td></tr></tbody></table>${css}`;
+    return _p.call(this, title, page);
+  };
+}
+/* signature block: "For <company>," line can be switched off per document (the PO has none); labels as on the papers */
+{ const i = SIGROLES99.findIndex(r => r[0] === "verified"); if (i >= 0) SIGROLES99[i][1] = "Verified"; }
+{
+  const _s = sigBlock99;
+  sigBlock99 = function (doc, opt = {}) { const m = sigCfg99().map?.[doc] || {}, h = _s.apply(this, arguments); return (m.forOn === false || (m.forOn === undefined && doc === "po")) && />For [^<]*,<\/td>/.test(h) ? h.replace(/^(<table[^>]*>)<tr>[\s\S]*?<\/tr>/, "$1") : h; };
+}
+/* quotation: same look as the AUSINDIA quote - Cambria 12pt, navy #001F5F table head, #17365D clause titles, green #00B050 amount in words and closing line */
+{
+  const Q2 = `.q99{font-family:Cambria,Caladea,Georgia,serif!important;font-size:15px!important;line-height:1.45;color:#000}.q99 .top{font-size:15px}.q99 .it th{background:#001F5F!important;border-color:#001F5F!important;font-size:14.5px}.q99 .it td{border-color:#000!important;font-size:14.5px}.q99 h4{color:#17365D!important;font-size:14.5px!important;margin:14px 0 4px!important}.q99 .aw,.q99 .close{color:#00B050!important}.q99 .bank td{border-color:#001F5F!important}.q99 .bank tr:first-child td{background:#001F5F!important}.q99 li{margin:5px 0}.q99 .lh img,.q99 .ft img{width:calc(100% + 60px);margin-left:-30px;max-width:none}`;
+  const _q = quoteHtml99;
+  quoteHtml99 = function (Q, forPrint) {
+    let h = _q.apply(this, arguments); const co = Q?.company === "RCR" || /Rewinding/i.test(SETTINGS.company?.name || "") ? "RCR" : "RCM";
+    if (!forPrint) { const head = lhImg102(co, "head"), foot = lhImg102(co, "foot");
+      h = h.replace(/<div class="lh"[^>]*>[\s\S]*?<\/div>(?=<div class="top">)/, head ? `<div class="lh"><img src="${head}" alt="Letterhead"></div>` : "");
+      if (foot) h = h.replace(/<\/div>\s*$/, `<div class="ft"><img src="${foot}" alt=""></div></div>`); }
+    else if (co === "RCR") h = "<!--co:RCR-->" + h;
+    return `<style>${Q2}</style>` + h;
+  };
+  paperHtml = function (Q) { try { return quoteHtml99(Q, false); } catch (e) { console.warn("p102 quote", e); return ""; } };
+}
+
+
+/* =============== p103: the date beside each e-signature, written automatically (as people write it by hand on the papers: 18/11/26)
+   - uses the document's own date (quotation date, PO date, voucher date, letter date), else today =============== */
+let SIGD103 = null;
+try { document.head.insertAdjacentHTML("beforeend", `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap">`); } catch { }
+const sigDate103 = d => { const s = String(d || todayISO()).slice(0, 10), m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : s; };
+{
+  const _s = sigBlock99;
+  sigBlock99 = function (doc, opt = {}) {
+    const h = _s.apply(this, arguments), d = sigDate103(opt.date || SIGD103);
+    return `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap">` + h.replace(/<img src="([^"]+)" style="max-height:54px;max-width:160px">/g,
+      (all, src) => `<span style="position:relative;display:inline-block;padding-right:50px">${all}<span class="sgd103" style="position:absolute;right:0;bottom:-6px;font:500 17px/1 Caveat,'Segoe Script','Bradley Hand',cursive;color:#1d2f8f;transform:rotate(-6deg)">${d}</span></span>`);
+  };
+}
+const withDate103 = (fn, pick) => function (...a) { SIGD103 = pick(...a); let out; try { out = fn.apply(this, a); } catch (e) { SIGD103 = null; throw e; } Promise.resolve(out).finally(() => { SIGD103 = null; }); return out; };
+quoteHtml99 = withDate103(quoteHtml99, Q => Q?.date);
+paperHtml = function (Q) { try { return quoteHtml99(Q, false); } catch (e) { console.warn("p103 quote", e); return ""; } };
+poPrint85 = withDate103(poPrint85, r => r?.date);
+vouch85 = withDate103(vouch85, r => r?.date);
+print89 = withDate103(print89, r => r?.date || r?.issued || r?.at);
+
 boot();
 
 </script>
