@@ -16193,13 +16193,14 @@ LHDOC86.test = () => false;          /* the old letterhead step stands down - th
 
 /* =============== p103: the date beside each e-signature, written automatically (as people write it by hand on the papers: 18/11/26)
    - uses the document's own date (quotation date, PO date, voucher date, letter date), else today =============== */
-let SIGD103 = null;
+let SIGD103 = null; const SIGDATE_ON = false;
 try { document.head.insertAdjacentHTML("beforeend", `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Caveat:wght@500&display=swap">`); } catch { }
 const sigDate103 = d => { const s = String(d || todayISO()).slice(0, 10), m = s.match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[3]}/${m[2]}/${m[1].slice(2)}` : s; };
 {
   const _s = sigBlock99;
   sigBlock99 = function (doc, opt = {}) {
     const h = _s.apply(this, arguments), d = sigDate103(opt.date || SIGD103);
+    if (!SIGDATE_ON) return h; /* no date beside e-signatures (asked 25-11-2026) */
     return h.replace(/<img src="([^"]+)" style="max-height:54px;max-width:160px">/g,
       (all, src) => `<span style="position:relative;display:inline-block;padding-right:50px">${all}<span class="sgd103" style="position:absolute;right:0;bottom:-6px;font:500 16px/1 'Segoe Print',Caveat,'Bradley Hand','Comic Sans MS',cursive;color:#1d2f8f;transform:rotate(-6deg)">${d}</span></span>`);
   };
@@ -16300,7 +16301,7 @@ async function quoteDocx105(Q) {
   B.push(P(R("Hope our quotation is in line with your expectation, and we look forward to your valuable Purchase Order.", { b: true, color: GREEN }), { before: 240, after: 200 }));
   const L = 'w:left="4600"';
   B.push(P(R(`For ${coName},`, { b: true }), { ind: L, after: 60 }));
-  if (sImg || seImg) B.push(P([inline(seImg, 2.4), R("  "), inline(sImg, 3.4), R("  " + sigDate103(Q.date), { color: "1D2F8F", sz: 11 })], { ind: L, after: 0 }));
+  if (sImg || seImg) B.push(P([inline(seImg, 2.4), R("  "), inline(sImg, 3.4), R("")], { ind: L, after: 0 }));
   else B.push(P("", { after: 900 }));
   B.push(P(R("Authorized Signature", { b: true }), { ind: 'w:left="6200"' }));
   /* parts */
@@ -16328,6 +16329,68 @@ document.addEventListener("click", async e => {
     d.insertAdjacentHTML("afterend", `<label class="btn" style="gap:6px" title="Untick to leave the signature and seal blank (sign by hand)"><input type="checkbox" id="qSig105" ${STATE.quote.manualSign ? "" : "checked"}> ✍ e-signature &amp; seal</label>`);
     $("#qSig105").onchange = ev => { STATE.quote.manualSign = !ev.target.checked; saveDrafts(); const p = $("#paper"); if (p) p.innerHTML = paperHtml(STATE.quote); toast(ev.target.checked ? "Signature and seal will print by themselves" : "Left blank - sign by hand"); };
   } catch { } };
+}
+
+
+/* =============== p106: every download / print that carries signatures first asks "E-signature & seal" or "Sign by hand";
+   the quotation workings Excel is a real Excel again (live formulas, Indian number format, clean layout) =============== */
+function askSign106(what) {
+  return new Promise(ok => {
+    const ov = document.createElement("div"); ov.className = "sg106o";
+    ov.innerHTML = `<div class="sg106c" role="dialog" aria-modal="true"><b>${esc(what || "Download")}</b><p>How should this document be signed?</p>
+      <button type="button" data-a="e" class="sg106e">✍️ <span><b>E-signature &amp; seal</b><small>Signatures and seal print by themselves</small></span></button>
+      <button type="button" data-a="hand" class="sg106h">🖊 <span><b>Sign by hand</b><small>Leaves blank space to sign on paper</small></span></button>
+      <button type="button" data-a="" class="sg106x">Cancel</button></div>`;
+    document.body.appendChild(ov);
+    const done = a => { ov.remove(); ok(a); };
+    ov.onclick = e => { const b = e.target.closest("[data-a]"); if (b) done(b.dataset.a || null); else if (e.target === ov) done(null); };
+    addEventListener("keydown", function k(e) { if (e.key === "Escape") { removeEventListener("keydown", k); if (ov.isConnected) done(null); } });
+    $(".sg106e", ov).focus();
+  });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>.sg106o{position:fixed;inset:0;background:rgba(2,20,40,.45);z-index:9999;display:grid;place-items:center;padding:16px}
+.sg106c{background:var(--surface,#fff);border-radius:16px;padding:20px;width:min(420px,100%);display:flex;flex-direction:column;gap:10px;box-shadow:0 20px 50px rgba(0,0,0,.25)}.sg106c>b{font-size:17px}.sg106c p{margin:0 0 4px;color:var(--muted,#5d6878)}
+.sg106c button{display:flex;align-items:center;gap:12px;text-align:left;border:1.5px solid var(--line,#dde3ea);background:var(--surface,#fff);border-radius:12px;padding:12px 14px;font:inherit;font-size:22px;cursor:pointer;color:inherit}.sg106c button span{display:flex;flex-direction:column;font-size:14px}.sg106c button small{color:var(--muted,#5d6878);font-size:12px}
+.sg106c .sg106e{border-color:#02315B;background:#eef4fb}.sg106c .sg106x{justify-content:center;font-size:14px;border:0;background:transparent;color:var(--muted,#5d6878)}
+label:has(#qSig105){display:none!important}</style>`);
+/* mark every signature block so the print step knows where signatures are */
+{ const _s = sigBlock99; sigBlock99 = function () { const h = _s.apply(this, arguments); return /<img /.test(h) ? `<div class="sg106">${h}</div>` : h; }; }
+const handSign106 = h => h.replace(/<div class="sg106">([\s\S]*?<\/table>)<\/div>/g, (a, t) => t.replace(/<img [^>]*>/g, "").replace(/<span class="sgd103"[^>]*>[^<]*<\/span>/g, ""));
+{
+  const _p = printHtml28;
+  printHtml28 = function (title, inner) {
+    const h = String(inner || ""), self = this;
+    if (!/<div class="sg106">/.test(h)) return _p.call(self, title, h);
+    askSign106(title).then(a => { if (!a) return; _p.call(self, title, a === "hand" ? handSign106(h) : h.replace(/<div class="sg106">/g, "<div>")); });
+  };
+}
+/* Word quotation: ask first, then build */
+addEventListener("click", async e => {
+  const b = e.target.closest?.("#qDocx"); if (!b || !STATE.quote) return; e.preventDefault(); e.stopImmediatePropagation(); e.stopPropagation();
+  const a = await askSign106("Quotation " + (STATE.quote.no || "") + " (Word)"); if (!a) return;
+  const Q = { ...STATE.quote, manualSign: a === "hand" };
+  try { b.disabled = true; const blob = await quoteDocx105(Q); saveFile(safeName(`${Q.no.replace(/\//g, "_")}${Q.rev ? "R" + Q.rev : ""}_${Q.to?.name || "quotation"}`) + ".docx", blob); } catch (er) { toast("Word failed: " + er.message, "bad"); } finally { b.disabled = false; }
+}, true);
+/* preview always shows the e-signature (the choice is made when downloading) */
+{ const _q = quoteHtml99; quoteHtml99 = function (Q, forPrint) { return _q.call(this, Q && Q.manualSign ? { ...Q, manualSign: false } : Q, forPrint); }; paperHtml = function (Q) { try { return quoteHtml99(Q, false); } catch (er) { console.warn("p106 quote", er); return ""; } }; }
+
+/* ---- quotation workings: real Excel with formulas (the PDF-only switch stays for every other report) ---- */
+{
+  const _w = workingsSheet; workingsSheet = function () { const s = _w.apply(this, arguments); s.realXlsx = true; return s; };
+  const _sc = typeof scanSheet === "function" ? scanSheet : null; if (_sc) scanSheet = function () { const s = _sc.apply(this, arguments); s.realXlsx = true; return s; };
+  const INR106 = `[&gt;=10000000]##\\,##\\,##\\,##0.00;[&gt;=100000]##\\,##\\,##0.00;##,##0.00`;
+  const realXlsx106 = async sheets => {
+    sheets.forEach(s => { if (!s.realXlsx) return;
+      s.cols = s.cols && s.cols.length ? s.cols.map((w, i) => i === 0 ? Math.max(w || 0, 8) : i === 1 ? Math.max(w || 0, 34) : Math.max(w || 0, 14)) : [8, 34, 14, 14, 10, 18];
+      /* label rows (Basic / Profit / Total…): label spans A:B so it is never cut */
+      (s.cells || []).forEach((row, ri) => { if (!row || ri < 2) return; const a = row[0], b = row[1]; const av = a && typeof a === "object" ? a.v : a, bv = b && typeof b === "object" ? b.v : b;
+        if (typeof av === "string" && av && (bv === "" || bv == null)) { const ref = `A${ri + 1}:B${ri + 1}`; s.merges ||= []; if (!s.merges.some(m => m.startsWith(`A${ri + 1}:`))) s.merges.push(ref); } });
+    });
+    const blob = await _buildXlsx12(sheets), Z = await getZip(), z = await Z.loadAsync(blob);
+    let st = await z.file("xl/styles.xml").async("string"); st = st.replace('formatCode="#,##0.00"', `formatCode="${INR106}"`).replace('formatCode="#,##0.##"', 'formatCode="#,##0.###"'); z.file("xl/styles.xml", st);
+    return z.generateAsync({ type: "blob", mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  };
+  const _b = buildXlsx; buildXlsx = async sheets => (sheets || []).some(s => s && s.realXlsx) ? realXlsx106(sheets) : _b(sheets);
 }
 
 boot();
