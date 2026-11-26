@@ -16911,7 +16911,9 @@ function letterBody110(h) {
 /* salary / experience certificates: proper certificate with details and salary table */
 let SIGN110 = null;
 const certSig110 = (mode, co) => { const m = (sigCfg99().map || {}).letter || {}, P0 = m.authorized && BIZ.rows[m.authorized], who = { signName: (P0 && P0.name) || "Mrs. S. Gowthami" };
-  const S = mode === "e" ? letterSigner108(who) : { p: null, seal: null }, P = P0 || sigPeople99().find(x => sigNorm108(x.name) === sigNorm108(who.signName)) || { name: "Mrs. S. Gowthami", desig: "Assistant General Manager – Plant & Projects" };
+  const S = mode === "e" ? letterSigner108(who) : { p: null, seal: null };
+  if (mode === "e" && !S.p) toast(`No e-signature uploaded for ${who.signName} - printed with space to sign by hand. Admin ▸ Signatures & seals to upload it.`, "bad");
+  const P = P0 || sigPeople99().find(x => sigNorm108(x.name) === sigNorm108(who.signName)) || { name: "Mrs. S. Gowthami", desig: "Assistant General Manager – Plant & Projects" };
   const nm = esc((S.p || P || {}).name || "Authorised Signatory"), ds = esc((S.p || P || {}).desig || "");
   return letterSign108(HRCO110[co].sign, nm, ds, S.p ? "e" : "hand", { signName: (S.p || P || {}).name || "" }); };
 {
@@ -17003,6 +17005,7 @@ const certSig110 = (mode, co) => { const m = (sigCfg99().map || {}).letter || {}
       }
       if (sigInfo) { if (y - 120 < bottom) newPage(); y -= 8; if (sigInfo.forLine) { page.drawText(txt(sigInfo.forLine), { x: ML, y, size: 11.5, font: F, color: INK }); y -= 8; }
         let x = ML; const ih = 56; for (const s of sigInfo.imgs) { try { const b = new Uint8Array(await (await fetch(s)).arrayBuffer()); const im = b[0] === 0x89 ? await doc.embedPng(b) : await doc.embedJpg(b); const w = Math.min(170, ih * im.width / im.height); page.drawImage(im, { x, y: y - ih, width: w, height: ih }); x += w + 10; } catch { } }
+        if (!sigInfo.imgs.length) page.drawLine({ start: { x: ML, y: y - ih + 2 }, end: { x: ML + 170, y: y - ih + 2 }, thickness: .8, color: INK });
         y -= ih + 16; if (sigInfo.name) { page.drawText(txt(sigInfo.name), { x: ML, y, size: 11.5, font: FB, color: INK }); y -= 15; } if (sigInfo.desig) page.drawText(txt(sigInfo.desig), { x: ML, y, size: 11, font: F, color: INK }); }
     }
     return new Blob([await doc.save()], { type: "application/pdf" });
