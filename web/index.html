@@ -16833,6 +16833,241 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 @media(max-width:900px){.gs109b{min-width:0;width:38px;padding:0 10px}.gs109b span{display:none}}
 </style>`);
 
+
+/* =============== p110: (1) top menu always fits the screen - the page no longer slides sideways; scrollbar space kept so nothing jumps
+   (2) a real search bar in the top bar (type straight in)
+   (3) HR papers in their own clean format with the Rivera logo (no letterhead): offer / appointment / internship letters, joining kit,
+       salary & experience certificates as proper certificates (details + salary table), relieving / NOC in the same format
+   (4) "Ask Rivera" help chat on every page - how to do things, where a page is, find any record =============== */
+
+/* ---- (1) layout ---- */
+document.head.insertAdjacentHTML("beforeend", `<style>
+html{overflow-y:scroll;scrollbar-gutter:stable}html,body{overflow-x:hidden;max-width:100%}
+.n51{flex-wrap:nowrap!important;max-width:calc(100% + 48px)}
+.n51>.n51-d:not(.n51-u)>.n51-i,.n51>.n51-i{padding:10px 6px!important;font-size:13px}
+.n51 .n51-i svg{flex:0 0 auto}
+@media(max-width:2100px){.n51>.n51-d:not(.n51-u)>.n51-i>svg,.n51>[data-n51d]>svg{display:none}}
+@media(max-width:1440px){.n51>.n51-d:not(.n51-u)>.n51-i,.n51>.n51-i{padding:10px 4px!important;font-size:12px!important}.n51-b{font-size:0!important;padding-right:4px!important}.n51-b img{margin-right:0!important}.n51-u>.n51-i{max-width:92px!important}#gs109b.gs110{flex-basis:150px}.n51>.n51-d:not(.n51-u)>.n51-i>.n51-c{display:none}.n51-new{padding:6px 9px!important}}
+@media(max-width:1500px){.n51>.n51-d:not(.n51-u)>.n51-i{padding:10px 5px!important;font-size:12.5px}.n51-u>.n51-i{max-width:120px!important;overflow:hidden;text-overflow:ellipsis}}
+@media(max-width:1400px){#gs109b.gs110{flex:0 0 38px;padding:0 10px}#gs109b.gs110 input::placeholder{color:transparent}#gs109b.gs110:focus-within{position:fixed;top:9px;right:200px;width:320px;z-index:60}}
+@media(max-width:1180px){.n51{flex-wrap:wrap!important}}
+.n51-sp{flex:1 1 0!important;min-width:4px}
+#gs109b.gs110{display:flex;align-items:center;gap:7px;flex:0 1 240px;min-width:44px;height:34px;padding:0 10px;border-radius:9px;border:1px solid rgba(255,255,255,.28);background:rgba(255,255,255,.12);color:#fff;margin:0 6px}
+#gs109b.gs110:focus-within{background:#fff;color:#111;border-color:#fff}
+#gs109b.gs110 svg{width:16px;height:16px;flex:0 0 auto;opacity:.85}
+#gs109b.gs110 input{all:unset;flex:1;min-width:0;font-size:13px;color:inherit}
+#gs109b.gs110 input::placeholder{color:rgba(255,255,255,.75)}#gs109b.gs110:focus-within input::placeholder{color:#888}
+</style>`);
+/* (2) search bar: replace the search button with a box you type into */
+{
+  const make = () => { const old = $("#gs109b"); if (!old || old.classList.contains("gs110")) return;
+    const d = document.createElement("div"); d.id = "gs109b"; d.className = "gs110"; d.innerHTML = `${icon("search")}<input type="search" placeholder="Search employees, assets, POs, pages…" aria-label="Search" autocomplete="off">`;
+    old.replaceWith(d); const i = $("input", d);
+    const go = () => { const v = i.value; openSearch(v); const q = $("#gsQ"); if (q) { q.value = v; q.dispatchEvent(new Event("input")); q.focus(); q.setSelectionRange(v.length, v.length); } i.value = ""; };
+    i.addEventListener("input", () => { if (i.value.trim()) go(); }); i.addEventListener("keydown", e => { if (e.key === "Enter") go(); }); };
+  new MutationObserver(() => { try { make(); } catch { } }).observe(document.documentElement, { childList: true, subtree: true });
+}
+
+/* ---- (3) HR paper format ---- */
+const HRLOGO110 = "lh/rivera-logo.png";
+const HRCO110 = {
+  RCM: { name: "RIVERA COIL MANUFACTURING INDIA PVT LTD", sign: "Rivera Coil Manufacturing India Pvt Ltd", ids: () => `CIN: ${CO85.cin} &nbsp;|&nbsp; GSTIN: ${CO85.gst} &nbsp;|&nbsp; PAN: ${CO85.pan}`, addr: () => CO85.foot.replace(/^Regd\. Off:\s*/, ""), contact: () => CO85.foot2 },
+  RCR: { name: "RIVERA COIL REWINDING", sign: "Rivera Coil Rewinding", ids: () => "GSTIN: 33AMTPP0122H1Z6 &nbsp;|&nbsp; PAN: AMTPP0122H", addr: () => CO85.foot.replace(/^Regd\. Off:\s*/, ""), contact: () => "0424-227 3399 | 77085 49900 | riveracoilrewinding@gmail.com | www.rivera.co.in" },
+  GRP: { name: "RIVERA GROUP OF COMPANIES", sign: "Rivera Group of Companies", ids: () => "Rivera Coil Manufacturing India Pvt Ltd &nbsp;·&nbsp; Rivera Coil Rewinding", addr: () => CO85.foot.replace(/^Regd\. Off:\s*/, ""), contact: () => CO85.foot2 }
+};
+function hrDoc110(co, { ref, date, title, body }) {
+  const C = HRCO110[co] || HRCO110.RCM, logo = new URL(HRLOGO110, location.href).href;
+  return `<!--nolh--><!--hr110:${co}--><style>@page{size:A4;margin:14mm 16mm 16mm}body{margin:0!important;font:12.6px/1.6 Cambria,Caladea,Georgia,"Times New Roman",serif!important;color:#111}
+    .hd110{display:flex;align-items:center;gap:16px;padding-bottom:10px}.hd110 img{height:78px;width:auto}.hd110 .c{flex:1;text-align:right}.hd110 .n{font:700 17px Georgia,serif;color:#0b2a57;letter-spacing:.03em}
+    .hd110 .s{font:11px/1.5 Arial,sans-serif;color:#444}.rule110{height:4px;background:linear-gradient(90deg,#0b2a57 0 62%,#ec6f1c 62% 100%);border-radius:2px;margin-bottom:14px}
+    .rd110{display:flex;justify-content:space-between;font:12px Arial,sans-serif;color:#222;margin-bottom:6px}.ti110{text-align:center;margin:14px 0 16px}.ti110 span{display:inline-block;font:700 15.5px Georgia,serif;letter-spacing:.14em;color:#0b2a57;border-bottom:2px solid #ec6f1c;padding:0 6px 4px}
+    .b110 p{margin:0 0 9px;text-align:justify}.b110 ol,.b110 ul{margin:4px 0 10px}.b110 li{margin:3px 0}.tb110{width:100%;border-collapse:collapse;margin:8px 0 12px;font:12.3px Arial,sans-serif}.tb110 td,.tb110 th{border:1px solid #c9d1dc;padding:6px 9px;text-align:left}.tb110 th{background:#f1f4f8;color:#0b2a57;width:38%}
+    .tb110 .n{text-align:right}.tb110 tr.tot td{font-weight:700;background:#fff6ee}.ft110{position:fixed;bottom:0;left:0;right:0;border-top:1px solid #c9d1dc;padding-top:5px;text-align:center;font:10px/1.45 Arial,sans-serif;color:#555}
+    .pg110{page-break-after:always}.pg110:last-child{page-break-after:auto}</style>
+    <div class="hd110"><img src="${logo}" alt="Rivera"><div class="c"><div class="n">${C.name}</div><div class="s">${C.ids()}</div><div class="s">${C.addr()}</div></div></div><div class="rule110"></div>
+    ${ref || date ? `<div class="rd110"><span>${ref ? "Ref: <b>" + esc(ref) + "</b>" : ""}</span><span>${date ? "Date: <b>" + esc(date) + "</b>" : ""}</span></div>` : ""}
+    <div class="ti110"><span>${esc(String(title || "").toUpperCase())}</span></div><div class="b110">${body}</div>
+    <div class="ft110">${C.contact()}</div>`;
+}
+const hrCo110 = r => r && r.type === "intern" ? "GRP" : (/rewind|rcr/i.test((r && (r.company || "")) || "") ? "RCR" : "RCM");
+/* letter html from the older print code -> body only */
+function letterBody110(h) {
+  return String(h || "").replace(/<img src="[^"]*" style="width:100%;margin-bottom:8px" alt="">/g, "").replace(/<style>[\s\S]*?<\/style>/g, "")
+    .replace(/<div style="display:flex;justify-content:space-between;align-items:flex-end;gap:12px">[\s\S]*?<\/div>/, "")
+    .replace(/<h2 style="text-align:center;text-decoration:underline[^"]*">[\s\S]*?<\/h2>/, "");
+}
+{
+  const fmt = (list, title) => function (t, h) {
+    const parts = String(h || "").split(/<div style="page-break-after:always">/).filter(x => x.replace(/<[^>]+>/g, "").trim() || /<img/.test(x));
+    const pages = (list.length > 1 && parts.length >= list.length ? parts.slice(-list.length) : [h]).map((p, i) => { const r = list[Math.min(i, list.length - 1)] || {}, L = LT89[r.type] || { t: "Letter" };
+      return `<div class="pg110">${hrDoc110(hrCo110(r), { ref: r.no || "", date: dmyDot89(r.date), title: L.t, body: letterBody110(p).replace(/<\/div>\s*$/, "") })}</div>`; });
+    return pages.join("");
+  };
+  const _l = print89;
+  print89 = async function (r) { const _p = printHtml28, f = fmt([r]); printHtml28 = function (t, h) { printHtml28 = _p; return _p.call(this, t, f(t, h)); }; try { return await _l.apply(this, arguments); } finally { printHtml28 = _p; } };
+  const _k = printBoth90;
+  printBoth90 = async function (list) { const L = (list || []).filter(r => r && LT89[r.type]), _p = printHtml28, f = fmt(L); printHtml28 = function (t, h) { printHtml28 = _p; return _p.call(this, t, f(t, h)); }; try { return await _k.apply(this, arguments); } finally { printHtml28 = _p; } };
+}
+/* salary / experience certificates: proper certificate with details and salary table */
+let SIGN110 = null;
+const certSig110 = (mode, co) => { const m = (sigCfg99().map || {}).letter || {}, P0 = m.authorized && BIZ.rows[m.authorized], who = { signName: (P0 && P0.name) || "Mrs. S. Gowthami" };
+  const S = mode === "e" ? letterSigner108(who) : { p: null, seal: null }, P = P0 || sigPeople99().find(x => sigNorm108(x.name) === sigNorm108(who.signName)) || { name: "Mrs. S. Gowthami", desig: "Assistant General Manager – Plant & Projects" };
+  const nm = esc((S.p || P || {}).name || "Authorised Signatory"), ds = esc((S.p || P || {}).desig || "");
+  return letterSign108(HRCO110[co].sign, nm, ds, S.p ? "e" : "hand", { signName: (S.p || P || {}).name || "" }); };
+{
+  const _c = cert62;
+  cert62 = async function (btn) {
+    const e = BIZ.rows[$("#ce62e")?.value]; if (!e) return _c.apply(this, arguments);
+    const type = $("#ce62t")?.value || BIZ.ui.ce || "salary", T = (CERT62.find(x => x[0] === type) || [0, "Certificate"])[1];
+    const a = SIGN110 || await askSign106(`${T} - ${e.name}`); SIGN110 = null; if (!a) return;
+    const mode = a === "hand" ? "hand" : "e", co = hrCo110(e), C = HRCO110[co];
+    const _p = printHtml28;
+    printHtml28 = function (t, h) {
+      printHtml28 = _p;
+      const ref = (String(h).match(/Ref:\s*([^<]*)</) || [])[1] || "", date = $("#ce62d")?.value || todayISO(), purpose = ($("#ce62p")?.value || "").trim();
+      const he = /^f/i.test(e.gender || "") ? ["She", "her", "Ms."] : ["He", "his", "Mr."], nm = `${he[2]} ${esc(e.name)}${e.surname ? " " + esc(e.surname) : ""}`;
+      const basic = +e.basic || 0, hra = +e.hra || 0, oth = +e.allow || 0, gross = basic + hra + oth;
+      const det = `<table class="tb110"><tr><th>Employee name</th><td>${nm}</td></tr><tr><th>Employee code</th><td>${esc(e.code || e.no || "")}</td></tr><tr><th>Designation</th><td>${esc(e.designation || "")}</td></tr>${e.dept ? `<tr><th>Department</th><td>${esc(e.dept)}</td></tr>` : ""}<tr><th>Date of joining</th><td>${esc(dmy62(e.doj))}</td></tr>${type === "experience" ? `<tr><th>Period of service</th><td>${esc(dmy62(e.doj))} to ${e.exit ? esc(dmy62(e.exit)) : "till date"}</td></tr>` : ""}</table>`;
+      let body;
+      if (type === "salary") body = `<p><b>${esc(/^to /i.test(purpose) ? purpose : "To whom it may concern")}</b></p>
+        <p>This is to certify that ${nm} is a permanent employee of <b>${C.sign}</b>, working with us since <b>${esc(dmy62(e.doj))}</b>. ${he[1].replace(/^./, x => x.toUpperCase())} details and present salary are given below.</p>${det}
+        <table class="tb110"><tr><th>Salary component</th><th class="n" style="width:22%">Per month (₹)</th><th class="n" style="width:22%">Per year (₹)</th></tr>
+        <tr><td>Basic + DA</td><td class="n">${inr28(basic)}</td><td class="n">${inr28(basic * 12)}</td></tr><tr><td>House rent allowance (HRA)</td><td class="n">${inr28(hra)}</td><td class="n">${inr28(hra * 12)}</td></tr>
+        <tr><td>Other allowances</td><td class="n">${inr28(oth)}</td><td class="n">${inr28(oth * 12)}</td></tr><tr class="tot"><td>Gross salary</td><td class="n">${inr28(gross)}</td><td class="n">${inr28(gross * 12)}</td></tr></table>
+        <p>Gross monthly salary in words: <b>Rupees ${esc(amountInWords(gross, "INR", "").replace(/^INR\s*/i, "").replace(/^Rupees\s*/i, "").replace(/\s*only\.?$/i, ""))} only</b>.</p>
+        <p>This certificate is issued at ${he[1]} request${purpose && !/^to /i.test(purpose) ? ` for <b>${esc(purpose)}</b>` : ""}, without any liability on the part of the company.</p>`;
+      else if (type === "experience") body = `<p><b>To whom it may concern</b></p><p>This is to certify that ${nm} has worked with <b>${C.sign}</b> as given below.</p>${det}
+        <p>During ${he[1]} tenure ${he[0].toLowerCase()} was sincere, hard working and responsible, and ${he[1]} conduct was good. ${he[0]} has completed the handover of ${he[1]} work.</p>
+        <p>We wish ${he[1] === "his" ? "him" : "her"} every success in the future.</p>`;
+      else body = letterBody110(h).replace(/<p style="display:flex;justify-content:space-between">[\s\S]*?<\/p>/, "").replace(/<h1[^>]*>[\s\S]*?<\/h1>/, "").replace(/<p>\s*For [^<]*<\/p>[\s\S]*$/i, "");
+      body += certSig110(mode, co);
+      return _p.call(this, t, hrDoc110(co, { ref, date: dmy62(date), title: T, body }));
+    };
+    try { return await _c.apply(this, arguments); } finally { printHtml28 = _p; }
+  };
+  /* email: ask once, then the same certificate goes into the PDF */
+  emailCert109 = async function (btn) {
+    const e = BIZ.rows[$("#ce62e")?.value]; if (!e) return toast("Choose the employee first", "bad");
+    const T = (CERT62.find(x => x[0] === ($("#ce62t")?.value || "salary")) || [0, "Certificate"])[1];
+    const a = await askSign106(`${T} - ${e.name}`); if (!a) return; btn.disabled = true;
+    try { SIGN110 = a; const cap = await capturePrint109(() => cert62(btn)); if (!cap) return;
+      const blob = await letterPdf109(cap.html, "RCM");
+      await mailPdf109(blob, `${cap.title}.pdf`.replace(/[\\/:*?"<>|]/g, " "), e.email || "", cap.title, `Dear ${e.name},\n\nPlease find attached your ${T.toLowerCase()}.\n\nRegards,\nHR - Rivera Group of Companies`);
+    } catch (er) { toast("Could not make the PDF: " + (er.message || er), "bad"); } finally { SIGN110 = null; btn.disabled = false; }
+  };
+}
+/* PDF for the HR format: logo header, coloured rule, footer line, tables */
+{
+  const _pdf = letterPdf109;
+  letterPdf109 = async function (html, co) {
+    const m = String(html).match(/<!--hr110:(\w+)-->/); if (!m) return _pdf.apply(this, arguments);
+    const C = HRCO110[m[1]] || HRCO110.RCM, PL = await getPdfLib(), doc = await PL.PDFDocument.create();
+    const F = await doc.embedFont(PL.StandardFonts.TimesRoman), FB = await doc.embedFont(PL.StandardFonts.TimesRomanBold), FH = await doc.embedFont(PL.StandardFonts.Helvetica), FHB = await doc.embedFont(PL.StandardFonts.HelveticaBold);
+    const W = 595.28, H = 841.89, ML = 50, MR = 46, maxW = W - ML - MR, INK = PL.rgb(.07, .07, .07), NAVY = PL.rgb(.043, .165, .341), OR = PL.rgb(.925, .435, .11), GREY = PL.rgb(.35, .35, .35), LINE = PL.rgb(.79, .82, .86), SH = PL.rgb(.945, .957, .973);
+    const txt = s => winAnsi109(String(s || "").replace(/&nbsp;/g, " ").replace(/<[^>]+>/g, "").replace(/&amp;/g, "&"));
+    let logo = null; try { const b = new Uint8Array(await (await fetch(new URL(HRLOGO110, location.href).href)).arrayBuffer()); logo = await doc.embedPng(b); } catch { }
+    const d = new DOMParser().parseFromString(`<div id="r">${html}</div>`, "text/html"), R = d.getElementById("r");
+    const pages = [...R.querySelectorAll(".pg110")].length ? [...R.querySelectorAll(".pg110")] : [R];
+    const wrap = (t, f, sz, w) => { const out = []; String(t).split("\n").forEach(par => { let line = ""; par.split(" ").forEach(wd => { const tr = line ? line + " " + wd : wd; if (f.widthOfTextAtSize(tr, sz) > w && line) { out.push(line); line = wd; } else line = tr; }); out.push(line); }); return out; };
+    for (const P of pages) {
+      let page, y; const bottom = 58;
+      const newPage = () => { page = doc.addPage([W, H]); y = H - 40;
+        if (logo) { const lh = 62, lw = lh * logo.width / logo.height; page.drawImage(logo, { x: ML, y: y - lh, width: lw, height: lh }); }
+        const rt = (s, f, sz, yy, col) => { s = txt(s); page.drawText(s, { x: W - MR - f.widthOfTextAtSize(s, sz), y: yy, size: sz, font: f, color: col }); };
+        rt(C.name, FB, 14.5, y - 18, NAVY); rt(C.ids(), FH, 8.5, y - 32, GREY); wrap(txt(C.addr()), FH, 8.5, 330).forEach((l, i) => rt(l, FH, 8.5, y - 44 - i * 11, GREY));
+        y -= 72; page.drawRectangle({ x: ML, y, width: maxW * .62, height: 3, color: NAVY }); page.drawRectangle({ x: ML + maxW * .62, y, width: maxW * .38, height: 3, color: OR }); y -= 20;
+        const ft = txt(C.contact()); page.drawLine({ start: { x: ML, y: 40 }, end: { x: W - MR, y: 40 }, thickness: .6, color: LINE }); page.drawText(ft, { x: (W - FH.widthOfTextAtSize(ft, 8)) / 2, y: 28, size: 8, font: FH, color: GREY }); };
+      newPage();
+      const rd = P.querySelector(".rd110"); if (rd) { const [a, b] = [...rd.children].map(x => txt(x.textContent)); if (a) page.drawText(a, { x: ML, y, size: 10.5, font: FH, color: INK }); if (b) page.drawText(b, { x: W - MR - FH.widthOfTextAtSize(b, 10.5), y, size: 10.5, font: FH, color: INK }); y -= 26; }
+      const ti = txt((P.querySelector(".ti110") || {}).textContent || ""); if (ti) { const sp = ti.split("").join(" "), w = FB.widthOfTextAtSize(sp, 13.5); page.drawText(sp, { x: (W - w) / 2, y, size: 13.5, font: FB, color: NAVY }); page.drawRectangle({ x: (W - w) / 2 - 4, y: y - 6, width: w + 8, height: 1.6, color: OR }); y -= 30; }
+      const B = P.querySelector(".b110"); if (!B) continue;
+      B.querySelectorAll(".ft110,.hd110,.rule110,style").forEach(x => x.remove());
+      B.querySelectorAll("br").forEach(x => x.replaceWith("\n"));
+      const sig = B.querySelector(".ls108"); let sigInfo = null;
+      if (sig) { const imgs = [...sig.querySelectorAll("img")].map(i => i.getAttribute("src")); const ps = [...sig.querySelectorAll("p")]; const lines = (ps[ps.length - 1]?.textContent || "").split("\n").map(s => s.trim()).filter(Boolean); sigInfo = { imgs, forLine: ps.length > 1 ? ps[0].textContent.trim() : "", name: lines[0] || "", desig: lines.slice(1).join(", ") }; sig.remove(); }
+      const para = (t, f = F, sz = 11.5, ind = 0, bullet = false) => { const L = wrap(txt(t), f, sz, maxW - ind); L.forEach((ln, i) => { if (y - 16 < bottom) newPage(); if (bullet && i === 0) page.drawText("•", { x: ML + 4, y, size: sz, font: F, color: INK }); page.drawText(ln, { x: ML + ind, y, size: sz, font: f, color: INK }); y -= sz * 1.45; }); y -= 5; };
+      for (const el of [...B.children]) {
+        const tag = el.tagName.toLowerCase();
+        if (tag === "table") { const rows = [...el.querySelectorAll("tr")], cols = Math.max(...rows.map(r => r.children.length)), cw = cols === 3 ? [maxW * .56, maxW * .22, maxW * .22] : [maxW * .38, maxW * .62];
+          for (const tr of rows) { const cells = [...tr.children], hdr = cells.every(c => c.tagName === "TH"), tot = tr.classList.contains("tot"); const lines = cells.map((c, i) => wrap(txt(c.textContent), (c.tagName === "TH" || tot) ? FHB : FH, 9.8, cw[i] - 12)); const rh = Math.max(...lines.map(l => l.length)) * 12.5 + 8;
+            if (y - rh < bottom) newPage(); let x = ML;
+            cells.forEach((c, i) => { const isTh = c.tagName === "TH"; page.drawRectangle({ x, y: y - rh + 9, width: cw[i], height: rh, color: tot ? PL.rgb(1, .965, .93) : (isTh ? SH : PL.rgb(1, 1, 1)), borderColor: LINE, borderWidth: .6 });
+              const right = c.classList.contains("n") && !hdr; lines[i].forEach((ln, k) => { const f = (isTh || tot) ? FHB : FH; page.drawText(ln, { x: right ? x + cw[i] - 6 - f.widthOfTextAtSize(ln, 9.8) : x + 6, y: y - 4 - k * 12.5, size: 9.8, font: f, color: isTh ? NAVY : INK }); }); x += cw[i]; });
+            y -= rh; }
+          y -= 8; continue; }
+        if (tag === "ol" || tag === "ul") { [...el.children].forEach(li => para(li.textContent, F, 11.5, 16, true)); continue; }
+        if (tag === "div" && el.querySelector("p")) { [...el.querySelectorAll("p,li")].forEach(p => para(p.textContent, /^(B|STRONG)$/.test(p.firstElementChild?.tagName || "") && p.textContent.trim() === p.firstElementChild.textContent.trim() ? FB : F)); continue; }
+        const t = el.textContent.trim(); if (!t) continue;
+        const bold = el.children.length === 1 && /^(B|STRONG)$/.test(el.children[0].tagName) && el.children[0].textContent.trim() === t;
+        if (/^h[1-4]$/.test(tag)) para(t, FB, 12.5); else para(t, bold ? FB : F);
+      }
+      if (sigInfo) { if (y - 120 < bottom) newPage(); y -= 8; if (sigInfo.forLine) { page.drawText(txt(sigInfo.forLine), { x: ML, y, size: 11.5, font: F, color: INK }); y -= 8; }
+        let x = ML; const ih = 56; for (const s of sigInfo.imgs) { try { const b = new Uint8Array(await (await fetch(s)).arrayBuffer()); const im = b[0] === 0x89 ? await doc.embedPng(b) : await doc.embedJpg(b); const w = Math.min(170, ih * im.width / im.height); page.drawImage(im, { x, y: y - ih, width: w, height: ih }); x += w + 10; } catch { } }
+        y -= ih + 16; if (sigInfo.name) { page.drawText(txt(sigInfo.name), { x: ML, y, size: 11.5, font: FB, color: INK }); y -= 15; } if (sigInfo.desig) page.drawText(txt(sigInfo.desig), { x: ML, y, size: 11, font: F, color: INK }); }
+    }
+    return new Blob([await doc.save()], { type: "application/pdf" });
+  };
+}
+
+/* ---- (4) Ask Rivera: help chat on every page ---- */
+const HELP110 = [
+  [/offer|appointment|joining|intern/i, "HR ▸ Offer & appointment letters", "hrx", { h62: "letters" }, "Choose the letter, fill name, position, date and salary, then Save & print. It asks E-signature or Sign by hand. 📧 Email sends the PDF to the person."],
+  [/salary cert|experience|relieving|\bnoc\b|certificate/i, "HR ▸ Certificates", "hrx", { h62: "cert" }, "Pick the employee and the certificate, then Make certificate (print) or 📧 Make & email."],
+  [/payslip|salary|payroll/i, "HR ▸ Payslip", "hr", { hr: "pay", hp63: "slip" }, "Payslips are made from the employee salary details for the month."],
+  [/attendance|check ?in|punch|late/i, "HR ▸ Attendance", "hr", { hr: "att" }, "Attendance comes from the fingerprint machine; corrections and leave are shown day by day."],
+  [/leave/i, "Leave", "leave", {}, "Apply leave, and the approver sees it in Requests."],
+  [/work update|pending|daily work|plan/i, "Work Board ▸ Work update", "work", { w62: "upd" }, "Add today's work with From / To time, tick Completed / In progress / Pending, and Submit before the form closes."],
+  [/assign|give work|task/i, "Work Board ▸ Assign work", "work", { w62: "assign" }, "Pick the person, write the work, due date and priority - they get it at once."],
+  [/asset|laptop|vehicle|equipment/i, "Admin ▸ Asset repository", "assets62", {}, "Choose RCM / RCR, tap a category, tap an asset to edit. ⬆ Upload bill as asset adds a new one from a bill."],
+  [/password|login.*(repo|vault)|vault/i, "Admin ▸ Password repository", "vault", {}, "Logins are kept locked; 📧 sends a login to the person who uses it."],
+  [/quotation|quote|rate/i, "Sales ▸ Quotation", "quote", {}, "Make the quote workings first, then Quotation. Downloads ask E-signature or Sign by hand."],
+  [/workings|costing/i, "Sales ▸ Quote workings", "workings", {}, "Fill copper rate, quantities and costs; Excel (formulas) downloads a live Excel."],
+  [/enquir|lead|customer|crm/i, "Sales ▸ Enquiries (CRM)", "crm", {}, "Every enquiry on a board; drag between stages, set follow-ups."],
+  [/purchase order|\bpo\b|indent|supplier|vendor/i, "Purchase ▸ Purchase order", "purchase", { pur: "po" }, "Indent → comparative → purchase order. The PO prints on the company letterhead."],
+  [/stock|store|grn|material/i, "Store ▸ Stock & limits", "stock88", {}, "See stock, items below the minimum, issue and receive material."],
+  [/tape/i, "Production ▸ Tape calculator", "tape100", {}, "Type A–G and L; E1 to Q are worked out. Excel keeps the formulas."],
+  [/courier/i, "Courier register", "courier", { cr62: "all" }, "Every incoming and outgoing courier with the scan."],
+  [/visitor|gate/i, "Visitors & gate", "visitors", { vs71: "live" }, "Visitor entry, appointments and gate pass."],
+  [/tender|gem|bid/i, "Tenders", "tenders", {}, "Tender list, closing dates, bid desk and results."],
+  [/signature|seal|e-?sign/i, "Admin ▸ Signatures & seals", "sig99", {}, "Upload each signer's signature and the company seals once; papers use them when you choose E-signature."],
+  [/user|permission|access|role/i, "Users & access", "users", {}, "Add a login, press Permissions, tick pages and choose Full or View-only."],
+  [/letterhead/i, "Admin ▸ Signatures & seals", "sig99", {}, "Company letterheads (RCM and RCR) are used automatically on POs and quotations."],
+];
+function askRivera110(q) {
+  const s = String(q || "").trim(); if (!s) return { text: "Ask me where something is or how to do it - e.g. “offer letter”, “salary certificate”, “laptop asset”, “pending work”." };
+  const hits = HELP110.filter(h => h[0].test(s)).slice(0, 3);
+  const recs = searchRecs109(s.toLowerCase()).filter(r => r.g !== "Page").slice(0, 5);
+  const pages = searchRecs109(s.toLowerCase()).filter(r => r.g === "Page").slice(0, 4);
+  if (!hits.length && !recs.length && !pages.length) return { text: `I could not find “${esc(s)}”. Try one word like “asset”, “offer”, “PO”, “stock”, or type a person / item name.` };
+  return { text: hits.length ? hits.map(h => `<b>${esc(h[1])}</b><br>${esc(h[4])}`).join("<hr>") : (recs.length ? "I found these:" : "These pages match:"),
+    acts: [...hits.map(h => ({ l: "Open " + h[1].split("▸").pop().trim(), go: () => { Object.assign(BIZ.ui, h[3]); location.hash = h[2]; render(); } })), ...recs.map(r => ({ l: `${r.g}: ${r.t}`, go: r.go })), ...(hits.length ? [] : pages.map(p => ({ l: "Open " + p.t, go: p.go })))] };
+}
+{
+  const css = `<style>#ar110b{position:fixed;right:18px;bottom:18px;z-index:9990;border:0;border-radius:28px;background:#0b2a57;color:#fff;padding:12px 16px;font:600 14px Arial,sans-serif;box-shadow:0 6px 20px rgba(0,0,0,.25);cursor:pointer;display:flex;gap:8px;align-items:center}
+    #ar110b:hover{background:#12407f}#ar110{position:fixed;right:18px;bottom:76px;z-index:9991;width:min(380px,calc(100vw - 24px));height:min(520px,calc(100vh - 110px));background:#fff;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.28);display:flex;flex-direction:column;overflow:hidden;font:14px/1.45 Arial,sans-serif;color:#1c2433}
+    #ar110 header{background:#0b2a57;color:#fff;padding:12px 14px;display:flex;align-items:center;gap:10px}#ar110 header img{width:30px;height:30px;border-radius:50%;background:#fff;object-fit:contain}#ar110 header b{flex:1}#ar110 header button{all:unset;cursor:pointer;font-size:18px;padding:0 4px}
+    #ar110 .m{flex:1;overflow:auto;padding:12px;display:flex;flex-direction:column;gap:8px;background:#f5f7fa}.ar110q{align-self:flex-end;background:#ec6f1c;color:#fff;border-radius:12px 12px 2px 12px;padding:7px 11px;max-width:85%}
+    .ar110a{align-self:flex-start;background:#fff;border:1px solid #e1e6ee;border-radius:12px 12px 12px 2px;padding:9px 11px;max-width:92%}.ar110a hr{border:0;border-top:1px solid #eef1f5;margin:7px 0}.ar110a .acts{display:flex;flex-wrap:wrap;gap:6px;margin-top:8px}
+    .ar110a .acts button{border:1px solid #c9d6e8;background:#eef4fc;color:#0b2a57;border-radius:14px;padding:4px 10px;font:12.5px Arial,sans-serif;cursor:pointer}#ar110 form{display:flex;gap:6px;padding:10px;border-top:1px solid #e6eaf0}
+    #ar110 form input{flex:1;border:1px solid #cfd7e3;border-radius:10px;padding:9px 11px;font:14px Arial,sans-serif}#ar110 form button{border:0;background:#0b2a57;color:#fff;border-radius:10px;padding:0 14px;cursor:pointer}
+    @media print{#ar110b,#ar110{display:none!important}}</style>`;
+  document.head.insertAdjacentHTML("beforeend", css);
+  const open = () => {
+    if ($("#ar110")) return $("#ar110").remove();
+    document.body.insertAdjacentHTML("beforeend", `<div id="ar110" role="dialog" aria-label="Ask Rivera"><header><img src="${APP_MARK108}" alt=""><b>Ask Rivera</b><button type="button" title="Close">✕</button></header><div class="m"></div><form><input placeholder="How do I…  /  where is…  /  a name or number" aria-label="Ask"><button>Ask</button></form></div>`);
+    const P = $("#ar110"), M = $(".m", P), I = $("input", P);
+    const say = (q) => { if (q) M.insertAdjacentHTML("beforeend", `<div class="ar110q">${esc(q)}</div>`); const r = askRivera110(q), id = "a" + Date.now();
+      M.insertAdjacentHTML("beforeend", `<div class="ar110a" id="${id}">${r.text}${r.acts && r.acts.length ? `<div class="acts">${r.acts.map((a, i) => `<button type="button" data-i="${i}">${esc(a.l)}</button>`).join("")}</div>` : ""}</div>`);
+      $$(`#${id} [data-i]`, M).forEach(b => b.onclick = () => { r.acts[+b.dataset.i].go(); }); M.scrollTop = M.scrollHeight; };
+    $("header button", P).onclick = () => P.remove();
+    $("form", P).onsubmit = e => { e.preventDefault(); const q = I.value.trim(); I.value = ""; say(q); };
+    M.insertAdjacentHTML("beforeend", `<div class="ar110a">Hi ${esc((AUTH.user && AUTH.user.name) || "")}! I can take you to any page, tell you how to do something, or find a person, asset, PO or item.<div class="acts">${["Offer letter", "Salary certificate", "My pending work", "Laptop assets", "Purchase order", "Stock"].map(x => `<button type="button" data-s="${x}">${x}</button>`).join("")}</div></div>`);
+    $$("[data-s]", M).forEach(b => b.onclick = () => say(b.dataset.s)); I.focus();
+  };
+  const add = () => { if ($("#ar110b") || !document.body || !(typeof signed26 === "function" && signed26())) return; document.body.insertAdjacentHTML("beforeend", `<button type="button" id="ar110b" title="Ask Rivera - help and search">💬 Ask Rivera</button>`); $("#ar110b").onclick = open; };
+  new MutationObserver(() => { try { add(); } catch { } }).observe(document.documentElement, { childList: true, subtree: true });
+}
+
 boot();
 
 </script>
