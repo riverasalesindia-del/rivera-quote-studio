@@ -17564,6 +17564,106 @@ document.head.insertAdjacentHTML("beforeend", `<style>.co115{font:700 15px inher
 .fl115{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:12px}@media(max-width:1100px){.fl115{grid-template-columns:1fr}}
 .dp115 input,.dp115 select{border:1px solid var(--line,#d6dde8);border-radius:6px;padding:3px 5px;font:inherit;text-align:right}</style>`);
 
+
+/* =============== p116: Registers from the office notebook - each with its own page, add / edit / remove, document upload, and a
+   colour for what is due (red = expired, orange = due in 30 days):
+   Admin: Fire extinguishers · Licences & renewals (FSSAI, fire NOC, factory licence …) · Maintenance (overall / civil / electrical / mechanical) · Kitchen / canteen · Security
+   HR: Legal compliance documents · POSH committee meetings · Interview forms · Skill matrix (employee × skill, level 0-4)
+   Store: Shelf-life materials (batch, expiry)
+   Finance: Bank reconciliation - load the bank statement (CSV / Excel), it matches receipts and payments, shows what is not matched =============== */
+const REG116 = {
+  fire: { t: "Fire extinguishers", mod: "admin", icon: "🧯", due: "expiry", cols: [["loc", "Location *", "text"], ["ftype", "Type", "select", ["ABC powder", "CO2", "Foam", "Water", "Clean agent"]], ["cap", "Capacity (kg)", "number"], ["serial", "Serial no", "text"], ["refill", "Last refill", "date"], ["expiry", "Next refill / expiry *", "date"], ["vendor", "Vendor", "text"]] },
+  lic: { t: "Licences & renewals", mod: "admin", icon: "📜", due: "expiry", cols: [["name", "Licence / certificate *", "list", ["FSSAI licence", "Fire NOC", "Factory licence", "Pollution consent (TNPCB)", "Trade licence", "Boiler certificate", "Electrical safety certificate", "Weights & measures", "Shop & establishment", "ISO certificate", "Insurance"]], ["docNo", "Licence / doc no", "text"], ["issued", "Issued on", "date"], ["expiry", "Valid till *", "date"], ["auth", "Issued by", "text"], ["owner", "Person responsible", "text"]] },
+  mnt: { t: "Maintenance", mod: "admin", icon: "🛠", due: "next", cols: [["area", "Area *", "select", ["Overall", "Civil", "Electrical", "Mechanical", "Plumbing", "AC / HVAC", "IT / network"]], ["work", "Work done / to do *", "text"], ["date", "Date", "date"], ["by", "Done by", "text"], ["cost", "Cost ₹", "number"], ["next", "Next due", "date"], ["state", "Status", "select", ["Open", "Done"]]] },
+  kit: { t: "Kitchen / canteen", mod: "admin", icon: "🍽", due: "next", cols: [["chk", "Check / item *", "list", ["Cleaning", "Gas cylinder", "Water can / RO service", "Pest control", "Food supplier", "Utensils"]], ["date", "Date", "date"], ["by", "By", "text"], ["note", "Remarks", "text"], ["next", "Next due", "date"]] },
+  sec: { t: "Security", mod: "admin", icon: "🛡", due: "next", cols: [["chk", "Item *", "list", ["Guard shift", "CCTV check", "Fire alarm test", "Key register", "Visitor log audit", "Gate pass audit"]], ["date", "Date", "date"], ["by", "By", "text"], ["note", "Remarks", "text"], ["next", "Next due", "date"]] },
+  legal: { t: "Legal compliance documents", mod: "hr", icon: "⚖", due: "expiry", cols: [["name", "Document *", "list", ["Standing orders", "Labour licence", "Contract labour licence", "Factory licence", "PF code", "ESI code", "Gratuity", "Bonus register", "Minimum wages notice", "Shops & establishment"]], ["docNo", "Doc no", "text"], ["date", "Date", "date"], ["expiry", "Valid till", "date"], ["note", "Remarks", "text"]] },
+  posh: { t: "POSH committee meetings", mod: "hr", icon: "🤝", due: "", cols: [["docNo", "Doc no *", "text"], ["date", "Meeting date *", "date"], ["members", "Members present", "text"], ["agenda", "Agenda / complaints", "textarea"], ["minutes", "Decisions / minutes", "textarea"]] },
+  intv: { t: "Interview forms", mod: "hr", icon: "🧑‍💼", due: "", cols: [["cand", "Candidate *", "text"], ["post", "Post applied *", "text"], ["date", "Interview date", "date"], ["phone", "Phone", "tel"], ["qual", "Qualification", "text"], ["exp", "Experience (years)", "number"], ["panel", "Interview panel", "text"], ["rate", "Rating (1-5)", "select", ["1", "2", "3", "4", "5"]], ["result", "Result", "select", ["Selected", "On hold", "Rejected"]], ["note", "Remarks", "textarea"]] },
+  shelf: { t: "Shelf-life materials", mod: "store", icon: "⏳", due: "expiry", cols: [["item", "Material *", "text"], ["batch", "Batch / lot", "text"], ["mfg", "Mfg date", "date"], ["expiry", "Expiry *", "date"], ["qty", "Qty", "number"], ["unit", "Unit", "text"], ["loc", "Location", "text"], ["supplier", "Supplier", "text"]] },
+};
+const regRows116 = k => all28("dc").filter(x => x.reg116 === k && !x.del).sort((a, b) => String((a[REG116[k].due] || "9")).localeCompare(String(b[REG116[k].due] || "9")) || String(b.date || "").localeCompare(String(a.date || "")));
+const dueSt116 = d => { if (!d) return ["", ""]; const t = todayISO(), s = addDays(t, 30); return d < t ? ["bad", "Expired"] : d <= s ? ["warn", "Due soon"] : ["ok", "OK"]; };
+function regPanel116(k, src) {
+  const R = REG116[k], r = src ? { ...src } : { kind: "dc", reg116: k, title: R.t, date: todayISO(), files: [] };
+  const D = panel28({ title: src ? `${R.t} · edit` : `${R.t} · new`, chips: "",
+    body: `<div class="fields">${R.cols.map(f => field28(f, r)).join("")}</div><div style="margin-top:10px"><label class="btn sm">📎 Attach document / photo<input type="file" id="rg116f" hidden accept="image/*,.pdf,.doc,.docx,.xls,.xlsx"></label><div id="rg116l" class="small" style="margin-top:6px">${(r.files || []).map(f => `<div>📄 <a href="${esc(f.url || "#")}" target="_blank" rel="noopener">${esc(f.name)}</a></div>`).join("")}</div></div>`,
+    foot: `${src ? `<button class="btn ghost" type="button" id="rg116d">🗑 Remove</button>` : ""}<span style="flex:1"></span><button class="btn primary" id="rg116s" type="button">Save</button>` });
+  $("#rg116f", D).onchange = async e => { const fl = e.target.files[0]; if (!fl) return; try { toast("Uploading…"); const up = await upFile71(await shrink71(fl, 1800).catch(() => fl), "dc"); r.files = [...(r.files || []), up]; $("#rg116l", D).insertAdjacentHTML("beforeend", `<div>📄 ${esc(up.name || fl.name)}</div>`); } catch (er) { toast(er.message, "bad"); } };
+  $("#rg116s", D).onclick = async e => { readForm28(D, r); const need = R.cols.filter(c => /\*$/.test(c[1])).find(c => !r[c[0]]); if (need) return toast(need[1].replace(" *", "") + " is needed", "bad"); r.title = `${R.t}: ${r[R.cols[0][0]] || ""}`; if (await save28(e.target, r, "Saved")) { closeDrawer26(); render(); } };
+  src && ($("#rg116d", D).onclick = e => sure71(e.currentTarget, async () => { if (await save28(null, { ...r, del: "1" }, "Removed")) { closeDrawer26(); render(); } }, "Tap again to remove"));
+}
+ROUTES.push(["reg116", "Registers", "check28"], ["skill116", "Skill matrix", "hr29"], ["brs116", "Bank reconciliation", "acc29"]);
+{ const _al = allowed21; allowed21 = function (r) { if (r === "reg116") return ["admin", "hr", "store"].some(m => MODS32.find(x => x.id === m && Object.values(x.groups).flat().some(c => c[1] !== "reg116" && _al.call(this, c[1])))); if (r === "skill116") return _al.call(this, "hr") || _al.call(this, "hrx"); if (r === "brs116") return _al.call(this, "accounts"); return _al.apply(this, arguments); }; }
+VIEWS.reg116 = v => {
+  bizSync28(); const U = BIZ.ui, keys = Object.keys(REG116), k = REG116[U.rg116] ? U.rg116 : keys[0], R = REG116[k], L = regRows116(k), q = (U.rg116q || "").toLowerCase();
+  const rows = L.filter(x => !q || JSON.stringify(x).toLowerCase().includes(q)), mod = MODS32.find(m => m.id === R.mod);
+  const cnt = kk => { const D = REG116[kk].due; return D ? regRows116(kk).filter(x => ["bad", "warn"].includes(dueSt116(x[D])[0])).length : 0; };
+  v.innerHTML = top62(mod ? mod.name : "Registers", `${R.icon} ${R.t}`, R.due ? "Red = expired, orange = due in the next 30 days. Tap a row to edit." : "Tap a row to edit.", `<button type="button" class="btn primary" id="rg116n">${icon("plus")}Add</button>`)
+    + (loadNote28() || `<div class="rg116t">${keys.filter(x => REG116[x].mod === R.mod).map(x => `<button type="button" class="${x === k ? "on" : ""}" data-rg="${x}">${REG116[x].icon} ${REG116[x].t}${cnt(x) ? ` <i>${cnt(x)}</i>` : ""}</button>`).join("")}</div>
+    <section class="panel"><header><input type="search" id="rg116q" placeholder="Find…" value="${esc(U.rg116q || "")}" style="max-width:260px"><span style="flex:1"></span><span class="small muted">${rows.length} entr${rows.length === 1 ? "y" : "ies"}</span></header>
+    <div class="body" style="overflow:auto">${rows.length ? `<table class="t"><thead><tr>${R.cols.filter(c => c[2] !== "textarea").slice(0, 7).map(c => `<th>${esc(c[1].replace(" *", ""))}</th>`).join("")}${R.due ? "<th>Status</th>" : ""}<th>📎</th></tr></thead><tbody>
+      ${rows.map(x => { const st = R.due ? dueSt116(x[R.due]) : ["", ""]; return `<tr data-rg116="${x.id}" style="cursor:pointer">${R.cols.filter(c => c[2] !== "textarea").slice(0, 7).map(c => `<td>${c[2] === "date" ? esc(x[c[0]] ? dmy(x[c[0]]) : "") : c[0] === "cost" ? esc(x[c[0]] ? inr28(+x[c[0]]) : "") : esc(x[c[0]] ?? "")}</td>`).join("")}${R.due ? `<td>${st[0] ? `<span class="chip ${st[0]}">${st[1]}</span>` : ""}</td>` : ""}<td>${(x.files || []).length || ""}</td></tr>`; }).join("")}</tbody></table>`
+      : `<div class="empty" style="padding:20px"><b>Nothing here yet</b>Press Add to make the first entry.</div>`}</div></section>`);
+  $$("[data-rg]", v).forEach(b => b.onclick = () => { U.rg116 = b.dataset.rg; render(); });
+  $("#rg116n", v) && ($("#rg116n", v).onclick = () => regPanel116(k));
+  $$("[data-rg116]", v).forEach(tr => tr.onclick = () => regPanel116(k, BIZ.rows[tr.dataset.rg116]));
+  const s = $("#rg116q", v); s && (s.oninput = () => { U.rg116q = s.value; clearTimeout(s._t); s._t = setTimeout(() => { render(); const n = $("#rg116q"); n && (n.focus(), n.setSelectionRange(n.value.length, n.value.length)); }, 250); });
+};
+/* skill matrix: employees × skills, level 0-4 kept on the employee */
+const SKLV116 = ["-", "1 · Learning", "2 · With help", "3 · Independent", "4 · Can train others"];
+const skillCfg116 = () => all28("dc").find(x => x.reg116 === "skillcfg") || { kind: "dc", reg116: "skillcfg", title: "Skill matrix skills", skills: ["Coil winding", "Taping", "Brazing", "VPI", "Testing", "Crane operation", "Machining", "Welding", "Drawing reading", "Safety"] };
+VIEWS.skill116 = v => {
+  bizSync28(); const U = BIZ.ui, C = skillCfg116(), S = C.skills || [], d = U.sk116 || "", E = all28("emp").filter(e => e.status !== "left" && (!d || e.dept === d)).sort((a, b) => String(a.dept || "").localeCompare(String(b.dept || "")) || String(a.name).localeCompare(String(b.name)));
+  const depts = [...new Set(all28("emp").filter(e => e.status !== "left").map(e => e.dept).filter(Boolean))].sort();
+  v.innerHTML = top62("HR", "Skill matrix", "Each person's level in each skill: 1 learning · 2 with help · 3 independent · 4 can train others. Change a box and it saves.", `<select id="sk116d"><option value="">All departments</option>${depts.map(x => `<option ${x === d ? "selected" : ""}>${esc(x)}</option>`).join("")}</select><button type="button" class="btn" id="sk116e">Skills…</button><button type="button" class="btn" id="sk116x">⬇ Excel</button>`)
+    + (loadNote28() || `<section class="panel"><div class="body" style="overflow:auto"><table class="t sk116"><thead><tr><th>Employee</th><th>Department</th>${S.map(s => `<th style="writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap">${esc(s)}</th>`).join("")}</tr></thead><tbody>
+    ${E.map(e => `<tr><td><b>${esc(e.name)}</b></td><td>${esc(e.dept || "")}</td>${S.map(s => { const l = +((e.skills || {})[s] || 0); return `<td class="l${l}"><select data-sk="${e.id}" data-s="${esc(s)}">${SKLV116.map((t, i) => `<option value="${i}" ${i === l ? "selected" : ""}>${i || "-"}</option>`).join("")}</select></td>`; }).join("")}</tr>`).join("") || `<tr><td colspan="${S.length + 2}" class="muted">No employees.</td></tr>`}
+    </tbody></table></div></section>`);
+  $("#sk116d", v).onchange = e => { U.sk116 = e.target.value; render(); };
+  $$("[data-sk]", v).forEach(s => s.onchange = async () => { const e = { ...BIZ.rows[s.dataset.sk] }; e.skills = { ...(e.skills || {}), [s.dataset.s]: +s.value }; s.parentElement.className = "l" + s.value; await save28(null, e, "Saved"); });
+  $("#sk116e", v).onclick = () => { const D = panel28({ title: "Skills in the matrix", body: `<label class="f">One skill per line<textarea id="sk116t" rows="12">${esc(S.join("\n"))}</textarea></label>`, foot: `<span style="flex:1"></span><button class="btn primary" id="sk116s" type="button">Save</button>` });
+    $("#sk116s", D).onclick = async e => { const x = { ...C, skills: $("#sk116t", D).value.split("\n").map(s => s.trim()).filter(Boolean) }; if (await save28(e.target, x, "Skills saved")) { closeDrawer26(); render(); } }; };
+  $("#sk116x", v).onclick = async () => { const cells = [[{ v: "SKILL MATRIX", s: 1 }], [{ v: "Employee", s: 2 }, { v: "Department", s: 2 }, ...S.map(s => ({ v: s, s: 2 }))], ...E.map(e => [{ v: e.name, s: 3 }, { v: e.dept || "", s: 3 }, ...S.map(s => ({ v: +((e.skills || {})[s] || 0) || "", s: 8 }))])];
+    saveFile(`Skill matrix ${todayISO()}.xlsx`, await buildXlsx([{ name: "Skill matrix", cells, cols: [26, 16, ...S.map(() => 6)], realXlsx: true, freeze108: 2 }])); };
+};
+/* bank reconciliation */
+const brsParse116 = async f => {
+  let rows = [];
+  if (/\.csv$/i.test(f.name)) { const t = await f.text(); rows = t.split(/\r?\n/).map(l => { const out = []; let cur = "", q = false; for (const ch of l) { if (ch === '"') q = !q; else if (ch === "," && !q) { out.push(cur); cur = ""; } else cur += ch; } out.push(cur); return out.map(x => x.trim()); }); }
+  else { await loadScript(LIBS.sheetjs); const X = window.XLSX; const wb = X.read(await f.arrayBuffer(), { type: "array", cellDates: true }); rows = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, dateNF: "yyyy-mm-dd" }); }
+  const hi = rows.findIndex(r => r.some(c => /date/i.test(c)) && r.some(c => /debit|withdraw|dr\b/i.test(c)) && r.some(c => /credit|deposit|cr\b/i.test(c))); if (hi < 0) throw new Error("Could not find the Date / Debit / Credit columns");
+  const H = rows[hi].map(c => String(c).toLowerCase()), ix = re => H.findIndex(c => re.test(c)), iD = ix(/date/), iN = ix(/narration|description|particular|remark/), iDr = ix(/debit|withdraw|\bdr\b/), iCr = ix(/credit|deposit|\bcr\b/);
+  const nd = s => { s = String(s || "").trim(); let m = s.match(/^(\d{4})-(\d{2})-(\d{2})/); if (m) return m[0]; m = s.match(/^(\d{1,2})[\/.-](\d{1,2})[\/.-](\d{2,4})/); if (m) return `${m[3].length === 2 ? "20" + m[3] : m[3]}-${m[2].padStart(2, "0")}-${m[1].padStart(2, "0")}`; const d = new Date(s); return isNaN(d) ? "" : d.toISOString().slice(0, 10); };
+  const amt = s => Number(String(s || "").replace(/[^\d.-]/g, "")) || 0;
+  return rows.slice(hi + 1).map(r => ({ date: nd(r[iD]), text: r[iN] || "", dr: amt(r[iDr]), cr: amt(r[iCr]) })).filter(x => x.date && (x.dr || x.cr));
+};
+VIEWS.brs116 = v => {
+  bizSync28(); const B = window.__brs116 || [];
+  const book = [...all28("rcpt").map(x => ({ id: x.id, no: x.no, date: x.date, amt: num(x.amount), side: "cr", who: x.customer || x.party || "" })), ...all28("spay").map(x => ({ id: x.id, no: x.no, date: x.date, amt: num(x.amount), side: "dr", who: x.supplier || x.party || "" })), ...all28("exp").map(x => ({ id: x.id, no: x.no, date: x.date, amt: num(x.amount), side: "dr", who: x.head || x.party || "" }))].filter(x => x.amt);
+  const used = new Set(), M = B.map(b => { const side = b.cr ? "cr" : "dr", a = b.cr || b.dr, hit = book.find(k => !used.has(k.id) && k.side === side && Math.abs(k.amt - a) < 1 && Math.abs((new Date(k.date) - new Date(b.date)) / 864e5) <= 5); if (hit) used.add(hit.id); return { ...b, hit }; });
+  const un = M.filter(x => !x.hit), from = B.length ? B.map(b => b.date).sort()[0] : "", to = B.length ? B.map(b => b.date).sort().pop() : "", bookOnly = book.filter(k => !used.has(k.id) && from && k.date >= from && k.date <= to);
+  v.innerHTML = top62("Accounts", "Bank reconciliation", "Load the bank statement (CSV or Excel from net banking). Every line is matched with receipts and payments in the ERP by amount and date (±5 days).", `<label class="btn primary">⬆ Load bank statement<input type="file" id="brs116f" hidden accept=".csv,.xls,.xlsx"></label>`)
+    + (!B.length ? `<div class="empty" style="padding:24px"><b>No statement loaded</b>Download the statement from net banking as CSV / Excel and load it here.</div>` : `<div class="md111g" style="margin-bottom:12px"><div class="md111k"><b>${B.length}</b><span>Bank lines ${esc(dmy(from))} – ${esc(dmy(to))}</span></div><div class="md111k"><b>${M.length - un.length}</b><span>Matched</span></div><div class="md111k ${un.length ? "bad" : ""}"><b>${un.length}</b><span>In bank, not in ERP</span></div><div class="md111k ${bookOnly.length ? "warn" : ""}"><b>${bookOnly.length}</b><span>In ERP, not in bank</span></div></div>
+      <section class="panel"><header><h2>Bank statement</h2></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Date</th><th>Narration</th><th class="num">Debit ₹</th><th class="num">Credit ₹</th><th>ERP entry</th></tr></thead><tbody>
+      ${M.map(x => `<tr><td>${esc(dmy(x.date))}</td><td>${esc(x.text)}</td><td class="num">${x.dr ? inr28(x.dr) : ""}</td><td class="num">${x.cr ? inr28(x.cr) : ""}</td><td>${x.hit ? `<span class="chip ok">✓ ${esc(x.hit.no || "")}</span> <small>${esc(x.hit.who)}</small>` : '<span class="chip bad">Not in ERP</span>'}</td></tr>`).join("")}</tbody></table></div></section>
+      ${bookOnly.length ? `<section class="panel" style="margin-top:12px"><header><h2>In ERP but not in the bank</h2></header><div class="body"><table class="t"><tbody>${bookOnly.map(k => `<tr><td>${esc(dmy(k.date))}</td><td>${esc(k.no || "")}</td><td>${esc(k.who)}</td><td class="num">${inr28(k.amt)}</td><td>${k.side === "cr" ? "Receipt" : "Payment"}</td></tr>`).join("")}</tbody></table></div></section>` : ""}`);
+  $("#brs116f", v).onchange = async e => { const f = e.target.files[0]; if (!f) return; try { window.__brs116 = await brsParse116(f); toast(`${window.__brs116.length} bank lines loaded`); render(); } catch (er) { toast(er.message, "bad"); } };
+};
+/* menu entries + dashboard */
+try {
+  const add = (m, g, c) => { const M = MODS32.find(x => x.id === m); if (!M) return; (M.groups[g] ||= []).push(c); try { CARDMOD64.set(c, m); } catch { } };
+  Object.entries(REG116).forEach(([k, R]) => add(R.mod, R.mod === "hr" && k === "intv" ? "Transactions" : "Masters", [R.t, "reg116", { rg116: k }, R.due ? "Due dates in colour" : "Register"]));
+  add("hr", "Masters", ["Skill matrix", "skill116", {}, "Employee × skill levels"]);
+  add("accounts", "Transactions", ["Bank reconciliation", "brs116", {}, "Match the bank statement"]);
+  Object.entries(REG116).filter(([, R]) => R.due).forEach(([k, R]) => DASHK111.push([R.mod, `${R.t}: due / expired`, () => regRows116(k).filter(x => ["bad", "warn"].includes(dueSt116(x[R.due])[0])).length, "reg116", { rg116: k }, "warn"]));
+  HELP110.push([/fire|extinguish/i, "Admin ▸ Fire extinguishers", "reg116", { rg116: "fire" }, "Every extinguisher with location and next refill; red when expired."], [/fssai|licen[cs]e|renewal|noc/i, "Admin ▸ Licences & renewals", "reg116", { rg116: "lic" }, "FSSAI, fire NOC, factory licence … with valid-till dates."], [/maintenance|civil|electrical|mechanical/i, "Admin ▸ Maintenance", "reg116", { rg116: "mnt" }, "Overall, civil, electrical, mechanical work with next due."], [/posh/i, "HR ▸ POSH committee meetings", "reg116", { rg116: "posh" }, "Doc no, date, members, minutes."], [/interview/i, "HR ▸ Interview forms", "reg116", { rg116: "intv" }, "Candidate, post, panel, rating, result."], [/skill/i, "HR ▸ Skill matrix", "skill116", {}, "Employee × skill levels 1–4."], [/shelf|expiry|expire/i, "Store ▸ Shelf-life materials", "reg116", { rg116: "shelf" }, "Batch and expiry of every material."], [/reconcil|bank statement/i, "Accounts ▸ Bank reconciliation", "brs116", {}, "Load the bank statement - it matches receipts and payments."]);
+} catch (e) { console.warn("p116 menu", e); }
+document.head.insertAdjacentHTML("beforeend", `<style>.rg116t{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}.rg116t button{border:1px solid var(--line,#dfe5ee);background:var(--surface,#fff);border-radius:20px;padding:6px 12px;cursor:pointer;font:inherit}
+.rg116t button.on{background:#0b2a57;color:#fff;border-color:#0b2a57}.rg116t i{font-style:normal;background:#ec6f1c;color:#fff;border-radius:10px;padding:0 6px;margin-left:4px;font-size:12px}
+.sk116 td,.sk116 th{text-align:center;padding:4px}.sk116 td:first-child,.sk116 td:nth-child(2){text-align:left}.sk116 select{border:0;background:transparent;font:inherit;text-align:center}
+.sk116 .l1{background:#fdecea}.sk116 .l2{background:#fff4e5}.sk116 .l3{background:#e8f5e9}.sk116 .l4{background:#c8e6c9}</style>`);
+
 boot();
 
 </script>
