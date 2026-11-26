@@ -17071,6 +17071,78 @@ function askRivera110(q) {
   new MutationObserver(() => { try { add(); } catch { } }).observe(document.documentElement, { childList: true, subtree: true });
 }
 
+
+/* =============== p111: My dashboard - every person opens their own dashboard: their work, what waits for them, their department's numbers,
+   and one-tap buttons for the pages of their department. Admin / MD see every department. Dashboard button opens it. =============== */
+const DASHK111 = [
+  /* [module id, label, count(), route, params, tone] */
+  ["sales", "Open enquiries", () => all28("lead").filter(x => !["won", "lost"].includes(x.stage)).length, "crm", {}, ""],
+  ["sales", "Follow-ups due today", () => all28("lead").filter(x => !["won", "lost"].includes(x.stage) && x.next && x.next <= todayISO()).length, "crm", { crm: "follow" }, "warn"],
+  ["sales", "Quotations this month", () => (STATE.quotes || []).filter(q => String(q.date || "").slice(0, 7) === todayISO().slice(0, 7)).length, "register", {}, ""],
+  ["purchase", "POs waiting approval", () => all28("po").filter(p => p.status === "pending").length, "purchase", { pur: "po" }, "warn"],
+  ["purchase", "Indents to process", () => all28("po").filter(p => p.status === "indent").length, "purchase", { pur: "ind" }, ""],
+  ["purchase", "Deliveries overdue", () => all28("po").filter(p => ["approved", "sent", "part"].includes(p.status) && p.needBy && p.needBy < todayISO()).length, "purchase", { pur: "po" }, "bad"],
+  ["store", "Items below minimum", () => all28("item").filter(it => Number(it.min) > 0 && stockOf28(it.id) < Number(it.min)).length, "stock88", {}, "bad"],
+  ["store", "Stock items", () => all28("item").length, "stock88", {}, ""],
+  ["hr", "Employees", () => all28("emp").filter(e => e.status !== "left").length, "hr", {}, ""],
+  ["hr", "Leave to approve", () => all28("lv").filter(l => l.status === "applied").length, "leave", {}, "warn"],
+  ["hr", "Letters this month", () => all28("cert").filter(c => String(c.date || "").slice(0, 7) === todayISO().slice(0, 7)).length, "hrx", { h62: "letters" }, ""],
+  ["admin", "Assets", () => all28("fa").length, "assets62", {}, ""],
+  ["admin", "Warranties ending in 30 days", () => { const t = todayISO(), e = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10); return all28("fa").filter(a => a.warranty && a.warranty >= t && a.warranty <= e).length; }, "assets62", {}, "warn"],
+  ["admin", "Couriers not collected", () => all28("cr").filter(c => c.dir === "in" && /pending/i.test(c.status || "")).length, "courier", { cr62: "all" }, ""],
+  ["prod", "Repair jobs in progress", () => all28("job").filter(j => !["dispatched", "invoiced"].includes(j.stage)).length, "jobs", {}, ""],
+  ["service", "Repair jobs in progress", () => all28("job").filter(j => !["dispatched", "invoiced"].includes(j.stage)).length, "jobs", {}, ""],
+  ["ops", "Repair jobs in progress", () => all28("job").filter(j => !["dispatched", "invoiced"].includes(j.stage)).length, "jobs", {}, ""],
+];
+ROUTES.push(["mydash", "My dashboard", "dash29"]); try { ALWAYS34.push("mydash"); } catch { }
+VIEWS.mydash = v => {
+  bizSync28();
+  const me = me28(), u = AUTH.user || {}, t = todayISO(), adm = typeof isAdmin28 === "function" && isAdmin28();
+  const M = modsFor32(), mids = new Set(M.map(m => m.id)), safe = f => { try { return f(); } catch { return null; } };
+  /* my work */
+  const myWk = safe(() => all28("wk").filter(x => x.to === me && !["done", "cancelled"].includes(x.status) && x.src !== "plan")) || [];
+  const over = myWk.filter(x => x.due && String(x.due).slice(0, 10) < t);
+  const given = safe(() => all28("wk").filter(x => x.from === me && x.to !== me && !["done", "cancelled"].includes(x.status) && x.src !== "plan")) || [];
+  const reqWait = safe(() => all28("rq").filter(r => r.status === "open" && r.by !== me && isMyDept85(r.toDept))) || [];
+  const myReq = safe(() => all28("rq").filter(r => r.by === me && r.status === "open")) || [];
+  const lvAppr = safe(() => all28("lv").filter(l => l.status === "applied" && l.who !== me && (typeof canAppr71 !== "function" || canAppr71()))) || [];
+  const myCr = safe(() => all28("cr").filter(c => c.dir === "in" && c.forEmail === me && /pending/i.test(c.status || ""))) || [];
+  const fu = mids.has("sales") ? (safe(() => all28("lead").filter(x => !["won", "lost"].includes(x.stage) && x.next && x.next <= t && (adm || x.owner === me || (!x.owner && x.by === me)))) || []) : [];
+  const card = (n, l, go, tone = "") => `<button type="button" class="md111k ${tone && n ? tone : ""}" data-go="${esc(JSON.stringify(go))}"><b>${n == null ? "-" : n}</b><span>${esc(l)}</span></button>`;
+  const mine = [card(myWk.length, "Work given to me", ["work", { w62: "dash" }]), card(over.length, "Overdue", ["work", { w62: "dash" }], "bad"), card(given.length, "Given by me - open", ["work", { w62: "given" }]),
+    card(reqWait.length, "Requests waiting for my department", ["rq85", {}], "warn"), card(myReq.length, "My open requests", ["rq85", {}]), ...(lvAppr.length ? [card(lvAppr.length, "Leave to approve", ["leave", {}], "warn")] : []), ...(myCr.length ? [card(myCr.length, "Courier for me", ["courier", {}], "warn")] : []), ...(fu.length ? [card(fu.length, "Follow-ups due", ["crm", { crm: "follow" }], "warn")] : [])].join("");
+  /* department numbers */
+  const dk = DASHK111.filter(k => adm || mids.has(k[0])), seen = new Set(), byMod = {};
+  dk.forEach(k => { const key = k[1] + k[3]; if (seen.has(key)) return; seen.add(key); (byMod[k[0]] ||= []).push(card(safe(k[2]), k[1], [k[3], k[4]], k[5])); });
+  const modName = id => (MODS32.find(m => m.id === id) || {}).name || id;
+  const dept = Object.entries(byMod).map(([id, cs]) => `<section class="md111s"><h3>${esc(modName(id))}</h3><div class="md111g">${cs.join("")}</div></section>`).join("");
+  /* my list */
+  const list = myWk.slice().sort((a, b) => String(a.due || "9").localeCompare(String(b.due || "9"))).slice(0, 10);
+  const lst = list.length ? `<table class="t"><thead><tr><th>Work</th><th>From</th><th>Due</th><th>%</th></tr></thead><tbody>${list.map(x => `<tr data-wk="${x.id}" style="cursor:pointer"><td><b>${esc(x.title || "")}</b></td><td>${esc(x.fromName || nm62(x.from || ""))}</td><td ${x.due && String(x.due).slice(0, 10) < t ? 'style="color:#c0392b;font-weight:600"' : ""}>${x.due ? esc(dmy(String(x.due).slice(0, 10))) : "-"}</td><td>${+x.pct || 0}%</td></tr>`).join("")}</tbody></table>` : '<div class="empty" style="padding:18px"><b>Nothing pending</b>No open work is given to you.</div>';
+  /* quick buttons: the Transactions pages of my departments */
+  const quick = M.flatMap(m => (m.groups.Transactions || []).slice(0, 4).map(c => ({ c, m }))).slice(0, 16);
+  const hr = new Date().getHours(), hi = hr < 12 ? "Good morning" : hr < 17 ? "Good afternoon" : "Good evening";
+  v.innerHTML = top62("Dashboard", `${hi}, ${esc((u.name || "").split(" ")[0] || "")}`, `${new Date().toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}${M.length ? " · " + (M.length > 4 ? "All departments" : M.map(m => m.name.replace(/ & .*/, "")).join(", ")) : ""}`,
+      `${allowed21("gs") ? `<button class="btn" type="button" id="md111s">Sales dashboard</button>` : ""}<button class="btn primary" type="button" id="md111w">${icon("plus")}Work update</button>`)
+    + (loadNote28() || `<section class="md111s"><h3>My work</h3><div class="md111g">${mine}</div></section>${dept}
+      <div class="md111c"><section class="panel"><header><h2>Work given to me</h2><span style="flex:1"></span><button class="btn sm" type="button" data-go='["work",{"w62":"dash"}]'>Open Work Board</button></header><div class="body" style="overflow:auto">${lst}</div></section>
+      <section class="panel"><header><h2>Quick open</h2></header><div class="body"><div class="md111q">${quick.map(({ c, m }) => `<button type="button" class="btn" data-go="${esc(JSON.stringify([c[1], c[2] || {}]))}" title="${esc(c[3] || "")}">${esc(c[0])}<small>${esc(m.name.replace(/ & .*/, ""))}</small></button>`).join("")}</div></div></section></div>`);
+  $$("[data-go]", v).forEach(b => b.onclick = () => { try { const [r, p] = JSON.parse(b.dataset.go); Object.assign(BIZ.ui, p || {}); location.hash = r; render(); } catch { } });
+  $$("[data-wk]", v).forEach(tr => tr.onclick = () => { BIZ.ui.w62 = "dash"; location.hash = "work"; });
+  $("#md111w", v) && ($("#md111w", v).onclick = () => { BIZ.ui.w62 = "upd"; location.hash = "work"; render(); });
+  $("#md111s", v) && ($("#md111s", v).onclick = () => go32("gs", { gs: "dash" }));
+};
+dashGo51 = function () { location.hash = "mydash"; if (STATE.route === "mydash") render(); };
+document.head.insertAdjacentHTML("beforeend", `<style>
+.md111s{margin:0 0 14px}.md111s h3{margin:0 0 8px;font-size:13px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted,#5d6878)}
+.md111g{display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:10px}
+.md111k{display:flex;flex-direction:column;align-items:flex-start;gap:2px;text-align:left;border:1px solid var(--line,#e3e8ef);border-left:4px solid #0b2a57;background:var(--surface,#fff);border-radius:12px;padding:12px 14px;cursor:pointer;font:inherit;color:inherit;transition:.15s}
+.md111k:hover{box-shadow:0 4px 14px rgba(2,49,91,.12)}.md111k b{font-size:24px;line-height:1.1;color:#0b2a57}.md111k span{font-size:13px;color:var(--muted,#5d6878)}
+.md111k.warn{border-left-color:#ec6f1c}.md111k.warn b{color:#c25a12}.md111k.bad{border-left-color:#c0392b}.md111k.bad b{color:#c0392b}
+.md111c{display:grid;grid-template-columns:minmax(0,1.6fr) minmax(0,1fr);gap:12px}@media(max-width:1000px){.md111c{grid-template-columns:1fr}}
+.md111q{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.md111q .btn{flex-direction:column;align-items:flex-start;height:auto;padding:9px 11px;text-align:left;white-space:normal}.md111q .btn small{color:var(--muted,#667);font-size:11px;font-weight:400}
+</style>`);
+
 boot();
 
 </script>
