@@ -17337,13 +17337,232 @@ async function repair113(s) {
 {
   let last = 0;
   addEventListener("error", e => { const now = Date.now(); if (now - last < 15000 || !signed26?.()) return; last = now; if (/ResizeObserver|Script error/i.test(String(e.message || ""))) return;
-    setTimeout(() => { try { $$(".sg106o").forEach(x => x.remove()); render(); } catch { } try { const b = $("#ar110b"); if (b && !$("#ar110")) { b.classList.add("ar113p"); b.textContent = "💬 Something went wrong - I can fix it"; b.onclick = () => { b.classList.remove("ar113p"); b.textContent = "💬 Ask Rivera"; b.onclick = null; b.click(); }; } } catch { } }, 300); });
+    setTimeout(() => { try { $$(".sg106o").forEach(x => x.remove()); render(); } catch { } try { const b = $("#ar110b"); if (b && !$("#ar110")) { b.classList.add("ar113p"); b.textContent = "💬 Something went wrong - I can fix it"; const o = b.__o113 || b.onclick; b.__o113 = o; b.onclick = () => { b.classList.remove("ar113p"); b.textContent = "💬 Ask Rivera"; b.onclick = o; o && o(); }; } } catch { } }, 300); });
 }
 document.head.insertAdjacentHTML("beforeend", `<style>
 #ar110 form .ar113m,#ar110 form .ar113l{border:1px solid #cfd7e3;background:#fff;color:#0b2a57;border-radius:10px;padding:0 10px;cursor:pointer;font:600 13px Arial,sans-serif}
 #ar110 form .ar113m.on{background:#c0392b;color:#fff;border-color:#c0392b;animation:ar113 1s infinite}@keyframes ar113{50%{opacity:.6}}
 #ar110b.ar113p{background:#c0392b;animation:ar113 1.2s infinite}
 </style>`);
+
+
+/* =============== p114: Ask Rivera does mail and calendar too
+   "mail to Ranjani about NCL quotation …" -> Gmail opens with To, Subject and the message written - you press Send
+   "meeting with MD tomorrow 3 pm about dispatch" / "remind me to call NCL at 11 am" -> Google Calendar opens with the event filled (invitees added) - you press Save =============== */
+const time114 = s => { const m = String(s).match(/\b(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)\b|\b(\d{1,2})[:.](\d{2})\b|\b(\d{1,2})\s*(?:mani|o'?clock)\b/i); if (!m) return null;
+  let h = +(m[1] || m[4] || m[6]), mi = +(m[2] || m[5] || 0); const ap = (m[3] || "").toLowerCase(); if (ap.startsWith("p") && h < 12) h += 12; if (ap.startsWith("a") && h === 12) h = 0; if (!ap && m[6] && h < 8) h += 12; return [h, mi]; };
+const people114 = s => { s = String(s || "").toLowerCase(); const P = [...(W62.team || []).map(u => ({ name: u.name, email: u.email })), ...all28("emp").filter(e => e.email).map(e => ({ name: e.name, email: e.email }))], out = new Map();
+  P.forEach(p => String(p.name || "").toLowerCase().split(/[\s.]+/).filter(w => w.length > 2).forEach(w => { if (new RegExp(`\\b${w}\\b`).test(s) && p.email) out.set(p.email, p); }));
+  if (/\bmd\b|\bmd sir\b/.test(s)) { try { const md = (typeof md62 === "function" && md62()) || ""; if (md) out.set(md, { name: "MD", email: md }); } catch { } }
+  return [...out.values()]; };
+const gcal114 = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
+ACT113.unshift(
+  [/^(please\s+)?(send|write|draft)?\s*(a\s+)?(mail|email|e-mail)\b|\b(mail|email)\s+(to|pannu|anuppu)\b/i, async s => {
+    const P = people114(s), sub = (s.match(/\b(?:about|regarding|subject|for)\s+(.+?)(?:\s+(?:saying|that|message|body)\b|$)/i) || [])[1] || "", body = (s.match(/\b(?:saying|that|message|body)\s+(.+)$/i) || [])[1] || "";
+    const me = AUTH.user?.name || "", text = `Dear ${P.length === 1 ? P[0].name.split(" ")[0] : "All"},\n\n${body || (sub ? `This is regarding ${sub}.` : "")}\n\nRegards,\n${me}\nRivera Group of Companies`;
+    openLink(`https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(P.map(p => p.email).join(","))}&su=${encodeURIComponent(sub ? sub.replace(/^./, c => c.toUpperCase()) : "")}&body=${encodeURIComponent(text)}`);
+    return `Gmail is open${P.length ? ` to <b>${P.map(p => esc(p.name)).join(", ")}</b>` : ""}${sub ? ` - subject <b>${esc(sub)}</b>` : ""}. Check the message and press <b>Send</b>.${P.length ? "" : "<br><small>I could not find the person - type their email in the To box.</small>"}`; }],
+  [/\b(meeting|meet|schedule|calendar|remind me|reminder|appointment with|call with)\b/i, async s => {
+    const day = dayOf113(s), tm = time114(s) || [10, 0], P = people114(s), st = new Date(`${day}T${String(tm[0]).padStart(2, "0")}:${String(tm[1]).padStart(2, "0")}:00+05:30`), en = new Date(st.getTime() + (/\bremind/i.test(s) ? 15 : 60) * 60e3);
+    const what = (s.match(/\b(?:about|regarding|for|to)\s+(.+?)(?:\s+(?:at|on|tomorrow|today|naalai)\b|$)/i) || [])[1] || "";
+    const title = /\bremind/i.test(s) ? (what ? what.replace(/^./, c => c.toUpperCase()) : "Reminder") : `Meeting${P.length ? " with " + P.map(p => p.name.split(" ")[0]).join(", ") : ""}${what ? " - " + what : ""}`;
+    openLink(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${gcal114(st)}/${gcal114(en)}&ctz=Asia/Kolkata&details=${encodeURIComponent("Added from Rivera ERP - " + s)}${P.length ? "&add=" + encodeURIComponent(P.map(p => p.email).join(",")) : ""}`);
+    return `Google Calendar is open: <b>${esc(title)}</b> on <b>${esc(st.toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }))}</b>${P.length ? ` with ${P.map(p => esc(p.name)).join(", ")} invited` : ""}. Press <b>Save</b> there.`; }]
+);
+try { HELP110.push([/\bmail\b|\bemail\b|gmail/i, "Mail from Ask Rivera", "mydash", {}, "Say “mail to Ranjani about NCL quotation saying please send the revised rate” - Gmail opens filled, you press Send."], [/calendar|meeting|remind/i, "Calendar from Ask Rivera", "mydash", {}, "Say “meeting with MD tomorrow 3 pm about dispatch” - Google Calendar opens filled, you press Save."]); } catch { }
+new MutationObserver(() => { const M = $("#ar110 .m .ar110a .acts"); if (!M || M.dataset.m114) return; M.dataset.m114 = 1;
+  ["Mail to MD about today's work", "Meeting tomorrow 11 am"].forEach(x => { M.insertAdjacentHTML("beforeend", `<button type="button" data-s114="${x}">${x}</button>`); });
+  $$("[data-s114]", M).forEach(b => b.onclick = () => { const F = $("#ar110 form"), I = $("input", F); I.value = b.dataset.s114; F.requestSubmit ? F.requestSubmit() : F.onsubmit(new Event("submit")); }); }).observe(document.documentElement, { childList: true, subtree: true });
+
+
+/* =============== p115: (1) Ask Rivera only does work inside the person's own modules
+   (2) Current company: Rivera Coil Manufacturing / Rivera Coil Rewinding / All - HR lists follow it, new employees get it
+   (3) Employee: company RCM / RCR; one tap Active · Long absent · Relieved · Terminated (with the last day)
+   (4) Floor staff module: leave or permission with reason and who takes over the work -> Production supervisor -> Operations -> HR,
+       each one approves or rejects with a note; Leave approvals page; approvers set by Admin
+   (5) Accounts ▸ Depreciation: Finance sets method (SLM / WDV), rate or life, salvage per asset - this year's depreciation,
+       accumulated and book value worked out per financial year; Excel with formulas =============== */
+
+/* ---- (1) assistant stays inside the person's modules ---- */
+{
+  const routeOf = re => { const s = String(re); return /assign|give/.test(s) ? "work" : /salary|offer|appoint/.test(s) ? "hrx" : /indent|buy/.test(s) ? "purchase" : /asset/.test(s) ? "assets62" : ""; };
+  const _a = askRivera110;
+  askRivera110 = function (q) {
+    const s = String(q || "").trim(), a = ACT113.find(([re]) => re.test(s));
+    if (a) { const r = routeOf(a[0]); if (r && !okRoute32(r)) { const m = MODS32.find(x => Object.values(x.groups).flat().some(c => c[1] === r)); return { html: `That is done in <b>${esc(m ? m.name : r)}</b>, which is not one of your modules. Ask your manager or ${esc(m ? m.name : "that department")} to do it, or send them a request.`, acts: [{ l: "📨 Send a request", go: () => rqPanel85(null, { type: "gen", subject: s }) }] }; } }
+    return _a.apply(this, arguments);
+  };
+}
+
+/* ---- (2) current company ---- */
+const CO115 = () => localStorage.getItem("rqs.co115") || "";
+const CONAME115 = { "": "All companies", RCM: "Rivera Coil Manufacturing India Pvt Ltd", RCR: "Rivera Coil Rewinding" };
+{
+  new MutationObserver(() => { const b = $(".ln36-co b"); if (!b || b.dataset.c115) return; b.dataset.c115 = 1;
+    b.outerHTML = `<select id="co115" class="co115" aria-label="Current company" data-c115="1">${Object.entries(CONAME115).map(([k, l]) => `<option value="${k}" ${CO115() === k ? "selected" : ""}>${l}</option>`).join("")}</select>`;
+    $("#co115").onchange = e => { localStorage.setItem("rqs.co115", e.target.value); toast(`Company: ${CONAME115[e.target.value]}`); render(); }; }).observe(document.documentElement, { childList: true, subtree: true });
+  /* the Current Company box on the home page */
+  new MutationObserver(() => { const s = $("#co51"); if (!s || s.dataset.c115) return; s.dataset.c115 = 1;
+    s.innerHTML = Object.entries(CONAME115).map(([k, l]) => `<option value="${k}" ${CO115() === k ? "selected" : ""}>${l}</option>`).join("");
+    s.onchange = e => { localStorage.setItem("rqs.co115", e.target.value); toast(`Company: ${CONAME115[e.target.value]}`); render(); }; }).observe(document.documentElement, { childList: true, subtree: true });
+  /* HR lists follow the chosen company: rows of the other company's employees are hidden */
+  const _r = render; render = function () { const o = _r.apply(this, arguments); try { const c = CO115(); if (c) $$("[data-em],[data-e84e],[data-e89e],[data-d90e]").forEach(el => { const e = BIZ.rows[el.dataset.em || el.dataset.e84e || el.dataset.e89e || el.dataset.d90e]; if (e && e.kind === "emp" && coOf93(e) !== c) (el.closest("tr") || el).style.display = "none"; }); } catch { } return o; };
+}
+
+/* ---- (3) employee: company + status buttons ---- */
+const EST115 = [["active", "Active", "ok"], ["long", "Long absent", "warn"], ["relieved", "Relieved", ""], ["terminated", "Terminated", "bad"]];
+const empSt115 = e => e.status === "left" ? (e.exitType || "relieved") : (e.longAbsent ? "long" : "active");
+{
+  const _p = empPanel29;
+  empPanel29 = function (src) {
+    if (!src) src = { kind: "emp", status: "active", dept: "Winding", pf: "yes", esi: "yes", doj: todayISO(), company: CO115() || "RCM" };
+    _p.call(this, src);
+    try {
+      const D = $("#dr26"); if (!D) return; const r = BIZ.rows[src.id] || src;
+      const f = $(".fields", D); if (f && !$('[data-k="company"]', f)) f.insertAdjacentHTML("afterbegin", `<label class="f">Company<select data-k="company"><option value="RCM" ${coOf93(r) === "RCM" ? "selected" : ""}>RCM - Rivera Coil Manufacturing</option><option value="RCR" ${coOf93(r) === "RCR" ? "selected" : ""}>RCR - Rivera Coil Rewinding</option></select></label>`);
+      const sel = $('[data-k="status"]', D); if (sel) sel.closest("label").style.display = "none";
+      if (!src.id) return;
+      const cur = empSt115(r);
+      f.insertAdjacentHTML("beforebegin", `<div class="st115"><span class="small muted">Status</span>${EST115.map(([k, l, t]) => `<button type="button" class="btn sm ${cur === k ? "primary" : ""}" data-st115="${k}">${l}</button>`).join("")}
+        <span class="small muted" id="st115n">${cur === "relieved" || cur === "terminated" ? `Last working day ${esc(dmy(r.left || ""))}` : cur === "long" ? `Long absent since ${esc(dmy(r.absentFrom || ""))}` : ""}</span></div>`);
+      $$("[data-st115]", D).forEach(b => b.onclick = async () => {
+        const k = b.dataset.st115, x = { ...r };
+        if (k === "active") Object.assign(x, { status: "active", longAbsent: "", exitType: "" });
+        if (k === "long") Object.assign(x, { status: "active", longAbsent: "1", absentFrom: x.absentFrom || todayISO() });
+        if (k === "relieved" || k === "terminated") { const d = $('[data-k="left"]', D)?.value || todayISO(); Object.assign(x, { status: "left", exitType: k, left: d, longAbsent: "" }); }
+        if (await save28(b, x, `${x.name}: ${EST115.find(s => s[0] === k)[1]}`)) { closeDrawer26(); empPanel29(BIZ.rows[x.id] || x); render(); }
+      });
+    } catch (e) { console.warn("p115 emp", e); }
+  };
+  /* status shown in employee tables */
+  const _r = render; render = function () { const o = _r.apply(this, arguments); try { $$("[data-em],[data-e84e],[data-e89e],[data-d90e]").forEach(el => { const id = el.dataset.em || el.dataset.e84e || el.dataset.e89e || el.dataset.d90e, e = BIZ.rows[id]; if (!e || e.kind !== "emp" || el.dataset.s115) return; el.dataset.s115 = 1; const s = empSt115(e); if (s !== "active") { const t = el.closest("tr")?.querySelector("td") || el; t.insertAdjacentHTML("beforeend", ` <span class="chip ${s === "terminated" ? "bad" : "warn"}">${EST115.find(x => x[0] === s)[1]}</span>`); } }); } catch { } return o; };
+}
+
+/* ---- (4) floor staff leave / permission with handover and 3-step approval ---- */
+const FLOW115 = [["prod", "Production supervisor"], ["ops", "Operations"], ["hr", "HR"]];
+const flvCfg115 = () => all28("sig").find(c => c.type === "cfg-flv115") || { kind: "sig", type: "cfg-flv115", name: "Floor leave approvers", prod: [], ops: [], hr: [] };
+const FLV115 = () => all28("lv").filter(x => x.fl115);
+const canStage115 = st => { if (typeof isAdmin28 === "function" && isAdmin28()) return true; const c = flvCfg115(), L = c[st] || [], me = me28(); if (L.length) return L.includes(me); const r = String(myRole21() || "").toLowerCase(); return st === "prod" ? /prod/.test(r) : st === "ops" ? /op/.test(r) : /\bhr\b|human/.test(r); };
+const stName115 = st => ({ prod: "Waiting: Production supervisor", ops: "Waiting: Operations", hr: "Waiting: HR", approved: "Approved", rejected: "Rejected" })[st] || st;
+const floorEmps115 = () => all28("emp").filter(e => e.status !== "left").sort((a, b) => String(a.name).localeCompare(String(b.name)));
+ROUTES.push(["floorlv", "Leave / permission request", "leave29"], ["lvappr", "Leave approvals", "check28"], ["dep115", "Depreciation", "acc29"]);
+ALWAYS34.push("floorlv", "lvappr");
+{ const _al = allowed21; allowed21 = function (r) { if (r === "floorlv" || r === "lvappr" || r === "mydash") return true; if (r === "dep115") return _al.call(this, "accounts") || _al.call(this, "assets62"); return _al.apply(this, arguments); }; }
+VIEWS.floorlv = v => {
+  bizSync28(); const U = BIZ.ui, me = me28(), E = floorEmps115(), mine = FLV115().filter(x => x.by === me || E.some(e => e.id === x.emp && e.email === me)).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const typ = U.fl115t || "leave";
+  v.innerHTML = top62("Floor staff", "Leave / permission request", "Give the reason and who takes over your work. It goes to the Production supervisor, then Operations, then HR.", "")
+    + (loadNote28() || `<div class="fl115"><section class="panel"><header><h2>New request</h2></header><div class="body">
+      <div class="seg" style="margin-bottom:10px">${[["leave", "Leave (days)"], ["perm", "Permission (hours)"]].map(([k, l]) => `<button type="button" class="${typ === k ? "on" : ""}" data-t115="${k}">${l}</button>`).join("")}</div>
+      <div class="fields">
+        <label class="f">Employee *<select id="fl115e"><option value="">- choose -</option>${E.map(e => `<option value="${e.id}" ${e.email && e.email === me ? "selected" : ""}>${esc(e.name)}${e.code ? " · " + esc(e.code) : ""}${e.dept ? " · " + esc(e.dept) : ""}</option>`).join("")}</select></label>
+        ${typ === "leave" ? `<label class="f">From *<input type="date" id="fl115f" value="${todayISO()}"></label><label class="f">To *<input type="date" id="fl115t" value="${todayISO()}"></label>`
+          : `<label class="f">Date *<input type="date" id="fl115f" value="${todayISO()}"></label><label class="f">From time *<input type="time" id="fl115a" value="10:00"></label><label class="f">To time *<input type="time" id="fl115b" value="12:00"></label>`}
+        <label class="f" style="grid-column:1/-1">Reason *<textarea id="fl115r" rows="2" placeholder="Why do you need leave / permission?"></textarea></label>
+        <label class="f">Work handed over to *<select id="fl115h"><option value="">- choose -</option>${E.map(e => `<option value="${e.id}">${esc(e.name)}${e.dept ? " · " + esc(e.dept) : ""}</option>`).join("")}</select></label>
+        <label class="f">Work handed over<input id="fl115w" placeholder="e.g. Coil taping of NCL job, machine 2"></label>
+      </div><div class="row" style="margin-top:12px;justify-content:flex-end"><button type="button" class="btn primary" id="fl115s">Send request</button></div></div></section>
+      <section class="panel"><header><h2>Requests</h2><span style="flex:1"></span><button type="button" class="btn sm" data-go115="lvappr">Leave approvals</button></header><div class="body" style="overflow:auto">${flvTable115(mine, false)}</div></section></div>`);
+  $$("[data-t115]", v).forEach(b => b.onclick = () => { U.fl115t = b.dataset.t115; render(); });
+  $$("[data-go115]", v).forEach(b => b.onclick = () => { location.hash = b.dataset.go115; });
+  $("#fl115s", v) && ($("#fl115s", v).onclick = async e => {
+    const emp = BIZ.rows[$("#fl115e").value], hand = BIZ.rows[$("#fl115h").value], reason = $("#fl115r").value.trim();
+    if (!emp) return toast("Choose the employee", "bad"); if (!reason) return toast("Reason is needed", "bad"); if (!hand) return toast("Choose who takes over the work", "bad"); if (hand.id === emp.id) return toast("Work must be handed to another person", "bad");
+    const r = { kind: "lv", fl115: 1, who: emp.email || emp.id, whoName: emp.name, ltype: typ, type: typ === "perm" ? "Permission" : LVT71[0], emp: emp.id, empName: emp.name, empCode: emp.code || "", dept: emp.dept || "", company: coOf93(emp), from: $("#fl115f").value, to: typ === "leave" ? $("#fl115t").value : $("#fl115f").value,
+      tFrom: typ === "perm" ? $("#fl115a").value : "", tTo: typ === "perm" ? $("#fl115b").value : "", reason, handTo: hand.id, handName: hand.name, handWork: $("#fl115w").value.trim(), status: "prod", date: todayISO(), by: me, byName: AUTH.user?.name || "", hist: [] };
+    if (typ === "leave" && r.to < r.from) return toast("To date is before From date", "bad");
+    if (await save28(e.target, r, "Request sent to the Production supervisor")) render();
+  });
+  wireFlv115(v);
+};
+function flvTable115(L, act) {
+  if (!L.length) return '<div class="empty" style="padding:16px"><b>No requests</b></div>';
+  return `<table class="t"><thead><tr><th>Employee</th><th>Leave / permission</th><th>Reason</th><th>Work to</th><th>Status</th>${act ? "<th></th>" : ""}</tr></thead><tbody>${L.map(x => `<tr>
+    <td><b>${esc(x.empName)}</b><br><small class="muted">${esc([x.empCode, x.dept].filter(Boolean).join(" · "))}</small></td>
+    <td>${x.ltype === "perm" ? `Permission ${esc(dmy(x.from))}<br><small>${esc(x.tFrom)}–${esc(x.tTo)}</small>` : `Leave ${esc(dmy(x.from))}${x.to !== x.from ? " – " + esc(dmy(x.to)) : ""}<br><small>${Math.round((new Date(x.to) - new Date(x.from)) / 864e5) + 1} day(s)</small>`}</td>
+    <td>${esc(x.reason)}</td><td>${esc(x.handName || "")}${x.handWork ? `<br><small class="muted">${esc(x.handWork)}</small>` : ""}</td>
+    <td><span class="chip ${x.status === "approved" ? "ok" : x.status === "rejected" ? "bad" : "warn"}">${esc(stName115(x.status))}</span>${(x.hist || []).map(h => `<br><small class="muted">${h.ok ? "✓" : "✗"} ${esc(h.stName)} · ${esc(h.byName)}${h.note ? " - " + esc(h.note) : ""}</small>`).join("")}</td>
+    ${act ? `<td style="white-space:nowrap">${FLOW115.some(f => f[0] === x.status) && canStage115(x.status) ? `<button type="button" class="btn sm primary" data-ok115="${x.id}">Approve</button> <button type="button" class="btn sm" data-no115="${x.id}">Reject</button>` : ""}</td>` : ""}</tr>`).join("")}</tbody></table>`;
+}
+function wireFlv115(v) {
+  const step = async (b, ok) => { const x = { ...BIZ.rows[b.dataset.ok115 || b.dataset.no115] }; if (!x.id) return; const note = ok ? "" : (prompt("Reason for rejecting?") || "").trim(); if (!ok && !note) return;
+    const i = FLOW115.findIndex(f => f[0] === x.status); x.hist = [...(x.hist || []), { st: x.status, stName: FLOW115[i][1], ok, note, by: me28(), byName: AUTH.user?.name || "", at: new Date().toISOString() }];
+    x.status = ok ? (FLOW115[i + 1] ? FLOW115[i + 1][0] : "approved") : "rejected";
+    if (await save28(b, x, ok ? (x.status === "approved" ? "Approved - HR done" : "Approved - sent to " + stName115(x.status).replace("Waiting: ", "")) : "Rejected")) {
+      render(); } };
+  $$("[data-ok115]", v).forEach(b => b.onclick = () => step(b, true)); $$("[data-no115]", v).forEach(b => b.onclick = () => step(b, false));
+}
+VIEWS.lvappr = v => {
+  bizSync28(); const U = BIZ.ui, tab = U.la115 || "me", A = FLV115().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+  const mine = A.filter(x => FLOW115.some(f => f[0] === x.status) && canStage115(x.status)), L = tab === "me" ? mine : tab === "open" ? A.filter(x => FLOW115.some(f => f[0] === x.status)) : A;
+  const adm = typeof isAdmin28 === "function" && isAdmin28(), c = flvCfg115(), team = (W62.team || []);
+  v.innerHTML = top62("Floor staff", "Leave approvals", "Production supervisor → Operations → HR. Approve or reject with a reason.", `<button type="button" class="btn primary" data-go115="floorlv">${icon("plus")}New request</button>`)
+    + (loadNote28() || `<div class="seg" style="margin-bottom:12px">${[["me", `Waiting for me (${mine.length})`], ["open", "All waiting"], ["all", "All"]].map(([k, l]) => `<button type="button" class="${tab === k ? "on" : ""}" data-la115="${k}">${l}</button>`).join("")}</div>
+      <section class="panel"><div class="body" style="overflow:auto">${flvTable115(L, true)}</div></section>
+      ${adm ? `<details class="panel" style="margin-top:12px"><summary style="padding:12px 14px;cursor:pointer"><b>Approvers</b> <span class="small muted">(Admin) - who approves at each step</span></summary><div class="body"><div class="fields">
+        ${FLOW115.map(([k, l]) => `<label class="f">${l}<select multiple size="5" data-ap115="${k}">${team.map(u => `<option value="${esc(u.email)}" ${(c[k] || []).includes(u.email) ? "selected" : ""}>${esc(u.name)}</option>`).join("")}</select></label>`).join("")}
+        </div><div class="row" style="margin-top:10px;justify-content:flex-end"><span class="small muted" style="flex:1">Ctrl + click to pick more than one. Nobody picked = anyone with that role.</span><button type="button" class="btn primary" id="ap115s">Save approvers</button></div></div></details>` : ""}`);
+  $$("[data-la115]", v).forEach(b => b.onclick = () => { U.la115 = b.dataset.la115; render(); });
+  $$("[data-go115]", v).forEach(b => b.onclick = () => { location.hash = b.dataset.go115; });
+  $("#ap115s", v) && ($("#ap115s", v).onclick = async e => { const x = { ...flvCfg115() }; FLOW115.forEach(([k]) => x[k] = [...$(`[data-ap115="${k}"]`, v).selectedOptions].map(o => o.value)); if (await save28(e.target, x, "Approvers saved")) render(); });
+  wireFlv115(v);
+};
+try {
+  MODS32.push({ id: "floor", name: "Floor staff", icon: "hr29", tone: "#2b8a3e", blurb: "Leave & permission", groups: { Transactions: [["Leave / permission request", "floorlv", {}, "Reason + who takes over the work"], ["Leave approvals", "lvappr", {}, "Production → Operations → HR"]] } });
+  const hr = MODS32.find(m => m.id === "hr"); hr && hr.groups.Transactions.splice(1, 0, ["Leave approvals (floor)", "lvappr", {}, "Production → Operations → HR"]);
+  const pr = MODS32.find(m => m.id === "prod"); pr && pr.groups.Transactions.push(["Leave approvals (floor)", "lvappr", {}, "Approve your team's leave / permission"]);
+  const op = MODS32.find(m => m.id === "ops"); op && op.groups.Transactions.push(["Leave approvals (floor)", "lvappr", {}, "Approve after Production"]);
+} catch (e) { console.warn("p115 mods", e); }
+try { DASHK111.push(["hr", "Floor leave waiting", () => FLV115().filter(x => FLOW115.some(f => f[0] === x.status) && canStage115(x.status)).length, "lvappr", {}, "warn"], ["prod", "Floor leave waiting", () => FLV115().filter(x => x.status === "prod" && canStage115("prod")).length, "lvappr", {}, "warn"], ["ops", "Floor leave waiting", () => FLV115().filter(x => x.status === "ops" && canStage115("ops")).length, "lvappr", {}, "warn"]); } catch { }
+
+/* ---- (5) depreciation ---- */
+const DEPDEF115 = { "Laptop / Computer": 3, "Mobile / SIM": 3, "Electronics": 10, "Machine / Equipment": 15, "Tools": 15, "Testing / Lab instrument": 10, "Vehicle": 8, "Furniture": 10, "Office equipment": 5, "Canteen": 10, "Software / Licence": 3, "Other": 10 };
+const fyOf115 = d => { const t = new Date(d || Date.now()), y = t.getMonth() >= 3 ? t.getFullYear() : t.getFullYear() - 1; return y; };
+function dep115(a, fy) {
+  const cost = num(a.value), buy = a.purchase || "", life = num(a.depLife) || DEPDEF115[a.category] || 10, sal = num(a.depSalvage) || Math.round(cost * 0.05), m = a.depMethod || "SLM";
+  const rate = m === "WDV" ? (num(a.depRate) || Math.round((1 - Math.pow(sal / Math.max(cost, 1), 1 / life)) * 10000) / 100) : (num(a.depRate) || Math.round(((cost - sal) / Math.max(cost, 1) / life) * 10000) / 100);
+  if (!cost || !buy) return { cost, life, rate, m, sal, year: 0, acc: 0, book: cost, open: cost };
+  const y0 = fyOf115(buy); let open = cost, acc = 0, year = 0;
+  for (let y = y0; y <= fy; y++) {
+    const s = y === y0 ? new Date(buy) : new Date(y, 3, 1), e = new Date(y + 1, 2, 31), days = Math.max(0, (e - s) / 864e5 + 1), part = Math.min(1, days / 365);
+    let d = m === "WDV" ? open * rate / 100 * part : cost * rate / 100 * part; d = Math.max(0, Math.min(d, open - sal));
+    if (y === fy) { year = d; } acc += d; if (y < fy) open -= d;
+  }
+  return { cost, life, rate, m, sal, year: Math.round(year), acc: Math.round(acc), book: Math.round(cost - acc), open: Math.round(open) };
+}
+VIEWS.dep115 = v => {
+  bizSync28(); const U = BIZ.ui, fy = +(U.dp115 || fyOf115()), co = CO115(), A = all28("fa").filter(a => !co || faCo109(a) === co).sort((a, b) => String(a.category || "").localeCompare(String(b.category || "")) || String(a.name).localeCompare(String(b.name)));
+  const R = A.map(a => ({ a, d: dep115(a, fy) })), tot = k => R.reduce((s, x) => s + (x.d[k] || 0), 0);
+  v.innerHTML = top62("Accounts", "Depreciation", `Financial year ${fy}-${String(fy + 1).slice(2)} · ${co ? CONAME115[co] : "all companies"} · change Method / Rate / Life / Salvage and it works out again`, `<select id="dp115y">${[0, 1, 2, 3, 4].map(i => fyOf115() - i).map(y => `<option value="${y}" ${y === fy ? "selected" : ""}>FY ${y}-${String(y + 1).slice(2)}</option>`).join("")}</select><button type="button" class="btn" id="dp115x">⬇ Excel (formulas)</button>`)
+    + (loadNote28() || `<div class="md111g" style="margin-bottom:12px"><div class="md111k"><b>${inr28(tot("cost"))}</b><span>Cost of ${R.length} assets</span></div><div class="md111k warn"><b>${inr28(tot("year"))}</b><span>Depreciation this year</span></div><div class="md111k"><b>${inr28(tot("acc"))}</b><span>Accumulated</span></div><div class="md111k"><b>${inr28(tot("book"))}</b><span>Book value 31 Mar ${fy + 1}</span></div></div>
+    <section class="panel"><div class="body" style="overflow:auto"><table class="t dp115"><thead><tr><th>Asset</th><th>Category</th><th>Bought</th><th class="num">Cost ₹</th><th>Method</th><th class="num">Rate %</th><th class="num">Life (yrs)</th><th class="num">Salvage ₹</th><th class="num">This year ₹</th><th class="num">Accumulated ₹</th><th class="num">Book value ₹</th></tr></thead><tbody>
+    ${R.map(({ a, d }) => `<tr data-dp="${a.id}"><td><b>${esc(a.name)}</b><br><small class="muted">${esc([a.tag, faCo109(a)].filter(Boolean).join(" · "))}</small></td><td>${esc(a.category || "")}</td><td>${a.purchase ? esc(dmy(a.purchase)) : '<span class="chip warn">no date</span>'}</td><td class="num">${d.cost ? inr28(d.cost) : '<span class="chip warn">no cost</span>'}</td>
+      <td><select data-f="depMethod"><option ${d.m === "SLM" ? "selected" : ""}>SLM</option><option ${d.m === "WDV" ? "selected" : ""}>WDV</option></select></td>
+      <td class="num"><input type="number" step="0.01" data-f="depRate" value="${a.depRate || ""}" placeholder="${d.rate}" style="width:70px"></td><td class="num"><input type="number" step="1" data-f="depLife" value="${a.depLife || ""}" placeholder="${d.life}" style="width:56px"></td><td class="num"><input type="number" step="1" data-f="depSalvage" value="${a.depSalvage || ""}" placeholder="${d.sal}" style="width:84px"></td>
+      <td class="num"><b>${inr28(d.year)}</b></td><td class="num">${inr28(d.acc)}</td><td class="num">${inr28(d.book)}</td></tr>`).join("") || '<tr><td colspan="11" class="muted">No assets yet - add them in Admin ▸ Asset repository.</td></tr>'}
+    </tbody></table></div></section><p class="small muted" style="margin:8px 2px">Empty boxes use the default (grey): SLM over the category life with 5% salvage, first year counted from the purchase date. Companies Act lives: computers 3, vehicles 8, furniture 10, plant & machinery 15 years.</p>`);
+  $("#dp115y", v).onchange = e => { U.dp115 = e.target.value; render(); };
+  $$("tr[data-dp] [data-f]", v).forEach(i => i.onchange = async () => { const a = { ...BIZ.rows[i.closest("tr").dataset.dp] }; a[i.dataset.f] = i.value; if (await save28(null, a, "")) render(); });
+  $("#dp115x", v).onclick = async () => {
+    const cells = [], put = (r, c, x) => { (cells[r] ||= [])[c] = x; }, H = ["Asset", "Category", "Bought", "Cost", "Method", "Rate %", "Life", "Salvage", "Opening WDV", "Days this FY", "This year", "Accumulated", "Book value"];
+    put(0, 0, { v: `DEPRECIATION - FY ${fy}-${String(fy + 1).slice(2)} (${co ? CONAME115[co] : "all companies"})`, s: 1 }); for (let i = 1; i < H.length; i++) put(0, i, { v: "", s: 1 });
+    H.forEach((h, i) => put(1, i, { v: h, s: 2 }));
+    R.forEach(({ a, d }, k) => { const r = k + 2, n = r + 1, fyS = `DATE(${fy},4,1)`, fyE = `DATE(${fy + 1},3,31)`;
+      [a.name, a.category || "", a.purchase || ""].forEach((x, i) => put(r, i, { v: x, s: 3 })); put(r, 3, { v: d.cost, s: 8 }); put(r, 4, { v: d.m, s: 3 }); put(r, 5, { v: d.rate, s: 8 }); put(r, 6, { v: d.life, s: 8 }); put(r, 7, { v: d.sal, s: 8 }); put(r, 8, { v: d.open, s: 8 });
+      put(r, 9, { f: `IF(C${n}="",365,MAX(0,${fyE}-MAX(${fyS},DATEVALUE(C${n}))+1))`, v: 365, s: 4 });
+      put(r, 10, { f: `ROUND(MAX(0,MIN(IF(E${n}="WDV",I${n},D${n})*F${n}/100*MIN(1,J${n}/365),I${n}-H${n})),0)`, v: d.year, s: 4 });
+      put(r, 11, { f: `D${n}-I${n}+K${n}`, v: d.acc, s: 4 }); put(r, 12, { f: `D${n}-L${n}`, v: d.book, s: 4 }); });
+    const e = R.length + 2; put(e, 0, { v: "Total", s: 9 }); put(e, 1, { v: "", s: 9 }); [[3, "cost"], [10, "year"], [11, "acc"], [12, "book"]].forEach(([c, k]) => { const L = "ABCDEFGHIJKLM"[c]; put(e, c, { f: `SUM(${L}3:${L}${e})`, v: tot(k), s: 9 }); });
+    saveFile(`Depreciation FY ${fy}-${String(fy + 1).slice(2)}.xlsx`, await buildXlsx([{ name: "Depreciation", cells, merges: ["A1:M1"], cols: [30, 20, 12, 12, 9, 8, 7, 11, 13, 10, 12, 13, 13], realXlsx: true, freeze108: 2 }]));
+  };
+};
+{ const _r = render; render = function () { const o = _r.apply(this, arguments); try { const b = $("#dp115x"); if (b && !b.dataset.x115) { b.dataset.x115 = 1; b.textContent = "⬇ Excel (formulas)"; } } catch { } return o; }; }
+try { const acc = MODS32.find(m => m.id === "accounts"); acc && acc.groups[acc.groups.Reports ? "Reports" : "Transactions"].push(["Depreciation", "dep115", {}, "Asset depreciation per financial year"]);
+  const ad = MODS32.find(m => m.id === "admin"); ad && (ad.groups.Reports ||= []).push(["Depreciation", "dep115", {}, "Book value of every asset"]); } catch { }
+document.head.insertAdjacentHTML("beforeend", `<style>.co115{font:700 15px inherit;border:1px solid var(--line,#dfe5ee);border-radius:8px;padding:4px 8px;background:var(--surface,#fff);color:inherit;max-width:100%}
+.st115{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 12px;padding:10px;border:1px solid var(--line,#e3e8ef);border-radius:10px;background:var(--bg2,#f7f9fc)}
+.fl115{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.4fr);gap:12px}@media(max-width:1100px){.fl115{grid-template-columns:1fr}}
+.dp115 input,.dp115 select{border:1px solid var(--line,#d6dde8);border-radius:6px;padding:3px 5px;font:inherit;text-align:right}</style>`);
 
 boot();
 
