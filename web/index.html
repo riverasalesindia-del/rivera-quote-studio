@@ -17232,6 +17232,119 @@ function rateNote112() {
   document.addEventListener("input", e => { const el = e.target, m = el && el.dataset && /^rows\.(\d+)\.value$/.exec(el.dataset.p || ""); if (!m || !STATE.work) return; const r = STATE.work.rows[+m[1]]; if (r) r.man = el.value !== ""; }, true);
 }
 
+
+/* =============== p113: (1) HR menu without repeats - one Certificates entry, one Payroll entry, one Employees list, Form IV under Reports
+   (2) Ask Rivera becomes a personal assistant: speak (🎤 English / தமிழ்) or type; it fills the form for you - leave, assign work,
+       certificate, offer letter, indent / PO, new asset - you only check and press Save; "my pending work" answers in the chat
+   (3) "not working / error / problem": it repairs the page itself (fresh data, newest app, page redrawn), shows what went wrong,
+       and if still stuck sends the problem with the details to Admin in one tap. A page that breaks is redrawn by itself once. =============== */
+
+/* ---- (1) HR menu ---- */
+try {
+  const hr = MODS32.find(m => m.id === "hr");
+  if (hr) {
+    const T = hr.groups.Transactions || [], Ms = hr.groups.Masters || [], R = hr.groups.Reports ||= [];
+    const drop = c => (c[1] === "hrx" && c[2]?.h62 === "cert" && c[2]?.ce) || (c[1] === "hr" && c[2]?.hp63) || c[1] === "emp84" || (c[1] === "hrx" && c[2]?.h62 === "form4");
+    hr.groups.Transactions = T.filter(c => !drop(c));
+    hr.groups.Masters = Ms.filter(c => !drop(c));
+    const tx = hr.groups.Transactions, add = (G, c, i) => { if (!G.some(x => x[1] === c[1] && JSON.stringify(x[2] || {}) === JSON.stringify(c[2] || {}))) { G.splice(i ?? G.length, 0, c); try { CARDMOD64.set(c, "hr"); } catch { } } };
+    tx.forEach(c => { if (c[1] === "hrx" && c[2]?.h62 === "letters") c[0] = "Offer & appointment letters"; if (c[1] === "hr" && c[2]?.hr === "pay" && !c[2]?.hp63) { c[0] = "Payroll (payslips, ESI / PF)"; } });
+    add(tx, ["Certificates (salary, experience, relieving, NOC)", "hrx", { h62: "cert" }, "Make, print and email any certificate"], 1);
+    add(R, ["Employee register (Form IV)", "hrx", { h62: "form4" }, "Statutory register - print"], 0);
+  }
+} catch (e) { console.warn("p113 hr menu", e); }
+
+/* ---- (2) personal assistant ---- */
+const dayOf113 = s => { const t = new Date(); s = String(s || "").toLowerCase();
+  if (/day after tomorrow|nalai marunaal|naalai marunaal/.test(s)) { t.setDate(t.getDate() + 2); return t.toISOString().slice(0, 10); }
+  if (/tomorrow|naalai|nalaiku|naalaiku/.test(s)) { t.setDate(t.getDate() + 1); return t.toISOString().slice(0, 10); }
+  const m = s.match(/\b(\d{1,2})[./-](\d{1,2})(?:[./-](\d{2,4}))?\b/); if (m) { const y = m[3] ? (m[3].length === 2 ? "20" + m[3] : m[3]) : String(t.getFullYear()); return `${y}-${String(m[2]).padStart(2, "0")}-${String(m[1]).padStart(2, "0")}`; }
+  return t.toISOString().slice(0, 10); };
+const person113 = s => { s = String(s || "").toLowerCase(); const P = [...(W62.team || []).map(u => ({ name: u.name, email: u.email })), ...all28("emp").map(e => ({ name: e.name, email: e.email, id: e.id }))];
+  let best = null, bl = 0; P.forEach(p => { const parts = String(p.name || "").toLowerCase().split(/[\s.]+/).filter(x => x.length > 2); parts.forEach(w => { if (s.includes(w) && w.length > bl) { best = p; bl = w.length; } }); }); return best; };
+const after113 = (s, words) => { const m = String(s).match(new RegExp(`(?:${words})\\s+(.+)$`, "i")); return m ? m[1].replace(/\b(please|pls|for me|now|today|tomorrow)\b/gi, "").trim() : ""; };
+const wait113 = (sel, ms = 2500) => new Promise(res => { const t0 = Date.now(); const f = () => { const el = $(sel); if (el || Date.now() - t0 > ms) return res(el); setTimeout(f, 80); }; f(); });
+const ACT113 = [
+  [/\b(leave|lieu|permission|vidumurai|leave venum)\b/i, async s => { const d = dayOf113(s); lvPanel71(); await wait113('#dr26 [data-k="from"]'); [["from", d], ["to", d]].forEach(([k, v]) => { const el = $(`#dr26 [data-k="${k}"]`); if (el) { el.value = v; el.dispatchEvent(new Event("change", { bubbles: true })); } }); return `I filled a leave request for <b>${esc(dmy(d))}</b>. Check the type and reason, then press <b>Save</b>.`; }],
+  [/\b(assign|give|kodu|kudu)\b.*\b(work|task|vela|velai)\b|\b(work|task)\b.*\b(to|ku)\b/i, async s => { const p = person113(s); BIZ.ui.w62 = "assign"; location.hash = "work"; render();
+    const t = await wait113("#as62t"); if (t) { t.value = s.replace(/\b(assign|give|kodu|kudu|work|task|to|ku|please|pls)\b/gi, " ").replace(p ? new RegExp(String(p.name).split(" ")[0], "i") : /$^/, "").replace(/\s+/g, " ").trim(); }
+    if (p) $$("[data-to62]").forEach(c => { if (c.value === p.email) c.checked = true; });
+    return `Assign work is ready${p ? ` for <b>${esc(p.name)}</b>` : ""}. Check the work text and finish-by time, then press <b>Assign</b>.`; }],
+  [/\b(salary|experience|relieving|noc)\b.*\b(cert|certificate|letter)?/i, async s => { const ty = /experience/i.test(s) ? "experience" : /reliev/i.test(s) ? "relieving" : /\bnoc\b/i.test(s) ? "noc" : "salary", p = person113(s);
+    BIZ.ui.h62 = "cert"; BIZ.ui.ce = ty; location.hash = "hrx"; render(); const sel = await wait113("#ce62e"); const t = $("#ce62t"); if (t) t.value = ty;
+    const e = p && (all28("emp").find(x => x.id === p.id) || all28("emp").find(x => x.email && x.email === p.email)); if (sel && e) sel.value = e.id;
+    return `${(CERT62.find(x => x[0] === ty) || [0, "Certificate"])[1]} is ready${e ? ` for <b>${esc(e.name)}</b>` : " - choose the employee"}. Press <b>Make certificate</b> or <b>📧 Make &amp; email</b>.`; }],
+  [/\b(offer|appointment|internship|intern)\b/i, async s => { const ty = /appoint/i.test(s) ? "appoint" : /intern/i.test(s) ? "intern" : "offer", L = LT89[ty]; if (!L) return "";
+    const nm = (s.match(/\bfor\s+([a-z .]+?)(?:\s+as\b|$)/i) || [])[1] || "", pos = (s.match(/\bas\s+(.+)$/i) || [])[1] || "";
+    letter89(ty, { kind: "cert", type: ty, date: todayISO(), salut: "Mr.", signName: "Mrs. S. Gowthami", signDesig: "Assistant General Manager – Plant & Projects", ...L.d, ...(nm ? { name: nm.replace(/\b\w/g, c => c.toUpperCase()).trim() } : {}), ...(pos ? { position: pos.trim() } : {}) });
+    return `${esc(L.t)} form is open${nm ? ` for <b>${esc(nm)}</b>` : ""}. Fill what is missing, then <b>Save &amp; print</b> or 📧 Email.`; }],
+  [/\b(indent|buy|vaanganum|vanganum)\b|\b(new|raise|make|create|podu)\b.*\b(po|purchase order|purchase)\b/i, async s => { const item = after113(s, "indent for|indent|po for|purchase|buy|order for|order") || s;
+    poPanel28({ kind: "po", status: "indent", date: todayISO(), reqBy: me28(), lines: [{ item: "", desc: item.replace(/\b(vaanganum|venum)\b/gi, "").trim(), qty: (s.match(/\b(\d+)\s*(nos|pcs|kg|roll|rolls|m|mtr|litre|l)\b/i) || [])[1] || 1, unit: ((s.match(/\b\d+\s*(nos|pcs|kg|roll|rolls|m|mtr|litre|l)\b/i) || [])[1] || "nos").toLowerCase(), rate: "", gst: 18 }] });
+    return `An indent is filled with <b>${esc(item)}</b>. Check the quantity and supplier, then press <b>Save</b> - Purchase gets it.`; }],
+  [/\b(add|new)\b.*\basset\b/i, async s => { location.hash = "assets62"; render(); faPanel62(null); const n = await wait113('#dr26 [data-k="name"]'); const nm = after113(s, "asset"); if (n && nm) n.value = nm; const c = $('#dr26 [data-k="category"]'); if (c && typeof guessCat109 === "function") c.value = guessCat109(nm);
+    return "A new asset is open. Fill the value and person, then press <b>Save</b>."; }],
+  [/\b(my|en|ennoda)\b.*\b(pending|work|vela|task)s?\b|\bpending\b/i, async () => { const me = me28(), L = all28("wk").filter(x => x.to === me && !["done", "cancelled"].includes(x.status) && x.src !== "plan").sort((a, b) => String(a.due || "9").localeCompare(String(b.due || "9")));
+    if (!L.length) return "Nothing is pending for you. 👍";
+    return `You have <b>${L.length}</b> open work:<ol style="margin:6px 0 0 18px;padding:0">${L.slice(0, 8).map(x => `<li>${esc(x.title)}${x.due ? ` <small style="color:${String(x.due).slice(0, 10) < todayISO() ? "#c0392b" : "#667"}">· due ${esc(dmy(String(x.due).slice(0, 10)))}</small>` : ""}</li>`).join("")}</ol>`; }],
+];
+/* ---- (3) self repair ---- */
+async function repair113(s) {
+  const steps = [], route = STATE.route, errs = (ERRLOG.list || []).slice(0, 5);
+  try { await bizSync28(true); } catch (e) { BIZ.err = BIZ.err || (e.message || String(e)); }
+  steps.push(BIZ.err ? "✗ Could not reach the Rivera server - check the internet / Wi-Fi, then try again" : "✓ Fresh data loaded from the server");
+  try { const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration(); if (reg) { await reg.update(); steps.push("✓ Checked for the newest version of the app"); } } catch { }
+  try { $$("#dr26,.sheet-ov,.sg106o").forEach(x => x.remove()); render(); steps.push("✓ This page was redrawn"); } catch (e) { steps.push("✗ The page could not be redrawn: " + esc(e.message || e)); }
+  const recent = errs.filter(e => Date.now() - (e.t || 0) < 30 * 60e3);
+  const what = recent.length ? `<br><small>What went wrong: ${recent.slice(0, 2).map(e => esc(String(e.msg || "").slice(0, 120))).join(" · ")}</small>` : "";
+  return { html: `I tried to fix it on <b>${esc((ROUTES.find(r => r[0] === route) || [0, route])[1])}</b>:<br>${steps.join("<br>")}${what}<br>Try again now. Still not working?`,
+    acts: [{ l: "📨 Send this problem to Admin", go: () => rqPanel85(null, { type: "gen", toDept: "admin", priority: "Urgent", subject: `App problem: ${(ROUTES.find(r => r[0] === route) || [0, route])[1]}`, details: `${s}\n\nPage: ${route}\nUser: ${AUTH.user?.name || ""} (${me28()})\nTime: ${new Date().toLocaleString("en-IN")}\nBrowser: ${navigator.userAgent}\nRecent errors:\n${errs.map(e => "- " + String(e.msg || "").slice(0, 200)).join("\n") || "none"}` }) },
+      { l: "🔄 Reload the app", go: () => location.reload() }] };
+}
+{
+  const _ask = askRivera110;
+  askRivera110 = function (q) {
+    const s = String(q || "").trim();
+    if (/(not work|n't work|error|problem|issue|stuck|hang|blank|wrong|bug|varala|aagala|agala|vela seyyala|loading)/i.test(s)) return { async: repair113(s) };
+    const a = ACT113.find(([re]) => re.test(s)); if (a) return { async: a[1](s).then(h => ({ html: h })) };
+    return _ask.apply(this, arguments);
+  };
+  /* the chat window: answers can be async, and a 🎤 button for voice */
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+  new MutationObserver(() => {
+    const P = $("#ar110"); if (!P || P.dataset.v113) return; P.dataset.v113 = 1;
+    const M = $(".m", P), F = $("form", P), I = $("input", F);
+    const show = r => { const id = "a" + Date.now(); M.insertAdjacentHTML("beforeend", `<div class="ar110a" id="${id}">${r.html || r.text || ""}${r.acts && r.acts.length ? `<div class="acts">${r.acts.map((a, i) => `<button type="button" data-i="${i}">${esc(a.l)}</button>`).join("")}</div>` : ""}</div>`); $$(`#${id} [data-i]`, M).forEach(b => b.onclick = () => r.acts[+b.dataset.i].go()); M.scrollTop = M.scrollHeight; };
+    const say = async q => { if (!q) return; M.insertAdjacentHTML("beforeend", `<div class="ar110q">${esc(q)}</div>`); M.scrollTop = M.scrollHeight; const r = askRivera110(q);
+      if (r && r.async) { M.insertAdjacentHTML("beforeend", `<div class="ar110a ar113w">Working on it…</div>`); try { const x = await r.async; $(".ar113w", M)?.remove(); show(x || { html: "Done." }); } catch (e) { $(".ar113w", M)?.remove(); show({ html: "Sorry, that did not work: " + esc(e.message || e) }); } }
+      else show(r); };
+    F.onsubmit = e => { e.preventDefault(); const q = I.value.trim(); I.value = ""; say(q); };
+    $$("[data-s]", M).forEach(b => b.onclick = () => say(b.dataset.s));
+    const tips = M.querySelector(".ar110a .acts"); if (tips) tips.insertAdjacentHTML("beforeend", ["Leave tomorrow", "Something is not working"].map(x => `<button type="button" data-s2="${x}">${x}</button>`).join("")), $$("[data-s2]", M).forEach(b => b.onclick = () => say(b.dataset.s2));
+    if (SR) {
+      F.insertAdjacentHTML("afterbegin", `<button type="button" class="ar113m" title="Speak (English)">🎤</button><button type="button" class="ar113l" title="Change language">EN</button>`);
+      let lang = localStorage.getItem("rqs.ar113.lang") || "en-IN"; const lb = $(".ar113l", F); lb.textContent = lang === "ta-IN" ? "தமி" : "EN";
+      lb.onclick = () => { lang = lang === "en-IN" ? "ta-IN" : "en-IN"; localStorage.setItem("rqs.ar113.lang", lang); lb.textContent = lang === "ta-IN" ? "தமி" : "EN"; };
+      const mb = $(".ar113m", F); let rec = null;
+      mb.onclick = () => { if (rec) { rec.stop(); return; } rec = new SR(); rec.lang = lang; rec.interimResults = true; rec.maxAlternatives = 1; mb.classList.add("on"); I.placeholder = "Listening… speak now";
+        rec.onresult = e => { const t = [...e.results].map(r => r[0].transcript).join(" "); I.value = t; if (e.results[e.results.length - 1].isFinal) { rec.stop(); } };
+        rec.onend = () => { mb.classList.remove("on"); I.placeholder = "How do I…  /  where is…  /  a name or number"; rec = null; const q = I.value.trim(); if (q) { I.value = ""; say(q); } };
+        rec.onerror = e => { toast(e.error === "not-allowed" ? "Allow the microphone for this site to talk to Ask Rivera" : "Did not catch that - try again", "bad"); };
+        rec.start(); };
+    }
+  }).observe(document.documentElement, { childList: true, subtree: true });
+}
+/* a page that breaks is redrawn once by itself, and Ask Rivera offers help */
+{
+  let last = 0;
+  addEventListener("error", e => { const now = Date.now(); if (now - last < 15000 || !signed26?.()) return; last = now; if (/ResizeObserver|Script error/i.test(String(e.message || ""))) return;
+    setTimeout(() => { try { $$(".sg106o").forEach(x => x.remove()); render(); } catch { } try { const b = $("#ar110b"); if (b && !$("#ar110")) { b.classList.add("ar113p"); b.textContent = "💬 Something went wrong - I can fix it"; b.onclick = () => { b.classList.remove("ar113p"); b.textContent = "💬 Ask Rivera"; b.onclick = null; b.click(); }; } } catch { } }, 300); });
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+#ar110 form .ar113m,#ar110 form .ar113l{border:1px solid #cfd7e3;background:#fff;color:#0b2a57;border-radius:10px;padding:0 10px;cursor:pointer;font:600 13px Arial,sans-serif}
+#ar110 form .ar113m.on{background:#c0392b;color:#fff;border-color:#c0392b;animation:ar113 1s infinite}@keyframes ar113{50%{opacity:.6}}
+#ar110b.ar113p{background:#c0392b;animation:ar113 1.2s infinite}
+</style>`);
+
 boot();
 
 </script>
