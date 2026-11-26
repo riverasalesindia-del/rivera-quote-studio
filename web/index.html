@@ -16575,6 +16575,264 @@ VIEWS.tape100 = v => {
   new MutationObserver(() => { try { fix(); } catch { } }).observe(document.documentElement, { childList: true, subtree: true });
 }
 
+
+/* =============== p109: (1) RCR papers on the real Rivera Coil Rewinding letterhead (header + footer from Synology RCR LetterHead-1.jpg)
+   (2) HR certificates and offer / appointment letters: "📧 Email" makes the PDF on the letterhead (e-signature or space to sign) and opens the mail
+   (3) Asset repository: RCM / RCR / All, category tiles first -> tap a category (Laptop ...) -> its assets, Back; folders can be removed; upload a bill -> new asset
+   (4) Product repository: any purchase can be added to the Asset repository in one tap
+   (5) A real search box in the top bar - searches pages and every record (employees, assets, POs, customers, suppliers, items, letters)
+   (6) Country list has every country; Country / State / District beside every City box
+   (7) the same page listed twice in one department menu under two names is shown once =============== */
+
+/* ---- (1) RCR letterhead ---- */
+try { LHSTATIC102.RCR = { head: "lh/rcr-head.jpg", foot: "lh/rcr-foot.jpg" }; } catch { }
+
+/* ---- (2) PDF on the letterhead + email ---- */
+const winAnsi109 = s => String(s || "").replace(/₹\s?/g, "Rs. ").replace(/[‐-‒]/g, "-").replace(/ /g, " ").replace(/[^\x09\x0a\x0d\x20-\x7e -ÿ–—‘’“”•…€]/g, "");
+function htmlBlocks109(html) {
+  const d = new DOMParser().parseFromString(`<div id="r">${html}</div>`, "text/html"), R = d.getElementById("r");
+  R.querySelectorAll("style,script,link,img.lhH102,img.lhF102").forEach(x => x.remove());
+  R.querySelectorAll("br").forEach(x => x.replaceWith("\n"));
+  const tx = el => el.textContent.replace(/[ \t\r\f\u00a0]+/g, " ").replace(/ *\n */g, "\n").trim();
+  const sigEl = R.querySelector(".ls108, .sg106"); let sig = null;
+  if (sigEl) {
+    const imgs = [...sigEl.querySelectorAll("img")].map(i => i.getAttribute("src")).filter(Boolean);
+    const ps = [...sigEl.querySelectorAll("p")]; const last = ps[ps.length - 1];
+    const lines = last ? tx(last).split("\n").map(x => x.trim()).filter(Boolean) : [];
+    const forLine = ps.length > 1 ? ps[0].textContent.trim() : "";
+    sig = { imgs, forLine, name: lines[0] || "", desig: lines.slice(1).join(", ") };
+    sigEl.remove();
+  }
+  const sel = "h1,h2,h3,h4,p,li,tr,div[style*=flex]", out = [];
+  const els = [...R.querySelectorAll(sel)].filter(e => !e.parentElement.closest(sel));
+  els.forEach(e => {
+    const tag = e.tagName.toLowerCase();
+    let t = tag === "tr" ? [...e.children].map(c => tx(c).replace(/\n/g, " ")).filter(Boolean).join("   |   ") : tx(e);
+    if (!t) return;
+    const flex = /display:\s*flex/.test(e.getAttribute("style") || "") && e.children.length === 2;
+    if (flex) t = [...e.children].map(c => tx(c)).join("\t");
+    else if (tag === "div") return;
+    const b = /^h[1-4]$/.test(tag) || (e.children.length === 1 && /^(B|STRONG)$/.test(e.children[0].tagName) && e.children[0].textContent.trim() === t);
+    out.push({ t, b, h: /^h[12]$/.test(tag), li: tag === "li", center: /^h[12]$/.test(tag) || /text-align:\s*center/.test(e.getAttribute("style") || "") });
+  });
+  return { blocks: out, sig };
+}
+async function letterPdf109(html, co) {
+  const PL = await getPdfLib(), doc = await PL.PDFDocument.create();
+  const F = await doc.embedFont(PL.StandardFonts.TimesRoman), FB = await doc.embedFont(PL.StandardFonts.TimesRomanBold);
+  const W = 595.28, H = 841.89, ML = 62, MR = 52, maxW = W - ML - MR, INK = PL.rgb(0.07, 0.07, 0.07);
+  const emb = async u => { if (!u) return null; try { const b = new Uint8Array(await (await fetch(u)).arrayBuffer()); return b[0] === 0x89 ? await doc.embedPng(b) : await doc.embedJpg(b); } catch { return null; } };
+  const hi = await emb(lhImg102(co, "head")), fi = await emb(lhImg102(co, "foot"));
+  const { blocks, sig } = htmlBlocks109(html);
+  let page, y, bottom;
+  const newPage = () => { page = doc.addPage([W, H]); y = H - 60; bottom = 54;
+    if (hi) { const h = W * hi.height / hi.width; page.drawImage(hi, { x: 0, y: H - h, width: W, height: h }); y = H - h - 26; }
+    if (fi) { const h = W * fi.height / fi.width; page.drawImage(fi, { x: 0, y: 0, width: W, height: h }); bottom = h + 22; } };
+  const wrap = (t, f, sz, w) => { const out = []; String(t).split("\n").forEach(par => { let line = ""; par.split(" ").forEach(wd => { const tr = line ? line + " " + wd : wd; if (f.widthOfTextAtSize(tr, sz) > w && line) { out.push(line); line = wd; } else line = tr; }); out.push(line); }); return out; };
+  newPage();
+  for (const bl of blocks) {
+    const f = bl.b ? FB : F, sz = bl.h ? 14 : 11.5, lead = sz * 1.42, t = winAnsi109(bl.t);
+    if (t.includes("\t")) { const [a, b] = t.split("\t").map(x => x.split("\n")), n = Math.max(a.length, b.length); if (y - lead * n < bottom) newPage();
+      for (let i = 0; i < n; i++) { if (a[i]) page.drawText(a[i], { x: ML, y, size: sz, font: f, color: INK }); if (b[i]) page.drawText(b[i], { x: W - MR - f.widthOfTextAtSize(b[i], sz), y, size: sz, font: f, color: INK }); y -= lead; } y -= 6; continue; }
+    const ind = bl.li ? 16 : 0, lines = wrap(t, f, sz, maxW - ind);
+    if (bl.h) y -= 6;
+    if (t.length < 45 && /^(authori[sz]ed signatory|authori[sz]ed signature|signature)$/i.test(t.trim())) { if (y - 60 < bottom) newPage(); y -= 46; }
+    lines.forEach((ln, i) => { if (y - lead < bottom) newPage(); const x = bl.center ? (W - f.widthOfTextAtSize(ln, sz)) / 2 : ML + ind; if (bl.li && i === 0) page.drawText("•", { x: ML + 4, y, size: sz, font: F, color: INK }); page.drawText(ln, { x, y, size: sz, font: f, color: INK }); y -= lead; });
+    y -= bl.h ? 8 : 5;
+  }
+  if (sig) {
+    if (y - 130 < bottom) newPage();
+    y -= 10; if (sig.forLine) { page.drawText(winAnsi109(sig.forLine), { x: ML, y, size: 11.5, font: F, color: INK }); y -= 8; }
+    let x = ML; const ih = 58;
+    for (const s of sig.imgs) { const im = await emb(s); if (!im) continue; const w = Math.min(170, ih * im.width / im.height); page.drawImage(im, { x, y: y - ih, width: w, height: ih }); x += w + 10; }
+    y -= ih + 16;
+    if (sig.name) { page.drawText(winAnsi109(sig.name), { x: ML, y, size: 11.5, font: FB, color: INK }); y -= 15; }
+    if (sig.desig) wrap(winAnsi109(sig.desig), F, 11, maxW).forEach(ln => { page.drawText(ln, { x: ML, y, size: 11, font: F, color: INK }); y -= 14; });
+  }
+  return new Blob([await doc.save()], { type: "application/pdf" });
+}
+/* run a print function but keep its paper instead of printing; the e-signature / sign-by-hand question is asked as usual */
+async function capturePrint109(run) {
+  const _p = printHtml28; let got = null;
+  printHtml28 = function (t, h) { got = { title: t, html: String(h || "") }; };
+  try { await run(); } finally { printHtml28 = _p; }
+  return got;
+}
+async function mailPdf109(blob, fileName, to, subject, text) {
+  const file = new File([blob], fileName, { type: "application/pdf" });
+  if (navigator.canShare && navigator.canShare({ files: [file] })) { try { await navigator.share({ files: [file], title: subject, text }); return toast("Shared"); } catch (e) { if (e && e.name === "AbortError") return; } }
+  saveFile(fileName, blob);
+  const u = `https://mail.google.com/mail/?view=cm&fs=1&to=${encodeURIComponent(to || "")}&su=${encodeURIComponent(subject)}&body=${encodeURIComponent(text + "\n\n(PDF attached: " + fileName + ")")}`;
+  openLink(u); toast(`PDF saved as "${fileName}" - attach it in the mail that opened`);
+}
+const empOf109 = r => all28("emp").find(e => e.id === r.emp) || all28("emp").find(e => sigNorm108(e.name) && sigNorm108(e.name) === sigNorm108(r.name || r.empName));
+async function emailLetter109(r, btn) {
+  if (!r) return; btn && (btn.disabled = true);
+  try {
+    const cap = await capturePrint109(() => print89(r)); if (!cap) return;
+    const sigMode = /class="ls108"[\s\S]*?<img/.test(cap.html);
+    const co = coOfHtml102(cap.html), blob = await letterPdf109(cap.html, co), L = (LT89[r.type] || {}).t || "Letter", e = empOf109(r);
+    await mailPdf109(blob, `${L} - ${r.name || ""}.pdf`.replace(/[\\/:*?"<>|]/g, " "), r.email || e?.email || "", `${L} - ${r.name || ""}`, `Dear ${r.name || "Sir / Madam"},\n\nPlease find attached your ${L.toLowerCase()}${sigMode ? " (digitally signed)" : ""}.\n\nRegards,\nHR - Rivera Group of Companies`);
+  } catch (er) { toast("Could not make the PDF: " + (er.message || er), "bad"); } finally { btn && (btn.disabled = false); }
+}
+async function emailCert109(btn) {
+  const e = BIZ.rows[$("#ce62e")?.value]; if (!e) return toast("Choose the employee first", "bad");
+  const a = await askSign106(`${(CERT62.find(x => x[0] === ($("#ce62t")?.value || "salary")) || [0, "Certificate"])[1]} - ${e.name}`); if (!a) return;
+  btn.disabled = true;
+  try {
+    const cap = await capturePrint109(() => cert62(btn)); if (!cap) return;
+    let h = cap.html; if (a === "hand") h = h.replace(/(<div class="(?:sg106|ls108)">[\s\S]*?)<img[^>]*>/g, "$1").replace(/<img[^>]*>/g, m => /lhH102|lhF102/.test(m) ? m : "");
+    const co = coOfHtml102(h), blob = await letterPdf109(h, co), T = cap.title.split(" - ")[0];
+    await mailPdf109(blob, `${cap.title}.pdf`.replace(/[\\/:*?"<>|]/g, " "), e.email || "", cap.title, `Dear ${e.name},\n\nPlease find attached your ${T.toLowerCase()}.\n\nRegards,\nHR - Rivera Group of Companies`);
+  } catch (er) { toast("Could not make the PDF: " + (er.message || er), "bad"); } finally { btn.disabled = false; }
+}
+{
+  const _r = render;
+  render = function () {
+    const o = _r.apply(this, arguments);
+    try {
+      $$("[data-ltp]").forEach(b => { if (b.dataset.m109) return; b.dataset.m109 = 1; b.insertAdjacentHTML("afterend", ` <button type="button" class="btn sm" data-ltm="${b.dataset.ltp}" title="Make the PDF and email it">📧 Email</button>`); });
+      $$("[data-ltm]").forEach(b => b.onclick = () => emailLetter109(BIZ.rows[b.dataset.ltm], b));
+      const g = $("#ce62g"); if (g && !$("#ce62m")) { g.insertAdjacentHTML("afterend", ` <button type="button" class="btn" id="ce62m" title="Issue the certificate, make the PDF on the letterhead and email it">📧 Make &amp; email</button>`); $("#ce62m").onclick = e => emailCert109(e.currentTarget); }
+    } catch (e) { console.warn("p109 email", e); }
+    return o;
+  };
+}
+
+/* ---- (3) Asset repository: company, category tiles, back, remove folder, upload a bill as a new asset ---- */
+const faCo109 = a => /rewind|\brcr\b/i.test(a.company || "") ? "RCR" : /manufact|\brcm\b/i.test(a.company || "") ? "RCM" : (a.company ? "Other" : "RCM");
+const FAICON109 = { "Laptop / Computer": "💻", "Mobile / SIM": "📱", "Electronics": "🔌", "Machine / Equipment": "⚙️", "Tools": "🛠", "Testing / Lab instrument": "🧪", "Vehicle": "🚚", "Furniture": "🪑", "Office equipment": "🖨", "Canteen": "☕", "Software / Licence": "💿", "Other": "📦" };
+{
+  const _v = VIEWS.assets62;
+  VIEWS.assets62 = v => {
+    _v(v);
+    try {
+      if (!$(".topbar", v) || !adm88() || $("#fa109", v)) return;
+      const U = BIZ.ui, co = U.fa109co || "", A = all28("fa").filter(a => !co || faCo109(a) === co);
+      /* company switch */
+      const nCo = k => all28("fa").filter(a => !k || faCo109(a) === k).length;
+      $(".topbar", v).insertAdjacentHTML("afterend", `<div id="fa109" class="fa109co">${[["", "All companies"], ["RCM", "RCM - Rivera Coil Manufacturing"], ["RCR", "RCR - Rivera Coil Rewinding"]].map(([k, l]) => `<button type="button" class="fa101f ${co === k ? "on" : ""}" data-c109="${k}">${l} <span>${nCo(k)}</span></button>`).join("")}
+        <span style="flex:1"></span><label class="btn sm" title="Upload a purchase bill - a new asset opens with the bill attached">⬆ Upload bill as asset<input type="file" accept="image/*,.pdf" hidden id="fa109u"></label></div>`);
+      $$("[data-c109]", v).forEach(b => b.onclick = () => { U.fa109co = b.dataset.c109; render(); });
+      if (co) $$("tr[data-fa]", v).forEach(tr => { const a = BIZ.rows[tr.dataset.fa]; if (a && faCo109(a) !== co) tr.remove(); });
+      /* remove folder (assets in it go back to the company folder) */
+      if (U.fa101 && $("#fa101", v) && !$("#fa109x", v)) {
+        $("#fa101", v).insertAdjacentHTML("beforeend", `<button type="button" class="btn sm ghost" id="fa109x" title="Remove this folder - its assets move back to their company folder">🗑 Remove folder</button>`);
+        $("#fa109x", v).onclick = e => sure71(e.currentTarget, async () => {
+          const old = U.fa101, R = all28("fa").filter(a => faFolder101(a) === old).map(a => ({ ...a, folder: "" }));
+          try { for (let i = 0; i < R.length; i += 150) await bizPut28(R.slice(i, i + 150)); let L = []; try { L = JSON.parse(localStorage.getItem(FAFOLD101) || "[]"); } catch { } localStorage.setItem(FAFOLD101, JSON.stringify(L.filter(x => x !== old))); U.fa101 = ""; toast(`Folder "${old}" removed${R.length ? ` - ${R.length} assets moved back` : ""}`); render(); } catch (er) { toast(er.message, "bad"); }
+        }, "Tap again to remove");
+      }
+      /* category tiles when nothing is chosen yet */
+      const tbl = $("table.t", v), box = tbl && tbl.closest(".body");
+      if (box && !U.fa62c && !U.fa62q && !U.fa101 && !U.fa62s) {
+        const cats = [...new Set([...FACAT62, ...A.map(a => a.category || "Other")])], cnt = {}, val = {};
+        A.forEach(a => { const c = a.category || "Other"; cnt[c] = (cnt[c] || 0) + 1; val[c] = (val[c] || 0) + (Number(a.value) || 0); });
+        tbl.parentElement.style.display = "none";
+        tbl.parentElement.insertAdjacentHTML("beforebegin", `<div class="fa109g">${cats.filter(c => cnt[c] || FACAT62.includes(c)).map(c => `<button type="button" class="fa109t ${cnt[c] ? "" : "zero"}" data-t109="${esc(c)}"><span class="i">${FAICON109[c] || "📦"}</span><b>${esc(c)}</b><small>${cnt[c] || 0} asset${cnt[c] === 1 ? "" : "s"}${val[c] ? " · " + inr28(val[c]) : ""}</small></button>`).join("")}</div>
+          <p class="small muted" style="margin:10px 2px 0">Tap a category to see its assets. Search above finds any asset directly.</p>`);
+        $$("[data-t109]", v).forEach(b => b.onclick = () => { U.fa62c = b.dataset.t109; render(); });
+      } else if (box && U.fa62c) {
+        box.insertAdjacentHTML("afterbegin", `<div class="row" style="gap:8px;align-items:center;margin-bottom:10px"><button type="button" class="btn sm" id="fa109b">← All categories</button><b>${FAICON109[U.fa62c] || "📦"} ${esc(U.fa62c)}</b><span class="chip">${$$("tr[data-fa]", v).length}</span></div>`);
+        $("#fa109b", v).onclick = () => { U.fa62c = ""; render(); };
+      }
+      $("#fa109u", v).onchange = async e => {
+        const fl = e.target.files[0]; if (!fl) return; e.target.value = "";
+        try { toast("Uploading the bill…"); const up = await upFile71(await shrink71(fl, 1800).catch(() => fl), "fa");
+          faPanel62(null); const D = $("#dr26"); const j = $("#fa101j", D); if (j) j.value = JSON.stringify([up]);
+          const set = (k, val) => { const el = $(`[data-k="${k}"]`, D); if (el && val != null && !el.value) el.value = val; };
+          set("category", U.fa62c || ""); set("company", co || ""); set("invoice", fl.name.replace(/\.[^.]+$/, "")); set("purchase", todayISO());
+          $("#fa101l", D) && ($("#fa101l", D).innerHTML = `<div class="small">📄 ${esc(fl.name)} attached - fill the name and value, then Save.</div>`);
+        } catch (er) { toast(er.message, "bad"); }
+      };
+    } catch (e) { console.warn("p109 assets", e); }
+  };
+}
+/* ---- (4) Product repository: a purchase -> Asset repository ---- */
+const guessCat109 = n => /laptop|desktop|computer|\bpc\b|monitor|printer|cpu/i.test(n) ? "Laptop / Computer" : /mobile|phone|sim\b/i.test(n) ? "Mobile / SIM" : /megger|meter|tester|clamp|insulation tester|multimeter|oscillo/i.test(n) ? "Testing / Lab instrument" : /grinder|drill|spanner|tool|cutter|plier|wrench/i.test(n) ? "Tools" : /chair|table|rack|cupboard|almirah|desk/i.test(n) ? "Furniture" : /car|bike|truck|vehicle|van\b/i.test(n) ? "Vehicle" : /machine|compressor|welding|crane|oven|press\b/i.test(n) ? "Machine / Equipment" : /ac\b|fan|cctv|camera|ups|router|switch/i.test(n) ? "Electronics" : "Other";
+{
+  const _o = openProd94;
+  openProd94 = function (p) {
+    _o.apply(this, arguments);
+    try {
+      const D = $("#dr26"); if (!D || !adm88()) return;
+      const H = p.hist.slice().sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      $$(".dr26-li", D).forEach((li, i) => { const h = H[i]; if (!h) return;
+        const have = all28("fa").some(a => a.fromBill === (h.id || "") + "|" + (h.no || "") + "|" + h.date && (h.id || h.no));
+        li.insertAdjacentHTML("afterend", `<div style="text-align:right;margin:-2px 0 6px">${have ? '<span class="chip ok">In Asset repository</span>' : `<button type="button" class="btn sm" data-a109="${i}">＋ Add to Asset repository</button>`}</div>`); });
+      $$("[data-a109]", D).forEach(b => b.onclick = () => { const h = H[+b.dataset.a109], amt = amt94(h);
+        closeDrawer26(); faPanel62(null); const F = $("#dr26");
+        const set = (k, val) => { const el = $(`[data-k="${k}"]`, F); if (el && val != null && val !== "") el.value = val; };
+        set("name", p.name); set("category", guessCat109(p.name)); set("company", h.company || "RCM"); set("purchase", h.date); set("invoice", [h.no, h.supplier].filter(Boolean).join(" · ")); set("value", amt || ""); set("status", "In use");
+        F.insertAdjacentHTML("afterbegin", `<input type="hidden" data-k="fromBill" value="${esc((h.id || "") + "|" + (h.no || "") + "|" + h.date)}">`);
+        toast("Check the details and press Save - it goes to the Admin Asset repository"); });
+    } catch (e) { console.warn("p109 prod", e); }
+  };
+}
+
+/* ---- (5) search box in the top bar: pages + records ---- */
+const SRCH109 = [
+  ["emp", "Employee", r => [r.name, r.code, r.no, r.designation, r.phone, r.email], r => `${r.code || r.no || ""} · ${r.designation || ""}`, r => empPanel29(r)],
+  ["fa", "Asset", r => [r.name, r.tag, r.serial, r.regNo, r.company, r.location], r => [r.tag, r.category, r.company].filter(Boolean).join(" · "), r => { location.hash = "assets62"; setTimeout(() => faPanel62(r), 300); }],
+  ["po", "Purchase order / indent", r => [r.no, r.supplier, (r.lines || []).map(l => l.desc).join(" ")], r => [dmy(r.date), r.status].filter(Boolean).join(" · "), r => poPanel28(r)],
+  ["item", "Stock item", r => [r.name, r.code, r.hsn], r => [r.code, r.unit].filter(Boolean).join(" · "), r => itemPanel28(r)],
+  ["cert", "Letter / certificate", r => [r.no, r.name, r.empName, r.position], r => [r.no, dmy(r.date)].filter(Boolean).join(" · "), r => { location.hash = "hrx"; }],
+  ["lead", "Enquiry / lead", r => [r.name, r.company, r.phone, r.email, r.need], r => [r.company, r.stage].filter(Boolean).join(" · "), r => { location.hash = "crm"; }],
+];
+function searchRecs109(s) {
+  const out = []; if (!s || s.length < 2 || typeof BIZ === "undefined" || !BIZ.rows) return out;
+  for (const [k, g, keys, sub, open] of SRCH109) { let n = 0;
+    for (const r of all28(k)) { if (n >= 6) break; let hay; try { hay = keys(r).flat().filter(Boolean).join(" ").toLowerCase(); } catch { continue; } if (!hay.includes(s)) continue; n++;
+      out.push({ g, t: r.name || r.empName || r.no || r.supplier || "-", d: (() => { try { return sub(r); } catch { return ""; } })(), go: () => { try { open(r); } catch (e) { console.warn(e); } } }); } }
+  try { MODS32.forEach(m => Object.values(m.groups).flat().forEach(c => { if (out.length < 60 && String(c[0]).toLowerCase().includes(s)) out.push({ g: "Page", t: c[0], d: m.label || m.id, go: () => { Object.assign(BIZ.ui, c[2] || {}); location.hash = c[1]; render(); } }); })); } catch { }
+  return out;
+}
+{
+  const _o = openSearch;
+  openSearch = function (pre) {
+    _o.apply(this, arguments);
+    try {
+      const q = $("#gsQ"), R = $("#gsR"); if (!q || !R) return;
+      if (typeof pre === "string" && pre) q.value = pre;
+      const more = () => { const s = q.value.trim().toLowerCase(), X = searchRecs109(s); $$(".gs109", R).forEach(x => x.remove()); if (!X.length) return;
+        if (/Nothing found/.test(R.textContent)) R.innerHTML = "";
+        R.insertAdjacentHTML("beforeend", X.map((r, i) => `<button class="gs-item gs109" data-i109="${i}"><small>${esc(r.g)}</small><b>${esc(r.t)}</b>${r.d ? `<span>${esc(r.d)}</span>` : ""}</button>`).join(""));
+        $$("[data-i109]", R).forEach(b => b.onclick = () => { $("#gsOv")?.remove(); X[+b.dataset.i109].go(); }); };
+      q.addEventListener("input", more); more();
+    } catch (e) { console.warn("p109 search", e); }
+  };
+  const box = () => { const ic = $("[data-n51s]"); if (!ic || $("#gs109b")) return;
+    ic.insertAdjacentHTML("beforebegin", `<button type="button" id="gs109b" class="gs109b" title="Search everything (Ctrl K)">${icon("search")}<span>Search employees, assets, POs, pages…</span></button>`);
+    ic.style.display = "none"; $("#gs109b").onclick = () => openSearch(); };
+  new MutationObserver(() => { try { box(); } catch { } }).observe(document.documentElement, { childList: true, subtree: true });
+}
+
+/* ---- (6) every country; Country / State / District beside every City box ---- */
+try {
+  const ALLC = ["Afghanistan","Albania","Algeria","Andorra","Angola","Antigua and Barbuda","Argentina","Armenia","Australia","Austria","Azerbaijan","Bahamas","Bahrain","Bangladesh","Barbados","Belarus","Belgium","Belize","Benin","Bhutan","Bolivia","Bosnia and Herzegovina","Botswana","Brazil","Brunei","Bulgaria","Burkina Faso","Burundi","Cambodia","Cameroon","Canada","Cape Verde","Central African Republic","Chad","Chile","China","Colombia","Comoros","Congo","Costa Rica","Croatia","Cuba","Cyprus","Czech Republic","Democratic Republic of the Congo","Denmark","Djibouti","Dominica","Dominican Republic","Ecuador","Egypt","El Salvador","Equatorial Guinea","Eritrea","Estonia","Eswatini","Ethiopia","Fiji","Finland","France","Gabon","Gambia","Georgia","Germany","Ghana","Greece","Grenada","Guatemala","Guinea","Guinea-Bissau","Guyana","Haiti","Honduras","Hong Kong","Hungary","Iceland","India","Indonesia","Iran","Iraq","Ireland","Israel","Italy","Ivory Coast","Jamaica","Japan","Jordan","Kazakhstan","Kenya","Kiribati","Kosovo","Kuwait","Kyrgyzstan","Laos","Latvia","Lebanon","Lesotho","Liberia","Libya","Liechtenstein","Lithuania","Luxembourg","Macau","Madagascar","Malawi","Malaysia","Maldives","Mali","Malta","Marshall Islands","Mauritania","Mauritius","Mexico","Micronesia","Moldova","Monaco","Mongolia","Montenegro","Morocco","Mozambique","Myanmar","Namibia","Nauru","Nepal","Netherlands","New Zealand","Nicaragua","Niger","Nigeria","North Korea","North Macedonia","Norway","Oman","Pakistan","Palau","Palestine","Panama","Papua New Guinea","Paraguay","Peru","Philippines","Poland","Portugal","Qatar","Romania","Russia","Rwanda","Saint Kitts and Nevis","Saint Lucia","Saint Vincent and the Grenadines","Samoa","San Marino","Sao Tome and Principe","Saudi Arabia","Senegal","Serbia","Seychelles","Sierra Leone","Singapore","Slovakia","Slovenia","Solomon Islands","Somalia","South Africa","South Korea","South Sudan","Spain","Sri Lanka","Sudan","Suriname","Sweden","Switzerland","Syria","Taiwan","Tajikistan","Tanzania","Thailand","Timor-Leste","Togo","Tonga","Trinidad and Tobago","Tunisia","Turkey","Turkmenistan","Tuvalu","Uganda","Ukraine","United Arab Emirates","United Kingdom","United States","Uruguay","Uzbekistan","Vanuatu","Vatican City","Venezuela","Vietnam","Yemen","Zambia","Zimbabwe"];
+  const top = COUNTRIES100.slice(0, 12);
+  COUNTRIES100.length = 0; COUNTRIES100.push(...top, ...ALLC.filter(c => !top.includes(c)));
+  const _f = field28;
+  field28 = function (f, r) {
+    const h = _f.apply(this, arguments);
+    try { if (f && f[0] === "city" && r && !r.__no71 && !/data-k="country"/.test(h)) return `<label class="f">Country<input data-k="country" value="${esc(r.country || "India")}"></label>` + h; } catch { }
+    return h;
+  };
+} catch (e) { console.warn("p109 country", e); }
+
+/* ---- (7) one page, one name in each department menu ---- */
+try { MODS32.forEach(m => { const seen = new Set(); Object.keys(m.groups).forEach(g => { m.groups[g] = m.groups[g].filter(c => { const k = c[1] + "|" + JSON.stringify(c[2] || {}); if (seen.has(k)) return false; seen.add(k); return true; }); }); }); } catch { }
+
+document.head.insertAdjacentHTML("beforeend", `<style>
+.fa109co{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin:0 0 10px}
+.fa109g{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:10px}
+.fa109t{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:1px solid var(--line,#e3e8ef);background:var(--surface,#fff);border-radius:12px;padding:12px 14px;cursor:pointer;font:inherit;color:inherit;transition:.15s}
+.fa109t:hover{border-color:#02315B;box-shadow:0 4px 14px rgba(2,49,91,.12)}.fa109t .i{font-size:24px}.fa109t b{font-size:14px}.fa109t small{color:var(--muted,#667)}.fa109t.zero{opacity:.55}
+.gs109b{display:flex;align-items:center;gap:8px;min-width:230px;max-width:340px;height:34px;padding:0 12px;border-radius:9px;border:1px solid rgba(255,255,255,.25);background:rgba(255,255,255,.1);color:#dfe7f1;font:inherit;font-size:13px;cursor:text;margin-right:6px}
+.gs109b svg{width:16px;height:16px;flex:0 0 auto}.gs109b span{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+@media(max-width:900px){.gs109b{min-width:0;width:38px;padding:0 10px}.gs109b span{display:none}}
+</style>`);
+
 boot();
 
 </script>
