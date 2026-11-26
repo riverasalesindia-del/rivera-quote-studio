@@ -17143,6 +17143,95 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .md111q{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}.md111q .btn{flex-direction:column;align-items:flex-start;height:auto;padding:9px 11px;text-align:left;white-space:normal}.md111q .btn small{color:var(--muted,#667);font-size:11px;font-weight:400}
 </style>`);
 
+
+/* =============== p112: (1) Sales ▸ Quote workings tape calculation = the production sheet A → Q (same as Production ▸ Tape calculator), also in the Excel
+   (2) Cost build-up per coil works itself out: change the copper kg (or coil type) and Insulation, Manufacturing, VPI, Testing and P&F follow the rate card
+       - a row you typed yourself is kept; copper ₹/kg is filled from the rate card when empty; a clear note when the rate card is empty =============== */
+/* ---- (1) tape A → Q ---- */
+const TQIN112 = [["A", "A · Strip width (mm)"], ["B", "B · Strip thickness (mm)"], ["C", "C · Covering on tape (mm)"], ["D", "D · Strips across"], ["E", "E · No. of turns"], ["F", "F · Slot width (mm)"], ["G", "G · Slot depth under wedge (mm)"], ["L", "L · Length from coil (mm)"], ["rollPrice", "Price per roll ₹"]];
+const tqP112 = t => ({ A: t.A, B: t.B, C: t.C ?? 0.3, D: t.D, E: t.E, F: t.F, G: t.G, L: num(t.L) || num(t.l), clr: t.clr ?? 0.5, lay: t.lay ?? 0.48, adv: num(t.pitch) || 12.5, roll: num(t.roll) || 50, coils: 1 });
+{
+  const _t = tapeCalc;
+  tapeCalc = function (t) {
+    t = t || {}; if (!(num(t.A) || num(t.F))) return _t.apply(this, arguments);
+    const r = tapeQ108(tqP112(t));
+    return { perTurn: r.N, turns: r.M, len: r.M * r.N, meters: r.P, rolls: r.Q, q: r };
+  };
+}
+function tapePanel112() {
+  const w = STATE.work, tp = $("#tapePanel"); if (!w || !tp || tp.dataset.q112) return;
+  tp.dataset.q112 = 1; w.tape ||= {}; if (w.tape.C == null) w.tape.C = 0.3;
+  const h2 = $("header h2", tp); if (h2) h2.innerHTML = `Tape calculation <span class="muted" style="font-weight:500">· production sheet A → Q</span>`;
+  const f = $(".fields", tp); if (f) f.innerHTML = TQIN112.map(([k, l]) => `<label class="f">${l}<input type="number" step="any" data-p="tape.${k}" value="${esc(String(w.tape[k] ?? ""))}"></label>`).join("")
+    + `<details style="grid-column:1/-1"><summary class="small muted">Shop constants (0.50 clearance · 0.48 per layer · 12.5 advance · 50 m roll)</summary><div class="fields" style="margin-top:8px">
+       <label class="f">Slot clearance for H (mm)<input type="number" step="any" data-p="tape.clr" value="${esc(String(w.tape.clr ?? 0.5))}"></label><label class="f">Build per tape layer (mm)<input type="number" step="any" data-p="tape.lay" value="${esc(String(w.tape.lay ?? 0.48))}"></label>
+       <label class="f">Tape advance per turn (mm)<input type="number" step="any" data-p="tape.pitch" value="${esc(String(w.tape.pitch ?? 12.5))}"></label><label class="f">Tape roll length (m)<input type="number" step="any" data-p="tape.roll" value="${esc(String(w.tape.roll ?? 50))}"></label></div></details>`;
+  const pre = $("#tapePreset", tp); if (pre) pre.style.display = "none";
+}
+function tapeOut112() {
+  const w = STATE.work, el = $("#tapeOut"); if (!w || !el || !(num(w.tape?.A) || num(w.tape?.F))) return;
+  const r = tapeQ108(tqP112(w.tape)), f2 = x => (Math.round(x * 100) / 100).toLocaleString("en-IN", { maximumFractionDigits: 2 }), qn = num(w.qty) || 1, rp = num(w.tape.rollPrice);
+  el.innerHTML = `<dt>E1 · Bar coil height (A+C)×D</dt><dd class="mono">${f2(r.E1)} mm</dd><dt>E2 · Bar coil width (B+C)×E</dt><dd class="mono">${f2(r.E2)} mm</dd>
+    <dt>H × I · Final coil (F−${f2(num(w.tape.clr ?? 0.5))}) × (G÷D)</dt><dd class="mono">${f2(r.H)} × ${f2(r.I)} mm</dd><dt>J · Insulation F−E1</dt><dd class="mono">${f2(r.J)} mm</dd><dt>K · Layers J÷${f2(num(w.tape.lay ?? 0.48))}</dt><dd class="mono">${f2(r.K)}</dd>
+    <dt>M · Tape turns L÷${f2(num(w.tape.pitch) || 12.5)}</dt><dd class="mono">${f2(r.M)}</dd><dt>N · (H×2)+(I×2)</dt><dd class="mono">${f2(r.N)} mm</dd><dt>O · 1 layer M×N</dt><dd class="mono">${f2(r.O)} m</dd>
+    <dt>P · Total tape O×K</dt><dd class="mono"><b>${f2(r.P)} m</b></dd><dt>Q · Rolls P÷${f2(num(w.tape.roll) || 50)}</dt><dd class="mono"><b>${f2(r.Q)}</b> per coil · ${Math.ceil(r.Q * qn).toLocaleString("en-IN")} rolls for ${qn.toLocaleString("en-IN")} coils</dd>
+    ${rp ? `<dt>Tape cost / coil</dt><dd class="mono"><b>₹${f2(r.Q * rp)}</b> · job ₹${(Math.ceil(r.Q * qn) * rp).toLocaleString("en-IN")}</dd>` : ""}`;
+}
+/* Excel: the A → Q block on the right (columns L-N) with live formulas */
+{
+  const _ws = workingsSheet;
+  workingsSheet = function (w) {
+    const s = _ws.apply(this, arguments);
+    try {
+      const T = (w && w.tape) || {}; if (!(num(T.A) || num(T.F))) return s;
+      const C = s.cells, put = (ri, ci, x) => { (C[ri] ||= [])[ci] = x; }, X = 11, r = tapeQ108(tqP112(T)), row = {};
+      let ri = 2; put(ri, X, { v: "Tape calculation (A → Q)", s: 1 }); put(ri, X + 1, { v: "", s: 1 }); put(ri, X + 2, { v: "", s: 1 }); s.merges = [...(s.merges || []), `L${ri + 1}:N${ri + 1}`]; ri++;
+      ["Item", "Value", "Unit"].forEach((h, i) => put(ri, X + i, { v: h, s: 2 })); ri++;
+      const P = tqP112(T), IN = [["A", "A Strip width", P.A, "mm"], ["B", "B Strip thickness", P.B, "mm"], ["C", "C Covering on tape", P.C, "mm"], ["D", "D Strips across", P.D, "Nos"], ["E", "E No. of turns", P.E, "Nos"], ["F", "F Slot width", P.F, "mm"], ["G", "G Slot depth under wedge", P.G, "mm"], ["L", "L Length from coil", P.L, "mm"], ["clr", "Slot clearance", P.clr, "mm"], ["lay", "Build per layer", P.lay, "mm"], ["adv", "Tape advance", P.adv, "mm"], ["roll", "Roll length", P.roll, "m"]];
+      IN.forEach(([k, l, v, u]) => { row[k] = ri + 1; put(ri, X, { v: l, s: 3 }); put(ri, X + 1, { v: num(v), s: 8 }); put(ri, X + 2, { v: u, s: 3 }); ri++; });
+      const c = k => "M" + row[k];
+      const OUT = [["E1", "E1 Bar coil height", () => `(${c("A")}+${c("C")})*${c("D")}`, "mm"], ["E2", "E2 Bar coil width", () => `(${c("B")}+${c("C")})*${c("E")}`, "mm"], ["H", "H Final coil width", () => `${c("F")}-${c("clr")}`, "mm"], ["I", "I Final coil height", () => `IF(${c("D")}=0,0,${c("G")}/${c("D")})`, "mm"],
+        ["J", "J Insulation thickness", () => `ROUND(${c("F")}-${c("E1")},1)`, "mm"], ["K", "K Layers", () => `IF(${c("lay")}=0,0,${c("J")}/${c("lay")})`, "Nos"], ["M", "M Tape turns", () => `IF(${c("adv")}=0,0,${c("L")}/${c("adv")})`, "Nos"], ["N", "N Coil width & height", () => `${c("H")}*2+${c("I")}*2`, "mm"],
+        ["O", "O Tape for 1 layer", () => `${c("M")}*${c("N")}/1000`, "m"], ["P", "P Total tape", () => `${c("O")}*${c("K")}`, "m"], ["Q", "Q Rolls per coil", () => `IF(${c("roll")}=0,0,${c("P")}/${c("roll")})`, "rolls"]];
+      OUT.forEach(([k, l, fx, u]) => { row[k] = ri + 1; put(ri, X, { v: l, s: 3 }); put(ri, X + 1, { f: fx(), v: r[k], s: 4 }); put(ri, X + 2, { v: u, s: 3 }); ri++; });
+      s.cols = s.cols || []; while (s.cols.length < 14) s.cols.push(10); s.cols[11] = 26; s.cols[12] = 12; s.cols[13] = 8;
+    } catch (e) { console.warn("p112 tape xlsx", e); }
+    return s;
+  };
+}
+
+/* ---- (2) cost build-up follows the copper kg ---- */
+const RCAUTO112 = { insulation: (t, kg) => Math.max(num(t.insMin), roundUp(num(t.insPerKg) * kg, 100)), manufacturing: (t, kg) => Math.max(num(t.mfgMin), roundUp(num(t.mfgPerKg) * kg, 100)), vpi: t => num(t.vpi), testing: t => num(t.test), pf: t => num(t.pf) };
+function autoRows112(force) {
+  const w = STATE.work; if (!w || w.type === "reinsulation" || !Array.isArray(w.rows)) return false;
+  const rc = SETTINGS.ratecard || {}, t = rc[rcKey(w.type)] || rc.diamond || {}, kg = w.rows.filter(r => r.mode === "kg").reduce((a, r) => a + num(r.kg), 0);
+  let ch = false;
+  w.rows.forEach((r, i) => {
+    if (r.mode === "kg" && !num(r.price) && num(rc.copperRate)) { r.price = num(rc.copperRate); ch = true; const el = $(`[data-p="rows.${i}.price"]`); if (el) el.value = r.price; }
+    const fn = RCAUTO112[r.kind]; if (!fn || r.mode !== "fixed" || r.man) return;
+    const v = fn(t, kg); if (v && v !== num(r.value)) { r.value = v; ch = true; const el = $(`[data-p="rows.${i}.value"]`); if (el && document.activeElement !== el) el.value = v; }
+  });
+  return ch;
+}
+function rateNote112() {
+  const tb = $("#wRows"); if (!tb) return; const panel = tb.closest(".panel"); if (!panel) return;
+  const empty = !hasRates(); let n = $("#rc112", panel);
+  if (empty && !n) { panel.querySelector("header").insertAdjacentHTML("afterend", `<div id="rc112" class="note warn" style="margin:10px 14px 0">The rate card is empty, so copper ₹/kg, insulation and manufacturing come as 0. Fill the rates once in <b>Rate card</b> (or load the Rivera data pack) - after that every new working fills itself and follows the copper kg. <button type="button" class="btn sm" id="rc112b" style="margin-left:6px">Open Rate card</button></div>`); $("#rc112b").onclick = () => { location.hash = "ratecard"; }; }
+  else if (!empty && n) n.remove();
+}
+{
+  const _u = updateW;
+  updateW = function () {
+    try { tapePanel112(); } catch (e) { console.warn("p112 tape panel", e); }
+    try { autoRows112(); } catch (e) { console.warn("p112 auto rows", e); }
+    const o = _u.apply(this, arguments);
+    try { tapeOut112(); rateNote112(); } catch (e) { console.warn("p112 out", e); }
+    return o;
+  };
+  /* typing a rate per coil yourself keeps it (it no longer follows the kg); clearing the box gives it back to the rate card */
+  document.addEventListener("input", e => { const el = e.target, m = el && el.dataset && /^rows\.(\d+)\.value$/.exec(el.dataset.p || ""); if (!m || !STATE.work) return; const r = STATE.work.rows[+m[1]]; if (r) r.man = el.value !== ""; }, true);
+}
+
 boot();
 
 </script>
