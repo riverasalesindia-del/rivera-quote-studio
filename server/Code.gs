@@ -1284,6 +1284,12 @@ function mails62(kind, x, before, r, me, mails) {
     if (x.status === "done" && (!before || before.status !== "done") && /@/.test(x.from || "") && x.from !== me.email && x.from !== md && x.src !== "plan" && x.src !== "courier")
       mails.push([x.from, "Completed: " + clean(x.title, 110), "<p><b>" + nm + "</b> completed the work you gave:</p><p><b>" + esc(x.title) + "</b></p>" + btn(link62("work"), "Open", "#1e8e3e")]);
   }
+  if (kind === "rm" && x.ap117) {
+    /* Work Board ▸ Approval: MD sir decides → the person gets a mail; the person answers a question → MD sir gets a mail */
+    if (before && before.status !== x.status && ["approved", "rejected", "query"].indexOf(x.status) >= 0 && /@/.test(x.who || "") && x.who !== me.email)
+      mails.push([x.who, (x.status === "approved" ? "Approved: " : x.status === "rejected" ? "Rejected: " : "MD sir has a question: ") + clean(x.subject, 100), "<p>Your approval request <b>" + esc(x.subject) + "</b> is <b>" + (x.status === "query" ? "waiting for your answer" : x.status) + "</b>.</p>" + (x.mdNote ? "<p><i>" + esc(x.mdNote) + "</i></p>" : "") + btn(link62("work"), "Open Work Board ▸ Approval", "#02315B")]);
+    if (before && before.status === "query" && x.status === "pending" && x.reply) mails.push([md62(), "Answer: " + clean(x.subject, 100), "<p><b>" + esc(x.whoName || x.who) + "</b> answered:</p><p><i>" + esc(x.reply) + "</i></p>" + btn(link62("work"), "Open Work Board ▸ Approval", "#02315B")]);
+  }
   if (kind === "cr" && !before && (x.dir === "in" || x.sendTo)) {
     /* courier app: big "Send to AGM" / "Send to HR" buttons; the phone may also name rivera.co.in addresses */
     var crBase = x.sendTo ? [x.sendTo === "HR" ? "hr@rivera.co.in" : "agm@rivera.co.in"].concat(String(x.notify || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /^[^@\s]+@rivera\.co\.in$/.test(s); }).slice(0, 4)) : crNotify62();

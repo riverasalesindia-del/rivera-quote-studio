@@ -17664,6 +17664,330 @@ document.head.insertAdjacentHTML("beforeend", `<style>.rg116t{display:flex;flex-
 .sk116 td,.sk116 th{text-align:center;padding:4px}.sk116 td:first-child,.sk116 td:nth-child(2){text-align:left}.sk116 select{border:0;background:transparent;font:inherit;text-align:center}
 .sk116 .l1{background:#fdecea}.sk116 .l2{background:#fff4e5}.sk116 .l3{background:#e8f5e9}.sk116 .l4{background:#c8e6c9}</style>`);
 
+
+/* =============== p117: (1) Work Board ▸ "Reminder" becomes "Approval": anyone asks MD sir for approval with the Excel screenshot
+       (paste a screenshot, pick a picture, or pick the Excel file - the sheet is drawn as a picture) → MD sir gets a mail with the picture
+       and sees "Waiting for my approval" in the app: Approve / Reject / Ask a question. The person follows the status.
+   (2) Work given to someone shows on that person's dashboard only - "New work for me" with Accept; a note when new work comes
+   (3) Accounts ▸ Bank & payments: bank accounts with opening balance, every payment / receipt / expense says which bank,
+       balance per bank, paid this month, supplier dues still to pay - on the Accounts dashboard
+   (4) Tally from the browser too: direct to TallyPrime (port 9000) when the browser allows, otherwise a Tally import file;
+       payments and expenses go to Tally as well; bank balances read from Tally (or from a Tally Excel export)
+   (5) Ask Rivera: approval, bank balance, supplier dues, customer outstanding, follow-ups today, stock of an item, Tally;
+       "not working" also clears search filters that hide rows =============== */
+const W117 = { tab: "", cur: null, att: [] };
+const isMD117 = () => { const m = String(W62.md || "").toLowerCase(); return (!!m && me28() === m) || adm62(); };
+const AP117 = () => all28("rm").filter(x => x.ap117);
+const APS117 = { pending: ["Waiting for MD sir", "warn"], approved: ["Approved", "ok"], rejected: ["Rejected", "bad"], query: ["MD sir asked a question", "navy"] };
+
+/* ---- the Excel sheet drawn as a picture ---- */
+async function xlsPng117(file) {
+  await loadScript(LIBS.sheetjs); const X = window.XLSX, wb = X.read(await file.arrayBuffer(), { type: "array" }), ws = wb.Sheets[wb.SheetNames[0]];
+  let rows = X.utils.sheet_to_json(ws, { header: 1, raw: false, defval: "" }).filter(r => r.some(c => String(c).trim()));
+  if (!rows.length) throw new Error("The sheet is empty");
+  rows = rows.slice(0, 45); const nc = Math.min(12, Math.max(...rows.map(r => r.length)));
+  const c = document.createElement("canvas"), x = c.getContext("2d"); x.font = "14px Calibri, Arial, sans-serif";
+  const W = [...Array(nc)].map((_, j) => Math.min(320, Math.max(48, ...rows.map(r => x.measureText(String(r[j] ?? "")).width + 16)))), H = 26, tw = W.reduce((a, b) => a + b, 0) + 40, th = H * (rows.length + 1) + 2, s = 2;
+  c.width = tw * s; c.height = th * s; x.scale(s, s); x.fillStyle = "#fff"; x.fillRect(0, 0, tw, th); x.textBaseline = "middle";
+  x.fillStyle = "#e8edf3"; x.fillRect(0, 0, tw, H); x.fillRect(0, 0, 40, th); x.strokeStyle = "#b8c2cf"; x.fillStyle = "#445";
+  x.font = "bold 12px Arial"; let cx = 40; W.forEach((w, j) => { x.strokeRect(cx + .5, .5, w, H); x.textAlign = "center"; x.fillText(String.fromCharCode(65 + j), cx + w / 2, H / 2); cx += w; });
+  rows.forEach((r, i) => { const y = H * (i + 1); x.font = "bold 12px Arial"; x.fillStyle = "#445"; x.textAlign = "center"; x.strokeRect(.5, y + .5, 40, H); x.fillText(i + 1, 20, y + H / 2); cx = 40;
+    W.forEach((w, j) => { const v = String(r[j] ?? ""), n = /^[-₹\d,.\s%]+$/.test(v) && /\d/.test(v); x.strokeRect(cx + .5, y + .5, w, H); x.font = `${i === 0 ? "bold " : ""}14px Calibri, Arial, sans-serif`; x.fillStyle = "#111"; x.textAlign = n ? "right" : "left"; let t = v; while (t.length > 2 && x.measureText(t).width > w - 10) t = t.slice(0, -2); x.fillText(t, n ? cx + w - 6 : cx + 6, y + H / 2); cx += w; }); });
+  return await new Promise(ok => c.toBlob(b => ok(new File([b], file.name.replace(/\.\w+$/, "") + ".png", { type: "image/png" })), "image/png"));
+}
+/* any picture → PNG (for the mail) */
+function png117(file, max = 1800) { return new Promise((ok, no) => { const img = new Image(), u = URL.createObjectURL(file); img.onload = () => { const sc = Math.min(1, max / Math.max(img.width, img.height)), c = document.createElement("canvas"); c.width = Math.round(img.width * sc); c.height = Math.round(img.height * sc); const x = c.getContext("2d"); x.fillStyle = "#fff"; x.fillRect(0, 0, c.width, c.height); x.drawImage(img, 0, 0, c.width, c.height); c.toBlob(b => { URL.revokeObjectURL(u); ok(b); }, "image/png"); }; img.onerror = () => no(new Error("Could not read the picture")); img.src = u; }); }
+async function addAtt117(file) {
+  if (!file) return;
+  if (/\.(xlsx|xls|xlsm|csv)$/i.test(file.name)) { const pic = await xlsPng117(file); W117.att.push({ file: pic, url: URL.createObjectURL(pic), from: file.name }); W117.att.push({ file, raw: 1 }); }
+  else if (/^image\//.test(file.type)) W117.att.push({ file, url: URL.createObjectURL(file) });
+  else if (/\.pdf$/i.test(file.name)) W117.att.push({ file, raw: 1 });
+  else throw new Error("Pick a picture, an Excel file or a PDF");
+  W117.att = W117.att.slice(-8);
+}
+const apDraw117 = () => { const h = $("#ap117at"); if (!h) return; h.innerHTML = W117.att.length ? W117.att.map((a, i) => a.url ? `<figure class="ap117f"><img src="${a.url}" alt=""><figcaption>${esc(a.from ? "Sheet of " + a.from : a.file.name)}</figcaption><button type="button" data-ax="${i}" title="Remove">✕</button></figure>` : `<figure class="ap117f ap117d"><span>📎</span><figcaption>${esc(a.file.name)}</figcaption><button type="button" data-ax="${i}" title="Remove">✕</button></figure>`).join("") : '<div class="ap117e">Press <b>Ctrl + V</b> here to paste the Excel screenshot<br><small>or use the buttons above</small></div>'; $$("[data-ax]", h).forEach(b => b.onclick = () => { W117.att.splice(+b.dataset.ax, 1); apDraw117(); }); };
+
+function apList117(L, md) {
+  if (!L.length) return `<div class="empty" style="padding:20px"><b>${md ? "Nothing waiting for your approval" : "No approval requests yet"}</b></div>`;
+  return `<div class="stack" style="gap:10px">${L.map(x => { const s = APS117[x.status] || APS117.pending; return `<section class="panel ap117c" data-ap="${x.id}"><div class="body">
+    <div class="row" style="gap:8px;flex-wrap:wrap;align-items:center"><b style="font-size:1.02rem;flex:1;min-width:200px">${esc(x.subject || x.title || "")}</b><span class="chip ${s[1]}">${s[0]}</span>${x.amount ? `<span class="chip navy">${inr28(x.amount)}</span>` : ""}</div>
+    <div class="small muted" style="margin:4px 0 6px">${esc(x.whoName || nm62(x.who))}${x.dept ? " · " + esc(x.dept) : ""} · ${esc(dt62(x.sentAt || x.at || x.date))}${x.no ? " · " + esc(x.no) : ""}</div>
+    ${x.details ? `<div style="white-space:pre-wrap;margin-bottom:6px">${esc(x.details)}</div>` : ""}
+    ${(x.rows || []).filter(r => (r.item || "").trim()).length ? `<ol style="margin:4px 0 8px 18px;padding:0">${x.rows.filter(r => (r.item || "").trim()).map(r => `<li>${r.dept ? `<b>${esc(r.dept)}:</b> ` : ""}${esc(r.item)}</li>`).join("")}</ol>` : ""}
+    <div class="row ap117th" style="gap:8px;flex-wrap:wrap">${(x.files || []).map(f => /^image\//.test(f.type || "") ? `<button type="button" class="ap117t" data-fo="${esc(f.id)}" data-fn="${esc(f.name)}" title="${esc(f.name)}"><img data-ft="${esc(f.id)}" alt="${esc(f.name)}"></button>` : `<button type="button" class="btn sm" data-fo="${esc(f.id)}" data-fn="${esc(f.name)}">📎 ${esc(f.name)}</button>`).join("")}</div>
+    ${x.mdNote ? `<div class="note ${x.status === "rejected" ? "bad" : x.status === "approved" ? "ok" : "warn"} small" style="margin-top:8px"><b>MD sir:</b> ${esc(x.mdNote)}${x.decidedAt ? ` <span class="muted">· ${esc(dt62(x.decidedAt))}</span>` : ""}</div>` : x.decidedAt ? `<div class="small muted" style="margin-top:6px">${esc(s[0])} · ${esc(dt62(x.decidedAt))}</div>` : ""}
+    ${x.reply ? `<div class="note small" style="margin-top:6px"><b>Answer:</b> ${esc(x.reply)}</div>` : ""}
+    ${md && x.who !== me28() && ["pending", "query"].includes(x.status) ? `<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><input data-apn="${x.id}" placeholder="Remark (optional for approve, needed for reject / question)" style="flex:1;min-width:220px"><button type="button" class="btn" style="background:#1e8e3e;color:#fff;border-color:#1e8e3e" data-apd="approved">✔ Approve</button><button type="button" class="btn" style="color:#c0392b;border-color:#c0392b" data-apd="rejected">✕ Reject</button><button type="button" class="btn" data-apd="query">? Ask a question</button></div>` : ""}
+    ${!md && x.status === "query" && x.who === me28() ? `<div class="row" style="gap:8px;margin-top:10px"><input data-apr="${x.id}" placeholder="Your answer to MD sir" style="flex:1"><button type="button" class="btn primary sm" data-aps="${x.id}">Send answer</button></div>` : ""}
+  </div></section>`; }).join("")}</div>`;
+}
+rem65 = function () {
+  const md = isMD117(), mine = AP117().filter(x => x.who === me28()).sort((a, b) => String(b.sentAt || b.at).localeCompare(String(a.sentAt || a.at)));
+  const wait = AP117().filter(x => ["pending", "query"].includes(x.status) && x.who !== me28()).sort((a, b) => String(a.sentAt || a.at).localeCompare(String(b.sentAt || b.at)));
+  const done = AP117().filter(x => ["approved", "rejected"].includes(x.status) && x.who !== me28()).sort((a, b) => String(b.decidedAt || b.at).localeCompare(String(a.decidedAt || a.at)));
+  const T = [...(md ? [["wait", `Waiting for my approval (${wait.length})`], ["done", "Approved / rejected"]] : []), ["new", "New approval request"], ["mine", `My requests (${mine.length})`]];
+  if (!T.some(t => t[0] === W117.tab)) W117.tab = md && wait.length ? "wait" : "new";
+  const R = W117.cur ||= { subject: "", dept: AUTH.user?.name?.replace(/^Rivera\s+/i, "") || "", amount: "", details: "", rows: [] };
+  const body = W117.tab === "wait" ? apList117(wait, true) : W117.tab === "done" ? apList117(done.slice(0, 60), true) : W117.tab === "mine" ? apList117(mine.slice(0, 60), false) : `<section class="panel"><div class="body">
+    <div class="fields"><label class="f" style="grid-column:1/-1">What needs approval *<input id="ap117s" maxlength="150" value="${esc(R.subject)}" placeholder="e.g. Copper purchase 500 kg from Sterlite - rate ₹ 905/kg"></label>
+    <label class="f">Department<input id="ap117dp" list="r65dl" value="${esc(R.dept)}"></label><label class="f">Amount ₹ (if any)<input id="ap117a" type="number" min="0" step="any" value="${esc(R.amount)}"></label>
+    <label class="f" style="grid-column:1/-1">Details<textarea id="ap117d" rows="3" placeholder="Why, which customer / job, by when…">${esc(R.details)}</textarea></label></div>
+    <datalist id="r65dl">${["Sales/Marketing", "Operation", "Purchase", "Accounts", "HR", "Store", "Quality", "Production", "Admin"].map(d => `<option value="${d}">`).join("")}</datalist>
+    <h3 style="margin:14px 0 6px;font-size:.95rem">Excel screenshot / attachment</h3>
+    <div class="row" style="gap:8px;flex-wrap:wrap"><label class="btn sm">📊 Pick the Excel file<input type="file" id="ap117x" accept=".xlsx,.xls,.xlsm,.csv" hidden></label><label class="btn sm">🖼 Pick a screenshot<input type="file" id="ap117i" accept="image/*" multiple hidden></label><label class="btn sm">📎 PDF<input type="file" id="ap117p" accept="application/pdf" hidden></label><button type="button" class="btn sm" id="ap117v">📋 Paste screenshot</button></div>
+    <div id="ap117at" class="ap117at" tabindex="0"></div>
+    <p class="small muted">An Excel file is drawn as a picture of the sheet (and the file itself goes with it). A screenshot: press PrtScn / Win+Shift+S, then Ctrl+V in the box.</p>
+    <button type="button" class="btn primary block" id="ap117go" style="margin-top:8px">${icon("mail")}Send to MD sir for approval</button>
+    <p class="small muted">MD sir gets a mail with the picture and sees it here under "Waiting for my approval". You see Approved / Rejected / question in My requests and on your Dashboard.</p></div></section>`;
+  return `${tabs28(W117.tab, T, "ap117t")}<div style="margin-top:12px">${body}</div>`;
+};
+wireRem65 = function (v) {
+  $$("[data-ap117t]", v).forEach(b => b.onclick = () => { W117.tab = b.dataset.ap117t; render(); });
+  /* thumbnails + open */
+  $$("[data-ft]", v).forEach(async im => { const u = await fileUrl71(im.dataset.ft); if (u) im.src = u; else im.replaceWith(Object.assign(document.createElement("span"), { textContent: "🖼 picture" })); });
+  $$("[data-fo]", v).forEach(b => b.onclick = () => openFile62(b.dataset.fo, b.dataset.fn));
+  /* MD decides */
+  $$("[data-apd]", v).forEach(b => b.onclick = async () => { const card = b.closest("[data-ap]"), x = BIZ.rows[card.dataset.ap]; if (!x) return; const st = b.dataset.apd, note = $(`[data-apn="${x.id}"]`, card).value.trim();
+    if (st !== "approved" && !note) { toast(st === "rejected" ? "Write why it is rejected" : "Write your question", "bad"); $(`[data-apn="${x.id}"]`, card).focus(); return; }
+    const r = { ...x, status: st, mdNote: note, decidedAt: now62(), decidedBy: me28() }; logAdd28(r, APS117[st][0], note); if (await save28(b, r, `${APS117[st][0]} - ${x.whoName || nm62(x.who)} sees it`)) render(); });
+  $$("[data-aps]", v).forEach(b => b.onclick = async () => { const x = BIZ.rows[b.dataset.aps], a = $(`[data-apr="${x.id}"]`, v).value.trim(); if (!a) return toast("Write your answer", "bad"); const r = { ...x, status: "pending", reply: a }; logAdd28(r, "Answer", a); if (await save28(b, r, "Answer sent to MD sir")) render(); });
+  if (!$("#ap117go", v)) return;
+  const R = W117.cur, at = $("#ap117at", v); apDraw117();
+  [["ap117s", "subject"], ["ap117dp", "dept"], ["ap117a", "amount"], ["ap117d", "details"]].forEach(([id, k]) => $("#" + id, v).oninput = e => { R[k] = e.target.value; });
+  const take = async files => { for (const f of files) { try { await addAtt117(f); } catch (er) { toast(er.message, "bad"); } } apDraw117(); };
+  ["ap117x", "ap117i", "ap117p"].forEach(id => $("#" + id, v).onchange = e => { take([...e.target.files]); e.target.value = ""; });
+  at.onpaste = e => { const f = [...(e.clipboardData?.files || [])]; if (f.length) { e.preventDefault(); take(f); } };
+  at.ondragover = e => e.preventDefault(); at.ondrop = e => { e.preventDefault(); take([...e.dataTransfer.files]); };
+  $("#ap117v", v).onclick = async () => { try { const items = await navigator.clipboard.read(); const out = []; for (const it of items) { const t = it.types.find(x => x.startsWith("image/")); if (t) { const b = await it.getType(t); out.push(new File([b], `screenshot-${Date.now()}.png`, { type: t })); } } if (!out.length) return toast("No picture in the clipboard - take a screenshot first (Win+Shift+S)", "bad"); take(out); } catch { at.focus(); toast("Click the box and press Ctrl+V"); } };
+  $("#ap117go", v).onclick = async e => {
+    const b = e.target; if (!R.subject.trim()) { toast("Write what needs approval", "bad"); return $("#ap117s", v).focus(); }
+    if (!W117.att.length && !confirm("No Excel screenshot is attached. Send without it?")) return;
+    b.disabled = true; const t0 = b.innerHTML; b.textContent = "Uploading…";
+    try {
+      const files = []; for (const a of W117.att) { const f = a.raw ? a.file : await shrink71(a.file, 1800); files.push(await upFile71(f, "ap117")); }
+      const rec = { kind: "rm", ap117: 1, status: "pending", subject: R.subject.trim(), title: R.subject.trim(), dept: R.dept.trim(), amount: num(R.amount) || "", details: R.details.trim(), files, who: me28(), whoName: AUTH.user?.name || "", date: todayISO(), sentAt: now62(), to: W62.md || "" };
+      logAdd28(rec, "Sent for approval", rec.subject); b.textContent = "Sending…";
+      const out = await bizPut28(rec);
+      /* mail to MD sir with the first picture */
+      const pic = W117.att.find(a => a.url); let mailed = false;
+      try { const png = pic ? await png117(pic.file) : await rmPng65({ title: rec.subject, date: rec.date, rows: [{ dept: rec.dept, item: rec.details || rec.subject }] }); const B = "border:1px solid #999;padding:6px 10px";
+        await AUTH.call("work62", { op: "shareImg", b64: await b6462(png), title: `Approval needed: ${rec.subject}`, html: `<table style="border-collapse:collapse"><tr><td style="${B}"><b>For approval</b></td><td style="${B}">${esc(rec.subject)}</td></tr>${rec.dept ? `<tr><td style="${B}"><b>Department</b></td><td style="${B}">${esc(rec.dept)}</td></tr>` : ""}${rec.amount ? `<tr><td style="${B}"><b>Amount</b></td><td style="${B}">${esc(inr28(rec.amount))}</td></tr>` : ""}${rec.details ? `<tr><td style="${B}"><b>Details</b></td><td style="${B}">${esc(rec.details).replace(/\n/g, "<br>")}</td></tr>` : ""}<tr><td style="${B}"><b>Approve in the app</b></td><td style="${B}">Work Board ▸ Approval</td></tr></table>` }, 60000); mailed = true; } catch (er) { console.warn("p117 mail", er); }
+      toast(mailed ? "Sent - MD sir got the mail with the screenshot" : "Saved - MD sir sees it in the app (the mail could not go now)");
+      W117.cur = null; W117.att = []; W117.tab = "mine"; render(); return out;
+    } catch (er) { toast(er.message, "bad"); b.disabled = false; b.innerHTML = t0; }
+  };
+};
+/* the tab name and menu card: Reminder → Approval */
+try {
+  const w = W65.find(x => x[0] === "rem"); if (w) w[1] = "Approval";
+  MODS32.forEach(m => Object.values(m.groups).forEach(G => G.forEach(c => { if (c[1] === "work" && c[2]?.w62 === "rem") { c[0] = "Approval (MD sir)"; c[3] = "Ask MD sir to approve - with the Excel screenshot"; } })));
+  const _v = VIEWS.work; VIEWS.work = v => { _v(v); if (BIZ.ui.w62 === "rem") { const p = $(".topbar p", v); if (p) p.textContent = isMD117() ? "Requests waiting for your approval - Approve, Reject or ask a question" : "Ask MD sir to approve anything - with the Excel screenshot"; } };
+} catch (e) { console.warn("p117 approval menu", e); }
+
+/* ---- (2) new work on the person's own dashboard ---- */
+{
+  const _md = VIEWS.mydash;
+  VIEWS.mydash = v => {
+    _md(v);
+    try {
+      if (loadNote28()) return; const me = me28(), nw = all28("wk").filter(x => x.to === me && x.status === "new" && x.src !== "plan" && x.from !== me).sort((a, b) => String(b.created || b.at).localeCompare(String(a.created || a.at)));
+      const md = isMD117(), wait = md ? AP117().filter(x => ["pending", "query"].includes(x.status) && x.who !== me).length : 0, myA = AP117().filter(x => x.who === me), q = myA.filter(x => x.status === "query").length, okN = myA.filter(x => x.status === "approved" && String(x.decidedAt || "") > String(localStorage.getItem("rqs.ap117seen") || "")).length;
+      const g = $(".md111g", v);
+      if (g) g.insertAdjacentHTML("afterbegin", `${md ? `<button type="button" class="md111k ${wait ? "warn" : ""}" data-ap117g="wait"><b>${wait}</b><span>Waiting for my approval</span></button>` : ""}<button type="button" class="md111k ${q ? "warn" : ""}" data-ap117g="mine"><b>${myA.filter(x => ["pending", "query"].includes(x.status)).length}</b><span>My approvals with MD sir${q ? ` · ${q} question` : ""}${okN ? ` · ${okN} newly approved` : ""}</span></button>`);
+      $$("[data-ap117g]", v).forEach(b => b.onclick = () => { W117.tab = b.dataset.ap117g; if (b.dataset.ap117g === "mine") localStorage.setItem("rqs.ap117seen", now62()); BIZ.ui.w62 = "rem"; location.hash = "work"; render(); });
+      if (nw.length) {
+        const sec = document.createElement("section"); sec.className = "panel nw117"; sec.innerHTML = `<header><h2>🆕 New work for you</h2><span class="chip warn">${nw.length}</span></header><div class="body stack" style="gap:8px">${nw.slice(0, 8).map(x => `<div class="nw117r"><div style="flex:1;min-width:200px"><b>${esc(x.title)}</b><div class="small muted">from ${esc(x.fromName || nm62(x.from))}${x.due ? ` · finish by ${esc(dt62(x.due))}` : ""}${x.pri && x.pri !== "Normal" ? ` · <b style="color:#c0392b">${esc(x.pri)}</b>` : ""}</div>${x.details ? `<div class="small">${esc(x.details)}</div>` : ""}</div><button type="button" class="btn sm primary" data-nwa="${x.id}">✔ Accept</button><button type="button" class="btn sm" data-nwo="${x.id}">Open</button></div>`).join("")}</div>`;
+        const first = $(".md111s", v); if (first) first.before(sec); else v.append(sec);
+        $$("[data-nwa]", sec).forEach(b => b.onclick = async () => { const x = BIZ.rows[b.dataset.nwa]; if (!x) return; const r = { ...x, status: "accepted", acceptedAt: now62() }; logAdd28(r, "Accepted", ""); if (await save28(b, r, "Accepted - it is in your Work update")) render(); });
+        $$("[data-nwo]", sec).forEach(b => b.onclick = () => wkPanel62(BIZ.rows[b.dataset.nwo]));
+      }
+    } catch (e) { console.warn("p117 mydash", e); }
+  };
+  /* a note once when new work comes (only to the person it is given to) */
+  const _r = render; render = function () { const o = _r.apply(this, arguments); try { if (!BIZ.loaded || !signed26?.()) return o; const me = me28(), seen = JSON.parse(sessionStorage.getItem("rqs.nw117") || "[]"), nw = all28("wk").filter(x => x.to === me && x.status === "new" && x.src !== "plan" && x.from !== me && !seen.includes(x.id));
+    if (nw.length) { sessionStorage.setItem("rqs.nw117", JSON.stringify([...seen, ...nw.map(x => x.id)].slice(-300))); toast(nw.length === 1 ? `🆕 New work from ${nw[0].fromName || nm62(nw[0].from)}: ${nw[0].title}` : `🆕 ${nw.length} new work given to you - see your Dashboard`); }
+    if (isMD117()) { const ap = AP117().filter(x => x.status === "pending" && x.who !== me && !seen.includes(x.id)); if (ap.length) { sessionStorage.setItem("rqs.nw117", JSON.stringify([...JSON.parse(sessionStorage.getItem("rqs.nw117") || "[]"), ...ap.map(x => x.id)].slice(-300))); toast(`📝 ${ap.length} approval${ap.length > 1 ? "s" : ""} waiting for you - Work Board ▸ Approval`); } } } catch { } return o; };
+}
+
+/* ---- (3) bank accounts and payments ---- */
+const bankCfg117 = () => all28("sig").find(c => c.type === "cfg-bank117") || { kind: "sig", type: "cfg-bank117", name: "Bank accounts", list: [] };
+const BANKS117 = () => (bankCfg117().list || []).filter(b => b && b.id && !b.off);
+const bankDef117 = () => (BANKS117().find(b => b.def) || BANKS117()[0] || {}).id || "";
+const bankOf117 = r => r.bankAc || (/cash/i.test(r.mode || "") ? "cash" : bankDef117());
+const expAmt117 = x => (num(x.amount) || 0) + (num(x.gst) || 0);
+function flows117() {
+  const F = [];
+  all28("rcpt").forEach(x => F.push({ id: x.id, kind: "rcpt", date: x.date, amt: num(x.amount) || 0, dir: 1, who: x.customer || x.payer || "", what: x.rtype === "advance" ? "Advance received" : x.reason || "Receipt", mode: x.mode, utr: x.utr || x.ref || "", bank: bankOf117(x), no: x.no }));
+  all28("spay").forEach(x => F.push({ id: x.id, kind: "spay", date: x.date, amt: num(x.amount) || 0, dir: -1, who: x.supplier || x.payee || "", what: x.reason || (x.bill ? "Bill " + (BIZ.rows[x.bill]?.billNo || "") : x.ptype === "advance" ? "Advance to supplier" : "Payment"), mode: x.mode, utr: x.utr || x.ref || "", bank: bankOf117(x), no: x.no }));
+  all28("exp").forEach(x => F.push({ id: x.id, kind: "exp", date: x.date, amt: expAmt117(x), dir: -1, who: x.payee || "", what: x.cat || "Expense", mode: x.mode, utr: x.ref || "", bank: bankOf117(x), no: x.no }));
+  return F.filter(f => f.amt > 0).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+}
+function bankBal117() {
+  const F = flows117(), out = {};
+  [...BANKS117(), { id: "cash", name: "Cash in hand", open: bankCfg117().cashOpen || 0, asOn: bankCfg117().cashAsOn || "" }].forEach(b => { const L = F.filter(f => f.bank === b.id && (!b.asOn || String(f.date) >= b.asOn)), m = todayISO().slice(0, 7);
+    out[b.id] = { b, open: num(b.open) || 0, inn: L.filter(f => f.dir > 0).reduce((a, f) => a + f.amt, 0), outt: L.filter(f => f.dir < 0).reduce((a, f) => a + f.amt, 0), mIn: L.filter(f => f.dir > 0 && String(f.date).startsWith(m)).reduce((a, f) => a + f.amt, 0), mOut: L.filter(f => f.dir < 0 && String(f.date).startsWith(m)).reduce((a, f) => a + f.amt, 0), n: L.length }; out[b.id].bal = out[b.id].open + out[b.id].inn - out[b.id].outt; });
+  return out;
+}
+function dues117() { const by = {}; all28("bill").forEach(b => { const d = billDue45(b); if (d <= 0.5) return; const s = b.supplier || "—", g = by[s] ||= { s, due: 0, n: 0, over: 0, old: "" }; g.due += d; g.n++; if (b.due && b.due < todayISO()) g.over += d; if (!g.old || (b.due || b.date) < g.old) g.old = b.due || b.date; }); return Object.values(by).sort((a, b) => b.due - a.due); }
+const tb117 = () => { try { return JSON.parse(localStorage.getItem("rqs.tb117") || "null"); } catch { return null; } };
+function bankPanel117() {
+  const C = JSON.parse(JSON.stringify(bankCfg117())); C.list ||= [];
+  const row = (b, i) => `<div class="bk117e" data-bi="${i}"><input data-bf="name" value="${esc(b.name || "")}" placeholder="Bank name *"><input data-bf="acc" value="${esc(b.acc || "")}" placeholder="A/c no (last 4 is enough)"><input data-bf="ifsc" value="${esc(b.ifsc || "")}" placeholder="IFSC"><input data-bf="tally" value="${esc(b.tally || "")}" placeholder="Ledger name in Tally"><input data-bf="open" type="number" step="any" value="${esc(b.open ?? "")}" placeholder="Opening balance ₹"><input data-bf="asOn" type="date" value="${esc(b.asOn || "")}" title="Opening balance as on"><label class="small"><input type="radio" name="bkdef" data-bf="def" ${b.def ? "checked" : ""}> Main</label><button type="button" class="btn sm" data-bx="${i}" title="Remove">🗑️</button></div>`;
+  const D = panel28({ title: "Bank accounts", body: `<p class="small muted" style="margin-top:0">Add every bank account the company pays from or receives into. Opening balance = the balance in the bank on the "as on" date (from the passbook / net banking). Payments made after that date are taken off by themselves.</p><div id="bk117l" class="stack" style="gap:8px">${C.list.map(row).join("")}</div><button type="button" class="btn sm" id="bk117a" style="margin-top:8px">${icon("plus")}Add bank account</button>
+    <h3 style="margin:16px 0 6px;font-size:.92rem">Cash in hand</h3><div class="row" style="gap:8px"><label class="f">Opening cash ₹<input id="bk117c" type="number" step="any" value="${esc(C.cashOpen ?? "")}"></label><label class="f">As on<input id="bk117cd" type="date" value="${esc(C.cashAsOn || "")}"></label></div>`, foot: '<span style="flex:1"></span><button class="btn primary" id="bk117s" type="button">Save</button>' });
+  const read = () => { $$("[data-bi]", D).forEach(el => { const b = C.list[+el.dataset.bi]; $$("[data-bf]", el).forEach(i => { const k = i.dataset.bf; b[k] = k === "def" ? i.checked : k === "open" ? (i.value === "" ? "" : Number(i.value)) : i.value.trim(); }); }); };
+  const draw = () => { $("#bk117l", D).innerHTML = C.list.map(row).join(""); $$("[data-bx]", D).forEach(b => b.onclick = () => { read(); C.list.splice(+b.dataset.bx, 1); draw(); }); };
+  draw(); $("#bk117a", D).onclick = () => { read(); C.list.push({ id: "bk" + Date.now().toString(36), name: "", asOn: todayISO().slice(0, 8) + "01", def: !C.list.length }); draw(); };
+  $("#bk117s", D).onclick = async e => { read(); C.list = C.list.filter(b => b.name); C.list.forEach(b => { b.id ||= "bk" + Math.random().toString(36).slice(2, 8); }); C.cashOpen = $("#bk117c", D).value === "" ? "" : Number($("#bk117c", D).value); C.cashAsOn = $("#bk117cd", D).value; if (await save28(e.target, C, "Bank accounts saved")) { closeDrawer26(); render(); } };
+}
+/* every payment / receipt / expense form gets "Bank account" */
+{
+  const addBank = src => { try { const D = $("#dr26"), m = D && $('[data-k="mode"]', D); if (!m || $('[data-k="bankAc"]', D) || !BANKS117().length) return; const cur = src?.bankAc || "";
+    m.closest("label").insertAdjacentHTML("afterend", `<label class="f">Bank account<select data-k="bankAc"><option value="">${esc("Main bank" + (BANKS117().find(b => b.id === bankDef117()) ? " - " + BANKS117().find(b => b.id === bankDef117()).name : ""))}</option>${BANKS117().map(b => `<option value="${esc(b.id)}" ${cur === b.id ? "selected" : ""}>${esc(b.name)}${b.acc ? " · " + esc(String(b.acc).slice(-4)) : ""}</option>`).join("")}<option value="cash" ${cur === "cash" ? "selected" : ""}>Cash in hand</option></select></label>`);
+    m.addEventListener("change", () => { const s = $('[data-k="bankAc"]', D); if (s && /cash/i.test(m.value) && !s.value) s.value = "cash"; }); } catch (e) { console.warn("p117 bank field", e); } };
+  { const o = payPanel85; payPanel85 = function (type, src) { const r = o.apply(this, arguments); addBank(src); return r; }; }
+  { const o = recPanel85; recPanel85 = function (type, src) { const r = o.apply(this, arguments); addBank(src); return r; }; }
+  { const o = rcptPanel29; rcptPanel29 = function (src) { const r = o.apply(this, arguments); addBank(src); return r; }; }
+  { const o = expPanel29; expPanel29 = function (src) { const r = o.apply(this, arguments); addBank(src); return r; }; }
+}
+ROUTES.push(["bank117", "Bank & payments", "acc29"]);
+{ const _al = allowed21; allowed21 = function (r) { if (r === "bank117") return _al.call(this, "accounts") || isAdmin28(); return _al.apply(this, arguments); }; }
+VIEWS.bank117 = v => {
+  bizSync28(); const B = bankBal117(), F = flows117(), m = todayISO().slice(0, 7), D = dues117(), T = tb117(), banks = BANKS117();
+  const fm = F.filter(f => String(f.date).startsWith(m)), paidM = fm.filter(f => f.dir < 0).reduce((a, f) => a + f.amt, 0), recM = fm.filter(f => f.dir > 0).reduce((a, f) => a + f.amt, 0), dueT = D.reduce((a, d) => a + d.due, 0), over = D.reduce((a, d) => a + d.over, 0);
+  const recv = all28("inv").filter(i => i.status !== "cancelled").reduce((a, i) => a + Math.max(0, num(i.balance ?? (num(i.total) - num(i.paid))) || 0), 0);
+  const tot = Object.values(B).reduce((a, x) => a + x.bal, 0), name = id => id === "cash" ? "Cash in hand" : (banks.find(b => b.id === id) || {}).name || "Not set";
+  const tball = T && T.list ? T.list : [];
+  const F2 = W117.bf ? F.filter(f => f.bank === W117.bf) : F;
+  v.innerHTML = top62("Accounts", "Bank & payments", "Which bank paid how much, what is left in each bank and what is still to be paid. Every payment, receipt and expense says its bank account.", `<button class="btn" id="bk117m" type="button">🏦 Bank accounts</button><button class="btn" id="bk117t" type="button">${icon("tally32") || ""}Balances from Tally</button><button class="btn primary" id="bk117p" type="button">${icon("plus")}Make a payment</button>`)
+    + (loadNote28() || `${!banks.length ? `<div class="note warn" style="margin-bottom:12px"><b>Add your bank accounts first</b> - name, account no and the opening balance. Then every payment shows which bank it came from. <button class="btn sm primary" id="bk117m2" type="button">Add bank accounts</button></div>` : ""}
+    <div class="md111g" style="margin-bottom:14px"><div class="md111k"><b>${inr28(tot)}</b><span>Balance in all banks + cash (ERP)</span></div><div class="md111k warn"><b>${inr28(paidM)}</b><span>Paid this month</span></div><div class="md111k"><b>${inr28(recM)}</b><span>Received this month</span></div><div class="md111k ${dueT ? "bad" : ""}"><b>${inr28(dueT)}</b><span>Still to pay suppliers${over ? ` · ${inr28(over)} overdue` : ""}</span></div><div class="md111k"><b>${inr28(recv)}</b><span>Still to receive from customers</span></div></div>
+    <div class="bk117g">${Object.values(B).filter(x => x.b.id !== "cash" || x.n || x.open).map(x => { const tl = tball.find(t => x.b.tally && t.name.toLowerCase() === String(x.b.tally).toLowerCase()) || tball.find(t => t.name.toLowerCase() === String(x.b.name).toLowerCase()); return `<button type="button" class="bk117c ${W117.bf === x.b.id ? "on" : ""}" data-bkf="${esc(x.b.id)}"><div class="row" style="justify-content:space-between;gap:6px"><b>${x.b.id === "cash" ? "💵" : "🏦"} ${esc(x.b.name)}</b><small>${esc(x.b.acc ? "A/c …" + String(x.b.acc).slice(-4) : "")}</small></div><div class="bk117b">${inr28(x.bal)}</div><div class="small muted">Opening ${inr28(x.open)}${x.b.asOn ? " on " + esc(dmy(x.b.asOn)) : ""}</div><div class="small"><span style="color:#1e8e3e">+ ${inr28(x.inn)} in</span> · <span style="color:#c0392b">− ${inr28(x.outt)} out</span></div><div class="small muted">This month: paid ${inr28(x.mOut)} · got ${inr28(x.mIn)}</div>${tl ? `<div class="small" style="margin-top:4px">Tally: <b>${inr28(Math.abs(tl.bal))} ${tl.bal <= 0 ? "Dr" : "Cr"}</b>${Math.abs(Math.abs(tl.bal) - x.bal) > 1 ? ` <span class="chip warn" style="font-size:11px">differs by ${inr28(Math.abs(Math.abs(tl.bal) - x.bal))}</span>` : ' <span class="chip ok" style="font-size:11px">matches</span>'}</div>` : ""}</button>`; }).join("")}</div>
+    ${T ? `<p class="small muted">Tally balances read ${esc(dt62(T.at))}${tball.length ? "" : " - no bank ledgers found"}.</p>` : ""}
+    <div class="md111c" style="margin-top:12px"><section class="panel"><header><h2>Payments and receipts${W117.bf ? " · " + esc(name(W117.bf)) : ""}</h2>${W117.bf ? '<button class="btn sm" id="bk117x" type="button">Show all banks</button>' : ""}</header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Date</th><th>Paid to / from</th><th>For</th><th>Bank</th><th>Mode / UTR</th><th class="num">Out</th><th class="num">In</th></tr></thead><tbody>${F2.slice(0, 80).map(f => `<tr data-bko="${esc(f.id)}" style="cursor:pointer"><td>${esc(dmy(f.date))}</td><td><b>${esc(f.who)}</b></td><td>${esc(f.what)}</td><td>${esc(name(f.bank))}</td><td class="small">${esc(f.mode || "")} ${esc(f.utr || "")}</td><td class="num" style="color:#c0392b">${f.dir < 0 ? inr28(f.amt) : ""}</td><td class="num" style="color:#1e8e3e">${f.dir > 0 ? inr28(f.amt) : ""}</td></tr>`).join("") || '<tr><td colspan="7" class="muted">No payments yet</td></tr>'}</tbody></table></div></section>
+    <section class="panel"><header><h2>Still to pay - suppliers</h2><span class="chip ${dueT ? "warn" : "ok"}">${inr28(dueT)}</span></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Supplier</th><th>Bills</th><th class="num">To pay</th></tr></thead><tbody>${D.slice(0, 40).map(d => `<tr><td><b>${esc(d.s)}</b>${d.over ? `<div class="small" style="color:#c0392b">${inr28(d.over)} overdue</div>` : ""}</td><td>${d.n}</td><td class="num"><b>${inr28(d.due)}</b></td></tr>`).join("") || '<tr><td colspan="3" class="muted">Nothing to pay 👍</td></tr>'}</tbody></table><button class="btn sm" type="button" style="margin-top:8px" data-go='["accounts",{"acc":"bill"}]'>Open supplier bills</button></div></section></div>`);
+  [$("#bk117m", v), $("#bk117m2", v)].forEach(b => b && (b.onclick = bankPanel117));
+  $("#bk117p", v).onclick = () => { try { payPanel85("other"); } catch { BIZ.ui.acc = "bill"; location.hash = "accounts"; } };
+  $("#bk117t", v).onclick = () => tallyBal117();
+  $("#bk117x", v) && ($("#bk117x", v).onclick = () => { W117.bf = ""; render(); });
+  $$("[data-bkf]", v).forEach(b => b.onclick = () => { W117.bf = W117.bf === b.dataset.bkf ? "" : b.dataset.bkf; render(); });
+  $$("[data-go]", v).forEach(b => b.onclick = () => { const [r, p] = JSON.parse(b.dataset.go); Object.assign(BIZ.ui, p); location.hash = r; render(); });
+  $$("[data-bko]", v).forEach(tr => tr.onclick = () => { const x = BIZ.rows[tr.dataset.bko]; if (!x) return; try { if (x.kind === "spay") payPanel85(x.ptype || "other", x); else if (x.kind === "rcpt") (x.rtype ? recPanel85(x.rtype, x) : rcptPanel29(x)); else if (x.kind === "exp") expPanel29(x); } catch (e) { toast(e.message, "bad"); } });
+};
+
+/* ---- (4) Tally from the browser ---- */
+{
+  const _tp = tallyPost32;
+  tallyPost32 = async function (xml) {
+    if (inApp32()) return _tp.apply(this, arguments);
+    let r; try { r = await fetch(`http://${TALLY32.host || "localhost"}:${TALLY32.port || 9000}`, { method: "POST", body: xml }); }
+    catch (e) { throw new Error("TALLY_BROWSER: The browser could not reach Tally on " + (TALLY32.host || "localhost") + ":" + (TALLY32.port || 9000) + ". Open TallyPrime on this PC (F1 ▸ Settings ▸ Connectivity ▸ TallyPrime acts as Both, port 9000) and allow \"local network\" when Chrome asks. A Tally import file is saved instead."); }
+    const t = await r.text(); if (!r.ok || /^<ERROR>/.test(t)) throw new Error((t.match(/<ERROR>([^<]*)/) || [])[1] || "Tally did not answer"); return t;
+  };
+}
+const amt117 = n => (Math.round((Number(n) || 0) * 100) / 100).toFixed(2);
+const tBank117 = r => { const b = bankOf117(r); return b === "cash" ? (TALLY32.cash || "Cash") : (BANKS117().find(x => x.id === b)?.tally || BANKS117().find(x => x.id === b)?.name || TALLY32.bank); };
+{ const o = rcptXml32; rcptXml32 = function (p) { const b = TALLY32.bank; TALLY32.bank = tBank117(p); try { return o.apply(this, arguments); } finally { TALLY32.bank = b; } }; }
+function payXml117(p) {
+  const d = String(p.date).replace(/-/g, ""), amt = num(p.amount) || 0, party = p.supplier || p.payee || "Sundry Creditors", bill = p.bill && BIZ.rows[p.bill] ? `<BILLALLOCATIONS.LIST><NAME>${x32(BIZ.rows[p.bill].billNo || "")}</NAME><BILLTYPE>Agst Ref</BILLTYPE><AMOUNT>${amt117(-amt)}</AMOUNT></BILLALLOCATIONS.LIST>` : "";
+  return `<TALLYMESSAGE xmlns:UDF="TallyUDF"><VOUCHER REMOTEID="rivera-${x32(p.id)}" VCHTYPE="Payment" ACTION="Create" OBJVIEW="Accounting Voucher View"><DATE>${d}</DATE><VOUCHERTYPENAME>Payment</VOUCHERTYPENAME><VOUCHERNUMBER>${x32(p.no || "")}</VOUCHERNUMBER><NARRATION>${x32(`${p.reason || ""} ${p.mode || ""} ${p.utr || p.ref || ""}`.trim())}</NARRATION><PARTYLEDGERNAME>${x32(party)}</PARTYLEDGERNAME><ALLLEDGERENTRIES.LIST><LEDGERNAME>${x32(party)}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>${amt117(-amt)}</AMOUNT>${bill}</ALLLEDGERENTRIES.LIST><ALLLEDGERENTRIES.LIST><LEDGERNAME>${x32(tBank117(p))}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt117(amt)}</AMOUNT></ALLLEDGERENTRIES.LIST></VOUCHER></TALLYMESSAGE>`;
+}
+function expXml117(x) {
+  const d = String(x.date).replace(/-/g, ""), a = num(x.amount) || 0, g = num(x.gst) || 0;
+  return `<TALLYMESSAGE xmlns:UDF="TallyUDF"><VOUCHER REMOTEID="rivera-${x32(x.id)}" VCHTYPE="Payment" ACTION="Create" OBJVIEW="Accounting Voucher View"><DATE>${d}</DATE><VOUCHERTYPENAME>Payment</VOUCHERTYPENAME><VOUCHERNUMBER>${x32(x.no || "")}</VOUCHERNUMBER><NARRATION>${x32(`${x.payee || ""} ${x.ref || ""} ${x.note || ""}`.trim())}</NARRATION><ALLLEDGERENTRIES.LIST><LEDGERNAME>${x32(x.cat || "Indirect Expenses")}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>${amt117(-a)}</AMOUNT></ALLLEDGERENTRIES.LIST>${g ? `<ALLLEDGERENTRIES.LIST><LEDGERNAME>${x32(TALLY32.gstIn || "Input GST")}</LEDGERNAME><ISDEEMEDPOSITIVE>Yes</ISDEEMEDPOSITIVE><AMOUNT>${amt117(-g)}</AMOUNT></ALLLEDGERENTRIES.LIST>` : ""}<ALLLEDGERENTRIES.LIST><LEDGERNAME>${x32(tBank117(x))}</LEDGERNAME><ISDEEMEDPOSITIVE>No</ISDEEMEDPOSITIVE><AMOUNT>${amt117(a + g)}</AMOUNT></ALLLEDGERENTRIES.LIST></VOUCHER></TALLYMESSAGE>`;
+}
+const envXml117 = body => `<ENVELOPE><HEADER><TALLYREQUEST>Import Data</TALLYREQUEST></HEADER><BODY><IMPORTDATA><REQUESTDESC><REPORTNAME>Vouchers</REPORTNAME>${TALLY32.company ? `<STATICVARIABLES><SVCURRENTCOMPANY>${x32(TALLY32.company)}</SVCURRENTCOMPANY></STATICVARIABLES>` : ""}</REQUESTDESC><REQUESTDATA>${body}</REQUESTDATA></IMPORTDATA></BODY></ENVELOPE>`;
+async function tallyGo117(btn, kind) {
+  const L = { spay: all28("spay"), exp: all28("exp"), inv: all28("inv").filter(i => i.status !== "cancelled"), rcpt: all28("rcpt") }[kind].filter(x => !x.tally), mk = { spay: payXml117, exp: expXml117, inv: salesXml32, rcpt: rcptXml32 }[kind];
+  if (!L.length) return toast("Everything is already in Tally 👍");
+  const xml = imp32("Vouchers", L.map(mk).join("")), nm = { spay: "Payments", exp: "Expenses", inv: "Sales invoices", rcpt: "Receipts" }[kind], old = btn.textContent; btn.disabled = true; btn.textContent = "Sending…";
+  try { const t = await tallyPost32(xml), R = res32(t), cr = R.created, er = R.errors;
+    if (cr && !er) await bizPut28(L.map(x => ({ ...x, tally: { at: now62(), by: me28() } })));
+    const line = `${nm}: ${cr} created in Tally${er ? `, ${er} errors - ${R.msg || "check ledger names"}` : ""}`; tallyLog32(line); toast(line, er ? "bad" : "");
+  } catch (e) { saveFile(`Tally ${nm} ${todayISO()}.xml`, new Blob([xml], { type: "text/xml" })); const msg = String(e.message).replace(/^TALLY_BROWSER: /, ""); tallyLog32(`${nm}: file saved (${L.length})`); toast(/TALLY_BROWSER/.test(e.message) ? `Tally file saved (${L.length} ${nm.toLowerCase()}). In TallyPrime: Alt+O Import ▸ Transactions ▸ pick this file.` : msg, /TALLY_BROWSER/.test(e.message) ? "" : "bad"); }
+  finally { btn.disabled = false; btn.textContent = old; render(); }
+}
+async function tallyBal117() {
+  try { const L = (await tallyLedgers32()).filter(l => /bank|cash/i.test(l.parent)); localStorage.setItem("rqs.tb117", JSON.stringify({ at: now62(), list: L })); toast(`${L.length} bank / cash balances read from Tally`); render(); }
+  catch (e) {
+    const f = document.createElement("input"); f.type = "file"; f.accept = ".xlsx,.xls,.csv,.xml";
+    toast("Could not reach Tally directly - pick the Trial Balance / Group summary of Bank Accounts exported from Tally (Excel or XML)", "bad");
+    f.onchange = async () => { const file = f.files[0]; if (!file) return; try { let L = [];
+      if (/\.xml$/i.test(file.name)) { const t = await file.text(); L = [...t.matchAll(/<DSPACCNAME>\s*<DSPDISPNAME>([^<]*)<\/DSPDISPNAME>[\s\S]*?<DSPCLDRAMTA>([^<]*)<\/DSPCLDRAMTA>\s*<DSPCLCRAMTA>([^<]*)/g)].map(m => ({ name: m[1].trim(), bal: -(num(String(m[2]).replace(/[^\d.-]/g, "")) || 0) + Math.abs(num(String(m[3]).replace(/[^\d.-]/g, "")) || 0) })); }
+      else { await loadScript(LIBS.sheetjs); const X = window.XLSX, wb = X.read(await file.arrayBuffer(), { type: "array" }), rows = X.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, defval: "" });
+        rows.forEach(r => { const name = String(r.find(c => typeof c === "string" && c.trim()) || "").trim(), ns = r.filter(c => typeof c === "number" || /^-?[\d,]+(\.\d+)?$/.test(String(c).trim())).map(c => num(String(c).replace(/,/g, ""))); if (name && ns.length && !/^(particulars|total|grand total)$/i.test(name)) { const dr = ns.length >= 2 ? ns[ns.length - 2] : ns[0], cr = ns.length >= 2 ? ns[ns.length - 1] : 0; L.push({ name, bal: -(dr || 0) + (cr || 0) }); } }); }
+      const banks = BANKS117().map(b => String(b.tally || b.name).toLowerCase()); L = L.filter(l => /bank|cash|\ba\/?c\b/i.test(l.name) || banks.includes(l.name.toLowerCase()));
+      localStorage.setItem("rqs.tb117", JSON.stringify({ at: now62(), list: L, file: file.name })); toast(`${L.length} bank / cash balances loaded from ${file.name}`); render(); } catch (er) { toast(er.message, "bad"); } };
+    f.click();
+  }
+}
+/* the Tally tab works from the browser too */
+{
+  const _r = render; render = function () { const o = _r.apply(this, arguments); try { if (STATE.route !== "accounts" || BIZ.ui.acc !== "tally" || inApp32()) return o; const v = $("#view"); if (!v || $("#t117", v)) return o;
+    $$("#t32inv,#t32rc,#t32test,#t32out", v).forEach(b => b.disabled = false);
+    const n = $(".note.warn", v); if (n && /Windows app/i.test(n.textContent)) n.outerHTML = `<div class="note small">From this browser: TallyPrime must be open on this PC (or give the Tally PC's IP below) with port 9000 on. Chrome may ask to allow "devices on your local network" - press Allow. If Tally cannot be reached, a <b>Tally import file</b> is saved - in TallyPrime press <b>Alt+O ▸ Import ▸ Transactions</b> and pick it.</div>`;
+    const inv = $("#t32inv", v); if (inv) { inv.onclick = e => tallyGo117(e.target, "inv"); $("#t32rc", v).onclick = e => tallyGo117(e.target, "rcpt");
+      inv.parentElement.insertAdjacentHTML("beforeend", `<span id="t117"></span><button class="btn" type="button" id="t117p">Send payments (${all28("spay").filter(x => !x.tally).length})</button><button class="btn" type="button" id="t117e">Send expenses (${all28("exp").filter(x => !x.tally).length})</button><button class="btn" type="button" id="t117b">Bank balances from Tally</button>`);
+      $("#t117p", v).onclick = e => tallyGo117(e.target, "spay"); $("#t117e", v).onclick = e => tallyGo117(e.target, "exp"); $("#t117b", v).onclick = () => tallyBal117(); }
+    const set = $("[data-t32]", v)?.closest(".fields"); if (set && !$("[data-t32='gstIn']", v)) { set.insertAdjacentHTML("beforeend", [["cash", "Cash ledger", "Cash"], ["gstIn", "GST input ledger (expenses)", "Input GST"]].map(([k, l, d]) => `<label class="f">${l}<input data-t32="${k}" value="${esc(TALLY32[k] || d)}"></label>`).join("")); $$("[data-t32='cash'],[data-t32='gstIn']", v).forEach(i => i.onchange = () => { TALLY32[i.dataset.t32] = i.value.trim(); tallySave32(); }); }
+  } catch (e) { console.warn("p117 tally", e); } return o; };
+}
+
+/* ---- dashboards: Accounts numbers ---- */
+try {
+  DASHK111.push(["accounts", "Balance in banks + cash", () => inr28(Object.values(bankBal117()).reduce((a, x) => a + x.bal, 0)), "bank117", {}, ""],
+    ["accounts", "Paid this month", () => inr28(flows117().filter(f => f.dir < 0 && String(f.date).startsWith(todayISO().slice(0, 7))).reduce((a, f) => a + f.amt, 0)), "bank117", {}, ""],
+    ["accounts", "Still to pay suppliers", () => inr28(dues117().reduce((a, d) => a + d.due, 0)), "bank117", {}, "warn"],
+    ["accounts", "Supplier bills overdue", () => all28("bill").filter(b => billDue45(b) > 0.5 && b.due && b.due < todayISO()).length, "accounts", { acc: "bill" }, "bad"],
+    ["accounts", "Not yet in Tally", () => all28("inv").filter(i => i.status !== "cancelled" && !i.tally).length + all28("rcpt").filter(x => !x.tally).length + all28("spay").filter(x => !x.tally).length + all28("exp").filter(x => !x.tally).length, "accounts", { acc: "tally" }, ""]);
+  const M = MODS32.find(x => x.id === "accounts"); if (M) { (M.groups.Transactions ||= []).unshift(["Bank & payments", "bank117", {}, "Bank-wise paid, balance, still to pay"]); try { CARDMOD64.set(M.groups.Transactions[0], "accounts"); } catch { } }
+  HELP110.push([/bank balance|bank wise|which bank|paid from|payments? made|how much paid|evlo pay/i, "Accounts ▸ Bank & payments", "bank117", {}, "Bank-wise balance, paid this month and what is still to pay."], [/approv|md sir|md approval/i, "Work Board ▸ Approval", "work", { w62: "rem" }, "Ask MD sir to approve - with the Excel screenshot."], [/tally/i, "Accounts ▸ Tally", "accounts", { acc: "tally" }, "Send invoices, receipts, payments and expenses to TallyPrime; read bank balances."]);
+} catch (e) { console.warn("p117 dash", e); }
+
+/* ---- (5) Ask Rivera: more work inside the person's own module ---- */
+{
+  const notMine = (r, what) => { const m = MODS32.find(x => Object.values(x.groups).flat().some(c => c[1] === r)); return `${esc(what)} is in <b>${esc(m ? m.name : r)}</b>, which is not one of your modules.`; };
+  const like = (a, b) => { a = String(a || "").toLowerCase(); b = String(b || "").toLowerCase(); return a && b && (a.includes(b) || b.split(/\s+/).filter(w => w.length > 2).every(w => a.includes(w))); };
+  ACT113.unshift(
+    [/\b(approval|approve|anumathi|md sir (ok|sign)|md approval)\b/i, async s => { BIZ.ui.w62 = "rem"; location.hash = "work";
+      if (isMD117() && !/\b(ask|request|send|need|venum|vaanganum)\b/i.test(s)) { W117.tab = "wait"; render(); const n = AP117().filter(x => ["pending", "query"].includes(x.status) && x.who !== me28()).length; return n ? `<b>${n}</b> request${n > 1 ? "s are" : " is"} waiting for your approval - Approve, Reject or ask a question on each.` : "Nothing is waiting for your approval. 👍"; }
+      W117.tab = "new"; const sub = s.replace(/\b(please|pls|ask|request|send|need|get|md sir|md|approval|approve|for|to|venum|vaanganum|anumathi)\b/gi, " ").replace(/\s+/g, " ").trim(); W117.cur = { ...(W117.cur || { dept: "", amount: "", details: "", rows: [] }), subject: sub }; render();
+      return `Approval request is open${sub ? ` for <b>${esc(sub)}</b>` : ""}. Paste the Excel screenshot (Ctrl+V) or pick the Excel file, then press <b>Send to MD sir</b>.`; }],
+    [/\b(bank balance|balance in (the )?bank|which bank|bank wise|how much (we )?paid|evlo (pay|kuduth)|payments? (today|this month)|paid this month)\b/i, async () => { if (!okRoute32("bank117")) return notMine("bank117", "Bank balance");
+      const B = bankBal117(), m = todayISO().slice(0, 7), F = flows117().filter(f => String(f.date).startsWith(m)); location.hash = "bank117"; render();
+      if (!BANKS117().length) return "No bank accounts are added yet. Press <b>🏦 Bank accounts</b> and add each bank with its opening balance.";
+      return `<b>Bank balances (ERP):</b><ul style="margin:6px 0 0 18px;padding:0">${Object.values(B).filter(x => x.b.id !== "cash" || x.n).map(x => `<li>${esc(x.b.name)}: <b>${inr28(x.bal)}</b> <small>(paid ${inr28(x.mOut)} this month)</small></li>`).join("")}</ul>Paid this month: <b>${inr28(F.filter(f => f.dir < 0).reduce((a, f) => a + f.amt, 0))}</b> · received <b>${inr28(F.filter(f => f.dir > 0).reduce((a, f) => a + f.amt, 0))}</b>`; }],
+    [/\b(supplier (dues|balance|outstanding)|to pay|payable|pay pannanum|kudukkanum)\b/i, async s => { if (!okRoute32("bank117")) return notMine("bank117", "Supplier dues"); const D = dues117(), w = D.filter(d => like(s, d.s)); location.hash = "bank117"; render(); const L = w.length ? w : D;
+      return L.length ? `Still to pay: <b>${inr28(L.reduce((a, d) => a + d.due, 0))}</b><ol style="margin:6px 0 0 18px;padding:0">${L.slice(0, 8).map(d => `<li>${esc(d.s)}: <b>${inr28(d.due)}</b>${d.over ? ` <small style="color:#c0392b">${inr28(d.over)} overdue</small>` : ""}</li>`).join("")}</ol>` : "No supplier bill is waiting for payment. 👍"; }],
+    [/\b(outstanding|receivable|collection|pending payment from|evlo (varanum|tharanum))\b/i, async s => { if (!okRoute32("accounts") && !okRoute32("crm")) return notMine("accounts", "Customer outstanding");
+      const I = all28("inv").filter(i => i.status !== "cancelled" && num(i.balance) > 0.5), by = {}; I.forEach(i => { (by[i.customer] ||= { c: i.customer, b: 0, n: 0 }); by[i.customer].b += num(i.balance); by[i.customer].n++; });
+      let L = Object.values(by).sort((a, b) => b.b - a.b); const w = L.filter(x => like(s, x.c)); if (w.length) L = w;
+      return L.length ? `To receive: <b>${inr28(L.reduce((a, x) => a + x.b, 0))}</b><ol style="margin:6px 0 0 18px;padding:0">${L.slice(0, 8).map(x => `<li>${esc(x.c)}: <b>${inr28(x.b)}</b> <small>(${x.n} invoice${x.n > 1 ? "s" : ""})</small></li>`).join("")}</ol>` : "Nothing is outstanding from customers. 👍"; }],
+    [/\b(follow[- ]?ups?|call today|today('s)? calls)\b/i, async () => { if (!okRoute32("crm")) return notMine("crm", "Follow-ups"); const me = me28(), L = all28("lead").filter(x => !["won", "lost"].includes(x.stage) && x.next && x.next <= todayISO() && (isAdmin28() || x.owner === me || (!x.owner && x.by === me)));
+      BIZ.ui.crm = "follow"; location.hash = "crm"; render(); return L.length ? `<b>${L.length}</b> follow-up${L.length > 1 ? "s" : ""} due:<ol style="margin:6px 0 0 18px;padding:0">${L.slice(0, 8).map(x => `<li>${esc(x.company || x.customer || x.name || "")}${x.contact ? " - " + esc(x.contact) : ""}${x.phone ? ` <a href="tel:${esc(x.phone)}">📞</a>` : ""}</li>`).join("")}</ol>` : "No follow-ups due today. 👍"; }],
+    [/\b(stock|irukka|kaiyirupu|how many .* (in )?store)\b/i, async s => { if (!okRoute32("stock88") && !okRoute32("purchase")) return notMine("stock88", "Stock"); const w = s.replace(/\b(stock|of|in|the|store|how|many|much|irukka|evlo|is|there|check)\b/gi, " ").trim(), I = all28("item").filter(it => w && like(it.name, w)).slice(0, 8);
+      if (!I.length) { location.hash = "stock88"; render(); return w ? `No item like "<b>${esc(w)}</b>" in the store. The Stock page is open.` : "The Stock page is open."; }
+      return I.map(it => { const q = stockOf28(it.id); return `<div>${esc(it.name)}: <b>${q} ${esc(it.unit || "")}</b>${Number(it.min) && q <= Number(it.min) ? ' <span style="color:#c0392b">(at / below limit)</span>' : ""}</div>`; }).join(""); }],
+    [/\btally\b/i, async () => { if (!okRoute32("accounts")) return notMine("accounts", "Tally"); BIZ.ui.acc = "tally"; location.hash = "accounts"; render(); const n = all28("inv").filter(i => i.status !== "cancelled" && !i.tally).length, p = all28("spay").filter(x => !x.tally).length;
+      return `Tally page is open. Not yet in Tally: <b>${n}</b> invoices, <b>${all28("rcpt").filter(x => !x.tally).length}</b> receipts, <b>${p}</b> payments, <b>${all28("exp").filter(x => !x.tally).length}</b> expenses. Press the Send buttons - if Tally can't be reached from this browser, an import file is saved.`; }],
+    [/\b(new work|work for me|enakku (enna )?vela)\b/i, async () => { location.hash = "mydash"; render(); const L = all28("wk").filter(x => x.to === me28() && x.status === "new" && x.src !== "plan"); return L.length ? `<b>${L.length}</b> new work for you - press <b>✔ Accept</b> on each on your Dashboard.` : "No new work for you right now."; }]
+  );
+  /* "not working": also clear search boxes that may hide rows */
+  const _rp = repair113;
+  repair113 = async function (s) { let n = 0; try { Object.keys(BIZ.ui || {}).forEach(k => { if (/q$|q\d*$|search|filter|^f\d/i.test(k) && typeof BIZ.ui[k] === "string" && BIZ.ui[k]) { BIZ.ui[k] = ""; n++; } }); W117.bf = ""; } catch { }
+    const r = await _rp.apply(this, arguments); if (n && r?.html) r.html = r.html.replace("<br>", `<br>✓ Cleared ${n} search filter${n > 1 ? "s" : ""} that could hide rows<br>`); return r; };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+.ap117at{min-height:110px;border:2px dashed #b8c4d4;border-radius:12px;margin-top:10px;padding:10px;display:flex;flex-wrap:wrap;gap:10px;align-items:flex-start;outline:none}.ap117at:focus{border-color:#0b2a57;background:#f6f9fd}
+.ap117e{margin:auto;text-align:center;color:var(--muted,#667)}
+.ap117f{position:relative;margin:0;width:180px;border:1px solid var(--line,#dfe5ee);border-radius:10px;overflow:hidden;background:#fff}.ap117f img{display:block;width:100%;height:120px;object-fit:contain;background:#f4f6f9}.ap117f figcaption{font-size:11px;padding:4px 6px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.ap117f button{position:absolute;top:4px;right:4px;border:0;background:rgba(0,0,0,.6);color:#fff;border-radius:50%;width:22px;height:22px;cursor:pointer}
+.ap117d span{display:grid;place-items:center;height:120px;font-size:34px}
+.ap117t{border:1px solid var(--line,#dfe5ee);border-radius:8px;padding:0;background:#fff;cursor:zoom-in;width:150px;height:100px;overflow:hidden}.ap117t img{width:100%;height:100%;object-fit:contain}
+.nw117{border-left:4px solid #ec6f1c;margin-bottom:14px}.nw117r{display:flex;gap:8px;align-items:center;flex-wrap:wrap;border:1px solid var(--line,#e3e8ef);border-radius:10px;padding:8px 10px}
+.bk117g{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:10px}.bk117c{text-align:left;border:1px solid var(--line,#e3e8ef);border-top:4px solid #6b4bb8;border-radius:12px;padding:12px;background:var(--surface,#fff);cursor:pointer;font:inherit;color:inherit;display:flex;flex-direction:column;gap:3px}.bk117c.on{box-shadow:0 0 0 2px #6b4bb8}.bk117b{font-size:22px;font-weight:700;color:#0b2a57}
+.bk117e{display:grid;grid-template-columns:1.3fr 1fr .8fr 1.2fr 1fr .9fr auto auto;gap:6px;align-items:center}@media(max-width:900px){.bk117e{grid-template-columns:1fr 1fr}}
+</style>`);
+
 boot();
 
 </script>
