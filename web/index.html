@@ -18428,6 +18428,27 @@ try {
   };
 } catch (e) { console.warn("p122 att hooks", e); }
 
+/* =============== p123: Purchase ▸ Vendor list (contacts) - every vendor with goods, address, phone, GSTIN, email, by category;
+   vendors also show in the Supplier repository even before the first order =============== */
+try {
+  REG116.vend = { t: "Vendor list (contacts)", mod: "purchase", icon: "🏭", due: "", cols: [["name", "Vendor name *", "text"], ["cat", "Category", "list", ["Copper", "Insulation material", "Hardware & packing", "Transport", "Hotel", "Stationery", "Others"]], ["goods", "Goods / service", "text"], ["phone", "Contact no", "text"], ["gstin", "GSTIN", "text"], ["email", "Email", "email"], ["addr", "Address", "textarea"], ["note", "Remarks", "textarea"]] };
+  const m = MODS32.find(x => x.id === "purchase");
+  if (m) { const c = [REG116.vend.t, "reg116", { rg116: "vend" }, "Every vendor - goods, phone, GSTIN, email"]; const L = (m.groups.Masters ||= []); if (!L.some(x => x[1] === "reg116" && x[2]?.rg116 === "vend")) L.push(c); try { CARDMOD64.set(c, "purchase"); } catch { } }
+  const _al = allowed21; allowed21 = function (r) { if (r === "reg116" && !isAdmin28() && BIZ?.ui?.rg116 === "vend") { const MM = MODS32.find(x => x.id === "purchase"); return !!MM && Object.values(MM.groups).flat().some(c => c[1] !== "reg116" && _al.call(this, c[1])); } return _al.apply(this, arguments); };
+  HELP110.push([/vendor|supplier (list|contact|phone)/i, "Purchase ▸ Vendor list", "reg116", { rg116: "vend" }, "Every vendor with goods, phone, GSTIN, email and address."]);
+  if (typeof supRepo91 === "function") {
+    const _sr = supRepo91;
+    supRepo91 = function () {
+      const L = _sr.apply(this, arguments);
+      try {
+        const k = n => supKey91(n), have = new Map(L.map(s => [k(s.name), s]));
+        regRows116("vend").forEach(v => { const s = have.get(k(v.name)); if (s) { s.gstin ||= v.gstin || ""; s.phone = v.phone; s.email = v.email; if (v.goods && !s.prods.length) s.prods.push(v.goods); } else L.push({ name: v.name, gstin: v.gstin || "", phone: v.phone, email: v.email, po: [], rn: [], bill: [], pay: [], ph: [], prods: [v.goods].filter(Boolean), spend: 0, due: 0, last: "" }); });
+      } catch (e) { console.warn("p123 sup", e); }
+      return L;
+    };
+  }
+} catch (e) { console.warn("p123 vendors", e); }
+
 boot();
 
 </script>
