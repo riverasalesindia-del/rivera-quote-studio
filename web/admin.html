@@ -18164,6 +18164,74 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 .tabs-row.e118{margin:0 0 12px}
 </style>`);
 
+
+/* =============== p119: (1) the app updates itself on every PC / phone when a new version is out (no Ctrl+Shift+R needed)
+   (2) Management ▸ MD sir documents (NOE (M) values, monthly with date + Synology link) and Rental & password links
+       (passwords stay in the Vault, the register keeps the link and the renewal date)
+   (3) Assets: calibration (last / next due), insurance (policy, expiry), FC / permit, PUC, AMC - filled by the department
+       in the asset itself; "Asset due dates" page + dashboard counts =============== */
+{
+  /* (1) new version → reload by itself when nothing is open */
+  const ver = () => document.querySelector('meta[name="rqs-ver"]')?.content || "";
+  let reloading = false;
+  const safe = () => !$("#dr26") && !document.querySelector("input:focus,textarea:focus,select:focus") && !document.querySelector(".modal.open,dialog[open]");
+  const go = () => { if (reloading) return; reloading = true; const tryIt = () => { if (safe()) location.reload(); else setTimeout(tryIt, 15000); }; tryIt(); };
+  try {
+    if (navigator.serviceWorker && !window.RiveraAndroid) {
+      let had = !!navigator.serviceWorker.controller;
+      navigator.serviceWorker.addEventListener("controllerchange", () => { if (had) { toast("New version of Rivera ERP - opening it…"); go(); } had = true; });
+      const chk = async () => { try { const reg = await navigator.serviceWorker.getRegistration(); await reg?.update(); } catch { } };
+      setInterval(chk, 10 * 60 * 1000); document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") chk(); }); setTimeout(chk, 20000);
+    }
+  } catch (e) { console.warn("p119 update", e); }
+  void ver;
+}
+
+/* (2) Management registers */
+try {
+  REG116.noe = { t: "MD sir documents (NOE / M values)", mod: "mgmt", icon: "📁", due: "next", cols: [["name", "Document *", "list", ["NOE (M) values", "Monthly MIS", "Bank statements", "GST returns", "Statutory / ROC documents", "Insurance summary"]], ["month", "For the month (any date in it) *", "date"], ["date", "Given / updated on", "date"], ["link", "Synology link / folder path", "text"], ["by", "Prepared by", "text"], ["next", "Next due", "date"], ["note", "Remarks", "text"]] };
+  REG116.rent = { t: "Rental & password links", mod: "mgmt", icon: "🔑", due: "next", cols: [["name", "Property / portal / service *", "text"], ["link", "Link / website", "text"], ["user", "Login id", "text"], ["vault", "Password kept in", "select", ["Vault (Admin ▸ Vault)", "With MD sir", "Not needed"]], ["rent", "Rent / fee ₹ per month", "number"], ["owner", "Owner / contact", "text"], ["date", "Last updated", "date"], ["next", "Next update / renewal", "date"], ["note", "Remarks (never write the password here)", "text"]] };
+  const M = MODS32.find(x => x.id === "mgmt");
+  if (M) ["noe", "rent"].forEach(k => { const c = [REG116[k].t, "reg116", { rg116: k }, "Monthly - due dates in colour"]; (M.groups.Masters ||= []).push(c); try { CARDMOD64.set(c, "mgmt"); } catch { } DASHK111.push(["mgmt", `${REG116[k].t}: due`, () => regRows116(k).filter(x => ["bad", "warn"].includes(dueSt116(x.next)[0])).length, "reg116", { rg116: k }, "warn"]); });
+  const _al = allowed21, hasMod = (m, self) => { const MM = MODS32.find(x => x.id === m); return !!MM && Object.values(MM.groups).flat().some(c => c[1] !== "reg116" && _al.call(self, c[1])); };
+  allowed21 = function (r) { if (r === "reg116") { if (isAdmin28()) return true; const k = BIZ?.ui?.rg116, m = k && REG116[k]?.mod; if (m === "mgmt") return hasMod("mgmt", this); return _al.apply(this, arguments) || hasMod("mgmt", this); } return _al.apply(this, arguments); };
+  HELP110.push([/noe|m values|md sir document|monthly document/i, "Management ▸ MD sir documents", "reg116", { rg116: "noe" }, "NOE (M) values and other monthly documents for MD sir, with date and Synology link."], [/rental|rent|password link/i, "Management ▸ Rental & password links", "reg116", { rg116: "rent" }, "Rental / portal links and renewal dates - passwords stay in the Vault."]);
+} catch (e) { console.warn("p119 mgmt", e); }
+
+/* (3) Asset due dates */
+const FADUE119 = [["calLast", "Last calibration", "date"], ["calNext", "Calibration due", "date"], ["calBy", "Calibrated by (lab)", "text"], ["calCert", "Calibration certificate no", "text"], ["insNo", "Insurance policy no", "text"], ["insBy", "Insurer", "text"], ["insExp", "Insurance expiry", "date"], ["fcExp", "FC / permit expiry", "date"], ["pucExp", "PUC expiry", "date"], ["taxExp", "Road tax till", "date"], ["amcExp", "AMC / service till", "date"], ["svcNext", "Next service", "date"]];
+const FADK119 = [["calNext", "Calibration"], ["insExp", "Insurance"], ["fcExp", "FC / permit"], ["pucExp", "PUC"], ["taxExp", "Road tax"], ["amcExp", "AMC"], ["svcNext", "Service"], ["warranty", "Warranty"]];
+const faDue119 = () => { const L = []; all28("fa").filter(a => !a.del && !/scrap|sold|disposed/i.test(a.status || "")).forEach(a => FADK119.forEach(([k, t]) => { if (a[k]) L.push({ a, k, t, d: a[k], st: dueSt116(a[k]) }); })); return L.sort((x, y) => String(x.d).localeCompare(String(y.d))); };
+{
+  const _p = faPanel62;
+  faPanel62 = function (src) {
+    const r0 = _p.apply(this, arguments);
+    try { const D = $("#dr26"), f = D && $(".fields", D); if (f && !$('[data-k="calNext"]', D)) { const r = src || {}; const cat = String(r.category || ""), veh = /vehicle/i.test(cat) || r.regNo, cal = /test|lab|instrument|machine|tool|equip/i.test(cat);
+      f.insertAdjacentHTML("afterend", `<section class="dr26-sec fa119"><h3>Due dates - calibration, insurance, vehicle papers</h3><p class="small muted" style="margin-top:0">Fill only what applies. Red = expired, orange = due within 30 days. They show on the Asset due dates page and the dashboard.</p><div class="fields">${FADUE119.filter(([k]) => veh || cal ? (veh ? !/^cal/.test(k) : !/^(fc|puc|tax)/.test(k)) : true).map(x => field28(x, r)).join("")}</div></section>`); } } catch (e) { console.warn("p119 fa", e); }
+    return r0;
+  };
+}
+ROUTES.push(["fadue119", "Asset due dates", "box28"]);
+{ const _al = allowed21; allowed21 = function (r) { if (r === "fadue119") return _al.call(this, "assets62"); return _al.apply(this, arguments); }; }
+VIEWS.fadue119 = v => {
+  bizSync28(); const L = faDue119(), f = BIZ.ui.fd119 || "", L2 = L.filter(x => !f || (f === "due" ? ["bad", "warn"].includes(x.st[0]) : x.k === f));
+  const n = k => L.filter(x => x.k === k && ["bad", "warn"].includes(x.st[0])).length;
+  v.innerHTML = top62("Assets", "Asset due dates", "Calibration, insurance, FC / permit, PUC, road tax, AMC and warranty of every asset - expired in red, due in 30 days in orange.", `<button class="btn" type="button" data-go='["assets62",{}]'>Open assets</button>`)
+    + (loadNote28() || `<div class="row" style="gap:6px;flex-wrap:wrap;margin-bottom:10px"><button type="button" class="btn sm ${!f ? "primary" : ""}" data-fd="">All (${L.length})</button><button type="button" class="btn sm ${f === "due" ? "primary" : ""}" data-fd="due">Expired / due (${L.filter(x => ["bad", "warn"].includes(x.st[0])).length})</button>${FADK119.map(([k, t]) => `<button type="button" class="btn sm ${f === k ? "primary" : ""}" data-fd="${k}">${t}${n(k) ? ` · ${n(k)} due` : ""}</button>`).join("")}</div>
+    <section class="panel"><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Due</th><th>What</th><th>Asset</th><th>Category</th><th>Tag / reg no</th><th>With</th><th>Status</th></tr></thead><tbody>${L2.map(x => `<tr data-fa="${esc(x.a.id)}" style="cursor:pointer"><td><b>${esc(dmy(x.d))}</b></td><td>${esc(x.t)}</td><td>${esc(x.a.name || "")}</td><td>${esc(x.a.category || "")}</td><td>${esc(x.a.regNo || x.a.tag || x.a.no || "")}</td><td>${esc(nm62(x.a.holder) || x.a.location || "")}</td><td><span class="chip ${x.st[0]}">${x.st[1]}</span></td></tr>`).join("") || `<tr><td colspan="7" class="muted">No due dates yet - open an asset and fill "Due dates" (calibration, insurance…).</td></tr>`}</tbody></table></div></section>`);
+  $$("[data-fd]", v).forEach(b => b.onclick = () => { BIZ.ui.fd119 = b.dataset.fd; render(); });
+  $$("[data-fa]", v).forEach(tr => tr.onclick = () => faPanel62(BIZ.rows[tr.dataset.fa]));
+  $$("[data-go]", v).forEach(b => b.onclick = () => { const [r, p] = JSON.parse(b.dataset.go); Object.assign(BIZ.ui, p); location.hash = r; render(); });
+};
+try {
+  MODS32.forEach(m => Object.values(m.groups).forEach(G => { if (G.some(c => c[1] === "assets62") && !G.some(c => c[1] === "fadue119")) { const i = G.findIndex(c => c[1] === "assets62"), c = ["Asset due dates", "fadue119", {}, "Calibration, insurance, FC, PUC, AMC - expiry in colour"]; G.splice(i + 1, 0, c); try { CARDMOD64.set(c, m.id); } catch { } } }));
+  ["admin", "ops"].forEach(m => DASHK111.push([m, "Assets: calibration / insurance due", () => faDue119().filter(x => ["bad", "warn"].includes(x.st[0])).length, "fadue119", { fd119: "due" }, "warn"]));
+  HELP110.push([/calibrat|insurance|\bfc\b|puc|road tax|vehicle paper|amc/i, "Assets ▸ Asset due dates", "fadue119", {}, "Calibration, insurance, FC, PUC, road tax and AMC due dates of every asset."]);
+} catch (e) { console.warn("p119 fa menu", e); }
+
+/* the Ask Rivera button never covers the Save buttons of an open panel */
+document.head.insertAdjacentHTML("beforeend", `<style>body:has(#dr26) #ar110b,body:has(.dr26-ov) #ar110b{display:none!important}</style>`);
+
 boot();
 
 </script>

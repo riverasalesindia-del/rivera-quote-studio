@@ -1121,13 +1121,33 @@ function recCan(kind, me) {
   var a = REC_ACCESS[kind]; return !a || a.indexOf(me.role) >= 0;
 }
 var REC_NO = { rq: "RCM/RQ/", rn: "RCM/GRN/", mg: "RCM/GP/", vr: "VR/", pl: "PL/", lv: "LV/", vis: "VS/", onb: "NE/", appt: "AP/", tqs: "RCM/TQ/", cr: "RCM/CR/", pret: "RCM/PR/", pcs: "RCM/CS/", qtr: "RCM/TR/", qap: "RCM/QAP/", ho: "HO/", po: "RCM/PO/", job: "RJ/", inv: "RCM/INV/", svc: "SR/", proj: "PRJ/", sal: "SAL/", so: "RCM/SO/", dn: "RCM/DN/", sr: "RCM/CN/" };
+
+/* p119: every login sees the employee names (for work, leave, handover pickers) - not salary, bank, phone or documents;
+   registers (fire extinguishers, licences, maintenance, kitchen, security, legal, POSH, interviews, shelf life, MD documents)
+   are seen and kept by the department whose register it is; Accounts keeps its bank accounts list */
+function empLite119(o) { return { id: o.id, kind: o.kind, no: o.no, by: o.by, at: o.at, name: o.name, code: o.code, dept: o.dept, designation: o.designation, status: o.status, company: o.company, email: o.email, doj: o.doj, lite: 1 }; }
+var REG119 = { fire: "admin", lic: "admin", mnt: "admin", kit: "admin", sec: "admin", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr" };
+var REGPG119 = { admin: /^(admin|docs71|assets62|vis71|gate71|courier)/, hr: /^(hr|hrx)/, store: /^(purchase|stock|store|jobs)/, mgmt: /^(mgmt|mis|work\.team)/ };
+function can119(r, me) {
+  var x = data62(r), P = userPages(me);
+  if (r.kind === "dc" && x.reg116) { var m = REG119[x.reg116]; if (!m) return false; if (me.email === md62()) return true; return P.some(function (p) { return REGPG119[m].test(p); }) || (m === "hr" && me.role === "finance"); }
+  if (r.kind === "sig" && x.type === "cfg-bank117") return P.some(function (p) { return /^accounts/.test(p); }) || me.role === "finance";
+  return false;
+}
+function flvSees119(x, me) {
+  var cfg = null; recRows().forEach(function (r) { if (r.kind === "sig" && r.del !== "1") { var d = data62(r); if (d.type === "cfg-flv115") cfg = d; } });
+  var P = userPages(me);
+  if (P.some(function (p) { return /^(hr|hrx)/.test(p); })) return true;
+  if (cfg) return ["prod", "ops", "hr"].some(function (k) { return (cfg[k] || []).indexOf(me.email) >= 0; });
+  return P.some(function (p) { return /^(prod|jobs|ops|operation|floorlv|lvappr)/.test(p); }) || /prod|oper/.test(String(me.role || ""));
+}
 function recSheet() { var sh = sheet("Records", RCH); tdbFmt(sh, RCH.length); return sh; }
 function recRows() { return fastRead("Records", RCH, recSheet); }
 function recOut(r) { var o = {}; try { o = JSON.parse(r.data || "{}"); } catch (e) { } o.id = r.id; o.kind = r.kind; o.no = r.no; o.by = r.by; o.at = r.at; return o; }
 function recList(d, me) {
   var kinds = (d.kinds || Object.keys(REC_KINDS)).filter(function (k) { return REC_KINDS[k]; }), since = String(d.since || "");
-  var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (recCan(r.kind, me) || linkedRead(r, me) || r.kind === "sig" || r.kind === "pp") && vis62(r, me) && (!since ? r.del !== "1" : String(r.at) > since); });
-  return { ok: true, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.kind === "po" && !recCan("po", me)) o = poLite(o); if (r.del === "1") o._del = 1; return o; }) };
+  var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (recCan(r.kind, me) || linkedRead(r, me) || r.kind === "sig" || r.kind === "pp" || r.kind === "emp" || can119(r, me)) && vis62(r, me) && (!since ? r.del !== "1" : String(r.at) > since); });
+  return { ok: true, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.kind === "po" && !recCan("po", me)) o = poLite(o); if (r.kind === "emp" && !recCan("emp", me)) o = empLite119(o); if (r.del === "1") o._del = 1; return o; }) };
 }
 /* Order flow: anyone who can see sales orders also sees (read-only) the work orders and indents / POs made for a sales order,
    so every department sees where an order stands; supplier prices are left out for logins without Purchase */
@@ -1161,7 +1181,7 @@ function recPut(d, me) {
     list.forEach(function (rec) {
       var kind = rec.kind; if (!REC_KINDS[kind]) throw "Unknown record type";
       if (kind === "lead" && ["admin", "sales"].indexOf(me.role) < 0) throw "Only sales can change leads";
-      if (!recCan(kind, me) && !roleCan74(kind, me) && !handoffOk(rec, all, me)) { log(me.email, "denied", "save " + kind + " " + (rec.id || "new")); throw "Your login can't save " + (KN74[kind] || kind) + " - ask Admin to give this page"; }
+      if (!recCan(kind, me) && !roleCan74(kind, me) && !handoffOk(rec, all, me) && !can119({ kind: kind, data: JSON.stringify(rec) }, me)) { log(me.email, "denied", "save " + kind + " " + (rec.id || "new")); throw "Your login can't save " + (KN74[kind] || kind) + " - ask Admin to give this page"; }
       var r = rec.id ? all.filter(function (x) { return x.id === rec.id; })[0] : null, before = null;
       if (r) { try { before = JSON.parse(r.data || "{}"); } catch (e) { before = {}; } }
       if (r && OPEN62.indexOf(kind) >= 0 && !vis62(r, me)) { log(me.email, "denied", "change " + kind + " " + r.id); throw "This " + (KN74[kind] || kind) + " belongs to someone else - only they (or Admin) can change it"; }
@@ -1254,6 +1274,7 @@ function vis62(r, me) {
   if (me.role === "admin" || me.email === ADMIN || me.role === "viewer" || me.email === md62()) return true;
   var P = userPages(me);
   if (r.kind === "cr" && P.indexOf("courier.all") >= 0) return true;
+  if (r.kind === "lv" && data62(r).fl115 && flvSees119(data62(r), me)) return true;
   if (r.kind === "ho" && P.indexOf("handover.approve") >= 0) return true;
   if (r.kind === "ho" && (me.email === "agm@rivera.co.in" || me.email === "hr@rivera.co.in")) return true;
   if ((r.kind === "vis" || r.kind === "appt") && P.indexOf("courier.all") >= 0) return true;
