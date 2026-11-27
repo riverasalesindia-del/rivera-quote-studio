@@ -10888,7 +10888,7 @@ function wireAssign62(v) {
 const planToday62 = () => all28("wk").filter(x => x.src === "plan" && x.to === me28() && x.day === todayISO() && x.status !== "cancelled");
 function plan62() {
   const P = planToday62();
-  return `<section class="panel"><div class="body"><p class="small muted" style="margin-top:0">Write what you will do today, one work per line. MD sir sees it; in the evening you mark each one in the Daily update.</p>
+  return `<section class="panel"><div class="body"><p class="small muted" style="margin-top:0">Write what you will do today, one work per line. Management sees it; in the evening you mark each one in the Daily update.</p>
     ${P.length ? `<div class="stack" style="gap:6px;margin-bottom:12px">${P.map(x => `<div class="pl62" data-pid="${x.id}"><span class="pl62-t">${esc(x.title)}</span><span class="chip">${x.pct || 0}%</span>${x.status !== "done" ? `<button type="button" class="btn sm" data-pe="${x.id}" title="Edit">✏️</button><button type="button" class="btn sm" data-pd="${x.id}" title="Remove">🗑️</button>` : '<span class="chip ok">Completed</span>'}</div>`).join("")}</div>` : ""}
     <textarea id="pl62n" rows="4" placeholder="One work per line…"></textarea><button type="button" class="btn primary block" id="pl62s" style="margin-top:8px;background:#7b3fa0">${P.length ? "Add to today's plan" : "Send today's plan"}</button></div></section>`;
 }
@@ -10921,7 +10921,7 @@ function du62() {
     <div class="du62-add"><input id="du62n" placeholder="What did you work on?" maxlength="300"><label>From<input type="time" id="du62f"></label><label>To<input type="time" id="du62to"></label><button type="button" class="btn sm primary" id="du62a">+ Add</button></div>
     <label class="f" style="margin-top:10px">Remarks (optional)<textarea id="du62r" rows="2">${esc(d?.remarks || W62.duRemarks || "")}</textarea></label>
     <button type="button" class="btn primary block" id="du62s" style="margin-top:10px">${d?.submittedAt ? "Update and send again" : "Send today's update"}</button>
-    <p class="small muted">Every work needs a From and To time. "To" of one work fills "From" of the next. MD sir gets one report at 6:35 PM.</p></div></section>`;
+    <p class="small muted">Every work needs a From and To time. "To" of one work fills "From" of the next. Management gets one report at 6:35 PM.</p></div></section>`;
 }
 function wireDu62(v) {
   const I = W62.duItems; if (!I || !$("#du62s", v)) return;
@@ -11072,7 +11072,7 @@ function hoPanel62(src) {
   const read = () => { if (!edit) return; r.to = $("#ho62to").value; r.toName = nm62(r.to); r.reason = $("[data-k=reason]", D).value; r.lastDay = $("[data-k=lastDay]", D).value; $$("[data-hi]", D).forEach(t => { r.items[+t.dataset.hi].text = t.value; }); $$("[data-hn]", D).forEach(c => { r.items[+c.dataset.hn].na = c.checked; }); };
   const put = async (btn, extra, type, text, msg, more = []) => { read(); Object.assign(r, extra); logAdd28(r, type, text); if (await save28(btn, [r, ...more], msg)) { closeDrawer26(); render(); return true; } };
   $("#ho62s") && ($("#ho62s").onclick = e => put(e.target, {}, "Saved", "", "Saved"));
-  $("#ho62go") && ($("#ho62go").onclick = e => { read(); const p = hoCheck62(r); if (p.length) return toast(p[0], "bad"); const nm = prompt(`Are you sure? You are handing over to ${r.toName}, ${openWk.length} open work will move. Type your name to confirm:`); if (!nm || nm.trim().toLowerCase() !== String(r.empName || "").trim().toLowerCase()) return toast(`Type your name exactly as "${r.empName}"`, "bad"); put(e.target, { status: "submitted", confirmed: now62() }, "Submitted", `Confirmed. ${done}/${r.items.length} items, ${openWk.length} open work`, "Submitted - Admin and MD sir will review it"); });
+  $("#ho62go") && ($("#ho62go").onclick = e => { read(); const p = hoCheck62(r); if (p.length) return toast(p[0], "bad"); const nm = prompt(`Are you sure? You are handing over to ${r.toName}, ${openWk.length} open work will move. Type your name to confirm:`); if (!nm || nm.trim().toLowerCase() !== String(r.empName || "").trim().toLowerCase()) return toast(`Type your name exactly as "${r.empName}"`, "bad"); put(e.target, { status: "submitted", confirmed: now62() }, "Submitted", `Confirmed. ${done}/${r.items.length} items, ${openWk.length} open work`, "Submitted - Admin and Management will review it"); });
   const note = () => ($("#ho62note")?.value || "").trim();
   $("#ho62b") && ($("#ho62b").onclick = e => { if (!note()) return toast("Write what is missing", "bad"); put(e.target, { status: "returned", note: note() }, "Sent back", note(), "Sent back"); });
   $("#ho62ok") && ($("#ho62ok").onclick = e => {
@@ -11150,7 +11150,7 @@ const vMeta62 = () => all28("vlt").find(x => x.meta);
 function vLock62() { clearTimeout(VT62.timer); VT62.timer = setTimeout(() => { VT62.key = null; VT62.items = []; VT62.show.clear(); if (STATE.route === "vault") render(); }, 10 * 6e4); }
 VIEWS.vault = async v => {
   bizSync28(); team62();
-  const head = top62("Admin", "Password vault", "Finance, bank, email and portal logins. Only MD sir and the Admin department. Locked with a master password typed only here - it is never sent to the server and cannot be recovered.", VT62.key ? `<button class="btn primary" id="vt62n" type="button">${icon("plus")}Add entry</button><label class="btn">⬆ Import CSV<input type="file" accept=".csv" id="vt62i" hidden></label><button class="btn" id="vt62k" type="button">🔒 Lock</button>` : "");
+  const head = top62("Admin", "Password vault", "Finance, bank, email and portal logins. Only Admin, Finance and Management. Locked with a master password typed only here - it is never sent to the server and cannot be recovered.", VT62.key ? `<button class="btn primary" id="vt62n" type="button">${icon("plus")}Add entry</button><label class="btn">⬆ Import CSV<input type="file" accept=".csv" id="vt62i" hidden></label><button class="btn" id="vt62k" type="button">🔒 Lock</button>` : "");
   if (!window.crypto?.subtle) { v.innerHTML = head + '<div class="empty"><b>Needs a secure (https) page</b></div>'; return; }
   const M = vMeta62();
   if (loadNote28()) { v.innerHTML = head + loadNote28(); return; }
@@ -11419,9 +11419,9 @@ VIEWS.rep62 = v => {
   card("purchase", "Transactions", ["Comparative statement", "pur62", { pu62: "cmp" }, "Supplier quotes side by side → PO"]); card("purchase", "Transactions", ["Purchase return", "pur62", { pu62: "ret" }, "Debit note, stock goes down"]);
   card("purchase", "Reports", ["Stock statement", "rep62", { r62: "stock" }, "Stock and value of every item"]); card("purchase", "Reports", ["Asset statement", "rep62", { r62: "asset" }, "Assets by category and value"]);
   card("accounts", "Reports", ["Accounts payable", "rep62", { r62: "ap" }, "What we owe each supplier, by age"]);
-  card("admin", "Transactions", ["Courier register (all)", "courier", { cr62: "all" }, "Every courier in and out"]); card("admin", "Transactions", ["Handover approvals", "handover", { ho62: "approve" }, "Admin check, then MD approval"]);
-  card("admin", "Masters", ["Asset register", "assets62", {}, "Every company asset, who has it"]); card("admin", "Masters", ["Password vault", "vault", {}, "MD + Admin only, encrypted"]);
-  card("work", "Reports", ["Team work (all people)", "work", { w62: "team" }, "Tick for the Admin department / MD: see everyone's work"]);
+  card("admin", "Transactions", ["Courier register (all)", "courier", { cr62: "all" }, "Every courier in and out"]); card("admin", "Transactions", ["Handover approvals", "handover", { ho62: "approve" }, "Admin check, then Management approval"]);
+  card("admin", "Masters", ["Asset register", "assets62", {}, "Every company asset, who has it"]); card("admin", "Masters", ["Password vault", "vault", {}, "Admin, Finance, Management - encrypted"]);
+  card("work", "Reports", ["Team work (all people)", "work", { w62: "team" }, "Tick for the Admin department / Management: see everyone's work"]);
   /* the "team" card is a permission switch only — it opens the dashboard */
   const _g = go32; go32 = function (route, ui) { if (route === "work" && ui?.w62 === "team") ui = { w62: "dash" }; return _g.call(this, route, ui); };
 }
@@ -11444,14 +11444,14 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 </style>`);
 
 
-/* ===================== p63: one clean menu per department (from MD sir's list) — each login sees only its own department + Work Board ===================== */
+/* ===================== p63: one clean menu per department (from Management's list) — each login sees only its own department + Work Board ===================== */
 {
   const W = { blurb: "" };
   const MOD63 = [
     { id: "work", name: "Work Board", icon: "check28", tone: "#0b2a57", blurb: "My work, worklist, daily update", groups: {
       Transactions: [["My work", "work", { w62: "mine" }, "Work given to me - accept, update, complete"], ["Worklist", "work", { w62: "plan" }, "Today's plan - what I will do today"], ["Assign work", "work", { w62: "assign" }, "Give work to one or more people"], ["Daily update", "work", { w62: "du" }, "Evening update with From / To time"], ["Courier", "courier", { cr62: "mine" }, "Couriers for me / sent by me"], ["Handover", "handover", { ho62: "mine" }, "Hand over before leaving"]],
       Masters: [["Work I gave", "work", { w62: "given" }, "Progress of work I gave"]],
-      Reports: [["Work dashboard", "work", { w62: "dash" }, "Open, overdue, completed + Today's work PDF"], ["Team work (all people)", "work", { w62: "team" }, "Admin / MD: everyone's work"]] } },
+      Reports: [["Work dashboard", "work", { w62: "dash" }, "Open, overdue, completed + Today's work PDF"], ["Team work (all people)", "work", { w62: "team" }, "Admin / Management: everyone's work"]] } },
     { id: "sales", name: "Sales", icon: "funnel28", tone: "#E26A0C", blurb: "Leads to order", groups: {
       Transactions: [["Dashboard", "gs", { gs: "dash" }, "Alerts, today's follow-ups"], ["Worklist", "gs", { gs: "dash", gsd: "tasks" }, "My follow-ups and tasks today"], ["Approval", "gs", { gs: "dash", gsd: "approvals" }, "Quotes and orders waiting for approval"],
         ["Leads", "gs", { gs: "lead" }, "Enquiries and next follow-up"], ["Quotation", "gs", { gs: "quote" }, "All quotations"], ["Order", "gs", { gs: "so" }, "Customer PO → sales order"], ["Auto quotation", "scan", {}, "Drop the enquiry → quotation in one tap"], ["Quote working", "workings", {}, "Costing for coils"], ["Quotation (letterhead)", "quote", {}, "Rivera letterhead quote"], ["Quote follow-up", "qfu", {}, "Sent quotes waiting for reply"], ["Order follow-up", "flow53", {}, "Where each order stands"], ["Work order", "orders", {}, "Orders in the factory"], ["Service calls", "service", { svc: "calls" }, "Breakdown & complaints"]],
@@ -11477,8 +11477,8 @@ document.head.insertAdjacentHTML("beforeend", `<style>
       Masters: [["Test standards", "quality", { q62: "std" }, "Acceptance limits"]],
       Reports: [["Test register", "quality", { q62: "reg" }, "Every coil tested"]] } },
     { id: "admin", name: "Admin", icon: "lock", tone: "#02315B", blurb: "Courier, handover, vault, users", groups: {
-      Transactions: [["Courier register (all)", "courier", { cr62: "all" }, "Every courier in and out"], ["Handover approvals", "handover", { ho62: "approve" }, "Admin check, then MD approval"], ["Activity", "activity", {}, "Who changed what"]],
-      Masters: [["Password vault", "vault", {}, "MD + Admin only, encrypted"], ["Users & access", "users", {}, "Logins and departments"], ["Synology & files", "storage", {}, "Shared folders"]],
+      Transactions: [["Courier register (all)", "courier", { cr62: "all" }, "Every courier in and out"], ["Handover approvals", "handover", { ho62: "approve" }, "Admin check, then Management approval"], ["Activity", "activity", {}, "Who changed what"]],
+      Masters: [["Password vault", "vault", {}, "Admin, Finance, Management - encrypted"], ["Users & access", "users", {}, "Logins and departments"], ["Synology & files", "storage", {}, "Shared folders"]],
       Reports: [["Health & automation", "health", {}, "Mails, triggers, errors"]] } }
   ];
   /* Tenders and Workshop stay for the MD / admin login only (not in any department) */
@@ -11556,7 +11556,7 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 const plnDraft64 = () => (W62.pl64 ||= []);
 plan62 = function () {
   const P = planToday62().sort((a, b) => String(a.pfrom || "").localeCompare(String(b.pfrom || ""))), D = plnDraft64(), last = [...P.map(x => x.pto), ...D.map(x => x.to)].filter(Boolean).sort().pop() || "";
-  return `<section class="panel"><div class="body"><p class="small muted" style="margin-top:0">Write what you will do today - every work with its <b>From</b> and <b>To</b> time. MD sir sees the plans at 10:45; in the evening the Daily update is filled from here.</p>
+  return `<section class="panel"><div class="body"><p class="small muted" style="margin-top:0">Write what you will do today - every work with its <b>From</b> and <b>To</b> time. Management sees the plans at 10:45; in the evening the Daily update is filled from here.</p>
     ${P.length ? `<div class="stack" style="gap:6px;margin-bottom:12px">${P.map(x => `<div class="pl62" data-pid="${x.id}"><span class="chip navy" style="white-space:nowrap">${esc(x.pfrom || "--:--")} - ${esc(x.pto || "--:--")}</span><span class="pl62-t">${esc(x.title)}</span><span class="chip">${x.pct || 0}%</span>${x.status !== "done" ? `<button type="button" class="btn sm" data-pe="${x.id}" title="Edit">✏️</button><button type="button" class="btn sm" data-pd="${x.id}" title="Remove">🗑️</button>` : '<span class="chip ok">Completed</span>'}</div>`).join("")}</div>` : ""}
     ${D.length ? `<div class="stack" style="gap:6px;margin-bottom:8px">${D.map((x, i) => `<div class="pl62" style="border-style:dashed"><span class="chip warn" style="white-space:nowrap">${esc(x.from)} - ${esc(x.to)}</span><span class="pl62-t">${esc(x.title)}</span><button type="button" class="btn sm" data-px="${i}" title="Remove">🗑️</button></div>`).join("")}</div>` : ""}
     <div class="du62-add" style="margin-top:0;border-top:0;padding-top:0"><input id="pl64t" placeholder="Work you will do…" maxlength="200"><label>From<input type="time" id="pl64f" value="${esc(last)}"></label><label>To<input type="time" id="pl64to"></label><button type="button" class="btn sm" id="pl64a">+ Add</button></div>
@@ -11761,7 +11761,7 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 
 
 /* ===================== p65: Work Board on one page — Dashboard · Given by me · Work update (morning plan + evening update in one list, From / To time) ·
-   Assign work (everyone's email) · Reminder (a small sheet → image + Excel → MD sir by email or WhatsApp, only when the person taps Send).
+   Assign work (everyone's email) · Reminder (a small sheet → image + Excel → Management by email or WhatsApp, only when the person taps Send).
    Full-width screen with the whole menu on one line. ===================== */
 const MD_WA65 = "917708549900";
 const W65 = [["dash", "Dashboard"], ["given", "Given by me"], ["upd", "Work update"], ["assign", "Assign work"], ["rem", "Reminder"]];
@@ -11808,7 +11808,7 @@ function upd65() {
     <div class="u65 u65-add"><input type="time" id="u65f" value="${esc(last)}" aria-label="From"><input type="time" id="u65to" aria-label="To"><div class="u65-t"><input id="u65n" placeholder="Add a work…" maxlength="300"></div><span></span><button type="button" class="btn sm primary" id="u65a">+ Add</button></div>
     <label class="f" style="margin-top:10px">Remarks (optional)<textarea id="u65r" rows="2">${esc(W62.u65.remarks || "")}</textarea></label>
     <div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn" id="u65p" style="flex:1;border-color:#7b3fa0;color:#7b3fa0">💾 Save plan (morning)</button><button type="button" class="btn primary" id="u65s" style="flex:1">${sent ? "Update and send again" : "📤 Send work update (evening)"}</button><button type="button" class="btn" id="u65pdf">📄 PDF</button></div>
-    <p class="small muted">Morning: add each work with From and To time and tap Save plan - MD sir sees all plans at 10:45. Evening: mark Completed / In progress / Pending and tap Send - MD sir gets one report with the PDF at 6:35 PM.</p></div></section>
+    <p class="small muted">Morning: add each work with From and To time and tap Save plan - Management sees all plans at 10:45. Evening: mark Completed / In progress / Pending and tap Send - Management gets one report with the PDF at 6:35 PM.</p></div></section>
     ${H.length || tv ? `<section class="panel"><header><h2>Earlier days</h2>${tv ? `<select id="h66" aria-label="Whose updates">${[...new Map(all28("wd").map(x => [x.who, x.whoName || nm62(x.who)])).entries(), [me28(), AUTH.user?.name || "Me"]].filter((x, i, a) => a.findIndex(y => y[0] === x[0]) === i).sort((a, b) => String(a[1]).localeCompare(String(b[1]))).map(([e, n]) => `<option value="${esc(e)}" ${e === hw ? "selected" : ""}>${esc(n)}</option>`).join("")}</select>` : ""}<span class="small muted">${H.length} day${H.length === 1 ? "" : "s"}</span></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Date</th><th>Work</th><th>Time</th><th>Status</th></tr></thead><tbody>${H.slice(0, 60).map(h => h.items.map((i, k) => `<tr>${k === 0 ? `<td rowspan="${h.items.length}" style="vertical-align:top;white-space:nowrap"><b>${esc(dmy62(h.day))}</b> <button type="button" class="btn sm" data-eday="${h.id}" title="Edit this day" aria-label="Edit this day">✏️</button>${h.late ? '<div class="small" style="color:#c0392b">late</div>' : ""}</td>` : ""}<td>${esc(i.title)}</td><td style="white-space:nowrap">${esc(i.from || "")}${i.to ? " - " + esc(i.to) : ""}</td><td>${{ done: "Completed", progress: "In progress", pending: "Pending" }[i.state] || esc(i.state || "")}${i.pct != null && i.state !== "done" ? ` <span class="chip" style="background:${pcol62(i.pct)};color:#fff">${+i.pct || 0}%</span>` : ""}</td></tr>`).join("")).join("")}</tbody></table></div></section>` : ""}`;
 }
 function keep65() {
@@ -11840,12 +11840,12 @@ function wireUpd65(v) {
   const save = async (btn, send) => {
     if (!check()) return;
     const recs = [];
-    /* every row is a work on today's plan (so MD sees it at 10:45); a row from work given by someone keeps its own record */
+    /* every row is a work on today's plan (so Management sees it at 10:45); a row from work given by someone keeps its own record */
     I.forEach(i => { if (i.wk && BIZ.rows[i.wk]) { const w = { ...BIZ.rows[i.wk] }, ch = w.src === "plan" && (w.pfrom !== i.from || w.pto !== i.to || w.title !== i.title); if (ch) Object.assign(w, { pfrom: i.from, pto: i.to, title: i.title }); const pc = +i.pct || 0, pch = (+w.pct || 0) !== pc; if (pch) w.pct = pc; if (send && w.status !== i.state && !(i.state === "progress" && w.status === "accepted")) { w.status = i.state; if (i.state === "done") { w.pct = 100; w.doneAt = now62(); } logAdd28(w, "Work update", `${i.state} ${pc}%`); recs.push(w); } else if (ch || pch) { if (pch) logAdd28(w, "Progress", pc + "%"); recs.push(w); } }
       else { const w = { kind: "wk", title: i.title, pfrom: i.from, pto: i.to, from: me28(), fromName: AUTH.user?.name || "", to: me28(), toName: AUTH.user?.name || "", src: "plan", day: todayISO(), status: send && i.state === "done" ? "done" : "accepted", pct: +i.pct || 0, created: now62(), _tmp: Math.random().toString(36).slice(2) }; i._tmp = w._tmp; recs.push(w); } });
     const old = updMine65(), wd = { ...(old || { kind: "wd" }), who: me28(), whoName: AUTH.user?.name || "", day: todayISO(), items: I.map(i => ({ title: i.title, state: i.state, pct: +i.pct || 0, from: i.from, to: i.to, wk: i.wk || "" })), remarks: (S.remarks || "").trim(), plannedAt: old?.plannedAt || now62() };
     if (send) { wd.submittedAt = now62(); wd.late = hm62() > "18:30"; }
-    const out = await save28(btn, [...recs, wd], send ? "Work update sent. Thank you!" : "Plan saved - MD sir sees it at 10:45");
+    const out = await save28(btn, [...recs, wd], send ? "Work update sent. Thank you!" : "Plan saved - Management sees it at 10:45");
     if (!out) return;
     /* link new plan rows to their saved records */
     const fresh = new Set(recs.filter(x => x._tmp && !x.id).map(x => x._tmp)), made = out.filter(x => x.kind === "wk" && fresh.has(x._tmp)); if (made.length) { made.forEach(m => { const i = I.find(z => z._tmp === m._tmp); if (i) { i.wk = m.id; delete i._tmp; } }); const w2 = out.find(x => x.kind === "wd"); if (w2) await save28(null, { ...w2, items: I.map(i => ({ title: i.title, state: i.state, pct: +i.pct || 0, from: i.from, to: i.to, wk: i.wk || "" })) }, send ? "Work update sent. Thank you!" : "Plan saved"); }
@@ -11886,8 +11886,8 @@ function rem65() {
     ${R.rows.map((r, i) => `<tr><td>${groups.no[i]}</td><td><input data-ri="${i}" data-rf="dept" value="${esc(r.dept)}" list="r65dl" placeholder="Department"></td><td><input data-ri="${i}" data-rf="item" value="${esc(r.item)}" placeholder="What is pending…"></td><td><button type="button" class="btn sm" data-rx="${i}" title="Remove row">🗑️</button></td></tr>`).join("")}</tbody></table></div>
     <datalist id="r65dl">${["Sales/Marketing", "Operation", "Purchase", "Accounts", "HR", "Store", "Quality", "Production", "Admin"].map(d => `<option value="${d}">`).join("")}</datalist>
     <div class="row" style="gap:8px;margin-top:8px;flex-wrap:wrap"><button type="button" class="btn sm" id="r65a">${icon("plus")}Add row</button><button type="button" class="btn sm" id="r65s">💾 Save</button><button type="button" class="btn sm" id="r65x">⬇ Sheet</button><button type="button" class="btn sm" id="r65n">New list</button></div>
-    <h3 style="margin:16px 0 6px;font-size:.95rem">Preview - this is what MD sir gets</h3><div id="r65v" class="r65v">${rmHtml65(R)}</div>
-    <div class="row" style="gap:10px;margin-top:12px;flex-wrap:wrap"><button type="button" class="btn primary" id="r65e" style="flex:1">${icon("mail")}Send to email (MD sir)</button><button type="button" class="btn" id="r65w" style="flex:1;background:#25D366;color:#fff;border-color:#25D366">${icon("wa")}Send to WhatsApp</button></div>
+    <h3 style="margin:16px 0 6px;font-size:.95rem">Preview - this is what Management gets</h3><div id="r65v" class="r65v">${rmHtml65(R)}</div>
+    <div class="row" style="gap:10px;margin-top:12px;flex-wrap:wrap"><button type="button" class="btn primary" id="r65e" style="flex:1">${icon("mail")}Send to email (Management)</button><button type="button" class="btn" id="r65w" style="flex:1;background:#25D366;color:#fff;border-color:#25D366">${icon("wa")}Send to WhatsApp</button></div>
     <p class="small muted">Nothing is sent by itself - it goes only when you tap a Send button. The list is kept here and in Excel.</p></div></section>
     ${L.filter(x => x.sentAt).length ? `<section class="panel"><header><h2>Sent earlier</h2></header><div class="body"><table class="t"><thead><tr><th>Date</th><th>Title</th><th>Items</th><th>Sent</th><th></th></tr></thead><tbody>${L.filter(x => x.sentAt).slice(0, 30).map(x => `<tr><td>${esc(dmy62(x.date))}</td><td>${esc(x.title)}</td><td>${(x.rows || []).length}</td><td>${esc((x.sentBy || []).join(" + "))} · ${esc(dt62(x.sentAt))}</td><td><button type="button" class="btn sm" data-rc="${x.id}">Copy to new</button></td></tr>`).join("")}</tbody></table></div></section>` : ""}`;
 }
@@ -11930,14 +11930,14 @@ function wireRem65(v) {
   const sent = async (how) => { const by = [...new Set([...(R.sentBy || []), how])]; await store(null, { sentAt: now62(), sentBy: by }, ""); W62.r65 = null; render(); };
   $("#r65e", v).onclick = async e => {
     if (!ok()) return; const b = e.target; b.disabled = true; const t0 = b.innerHTML; b.textContent = "Sending…";
-    try { const png = await rmPng65(R), b64 = await b6462(png); await AUTH.call("work62", { op: "shareImg", b64, title: `${R.title} as on ${String(R.date).split("-").reverse().join(".")}`, html: rmHtml65(R) }, 60000); toast("Sent to MD sir by email"); await sent("Email"); }
+    try { const png = await rmPng65(R), b64 = await b6462(png); await AUTH.call("work62", { op: "shareImg", b64, title: `${R.title} as on ${String(R.date).split("-").reverse().join(".")}`, html: rmHtml65(R) }, 60000); toast("Sent to Management by email"); await sent("Email"); }
     catch (er) { toast(er.message, "bad"); b.disabled = false; b.innerHTML = t0; }
   };
   $("#r65w", v).onclick = async () => {
     if (!ok()) return; const png = await rmPng65(R), name = `${R.title} ${R.date}.png`.replace(/[^\w .-]/g, ""), file = new File([png], name, { type: "image/png" });
     const text = `${R.title} as on ${String(R.date).split("-").reverse().join(".")} - ${AUTH.user?.name || ""}`;
     try { if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], text }); await sent("WhatsApp"); return; } } catch (er) { if (er.name === "AbortError") return; }
-    /* computer: the picture is copied (or downloaded) and WhatsApp opens on MD sir's chat - paste it there */
+    /* computer: the picture is copied (or downloaded) and WhatsApp opens on Management's chat - paste it there */
     let how = "downloaded"; try { await navigator.clipboard.write([new ClipboardItem({ "image/png": png })]); how = "copied"; } catch { const a = document.createElement("a"); a.href = URL.createObjectURL(png); a.download = name; a.click(); }
     const wa = `https://wa.me/${MD_WA65}?text=${encodeURIComponent(text)}`; if (typeof openLink === "function") openLink(wa); else window.open(wa, "_blank");
     toast(how === "copied" ? "Picture copied - in WhatsApp press Ctrl+V and Send" : "Picture saved - attach it in WhatsApp and Send"); await sent("WhatsApp");
@@ -11953,7 +11953,7 @@ VIEWS.work = v => {
     dash: () => `${dash62()}<h3 style="margin:16px 0 8px;font-size:1rem">Work given to me <span class="small muted">· ${open.length} open</span></h3>${list62(myWk62().filter(x => x.src !== "plan"), true)}`,
     given: () => list62(K.filter(x => x.from === me && x.to !== me && x.src !== "plan"), false), upd: upd65, assign: assign62, rem: rem65
   }[t] || (() => "");
-  const sub = { dash: team ? "Everyone's work, plans and updates" : `${open.length} open · ${open.filter(x => x.due && String(x.due).slice(0, 10) < todayISO()).length} overdue`, given: "Work you gave and how far it has gone", upd: "Morning: your plan with From and To time · Evening: mark the status and send", assign: "Give work to anyone - they get a mail", rem: "Pending list for MD sir - sent only when you tap Send" }[t];
+  const sub = { dash: team ? "Everyone's work, plans and updates" : `${open.length} open · ${open.filter(x => x.due && String(x.due).slice(0, 10) < todayISO()).length} overdue`, given: "Work you gave and how far it has gone", upd: "Morning: your plan with From and To time · Evening: mark the status and send", assign: "Give work to anyone - they get a mail", rem: "Pending list for Management - sent only when you tap Send" }[t];
   v.innerHTML = top62("Work Board", W65.find(x => x[0] === t)?.[1] || "Work", esc(sub || ""), `<button class="btn" id="w62r" type="button">${icon("spark")}${BIZ.busy ? "Syncing…" : "Refresh"}</button>`)
     + (loadNote28() || `${tabs28(t, W65.filter(x => ok.includes(x[0])), "w62t")}<div id="w62b" style="margin-top:12px">${body()}</div>`);
   $$("[data-w62t]", v).forEach(b => b.onclick = () => { U.w62 = b.dataset.w62t; render(); });
@@ -11967,7 +11967,7 @@ VIEWS.plan = v => { BIZ.ui.w62 = "upd"; location.replace("#work"); };
 /* the Work Board menu: five cards, same pages as before so every saved login keeps working */
 {
   const w = MODS32.find(m => m.id === "work");
-  if (w) w.groups = { Transactions: [["Dashboard", "work", { w62: "dash" }, "My work, team work, today's PDF"], ["Work update", "work", { w62: "plan" }, "Morning plan + evening update, From / To time"], ["Assign work", "work", { w62: "assign" }, "Give work to anyone"], ["Reminder", "work", { w62: "rem" }, "Pending list → MD sir by email / WhatsApp"], ["Courier", "courier", { cr62: "mine" }, "Couriers for me / sent by me"], ["Handover", "handover", { ho62: "mine" }, "Hand over before leaving"]], Masters: [["Given by me", "work", { w62: "given" }, "Work you gave"]], Reports: [["Team work (all people)", "work", { w62: "team" }, "Admin / MD: everyone's work"]] };
+  if (w) w.groups = { Transactions: [["Dashboard", "work", { w62: "dash" }, "My work, team work, today's PDF"], ["Work update", "work", { w62: "plan" }, "Morning plan + evening update, From / To time"], ["Assign work", "work", { w62: "assign" }, "Give work to anyone"], ["Reminder", "work", { w62: "rem" }, "Pending list → Management by email / WhatsApp"], ["Courier", "courier", { cr62: "mine" }, "Couriers for me / sent by me"], ["Handover", "handover", { ho62: "mine" }, "Hand over before leaving"]], Masters: [["Given by me", "work", { w62: "given" }, "Work you gave"]], Reports: [["Team work (all people)", "work", { w62: "team" }, "Admin / Management: everyone's work"]] };
   if (w) Object.values(w.groups).flat().forEach(c => { try { CARDMOD64.set(c, "work"); } catch { } });
   const _co = cardOk32; cardOk32 = function (c) { if (c?.[1] === "work" && c[2]?.w62 === "rem") { const T = myTokens34(); return !T || T.some(t => t.startsWith("work")); } return _co.apply(this, arguments); };
   const _g = go32; go32 = function (route, ui) { if (route === "work" && ui?.w62) ui = { ...ui, w62: W65MAP[ui.w62] || ui.w62 }; return _g.call(this, route, ui); };
@@ -12015,7 +12015,7 @@ team62 = async function (force) {
 
 /* ===================== p68: Work update looks like the old Daily Work Update app — day card with the time bar, Work assigned to you
    (status + % buttons), Pending from earlier (tick, time), Today's work (add box), Remarks, and the Submit bar at the bottom.
-   Everything typed is kept (server), MD gets the plans at 10:45 and the report at 6:35 PM ===================== */
+   Everything typed is kept (server), Management gets the plans at 10:45 and the report at 6:35 PM ===================== */
 const OPEN68 = "09:00", CLOSE68 = "18:30";
 const tAt68 = s => { const d = new Date(String(s).replace(" ", "T")); return isNaN(d) ? "" : d.toLocaleTimeString("en-IN", { hour: "numeric", minute: "2-digit" }).toUpperCase(); };
 const CHECK68 = '<svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.5 4.5L19 7.5"/></svg>';
@@ -12623,7 +12623,7 @@ async function pubPage71() {
   const B = $("#pub71b"), r = onb ? { nationality: "Indian" } : { nationality: "Indian", type: "Customer" };
   if (!onb) {
     B.innerHTML = `<div class="pub71-f"><p class="pub71-n">Welcome! Please fill your details. Security will check and give your gate pass.</p><div class="fields">
-      ${[["name", "Your name *", "text"], ["mobile", "Mobile *", "tel"], ["org", "Company / organisation", "text"], ["designation", "Designation", "text"], ["email", "Email", "email"], ["type", "You are a", "select", VTYPE71], ["dept", "Whom to meet (department) *", "select", ["", ...DEPT71.map(x => x[0]), "MD sir"]], ["meet", "Person's name (if you know)", "text"], ["purpose", "Purpose of visit *", "text"], ["vehicle", "Vehicle no.", "text"], ["asset", "Laptop / IT items with you", "text"], ["persons", "No. of persons with you", "number"], ["appt", "Appointment no. (if any)", "text"], ["nationality", "Nationality", "text"]].map(f => pubField71(f, r)).join("")}</div>
+      ${[["name", "Your name *", "text"], ["mobile", "Mobile *", "tel"], ["org", "Company / organisation", "text"], ["designation", "Designation", "text"], ["email", "Email", "email"], ["type", "You are a", "select", VTYPE71], ["dept", "Whom to meet (department) *", "select", ["", ...DEPT71.map(x => x[0]), "Management"]], ["meet", "Person's name (if you know)", "text"], ["purpose", "Purpose of visit *", "text"], ["vehicle", "Vehicle no.", "text"], ["asset", "Laptop / IT items with you", "text"], ["persons", "No. of persons with you", "number"], ["appt", "Appointment no. (if any)", "text"], ["nationality", "Nationality", "text"]].map(f => pubField71(f, r)).join("")}</div>
       <label class="btn pub71-ph">📷 Take your photo<input type="file" accept="image/*" capture="user" id="pub71ph" hidden></label><span id="pub71phn" class="small muted"></span>
       <label class="pub71-ok"><input type="checkbox" id="pub71ag"> I will follow the safety rules and wear the visitor card inside.</label>
       <button type="button" class="btn primary pub71-s" id="pub71s">Submit</button></div>`;
@@ -12647,7 +12647,7 @@ async function pubPage71() {
     try {
       const up = async (f, label) => { const fl = await shrink71(f, 1600); if (fl.size > 5e6) throw new Error(f.name + " is bigger than 5 MB"); const d = await AUTH.call("pubFile", { kind: P.kind, k: P.k, who: x.mobile || x.phone || x.name, name: fl.name, type: fl.type, b64: await b6462(fl) }, 120000); return { id: d.id, label, name: fl.name, type: fl.type }; };
       if (onb) { x.files = []; for (const [k, l] of DOCS71) for (const f of $(`[data-doc="${k}"]`, B).files) { btn.textContent = "Uploading " + l.replace(" *", "") + "…"; x.files.push({ doc: k, ...(await up(f, l.replace(" *", ""))) }); } }
-      else { if (ph?.files[0]) { btn.textContent = "Sending photo…"; x.photo = (await up(ph.files[0], "Photo")).id; } const d = DEPT71.find(z => z[0] === x.dept); x.host = d ? d[1] : x.dept === "MD sir" ? "info@rivera.co.in" : ""; x.hostName = x.meet || x.dept; }
+      else { if (ph?.files[0]) { btn.textContent = "Sending photo…"; x.photo = (await up(ph.files[0], "Photo")).id; } const d = DEPT71.find(z => z[0] === x.dept); x.host = d ? d[1] : x.dept === "Management" ? "info@rivera.co.in" : ""; x.hostName = x.meet || x.dept; }
       btn.textContent = "Saving…"; const d = await AUTH.call("pubSubmit", { kind: P.kind, k: P.k, who: x.mobile || x.phone || x.name, data: x }, 60000);
       B.innerHTML = `<div class="pub71-f pub71-done"><div style="font-size:54px">✅</div><h2>Thank you, ${esc(x.name)}!</h2>${onb ? `<p>Your joining form <b>${esc(d.no || "")}</b> reached HR. HR will call you if anything is missing.</p>` : `<p>Your entry <b>${esc(d.no || "")}</b> is with security. Please show this screen at the gate.</p><p class="small muted">${esc(new Date().toLocaleString("en-IN"))}</p>`}</div>`;
     } catch (er) { toast(er.message, "bad"); btn.disabled = false; btn.textContent = "Submit"; }
@@ -13034,7 +13034,7 @@ function recPanel71(x) {
     Masters: [["Marketing folder", "docs71", { d71: "Marketing" }, "Brochures, photos, posts"], ["Company documents", "library", {}, "Certificates, profiles"]],
     Reports: [["Marketing report", "mkt71", { m71: "rep" }, "By channel and source"]] } };
     const i = MODS32.findIndex(x => x.id === "work"); MODS32.splice(i + 1, 0, m); Object.values(m.groups).flat().forEach(c => { try { CARDMOD64.set(c, "mkt"); } catch { } }); }
-  const ad = M("admin"); if (ad) { ad.name = "Admin (MD office)"; ad.blurb = "Users, vault, approvals"; }
+  const ad = M("admin"); if (ad) { ad.name = "Admin"; ad.blurb = "Users, vault, approvals"; }
   DEPT63.mkt = { name: "Marketing", role: "operation", extra: ["courier.all", "visitors", "crm", "library"] };
   DEPT63.store.extra.push("visitors"); DEPT63.sales.extra.push("vendorforms");
   /* History & search card at the end of every section */
@@ -13121,7 +13121,7 @@ pubPage71 = async function () {
   if (!onb) {
     B.innerHTML = `<div class="pub71-f">${sec(1, "Which company", coSel)}
       ${sec(2, "Your details", `<div class="fields">${[["name", "Full name *", "text"], ["mobile", "Mobile *", "tel"], ["org", "Company / organisation *", "text"], ["designation", "Designation", "text"], ["email", "Email", "email"], ["nationality", "Nationality", "text"], ["state", "State *", "state"], ["district", "District *", "district"], ["town", "City / town", "text"]].map(f => pubField71(f, r)).join("")}</div>`)}
-      ${sec(3, "Visit details", `<div class="fields">${[["type", "You are a", "select", VTYPE71], ["dept", "Whom to meet (department) *", "select", ["", ...DEPT71.map(x => x[0]), "MD sir"]], ["meet", "Person's name (if you know)", "text"], ["purpose", "Purpose of visit *", "text"], ["persons", "No. of persons with you", "number"], ["appt", "Appointment no. (if any)", "text"]].map(f => pubField71(f, r)).join("")}</div>`)}
+      ${sec(3, "Visit details", `<div class="fields">${[["type", "You are a", "select", VTYPE71], ["dept", "Whom to meet (department) *", "select", ["", ...DEPT71.map(x => x[0]), "Management"]], ["meet", "Person's name (if you know)", "text"], ["purpose", "Purpose of visit *", "text"], ["persons", "No. of persons with you", "number"], ["appt", "Appointment no. (if any)", "text"]].map(f => pubField71(f, r)).join("")}</div>`)}
       ${sec(4, "Vehicle, items & photo", `<div class="fields">${[["vehicle", "Vehicle no.", "text"], ["asset", "Laptop / pen drive / tools with you", "text"]].map(f => pubField71(f, r)).join("")}</div><label class="btn pub71-ph">📷 Take your photo<input type="file" accept="image/*" capture="user" id="pub71ph" hidden></label> <span id="pub71phn" class="small muted"></span>`)}
       <label class="pub71-ok"><input type="checkbox" id="pub71ag"> I will follow the safety rules, wear the visitor card and stay with my host inside.</label>
       <button type="button" class="btn primary pub71-s" id="pub71s">Submit entry</button><p class="p73-net" id="p73n"></p></div>`;
@@ -13153,7 +13153,7 @@ pubPage71 = async function () {
     try {
       const up = async (f, label) => { const fl = await shrink71(f, 1600); if (fl.size > 5e6) throw new Error(f.name + " is bigger than 5 MB"); const d = await call("pubFile", { kind: P.kind, k: P.k, who: x.mobile || x.phone || x.name, name: fl.name, type: fl.type, b64: await b6462(fl) }, 120000); return { id: d.id, label, name: fl.name, type: fl.type }; };
       if (onb) { x.files = []; for (const [k, l] of DOCS71) for (const f of $(`[data-doc="${k}"]`, B).files) { btn.textContent = "Uploading " + l.replace(" *", "") + "…"; x.files.push({ doc: k, ...(await up(f, l.replace(" *", ""))) }); } }
-      else { if (ph?.files[0]) { btn.textContent = "Sending photo…"; x.photo = (await up(ph.files[0], "Photo")).id; } const d = DEPT71.find(z => z[0] === x.dept); x.host = d ? d[1] : x.dept === "MD sir" ? "info@rivera.co.in" : ""; x.hostName = x.meet || x.dept; }
+      else { if (ph?.files[0]) { btn.textContent = "Sending photo…"; x.photo = (await up(ph.files[0], "Photo")).id; } const d = DEPT71.find(z => z[0] === x.dept); x.host = d ? d[1] : x.dept === "Management" ? "info@rivera.co.in" : ""; x.hostName = x.meet || x.dept; }
       btn.textContent = "Saving…"; const d = await call("pubSubmit", { kind: P.kind, k: P.k, who: x.mobile || x.phone || x.name, data: x }, 60000);
       try { localStorage.removeItem(KEEP); } catch { }
       const when = new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
@@ -13194,7 +13194,7 @@ pubPage71 = async function () {
     ["name", "Full name", "text", null, 1], ["mobile", "Mobile number", "tel", null, 1, "10-digit mobile"], ["org", "Your company / organisation", "text", null, 1], ["designation", "Designation", "text"], ["email", "Email", "email"],
     ["state", "State", "state", null, 1], ["district", "District", "district", null, 1], ["town", "City / town", "text"], ["nationality", "Nationality", "text"],
     ["sec", "Visit details"],
-    ["type", "You are a", "radio", VTYPE71, 1], ["dept", "Whom do you want to meet?", "select", [...DEPT71.map(x => x[0]), "MD sir"], 1], ["meet", "Person's name (if you know)", "text"], ["purpose", "Purpose of visit", "textarea", null, 1], ["persons", "Number of persons with you", "number"], ["appt", "Appointment number (if any)", "text"],
+    ["type", "You are a", "radio", VTYPE71, 1], ["dept", "Whom do you want to meet?", "select", [...DEPT71.map(x => x[0]), "Management"], 1], ["meet", "Person's name (if you know)", "text"], ["purpose", "Purpose of visit", "textarea", null, 1], ["persons", "Number of persons with you", "number"], ["appt", "Appointment number (if any)", "text"],
     ["sec", "Vehicle, items & photo"],
     ["vehicle", "Vehicle number", "text"], ["asset", "Laptop / pen drive / tools you are carrying", "text"], ["photo", "Your photo", "photo"]];
   const OQ = [["sec", "Company"], ["company", "Joining company", "radio", CO73, 1], ...ONBF71.flatMap(([h, F]) => [["sec", h], ...F.map(([k, l, t, o]) => [k, l.replace(/ \*$/, ""), t === "select" ? "select" : t, t === "select" ? (o || []).filter(z => (Array.isArray(z) ? z[0] : z) !== "") : o, / \*$/.test(l) ? 1 : 0])]), ["sec", "Documents"], ...DOCS71.map(([k, l]) => ["doc:" + k, l.replace(/ \*$/, ""), "doc", null, / \*$/.test(l) ? 1 : 0])];
@@ -13240,7 +13240,7 @@ pubPage71 = async function () {
     try {
       const up = async (f, label) => { const fl = await shrink71(f, 1600); if (fl.size > 5e6) throw new Error(f.name + " is bigger than 5 MB"); const d = await call("pubFile", { kind: P.kind, k: P.k, who: x.mobile || x.phone || x.name, name: fl.name, type: fl.type, b64: await b6462(fl) }, 120000); return { id: d.id, label, name: fl.name, type: fl.type }; };
       if (onb) { x.files = []; for (const [k, l] of DOCS71) for (const f of $(`[data-up="doc:${k}"]`, F).files) { btn.textContent = "Uploading " + l.replace(" *", "") + "…"; x.files.push({ doc: k, ...(await up(f, l.replace(" *", ""))) }); } }
-      else { const p = $('[data-up="photo"]', F).files[0]; if (p) { btn.textContent = "Sending photo…"; x.photo = (await up(p, "Photo")).id; } const d = DEPT71.find(z => z[0] === x.dept); x.host = d ? d[1] : x.dept === "MD sir" ? "info@rivera.co.in" : ""; x.hostName = x.meet || x.dept; }
+      else { const p = $('[data-up="photo"]', F).files[0]; if (p) { btn.textContent = "Sending photo…"; x.photo = (await up(p, "Photo")).id; } const d = DEPT71.find(z => z[0] === x.dept); x.host = d ? d[1] : x.dept === "Management" ? "info@rivera.co.in" : ""; x.hostName = x.meet || x.dept; }
       btn.textContent = "Submitting…"; const d = await call("pubSubmit", { kind: P.kind, k: P.k, who: x.mobile || x.phone || x.name, data: x }, 60000);
       try { localStorage.removeItem(KEEP); } catch { }
       const when = new Date().toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
@@ -14713,7 +14713,7 @@ VIEWS.prod87 = v => {
   put("purchase", "Masters", ["Product repository", "prod87", {}, "Every product bought - supplier, rate, date, who"], true);
   put("admin", "Masters", ["Asset repository", "assets62", {}, "Every asset - who has it, where, since when, value"], true);
   put("admin", "Masters", ["Product repository", "prod87", {}, "Every product bought - supplier, rate, date, who"]);
-  MODS32.forEach(m => Object.values(m.groups).flat().forEach(c => { if (c[1] === "assets62" && c[0] === "Asset register") { c[0] = "Asset repository"; c[3] = "Every asset - who has it, where, since when, value"; } if (c[1] === "vault" && /Password vault/.test(c[0])) { c[0] = "Password repository"; c[3] = "Every login and password, encrypted - MD + Admin"; } }));
+  MODS32.forEach(m => Object.values(m.groups).flat().forEach(c => { if (c[1] === "assets62" && c[0] === "Asset register") { c[0] = "Asset repository"; c[3] = "Every asset - who has it, where, since when, value"; } if (c[1] === "vault" && /Password vault/.test(c[0])) { c[0] = "Password repository"; c[3] = "Every login and password, encrypted - Admin, Finance, Management"; } }));
   if (window.DEPT63?.purchase && !DEPT63.purchase.extra.includes("prod87")) DEPT63.purchase.extra.push("prod87");
 }
 
@@ -14754,7 +14754,7 @@ try { const s = faImport62.toString(), a = 'if (!out.length) return toast("No as
 /* Asset repository - Admin only */
 {
   const _v = VIEWS.assets62;
-  VIEWS.assets62 = v => { if (!adm88()) { v.innerHTML = top62("Admin", "Asset repository", "") + '<div class="empty"><b>Admin only</b>The asset repository is kept by the Admin department.</div>'; return; } _v(v);
+  VIEWS.assets62 = v => { if (!adm88() && !mgmtOK120()) { v.innerHTML = top62("Admin", "Asset repository", "") + '<div class="empty"><b>Admin only</b>The asset repository is kept by the Admin department.</div>'; return; } _v(v);
     try { const h = v.querySelector(".topbar h1, h1"); if (h && /Asset register/.test(h.textContent)) h.textContent = "Asset repository"; const b = [...v.querySelectorAll("label.btn, button")].find(x => /Import sheet/i.test(x.textContent)); if (b) { b.firstChild && (b.childNodes[0].textContent = "⬆ Upload sheet"); b.title = "Upload your asset Excel - any column layout"; } } catch { } };
   MODS32.forEach(m => { if (m.id === "admin") return; Object.keys(m.groups).forEach(g => { m.groups[g] = m.groups[g].filter(c => !(c[1] === "assets62" || (c[1] === "rep62" && c[2]?.r62 === "asset"))); }); });
 }
@@ -14772,14 +14772,14 @@ try { const s = faImport62.toString(), a = 'if (!out.length) return toast("No as
       const ti = ix(/title|account|portal|name of|software|service|site name|particular|^name$/), ui = ix(/user|login|e-?mail|mail id|^id$|user id/), pi = ix(/pass(word)?|pwd/), wi = ix(/url|website|link|site$/), ci = ix(/category|type/), ni = ix(/note|remark/), oi = ix(/person|owner|used by|holder|employee|department|dept/), di = ix(/date|changed|updated/);
       for (const r of g.slice(hi + 1)) { const title = String(r[ti] ?? r[wi] ?? r[ui] ?? "").trim(); if (!title || pi < 0) continue;
         out.push({ kind: "vlt", title: title.slice(0, 120), category: ci >= 0 && r[ci] ? (VCAT62.find(c => c.toLowerCase().includes(String(r[ci]).toLowerCase().split(/[\s/]/)[0])) || "Other") : (/bank|finance|tally/i.test(title) ? "Finance / Bank" : /mail/i.test(title) ? "Email" : /gst|income|epf|esi|mca|tds|govt/i.test(title) ? "Government / GST" : /wi-?fi|router|network/i.test(title) ? "Wi-Fi / Network" : "Other"), url: wi >= 0 ? String(r[wi] || "") : "", changed: now62(),
-          ...(await vEnc62({ username: ui >= 0 ? String(r[ui] || "") : "", password: String(r[pi] || ""), notes: [ni >= 0 ? r[ni] : "", oi >= 0 && r[oi] ? "With: " + r[oi] : "", di >= 0 && r[di] ? "Date: " + r[di] : "", "Sheet: " + sn].filter(Boolean).join(" · "), history: [] })) }); }
+          ...(await vEnc62({ username: ui >= 0 ? String(r[ui] || "") : "", password: String(r[pi] || ""), notes: [ni >= 0 ? r[ni] : "", oi >= 0 && r[oi] ? "With: " + r[oi] : "", di >= 0 && r[di] ? "Date: " + r[di] : "", ...g[hi].map((hh, j) => ![ti, ui, pi, wi, ci, ni, oi, di].includes(j) && String(hh).trim() && String(r[j] ?? "").trim() ? `${String(hh).trim()}: ${r[j]}` : "").filter(Boolean), "Sheet: " + sn].filter(Boolean).join(" · "), history: [] })) }); }
     }
     if (!out.length) return toast("No rows with a Password column found", "bad");
     for (let i = 0; i < out.length; i += 100) await bizPut28(out.slice(i, i + 100));
     toast(`Imported ${out.length} logins - encrypted on this device`); render();
   };
   const _r = render; render = function () { const o = _r.apply(this, arguments); try { const i = $("#vt62i"); if (i && !/xlsx/.test(i.accept)) { i.accept = ".csv,.xlsx,.xls"; i.parentElement.childNodes[0].textContent = "⬆ Import Excel / CSV"; } } catch { } return o; };
-  MODS32.forEach(m => Object.values(m.groups).flat().forEach(c => { if (c[1] === "vault") { c[0] = "Password repository"; c[3] = "Confidential logins - encrypted, MD + Admin"; } }));
+  MODS32.forEach(m => Object.values(m.groups).flat().forEach(c => { if (c[1] === "vault") { c[0] = "Password repository"; c[3] = "Confidential logins - encrypted, Admin, Finance, Management"; } }));
 }
 
 /* ---------- 3. Store stock with limits → automatic reminder to Purchase ---------- */
@@ -16106,7 +16106,7 @@ const faFolders101 = () => { let extra = []; try { extra = JSON.parse(localStora
 }
 document.head.insertAdjacentHTML("beforeend", `<style>.fa101{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px;align-items:center}.fa101f{border:1px solid var(--line,#e3e8ef);background:var(--surface,#fff);border-radius:10px;padding:7px 11px;font:inherit;font-size:13px;cursor:pointer;color:inherit}.fa101f span{background:#eef2f7;border-radius:8px;padding:1px 7px;margin-left:4px;font-size:11.5px}.fa101f.on{background:#02315B;color:#fff;border-color:#02315B}.fa101f.on span{background:rgba(255,255,255,.2)}</style>`);
 
-/* ---- Password repository: folders (the category) as tabs, new / rename folder, and "📧 Email to the person" (MD / Admin presses it, their own mail app sends) ---- */
+/* ---- Password repository: folders (the category) as tabs, new / rename folder, and "📧 Email to the person" (Management / Admin presses it, their own mail app sends) ---- */
 const VFOLD101 = "rqs.vt101.folders";
 try { JSON.parse(localStorage.getItem(VFOLD101) || "[]").forEach(c => { if (!VCAT62.includes(c)) VCAT62.splice(VCAT62.length - 1, 0, c); }); } catch { }
 {
@@ -17073,7 +17073,7 @@ function askRivera110(q) {
 
 
 /* =============== p111: My dashboard - every person opens their own dashboard: their work, what waits for them, their department's numbers,
-   and one-tap buttons for the pages of their department. Admin / MD see every department. Dashboard button opens it. =============== */
+   and one-tap buttons for the pages of their department. Admin / Management see every department. Dashboard button opens it. =============== */
 const DASHK111 = [
   /* [module id, label, count(), route, params, tone] */
   ["sales", "Open enquiries", () => all28("lead").filter(x => !["won", "lost"].includes(x.stage)).length, "crm", {}, ""],
@@ -17348,12 +17348,12 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 
 /* =============== p114: Ask Rivera does mail and calendar too
    "mail to Ranjani about NCL quotation …" -> Gmail opens with To, Subject and the message written - you press Send
-   "meeting with MD tomorrow 3 pm about dispatch" / "remind me to call NCL at 11 am" -> Google Calendar opens with the event filled (invitees added) - you press Save =============== */
+   "meeting with Management tomorrow 3 pm about dispatch" / "remind me to call NCL at 11 am" -> Google Calendar opens with the event filled (invitees added) - you press Save =============== */
 const time114 = s => { const m = String(s).match(/\b(\d{1,2})(?:[:.](\d{2}))?\s*(am|pm|a\.m\.|p\.m\.)\b|\b(\d{1,2})[:.](\d{2})\b|\b(\d{1,2})\s*(?:mani|o'?clock)\b/i); if (!m) return null;
   let h = +(m[1] || m[4] || m[6]), mi = +(m[2] || m[5] || 0); const ap = (m[3] || "").toLowerCase(); if (ap.startsWith("p") && h < 12) h += 12; if (ap.startsWith("a") && h === 12) h = 0; if (!ap && m[6] && h < 8) h += 12; return [h, mi]; };
 const people114 = s => { s = String(s || "").toLowerCase(); const P = [...(W62.team || []).map(u => ({ name: u.name, email: u.email })), ...all28("emp").filter(e => e.email).map(e => ({ name: e.name, email: e.email }))], out = new Map();
   P.forEach(p => String(p.name || "").toLowerCase().split(/[\s.]+/).filter(w => w.length > 2).forEach(w => { if (new RegExp(`\\b${w}\\b`).test(s) && p.email) out.set(p.email, p); }));
-  if (/\bmd\b|\bmd sir\b/.test(s)) { try { const md = (typeof md62 === "function" && md62()) || ""; if (md) out.set(md, { name: "MD", email: md }); } catch { } }
+  if (/\bmd\b|\bmd sir\b/.test(s)) { try { const md = (typeof md62 === "function" && md62()) || ""; if (md) out.set(md, { name: "Management", email: md }); } catch { } }
   return [...out.values()]; };
 const gcal114 = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d{3}Z$/, "Z");
 ACT113.unshift(
@@ -17369,9 +17369,9 @@ ACT113.unshift(
     openLink(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${gcal114(st)}/${gcal114(en)}&ctz=Asia/Kolkata&details=${encodeURIComponent("Added from Rivera ERP - " + s)}${P.length ? "&add=" + encodeURIComponent(P.map(p => p.email).join(",")) : ""}`);
     return `Google Calendar is open: <b>${esc(title)}</b> on <b>${esc(st.toLocaleString("en-IN", { weekday: "short", day: "numeric", month: "short", hour: "numeric", minute: "2-digit" }))}</b>${P.length ? ` with ${P.map(p => esc(p.name)).join(", ")} invited` : ""}. Press <b>Save</b> there.`; }]
 );
-try { HELP110.push([/\bmail\b|\bemail\b|gmail/i, "Mail from Ask Rivera", "mydash", {}, "Say “mail to Ranjani about NCL quotation saying please send the revised rate” - Gmail opens filled, you press Send."], [/calendar|meeting|remind/i, "Calendar from Ask Rivera", "mydash", {}, "Say “meeting with MD tomorrow 3 pm about dispatch” - Google Calendar opens filled, you press Save."]); } catch { }
+try { HELP110.push([/\bmail\b|\bemail\b|gmail/i, "Mail from Ask Rivera", "mydash", {}, "Say “mail to Ranjani about NCL quotation saying please send the revised rate” - Gmail opens filled, you press Send."], [/calendar|meeting|remind/i, "Calendar from Ask Rivera", "mydash", {}, "Say “meeting with Management tomorrow 3 pm about dispatch” - Google Calendar opens filled, you press Save."]); } catch { }
 new MutationObserver(() => { const M = $("#ar110 .m .ar110a .acts"); if (!M || M.dataset.m114) return; M.dataset.m114 = 1;
-  ["Mail to MD about today's work", "Meeting tomorrow 11 am"].forEach(x => { M.insertAdjacentHTML("beforeend", `<button type="button" data-s114="${x}">${x}</button>`); });
+  ["Mail to Management about today's work", "Meeting tomorrow 11 am"].forEach(x => { M.insertAdjacentHTML("beforeend", `<button type="button" data-s114="${x}">${x}</button>`); });
   $$("[data-s114]", M).forEach(b => b.onclick = () => { const F = $("#ar110 form"), I = $("input", F); I.value = b.dataset.s114; F.requestSubmit ? F.requestSubmit() : F.onsubmit(new Event("submit")); }); }).observe(document.documentElement, { childList: true, subtree: true });
 
 
@@ -17665,8 +17665,8 @@ document.head.insertAdjacentHTML("beforeend", `<style>.rg116t{display:flex;flex-
 .sk116 .l1{background:#fdecea}.sk116 .l2{background:#fff4e5}.sk116 .l3{background:#e8f5e9}.sk116 .l4{background:#c8e6c9}</style>`);
 
 
-/* =============== p117: (1) Work Board ▸ "Reminder" becomes "Approval": anyone asks MD sir for approval with the Excel screenshot
-       (paste a screenshot, pick a picture, or pick the Excel file - the sheet is drawn as a picture) → MD sir gets a mail with the picture
+/* =============== p117: (1) Work Board ▸ "Reminder" becomes "Approval": anyone asks Management for approval with the Excel screenshot
+       (paste a screenshot, pick a picture, or pick the Excel file - the sheet is drawn as a picture) → Management gets a mail with the picture
        and sees "Waiting for my approval" in the app: Approve / Reject / Ask a question. The person follows the status.
    (2) Work given to someone shows on that person's dashboard only - "New work for me" with Accept; a note when new work comes
    (3) Accounts ▸ Bank & payments: bank accounts with opening balance, every payment / receipt / expense says which bank,
@@ -17678,7 +17678,7 @@ document.head.insertAdjacentHTML("beforeend", `<style>.rg116t{display:flex;flex-
 const W117 = { tab: "", cur: null, att: [] };
 const isMD117 = () => { const m = String(W62.md || "").toLowerCase(); return (!!m && me28() === m) || adm62(); };
 const AP117 = () => all28("rm").filter(x => x.ap117);
-const APS117 = { pending: ["Waiting for MD sir", "warn"], approved: ["Approved", "ok"], rejected: ["Rejected", "bad"], query: ["MD sir asked a question", "navy"] };
+const APS117 = { pending: ["Waiting for Management", "warn"], approved: ["Approved", "ok"], rejected: ["Rejected", "bad"], query: ["Management asked a question", "navy"] };
 
 /* ---- the Excel sheet drawn as a picture ---- */
 async function xlsPng117(file) {
@@ -17715,10 +17715,10 @@ function apList117(L, md) {
     ${x.details ? `<div style="white-space:pre-wrap;margin-bottom:6px">${esc(x.details)}</div>` : ""}
     ${(x.rows || []).filter(r => (r.item || "").trim()).length ? `<ol style="margin:4px 0 8px 18px;padding:0">${x.rows.filter(r => (r.item || "").trim()).map(r => `<li>${r.dept ? `<b>${esc(r.dept)}:</b> ` : ""}${esc(r.item)}</li>`).join("")}</ol>` : ""}
     <div class="row ap117th" style="gap:8px;flex-wrap:wrap">${(x.files || []).map(f => /^image\//.test(f.type || "") ? `<button type="button" class="ap117t" data-fo="${esc(f.id)}" data-fn="${esc(f.name)}" title="${esc(f.name)}"><img data-ft="${esc(f.id)}" alt="${esc(f.name)}"></button>` : `<button type="button" class="btn sm" data-fo="${esc(f.id)}" data-fn="${esc(f.name)}">📎 ${esc(f.name)}</button>`).join("")}</div>
-    ${x.mdNote ? `<div class="note ${x.status === "rejected" ? "bad" : x.status === "approved" ? "ok" : "warn"} small" style="margin-top:8px"><b>MD sir:</b> ${esc(x.mdNote)}${x.decidedAt ? ` <span class="muted">· ${esc(dt62(x.decidedAt))}</span>` : ""}</div>` : x.decidedAt ? `<div class="small muted" style="margin-top:6px">${esc(s[0])} · ${esc(dt62(x.decidedAt))}</div>` : ""}
+    ${x.mdNote ? `<div class="note ${x.status === "rejected" ? "bad" : x.status === "approved" ? "ok" : "warn"} small" style="margin-top:8px"><b>Management:</b> ${esc(x.mdNote)}${x.decidedAt ? ` <span class="muted">· ${esc(dt62(x.decidedAt))}</span>` : ""}</div>` : x.decidedAt ? `<div class="small muted" style="margin-top:6px">${esc(s[0])} · ${esc(dt62(x.decidedAt))}</div>` : ""}
     ${x.reply ? `<div class="note small" style="margin-top:6px"><b>Answer:</b> ${esc(x.reply)}</div>` : ""}
     ${md && x.who !== me28() && ["pending", "query"].includes(x.status) ? `<div class="row" style="gap:8px;margin-top:10px;flex-wrap:wrap"><input data-apn="${x.id}" placeholder="Remark (optional for approve, needed for reject / question)" style="flex:1;min-width:220px"><button type="button" class="btn" style="background:#1e8e3e;color:#fff;border-color:#1e8e3e" data-apd="approved">✔ Approve</button><button type="button" class="btn" style="color:#c0392b;border-color:#c0392b" data-apd="rejected">✕ Reject</button><button type="button" class="btn" data-apd="query">? Ask a question</button></div>` : ""}
-    ${!md && x.status === "query" && x.who === me28() ? `<div class="row" style="gap:8px;margin-top:10px"><input data-apr="${x.id}" placeholder="Your answer to MD sir" style="flex:1"><button type="button" class="btn primary sm" data-aps="${x.id}">Send answer</button></div>` : ""}
+    ${!md && x.status === "query" && x.who === me28() ? `<div class="row" style="gap:8px;margin-top:10px"><input data-apr="${x.id}" placeholder="Your answer to Management" style="flex:1"><button type="button" class="btn primary sm" data-aps="${x.id}">Send answer</button></div>` : ""}
   </div></section>`; }).join("")}</div>`;
 }
 rem65 = function () {
@@ -17736,13 +17736,13 @@ rem65 = function () {
     <h3 style="margin:16px 0 6px;font-size:.95rem">Pending for approval - type here, the Excel sheet picture is made by itself</h3>
     <div style="overflow:auto"><table class="t r65"><thead><tr><th style="width:56px">S.No</th><th style="width:30%">Department</th><th>Pending for approval</th><th style="width:44px"></th></tr></thead><tbody>${R.rows.map((r, i) => `<tr><td>${G117.no[i]}</td><td><input data-ri117="${i}" data-rf="dept" value="${esc(r.dept || "")}" list="r65dl" placeholder="Department"></td><td><input data-ri117="${i}" data-rf="item" value="${esc(r.item || "")}" placeholder="What is pending…"></td><td><button type="button" class="btn sm" data-rx117="${i}" title="Remove row">🗑️</button></td></tr>`).join("")}</tbody></table></div>
     <button type="button" class="btn sm" id="ap117ra" style="margin-top:6px">${icon("plus")}Add row</button>
-    <h3 style="margin:16px 0 6px;font-size:.95rem">Preview - this picture goes to MD sir</h3><div id="ap117pv" class="r65v">${rmHtml65({ title: R.subject || "Pending Approval List", date: todayISO(), rows: R.rows })}</div>
+    <h3 style="margin:16px 0 6px;font-size:.95rem">Preview - this picture goes to Management</h3><div id="ap117pv" class="r65v">${rmHtml65({ title: R.subject || "Pending Approval List", date: todayISO(), rows: R.rows })}</div>
     <h3 style="margin:16px 0 6px;font-size:.95rem">More attachments (optional) - Excel file, screenshot, PDF</h3>
     <div class="row" style="gap:8px;flex-wrap:wrap"><label class="btn sm">📊 Pick the Excel file<input type="file" id="ap117x" accept=".xlsx,.xls,.xlsm,.csv" hidden></label><label class="btn sm">🖼 Pick a screenshot<input type="file" id="ap117i" accept="image/*" multiple hidden></label><label class="btn sm">📎 PDF<input type="file" id="ap117p" accept="application/pdf" hidden></label><button type="button" class="btn sm" id="ap117v">📋 Paste screenshot</button></div>
     <div id="ap117at" class="ap117at" tabindex="0"></div>
     <p class="small muted">An Excel file is drawn as a picture of the sheet (and the file itself goes with it). A screenshot: press PrtScn / Win+Shift+S, then Ctrl+V in the box.</p>
-    <div class="row" style="gap:10px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn primary" id="ap117go" data-how="Email" style="flex:1">${icon("mail")}Send to MD sir - Email</button><button type="button" class="btn" id="ap117wa" data-how="WhatsApp" style="flex:1;background:#25D366;color:#fff;border-color:#25D366">${icon("wa")}Send to MD sir - WhatsApp</button><button type="button" class="btn" id="ap117xl">⬇ Excel</button><button type="button" class="btn" id="ap117pn">🖼 Picture</button></div>
-    <p class="small muted">MD sir gets a mail with the picture and sees it here under "Waiting for my approval". You see Approved / Rejected / question in My requests and on your Dashboard.</p></div></section>`;
+    <div class="row" style="gap:10px;margin-top:10px;flex-wrap:wrap"><button type="button" class="btn primary" id="ap117go" data-how="Email" style="flex:1">${icon("mail")}Send to Management - Email</button><button type="button" class="btn" id="ap117wa" data-how="WhatsApp" style="flex:1;background:#25D366;color:#fff;border-color:#25D366">${icon("wa")}Send to Management - WhatsApp</button><button type="button" class="btn" id="ap117xl">⬇ Excel</button><button type="button" class="btn" id="ap117pn">🖼 Picture</button></div>
+    <p class="small muted">Management gets a mail with the picture and sees it here under "Waiting for my approval". You see Approved / Rejected / question in My requests and on your Dashboard.</p></div></section>`;
   return `${tabs28(W117.tab, T, "ap117t")}<div style="margin-top:12px">${body}</div>`;
 };
 wireRem65 = function (v) {
@@ -17754,7 +17754,7 @@ wireRem65 = function (v) {
   $$("[data-apd]", v).forEach(b => b.onclick = async () => { const card = b.closest("[data-ap]"), x = BIZ.rows[card.dataset.ap]; if (!x) return; const st = b.dataset.apd, note = $(`[data-apn="${x.id}"]`, card).value.trim();
     if (st !== "approved" && !note) { toast(st === "rejected" ? "Write why it is rejected" : "Write your question", "bad"); $(`[data-apn="${x.id}"]`, card).focus(); return; }
     const r = { ...x, status: st, mdNote: note, decidedAt: now62(), decidedBy: me28() }; logAdd28(r, APS117[st][0], note); if (await save28(b, r, `${APS117[st][0]} - ${x.whoName || nm62(x.who)} sees it`)) render(); });
-  $$("[data-aps]", v).forEach(b => b.onclick = async () => { const x = BIZ.rows[b.dataset.aps], a = $(`[data-apr="${x.id}"]`, v).value.trim(); if (!a) return toast("Write your answer", "bad"); const r = { ...x, status: "pending", reply: a }; logAdd28(r, "Answer", a); if (await save28(b, r, "Answer sent to MD sir")) render(); });
+  $$("[data-aps]", v).forEach(b => b.onclick = async () => { const x = BIZ.rows[b.dataset.aps], a = $(`[data-apr="${x.id}"]`, v).value.trim(); if (!a) return toast("Write your answer", "bad"); const r = { ...x, status: "pending", reply: a }; logAdd28(r, "Answer", a); if (await save28(b, r, "Answer sent to Management")) render(); });
   if (!$("#ap117go", v)) return;
   const R = W117.cur, at = $("#ap117at", v); apDraw117();
   [["ap117s", "subject"], ["ap117dp", "dept"], ["ap117a", "amount"], ["ap117d", "details"]].forEach(([id, k]) => $("#" + id, v).oninput = e => { R[k] = e.target.value; });
@@ -17788,7 +17788,7 @@ wireRem65 = function (v) {
       if (how === "Email") {
         const B = "border:1px solid #999;padding:6px 10px", extra = `<table style="border-collapse:collapse;margin-top:10px">${R.amount ? `<tr><td style="${B}"><b>Amount</b></td><td style="${B}">${esc(inr28(R.amount))}</td></tr>` : ""}${R.details.trim() ? `<tr><td style="${B}"><b>Details</b></td><td style="${B}">${esc(R.details.trim()).replace(/\n/g, "<br>")}</td></tr>` : ""}${W117.att.length ? `<tr><td style="${B}"><b>Attachments</b></td><td style="${B}">${W117.att.length} - open in the app: Work Board ▸ Approval</td></tr>` : ""}<tr><td style="${B}"><b>Approve</b></td><td style="${B}">Rivera ERP ▸ Work Board ▸ Approval</td></tr></table>`;
         await AUTH.call("work62", { op: "shareImg", b64: await b6462(png), title: `${S.title} as on ${String(S.date).split("-").reverse().join(".")}`, html: (hasRows() ? rmHtml65(S) : "") + extra }, 60000);
-        toast("Sent to MD sir by email with the picture");
+        toast("Sent to Management by email with the picture");
       } else {
         const name = `${S.title} ${S.date}.png`.replace(/[^\w .-]/g, ""), file = new File([png], name, { type: "image/png" }), text = `${S.title} as on ${String(S.date).split("-").reverse().join(".")} - ${AUTH.user?.name || ""}${R.amount ? " - " + inr28(R.amount) : ""}\nPlease approve in Rivera ERP ▸ Work Board ▸ Approval`;
         let shared = false; try { if (navigator.canShare?.({ files: [file] })) { await navigator.share({ files: [file], text }); shared = true; } } catch (er) { if (er.name === "AbortError") { btn.disabled = false; btn.innerHTML = t0; return; } }
@@ -17805,8 +17805,8 @@ wireRem65 = function (v) {
 /* the tab name and menu card: Reminder → Approval */
 try {
   const w = W65.find(x => x[0] === "rem"); if (w) w[1] = "Approval";
-  MODS32.forEach(m => Object.values(m.groups).forEach(G => G.forEach(c => { if (c[1] === "work" && c[2]?.w62 === "rem") { c[0] = "Approval (MD sir)"; c[3] = "Ask MD sir to approve - with the Excel screenshot"; } })));
-  const _v = VIEWS.work; VIEWS.work = v => { _v(v); if (BIZ.ui.w62 === "rem") { const p = $(".topbar p", v); if (p) p.textContent = isMD117() ? "Requests waiting for your approval - Approve, Reject or ask a question" : "Ask MD sir to approve anything - with the Excel screenshot"; } };
+  MODS32.forEach(m => Object.values(m.groups).forEach(G => G.forEach(c => { if (c[1] === "work" && c[2]?.w62 === "rem") { c[0] = "Approval (Management)"; c[3] = "Ask Management to approve - with the Excel screenshot"; } })));
+  const _v = VIEWS.work; VIEWS.work = v => { _v(v); if (BIZ.ui.w62 === "rem") { const p = $(".topbar p", v); if (p) p.textContent = isMD117() ? "Requests waiting for your approval - Approve, Reject or ask a question" : "Ask Management to approve anything - with the Excel screenshot"; } };
 } catch (e) { console.warn("p117 approval menu", e); }
 
 /* ---- (2) new work on the person's own dashboard ---- */
@@ -17818,7 +17818,7 @@ try {
       if (loadNote28()) return; const me = me28(), nw = all28("wk").filter(x => x.to === me && x.status === "new" && x.src !== "plan" && x.from !== me).sort((a, b) => String(b.created || b.at).localeCompare(String(a.created || a.at)));
       const md = isMD117(), wait = md ? AP117().filter(x => ["pending", "query"].includes(x.status) && x.who !== me).length : 0, myA = AP117().filter(x => x.who === me), q = myA.filter(x => x.status === "query").length, okN = myA.filter(x => x.status === "approved" && String(x.decidedAt || "") > String(localStorage.getItem("rqs.ap117seen") || "")).length;
       const g = $(".md111g", v);
-      if (g) g.insertAdjacentHTML("afterbegin", `${md ? `<button type="button" class="md111k ${wait ? "warn" : ""}" data-ap117g="wait"><b>${wait}</b><span>Waiting for my approval</span></button>` : ""}<button type="button" class="md111k ${q ? "warn" : ""}" data-ap117g="mine"><b>${myA.filter(x => ["pending", "query"].includes(x.status)).length}</b><span>My approvals with MD sir${q ? ` · ${q} question` : ""}${okN ? ` · ${okN} newly approved` : ""}</span></button>`);
+      if (g) g.insertAdjacentHTML("afterbegin", `${md ? `<button type="button" class="md111k ${wait ? "warn" : ""}" data-ap117g="wait"><b>${wait}</b><span>Waiting for my approval</span></button>` : ""}<button type="button" class="md111k ${q ? "warn" : ""}" data-ap117g="mine"><b>${myA.filter(x => ["pending", "query"].includes(x.status)).length}</b><span>My approvals with Management${q ? ` · ${q} question` : ""}${okN ? ` · ${okN} newly approved` : ""}</span></button>`);
       $$("[data-ap117g]", v).forEach(b => b.onclick = () => { W117.tab = b.dataset.ap117g; if (b.dataset.ap117g === "mine") localStorage.setItem("rqs.ap117seen", now62()); BIZ.ui.w62 = "rem"; location.hash = "work"; render(); });
       if (nw.length) {
         const sec = document.createElement("section"); sec.className = "panel nw117"; sec.innerHTML = `<header><h2>🆕 New work for you</h2><span class="chip warn">${nw.length}</span></header><div class="body stack" style="gap:8px">${nw.slice(0, 8).map(x => `<div class="nw117r"><div style="flex:1;min-width:200px"><b>${esc(x.title)}</b><div class="small muted">from ${esc(x.fromName || nm62(x.from))}${x.due ? ` · finish by ${esc(dt62(x.due))}` : ""}${x.pri && x.pri !== "Normal" ? ` · <b style="color:#c0392b">${esc(x.pri)}</b>` : ""}</div>${x.details ? `<div class="small">${esc(x.details)}</div>` : ""}</div><button type="button" class="btn sm primary" data-nwa="${x.id}">✔ Accept</button><button type="button" class="btn sm" data-nwo="${x.id}">Open</button></div>`).join("")}</div>`;
@@ -17966,7 +17966,7 @@ try {
     ["accounts", "Supplier bills overdue", () => all28("bill").filter(b => billDue45(b) > 0.5 && b.due && b.due < todayISO()).length, "accounts", { acc: "bill" }, "bad"],
     ["accounts", "Not yet in Tally", () => all28("inv").filter(i => i.status !== "cancelled" && !i.tally).length + all28("rcpt").filter(x => !x.tally).length + all28("spay").filter(x => !x.tally).length + all28("exp").filter(x => !x.tally).length, "accounts", { acc: "tally" }, ""]);
   const M = MODS32.find(x => x.id === "accounts"); if (M) { (M.groups.Transactions ||= []).unshift(["Bank & payments", "bank117", {}, "Bank-wise paid, balance, still to pay"]); try { CARDMOD64.set(M.groups.Transactions[0], "accounts"); } catch { } }
-  HELP110.push([/bank balance|bank wise|which bank|paid from|payments? made|how much paid|evlo pay/i, "Accounts ▸ Bank & payments", "bank117", {}, "Bank-wise balance, paid this month and what is still to pay."], [/approv|md sir|md approval/i, "Work Board ▸ Approval", "work", { w62: "rem" }, "Ask MD sir to approve - with the Excel screenshot."], [/tally/i, "Accounts ▸ Tally", "accounts", { acc: "tally" }, "Send invoices, receipts, payments and expenses to TallyPrime; read bank balances."]);
+  HELP110.push([/bank balance|bank wise|which bank|paid from|payments? made|how much paid|evlo pay/i, "Accounts ▸ Bank & payments", "bank117", {}, "Bank-wise balance, paid this month and what is still to pay."], [/approv|md sir|md approval/i, "Work Board ▸ Approval", "work", { w62: "rem" }, "Ask Management to approve - with the Excel screenshot."], [/tally/i, "Accounts ▸ Tally", "accounts", { acc: "tally" }, "Send invoices, receipts, payments and expenses to TallyPrime; read bank balances."]);
 } catch (e) { console.warn("p117 dash", e); }
 
 /* ---- (5) Ask Rivera: more work inside the person's own module ---- */
@@ -17977,7 +17977,7 @@ try {
     [/\b(approval|approve|anumathi|md sir (ok|sign)|md approval)\b/i, async s => { BIZ.ui.w62 = "rem"; location.hash = "work";
       if (isMD117() && !/\b(ask|request|send|need|venum|vaanganum)\b/i.test(s)) { W117.tab = "wait"; render(); const n = AP117().filter(x => ["pending", "query"].includes(x.status) && x.who !== me28()).length; return n ? `<b>${n}</b> request${n > 1 ? "s are" : " is"} waiting for your approval - Approve, Reject or ask a question on each.` : "Nothing is waiting for your approval. 👍"; }
       W117.tab = "new"; const sub = s.replace(/\b(please|pls|ask|request|send|need|get|md sir|md|approval|approve|for|to|venum|vaanganum|anumathi)\b/gi, " ").replace(/\s+/g, " ").trim(); W117.cur = { ...(W117.cur || { dept: "", amount: "", details: "", rows: [] }), subject: sub }; render();
-      return `Approval request is open${sub ? ` for <b>${esc(sub)}</b>` : ""}. Paste the Excel screenshot (Ctrl+V) or pick the Excel file, then press <b>Send to MD sir</b>.`; }],
+      return `Approval request is open${sub ? ` for <b>${esc(sub)}</b>` : ""}. Paste the Excel screenshot (Ctrl+V) or pick the Excel file, then press <b>Send to Management</b>.`; }],
     [/\b(bank balance|balance in (the )?bank|which bank|bank wise|how much (we )?paid|evlo (pay|kuduth)|payments? (today|this month)|paid this month)\b/i, async () => { if (!okRoute32("bank117")) return notMine("bank117", "Bank balance");
       const B = bankBal117(), m = todayISO().slice(0, 7), F = flows117().filter(f => String(f.date).startsWith(m)); location.hash = "bank117"; render();
       if (!BANKS117().length) return "No bank accounts are added yet. Press <b>🏦 Bank accounts</b> and add each bank with its opening balance.";
@@ -18166,7 +18166,7 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 
 
 /* =============== p119: (1) the app updates itself on every PC / phone when a new version is out (no Ctrl+Shift+R needed)
-   (2) Management ▸ MD sir documents (NOE (M) values, monthly with date + Synology link) and Rental & password links
+   (2) Management ▸ Management documents (NOE (M) values, monthly with date + Synology link) and Rental & password links
        (passwords stay in the Vault, the register keeps the link and the renewal date)
    (3) Assets: calibration (last / next due), insurance (policy, expiry), FC / permit, PUC, AMC - filled by the department
        in the asset itself; "Asset due dates" page + dashboard counts =============== */
@@ -18189,13 +18189,13 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 
 /* (2) Management registers */
 try {
-  REG116.noe = { t: "MD sir documents (NOE / M values)", mod: "mgmt", icon: "📁", due: "next", cols: [["name", "Document *", "list", ["NOE (M) values", "Monthly MIS", "Bank statements", "GST returns", "Statutory / ROC documents", "Insurance summary"]], ["month", "For the month (any date in it) *", "date"], ["date", "Given / updated on", "date"], ["link", "Synology link / folder path", "text"], ["by", "Prepared by", "text"], ["next", "Next due", "date"], ["note", "Remarks", "text"]] };
-  REG116.rent = { t: "Rental & password links", mod: "mgmt", icon: "🔑", due: "next", cols: [["name", "Property / portal / service *", "text"], ["link", "Link / website", "text"], ["user", "Login id", "text"], ["vault", "Password kept in", "select", ["Vault (Admin ▸ Vault)", "With MD sir", "Not needed"]], ["rent", "Rent / fee ₹ per month", "number"], ["owner", "Owner / contact", "text"], ["date", "Last updated", "date"], ["next", "Next update / renewal", "date"], ["note", "Remarks (never write the password here)", "text"]] };
+  REG116.noe = { t: "Management documents (NOE / M values)", mod: "mgmt", icon: "📁", due: "next", cols: [["name", "Document *", "list", ["NOE (M) values", "Monthly MIS", "Bank statements", "GST returns", "Statutory / ROC documents", "Insurance summary"]], ["month", "For the month (any date in it) *", "date"], ["date", "Given / updated on", "date"], ["link", "Synology link / folder path", "text"], ["by", "Prepared by", "text"], ["next", "Next due", "date"], ["note", "Remarks", "text"]] };
+  REG116.rent = { t: "Rental & password links", mod: "mgmt", icon: "🔑", due: "next", cols: [["name", "Property / portal / service *", "text"], ["link", "Link / website", "text"], ["user", "Login id", "text"], ["vault", "Password kept in", "select", ["Vault (Admin ▸ Vault)", "With Management", "Not needed"]], ["rent", "Rent / fee ₹ per month", "number"], ["owner", "Owner / contact", "text"], ["date", "Last updated", "date"], ["next", "Next update / renewal", "date"], ["note", "Remarks (never write the password here)", "text"]] };
   const M = MODS32.find(x => x.id === "mgmt");
   if (M) ["noe", "rent"].forEach(k => { const c = [REG116[k].t, "reg116", { rg116: k }, "Monthly - due dates in colour"]; (M.groups.Masters ||= []).push(c); try { CARDMOD64.set(c, "mgmt"); } catch { } DASHK111.push(["mgmt", `${REG116[k].t}: due`, () => regRows116(k).filter(x => ["bad", "warn"].includes(dueSt116(x.next)[0])).length, "reg116", { rg116: k }, "warn"]); });
   const _al = allowed21, hasMod = (m, self) => { const MM = MODS32.find(x => x.id === m); return !!MM && Object.values(MM.groups).flat().some(c => c[1] !== "reg116" && _al.call(self, c[1])); };
   allowed21 = function (r) { if (r === "reg116") { if (isAdmin28()) return true; const k = BIZ?.ui?.rg116, m = k && REG116[k]?.mod; if (m === "mgmt") return hasMod("mgmt", this); return _al.apply(this, arguments) || hasMod("mgmt", this); } return _al.apply(this, arguments); };
-  HELP110.push([/noe|m values|md sir document|monthly document/i, "Management ▸ MD sir documents", "reg116", { rg116: "noe" }, "NOE (M) values and other monthly documents for MD sir, with date and Synology link."], [/rental|rent|password link/i, "Management ▸ Rental & password links", "reg116", { rg116: "rent" }, "Rental / portal links and renewal dates - passwords stay in the Vault."]);
+  HELP110.push([/noe|m values|md sir document|monthly document/i, "Management ▸ Management documents", "reg116", { rg116: "noe" }, "NOE (M) values and other monthly documents for Management, with date and Synology link."], [/rental|rent|password link/i, "Management ▸ Rental & password links", "reg116", { rg116: "rent" }, "Rental / portal links and renewal dates - passwords stay in the Vault."]);
 } catch (e) { console.warn("p119 mgmt", e); }
 
 /* (3) Asset due dates */
@@ -18231,6 +18231,74 @@ try {
 
 /* the Ask Rivera button never covers the Save buttons of an open panel */
 document.head.insertAdjacentHTML("beforeend", `<style>body:has(#dr26) #ar110b,body:has(.dr26-ov) #ar110b{display:none!important}</style>`);
+
+
+/* =============== p120: (1) "MD sir" → "Management" everywhere (forms, QR visitor form, approval, mails)
+   (2) Fire extinguishers, Licences, Maintenance, Kitchen / canteen, Security move to HR
+   (3) Asset repository, Asset due dates and Password repository move to Management (Accounts sees the Password repository too);
+       open to Admin (CRM), Finance and Management logins
+   (4) Password repository imports a password-protected Excel (the password is typed on this screen, opened in this browser only,
+       every column kept - encrypted with the vault key) =============== */
+function mgmtOK120() { try { if (isAdmin28()) return true; const D = (window.myDepts63 && window.myDepts63()) || [], r = String((typeof myRole21 === "function" && myRole21()) || ""); return D.includes("mgmt") || D.includes("admin") || D.includes("accounts") || r === "finance"; } catch { return false; } }
+{ const _al = allowed21; allowed21 = function (r) { if (["assets62", "fadue119", "vault"].includes(r) && mgmtOK120()) return true; return _al.apply(this, arguments); }; }
+try {
+  const M = id => MODS32.find(x => x.id === id), drop = (id, f) => { const m = M(id); if (m) Object.keys(m.groups).forEach(g => { m.groups[g] = m.groups[g].filter(c => !f(c)); }); };
+  const put = (id, g, c) => { const m = M(id); if (!m) return; const L = (m.groups[g] ||= []); if (!L.some(x => x[1] === c[1] && JSON.stringify(x[2] || {}) === JSON.stringify(c[2] || {}))) L.push(c); try { CARDMOD64.set(c, id); } catch { } };
+  /* (2) registers → HR */
+  ["fire", "lic", "mnt", "kit", "sec"].forEach(k => { if (REG116[k]) REG116[k].mod = "hr"; });
+  drop("admin", c => c[1] === "reg116" && ["fire", "lic", "mnt", "kit", "sec"].includes(c[2]?.rg116));
+  ["fire", "lic", "mnt", "kit", "sec"].forEach(k => put("hr", "Masters", [REG116[k].t, "reg116", { rg116: k }, "Due dates in colour"]));
+  DASHK111.forEach(d => { if (d[0] === "admin" && d[3] === "reg116" && ["fire", "lic", "mnt", "kit", "sec"].includes(d[4]?.rg116)) d[0] = "hr"; });
+  /* (3) assets + passwords → Management (and Password repository for Accounts) */
+  drop("admin", c => ["assets62", "fadue119", "vault"].includes(c[1]));
+  MODS32.forEach(m => { if (m.id !== "mgmt" && m.id !== "accounts") drop(m.id, c => ["assets62", "fadue119", "vault"].includes(c[1])); });
+  put("mgmt", "Masters", ["Asset repository", "assets62", {}, "Every asset - who has it, where, since when, value"]);
+  put("mgmt", "Masters", ["Asset due dates", "fadue119", {}, "Calibration, insurance, FC, PUC, AMC - expiry in colour"]);
+  put("mgmt", "Masters", ["Password repository", "vault", {}, "Bank, portal and email logins - encrypted. Admin, Finance, Management"]);
+  put("accounts", "Masters", ["Password repository", "vault", {}, "Bank, portal and email logins - encrypted. Admin, Finance, Management"]);
+  DASHK111.forEach(d => { if (d[3] === "fadue119" && d[0] !== "mgmt") d[0] = "mgmt"; });
+  const ad = M("admin"); if (ad) { ad.name = "Admin"; ad.blurb = "Users, signatures, files, approvals"; }
+  const mg = M("mgmt"); if (mg) mg.blurb = "Team work, approvals, assets, passwords, monthly documents";
+} catch (e) { console.warn("p120 menus", e); }
+
+/* (4) password-protected Excel (Office "agile" encryption: SHA-512 + AES) - opened here with the password the person types */
+async function offDecrypt120(buf, password) {
+  await loadScript(LIBS.sheetjs); const CFB = window.XLSX.CFB, cf = CFB.read(new Uint8Array(buf), { type: "array" });
+  const f = n => CFB.find(cf, n), info = f("EncryptionInfo"), pkg = f("EncryptedPackage"); if (!info || !pkg) throw new Error("This Excel is not password-protected the usual way - open it in Excel and save without a password");
+  const I = new Uint8Array(info.content), P = new Uint8Array(pkg.content);
+  if (!(I[0] === 4 && I[2] === 4)) throw new Error("Old Excel encryption - open it in Excel and Save As .xlsx (with or without password)");
+  const xml = new TextDecoder().decode(I.slice(8)), at = (tag, a) => (xml.match(new RegExp(`<(?:\\w+:)?${tag}\\b[^>]*\\b${a}="([^"]+)"`)) || [])[1];
+  const b64 = s => Uint8Array.from(atob(s), c => c.charCodeAt(0));
+  const kdSalt = b64(at("keyData", "saltValue")), kdBlock = +at("keyData", "blockSize") || 16, kdHash = at("keyData", "hashAlgorithm") || "SHA512";
+  const ekXml = xml.slice(xml.indexOf("encryptedKey")), ga = a => (ekXml.match(new RegExp(`\\b${a}="([^"]+)"`)) || [])[1];
+  const spin = +ga("spinCount"), salt = b64(ga("saltValue")), keyBits = +ga("keyBits") || 256, hAlg = (ga("hashAlgorithm") || "SHA512").replace(/^SHA(\d)/, "SHA-$1"), encKV = b64(ga("encryptedKeyValue"));
+  const H = async u => new Uint8Array(await crypto.subtle.digest(hAlg, u)), cat = (...a) => { const o = new Uint8Array(a.reduce((s, x) => s + x.length, 0)); let p = 0; a.forEach(x => { o.set(x, p); p += x.length; }); return o; };
+  const pw = new Uint8Array(password.length * 2); for (let i = 0; i < password.length; i++) { const c = password.charCodeAt(i); pw[i * 2] = c & 255; pw[i * 2 + 1] = c >> 8; }
+  let h = await H(cat(salt, pw)); const it = new Uint8Array(4), dv = new DataView(it.buffer);
+  for (let i = 0; i < spin; i++) { dv.setUint32(0, i, true); h = await H(cat(it, h)); }
+  const fit = (u, n) => { if (u.length >= n) return u.slice(0, n); const o = new Uint8Array(n).fill(0x36); o.set(u); return o; };
+  const blockKey = new Uint8Array([0x14, 0x6e, 0x0b, 0xe7, 0xab, 0xac, 0xd0, 0xd6]), dk = fit(await H(cat(h, blockKey)), keyBits / 8);
+  /* AES-CBC without padding through WebCrypto: add one block that decrypts to a full padding block */
+  const cbcRaw = async (keyBytes, iv, data) => { const k = await crypto.subtle.importKey("raw", keyBytes, "AES-CBC", false, ["encrypt", "decrypt"]); const last = data.slice(data.length - 16), padBlk = (await new Uint8Array(await crypto.subtle.encrypt({ name: "AES-CBC", iv: last }, k, new Uint8Array(16).fill(16)))).slice(0, 16);
+    return new Uint8Array(await crypto.subtle.decrypt({ name: "AES-CBC", iv }, k, cat(data, padBlk))); };
+  let sk; try { sk = (await cbcRaw(dk, fit(salt, 16), encKV)).slice(0, keyBits / 8); } catch { throw new Error("Wrong password"); }
+  const size = Number(new DataView(P.buffer, P.byteOffset, 8).getBigUint64(0, true)), body = P.slice(8), out = new Uint8Array(body.length), kh = kdHash.replace(/^SHA(\d)/, "SHA-$1");
+  for (let i = 0, seg = 0; i < body.length; i += 4096, seg++) { const b = new Uint8Array(4); new DataView(b.buffer).setUint32(0, seg, true); const iv = fit(new Uint8Array(await crypto.subtle.digest(kh, cat(kdSalt, b))), kdBlock); const chunk = body.slice(i, Math.min(i + 4096, body.length)); out.set(await cbcRaw(sk, iv, chunk), i); }
+  const x = out.slice(0, size); if (!(x[0] === 0x50 && x[1] === 0x4b)) throw new Error("Wrong password");
+  return x;
+}
+function askPw120(name) { return new Promise(ok => { const D = panel28({ title: "Password-protected Excel", body: `<p>${esc(name)} has a password. Type it here - the file is opened only in this browser; the password is not saved or sent anywhere.</p><label class="f">Excel password<input type="password" id="pw120" autocomplete="off"></label>`, foot: '<span style="flex:1"></span><button class="btn" id="pw120x" type="button">Cancel</button><button class="btn primary" id="pw120o" type="button">Open</button>' }); const i = $("#pw120", D); setTimeout(() => i.focus(), 50); const done = v => { closeDrawer26(); ok(v); }; $("#pw120o", D).onclick = () => done(i.value); $("#pw120x", D).onclick = () => done(null); i.onkeydown = e => { if (e.key === "Enter") done(i.value); }; }); }
+{
+  const _i = vtImport62;
+  vtImport62 = async function (file) {
+    try { const head = new Uint8Array(await file.slice(0, 8).arrayBuffer());
+      if (head[0] === 0xd0 && head[1] === 0xcf && head[2] === 0x11 && head[3] === 0xe0 && /\.xlsx?$/i.test(file.name)) {
+        const buf = await file.arrayBuffer(); let cf; try { await loadScript(LIBS.sheetjs); cf = window.XLSX.CFB.read(new Uint8Array(buf), { type: "array" }); } catch { }
+        if (cf && window.XLSX.CFB.find(cf, "EncryptionInfo")) { const pw = await askPw120(file.name); if (pw == null) return; toast("Opening the Excel…"); const x = await offDecrypt120(buf, pw); return _i.call(this, new File([x], file.name.replace(/\.xls$/i, ".xlsx"), { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" })); }
+      } } catch (e) { return toast(e.message, "bad"); }
+    return _i.apply(this, arguments);
+  };
+}
 
 boot();
 
