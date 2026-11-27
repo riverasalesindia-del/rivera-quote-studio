@@ -1123,14 +1123,15 @@ function recCan(kind, me) {
 var REC_NO = { rq: "RCM/RQ/", rn: "RCM/GRN/", mg: "RCM/GP/", vr: "VR/", pl: "PL/", lv: "LV/", vis: "VS/", onb: "NE/", appt: "AP/", tqs: "RCM/TQ/", cr: "RCM/CR/", pret: "RCM/PR/", pcs: "RCM/CS/", qtr: "RCM/TR/", qap: "RCM/QAP/", ho: "HO/", po: "RCM/PO/", job: "RJ/", inv: "RCM/INV/", svc: "SR/", proj: "PRJ/", sal: "SAL/", so: "RCM/SO/", dn: "RCM/DN/", sr: "RCM/CN/" };
 
 /* p119: every login sees the employee names (for work, leave, handover pickers) - not salary, bank, phone or documents;
-   registers (fire extinguishers, licences, maintenance, kitchen, security, legal, POSH, interviews, shelf life, MD documents)
+   registers (fire extinguishers, licences, maintenance, kitchen, security, legal, POSH, interviews, shelf life, Management documents)
    are seen and kept by the department whose register it is; Accounts keeps its bank accounts list */
 function empLite119(o) { return { id: o.id, kind: o.kind, no: o.no, by: o.by, at: o.at, name: o.name, code: o.code, dept: o.dept, designation: o.designation, status: o.status, company: o.company, email: o.email, doj: o.doj, lite: 1 }; }
-var REG119 = { fire: "admin", lic: "admin", mnt: "admin", kit: "admin", sec: "admin", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr" };
-var REGPG119 = { admin: /^(admin|docs71|assets62|vis71|gate71|courier)/, hr: /^(hr|hrx)/, store: /^(purchase|stock|store|jobs)/, mgmt: /^(mgmt|mis|work\.team)/ };
+var REG119 = { fire: "hr", lic: "hr", mnt: "hr", kit: "hr", sec: "hr", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr" };
+var REGPG119 = { admin: /^(dept\.admin|admin|docs71|assets62|vis71|gate71|courier)/, hr: /^(dept\.hr|hr|hrx)/, store: /^(dept\.store|purchase|stock|store|jobs)/, mgmt: /^(dept\.mgmt|mgmt|mis|work\.team)/ };
 function can119(r, me) {
   var x = data62(r), P = userPages(me);
   if (r.kind === "dc" && x.reg116) { var m = REG119[x.reg116]; if (!m) return false; if (me.email === md62()) return true; return P.some(function (p) { return REGPG119[m].test(p); }) || (m === "hr" && me.role === "finance"); }
+  if (r.kind === "fa" || r.kind === "vlt") return me.role === "finance" || P.some(function (p) { return /^dept\.(mgmt|admin|accounts)$/.test(p); });
   if (r.kind === "sig" && x.type === "cfg-bank117") return P.some(function (p) { return /^accounts/.test(p); }) || me.role === "finance";
   return false;
 }
@@ -1217,7 +1218,7 @@ function recDel(d, me) {
     var sh = recSheet(), all = readTableRaw(sh, RCH), r = all.filter(function (x) { return x.id === d.id; })[0]; if (!r) throw "Not found";
     if (r.kind === "lead" && ["admin", "sales"].indexOf(me.role) < 0) throw "Only sales can change leads";
     if (OPEN62.indexOf(r.kind) >= 0 && me.role !== "admin" && r.by !== me.email && !own62(r, me)) throw "Your login can't remove this";
-    if (["vlt", "fa", "qap", "qtr", "pret", "pcs", "cert"].indexOf(r.kind) >= 0 && !recCan(r.kind, me)) throw "Your login can't remove this";
+    if (["vlt", "fa", "qap", "qtr", "pret", "pcs", "cert"].indexOf(r.kind) >= 0 && !recCan(r.kind, me) && !can119(r, me)) throw "Your login can't remove this";
     r.del = "1"; r.at = new Date().toISOString(); r.by = me.email; writeTable(sh, RCH, all);
   } finally { lock.releaseLock(); }
   log(me.email, "record-delete", d.id);
@@ -1306,9 +1307,9 @@ function mails62(kind, x, before, r, me, mails) {
       mails.push([x.from, "Completed: " + clean(x.title, 110), "<p><b>" + nm + "</b> completed the work you gave:</p><p><b>" + esc(x.title) + "</b></p>" + btn(link62("work"), "Open", "#1e8e3e")]);
   }
   if (kind === "rm" && x.ap117) {
-    /* Work Board ▸ Approval: MD sir decides → the person gets a mail; the person answers a question → MD sir gets a mail */
+    /* Work Board ▸ Approval: Management decides → the person gets a mail; the person answers a question → Management gets a mail */
     if (before && before.status !== x.status && ["approved", "rejected", "query"].indexOf(x.status) >= 0 && /@/.test(x.who || "") && x.who !== me.email)
-      mails.push([x.who, (x.status === "approved" ? "Approved: " : x.status === "rejected" ? "Rejected: " : "MD sir has a question: ") + clean(x.subject, 100), "<p>Your approval request <b>" + esc(x.subject) + "</b> is <b>" + (x.status === "query" ? "waiting for your answer" : x.status) + "</b>.</p>" + (x.mdNote ? "<p><i>" + esc(x.mdNote) + "</i></p>" : "") + btn(link62("work"), "Open Work Board ▸ Approval", "#02315B")]);
+      mails.push([x.who, (x.status === "approved" ? "Approved: " : x.status === "rejected" ? "Rejected: " : "Management has a question: ") + clean(x.subject, 100), "<p>Your approval request <b>" + esc(x.subject) + "</b> is <b>" + (x.status === "query" ? "waiting for your answer" : x.status) + "</b>.</p>" + (x.mdNote ? "<p><i>" + esc(x.mdNote) + "</i></p>" : "") + btn(link62("work"), "Open Work Board ▸ Approval", "#02315B")]);
     if (before && before.status === "query" && x.status === "pending" && x.reply) mails.push([md62(), "Answer: " + clean(x.subject, 100), "<p><b>" + esc(x.whoName || x.who) + "</b> answered:</p><p><i>" + esc(x.reply) + "</i></p>" + btn(link62("work"), "Open Work Board ▸ Approval", "#02315B")]);
   }
   if (kind === "cr" && !before && (x.dir === "in" || x.sendTo)) {
@@ -1476,7 +1477,7 @@ function workMorning62() {
     var prev = WD.filter(function (w) { return w.who === u.email && w.day < t && (w.items || []).length; }).sort(function (a, b) { return String(b.day).localeCompare(String(a.day)); })[0];
     var P = prev ? prev.items.filter(function (i) { return i.title && ["done", "dropped"].indexOf(i.state) < 0; }) : [];
     var L = open.filter(function (x) { return x.to === u.email && !P.some(function (i) { return i.wk && i.wk === x.id; }); }), over = L.filter(function (x) { return x.due && String(x.due).slice(0, 10) < t; }).length;
-    var html = "<p>Good morning " + esc(u.name) + ",</p><p style='font-size:15px'>Open <b>Work update</b> and add today's work with <b>From</b> and <b>To</b> time. MD sir sees the plans at 10:45.</p>" + btn(SITE + "#plan", "Open my Work update", "#7b3fa0") +
+    var html = "<p>Good morning " + esc(u.name) + ",</p><p style='font-size:15px'>Open <b>Work update</b> and add today's work with <b>From</b> and <b>To</b> time. Management sees the plans at 10:45.</p>" + btn(SITE + "#plan", "Open my Work update", "#7b3fa0") +
       (P.length ? "<p style='margin-top:16px'><b>Still pending</b> from " + esc(prev.day.split("-").reverse().join(".")) + " (" + P.length + "):</p><table style='border-collapse:collapse;font-size:14px'>" + P.slice(0, 30).map(function (i) { var p = Number(i.pct) || 0; return "<tr><td style='padding:4px 8px 4px 0'>" + esc(i.title) + "</td><td style='padding:4px 0;white-space:nowrap'><b style='color:" + col(p) + "'>" + p + "%</b> · " + (i.state === "progress" ? "In progress" : "Pending") + "</td></tr>"; }).join("") + "</table>" : "<p style='margin-top:16px;color:#1e8e3e'>Nothing pending from your last update.</p>") +
       (L.length ? "<p style='margin-top:12px'><b>Work given to you</b>" + (over ? " (<b style='color:#c0392b'>" + over + " overdue</b>)" : "") + ":</p><ul style='padding-left:18px'>" + L.slice(0, 25).map(wkLine62).join("") + "</ul>" : "");
     var cnt = P.length + L.length;
@@ -1484,7 +1485,7 @@ function workMorning62() {
   });
   log("automation", "work-morning", n + " mails");
 }
-/* 10:45 — MD sir: everyone's plan for today with From–To time, and who has not written one */
+/* 10:45 — Management: everyone's plan for today with From–To time, and who has not written one */
 function workPlans62() {
   if (!workday62()) return;
   var t = todayIST(), md = md62(), P = rows62("wk").filter(function (x) { return x.src === "plan" && x.day === t && x.status !== "cancelled"; });
@@ -1507,7 +1508,7 @@ function workRemind62() {
   team62().forEach(function (u) { if (u.email === md62() || done.indexOf(u.email) >= 0) return; try { mail(u.email, "Reminder: send today's work update", "<p>Hi " + esc(u.name) + ",</p><p>Please send today's daily work update before <b>6:30 PM</b>. Every work needs a From and To time.</p>" + btn(SITE + "#plan", "Open my Work update", "#E26A0C")); n++; } catch (e) { } });
   log("automation", "work-remind", n + " reminders");
 }
-/* 18:35 — one clean report to MD sir: who sent the update, every work with its time, work completed today, overdue work */
+/* 18:35 — one clean report to Management: who sent the update, every work with its time, work completed today, overdue work */
 function workEvening62() {
   if (!workday62()) return;
   var t = todayIST(), team = team62(), W = rows62("wd").filter(function (x) { return x.day === t && x.submittedAt; }), K = rows62("wk");
@@ -1535,7 +1536,7 @@ function work62Api(d, me) {
   if (d.op === "pubkeys") { if (!(me.role === "admin" || me.email === ADMIN || userPages(me).some(function (p) { return /^(hrx|courier\.all)/.test(p); }))) throw "Only admin, HR or security"; return { ok: true, onb: pubKey71("onb"), vis: pubKey71("vis"), cr: pubKey71("cr"), att: pubKey71("att") }; }
   if (d.op === "lvappr") return { ok: true, list: lvApprovers71() };
   if (d.op === "regs") { if (!(me.role === "admin" || me.email === ADMIN || me.role === "finance")) throw "Only admin"; return regs71(); }
-  /* Reminder / pending-approval list: the person taps "Send to email" — it goes to MD sir only, as an image + table */
+  /* Reminder / pending-approval list: the person taps "Send to email" — it goes to Management only, as an image + table */
   if (d.op === "shareImg") {
     var b64 = String(d.b64 || ""); if (!b64 || b64.length > 7e6) throw "Image missing or too large";
     var title = clean(d.title || "Pending approval list", 120), who = esc(me.name || me.email);
