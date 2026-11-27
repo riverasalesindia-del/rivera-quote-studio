@@ -1126,11 +1126,11 @@ var REC_NO = { rq: "RCM/RQ/", rn: "RCM/GRN/", mg: "RCM/GP/", vr: "VR/", pl: "PL/
    registers (fire extinguishers, licences, maintenance, kitchen, security, legal, POSH, interviews, shelf life, Management documents)
    are seen and kept by the department whose register it is; Accounts keeps its bank accounts list */
 function empLite119(o) { return { id: o.id, kind: o.kind, no: o.no, by: o.by, at: o.at, name: o.name, code: o.code, dept: o.dept, designation: o.designation, status: o.status, company: o.company, email: o.email, doj: o.doj, lite: 1 }; }
-var REG119 = { fire: "hr", lic: "hr", mnt: "hr", kit: "hr", sec: "hr", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr" };
-var REGPG119 = { admin: /^(dept\.admin|admin|docs71|assets62|vis71|gate71|courier)/, hr: /^(dept\.hr|hr|hrx)/, store: /^(dept\.store|purchase|stock|store|jobs)/, mgmt: /^(dept\.mgmt|mgmt|mis|work\.team)/ };
+var REG119 = { fire: "hr", lic: "hr", mnt: "hr", kit: "hr", sec: "hr", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr", wo: "sales", sinv: "accounts" };
+var REGPG119 = { admin: /^(dept\.admin|admin|docs71|assets62|vis71|gate71|courier)/, hr: /^(dept\.hr|hr|hrx)/, store: /^(dept\.store|purchase|stock|store|jobs)/, mgmt: /^(dept\.mgmt|mgmt|mis|work\.team)/, sales: /^(dept\.sales|sales|crm|leads|cust|quote)/, accounts: /^(dept\.accounts|accounts|bank|brs)/ };
 function can119(r, me) {
   var x = data62(r), P = userPages(me);
-  if (r.kind === "dc" && x.reg116) { var m = REG119[x.reg116]; if (!m) return false; if (me.email === md62()) return true; return P.some(function (p) { return REGPG119[m].test(p); }) || (m === "hr" && me.role === "finance"); }
+  if (r.kind === "dc" && x.reg116) { var m = REG119[x.reg116]; if (!m) return false; if (me.email === md62()) return true; return P.some(function (p) { return REGPG119[m].test(p); }) || (m === "hr" && me.role === "finance") || (m === "accounts" && me.role === "finance") || (m === "sales" && me.role === "sales"); }
   if (r.kind === "fa" || r.kind === "vlt") return me.role === "finance" || P.some(function (p) { return /^dept\.(mgmt|admin|accounts)$/.test(p); });
   if (r.kind === "sig" && x.type === "cfg-bank117") return P.some(function (p) { return /^accounts/.test(p); }) || me.role === "finance";
   return false;

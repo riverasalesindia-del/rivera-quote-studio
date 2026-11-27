@@ -18343,6 +18343,91 @@ try {
   HELP110.push([/nature of business|emergency customer|may be next/i, "Sales ▸ Customer repository", "cust88", {}, "Customers by nature of business - Emergency, Regular, May be next."]);
 } catch { }
 
+/* =============== p122: (1) attendance fills itself - every punch from the fingerprint device goes into the HR attendance grid
+       automatically (P / H / A), no "Fill grid" button needed; a red warning when the device stops sending
+   (2) Sales ▸ Customer work orders (PO register) and Accounts ▸ Sales invoices register - history from Synology,
+       kept apart from the ERP's own invoice / order number series so new numbers stay continuous =============== */
+try {
+  REG116.wo = { t: "Customer work orders (PO register)", mod: "sales", icon: "📑", due: "", cols: [["poNo", "Work order / PO no *", "text"], ["date", "WO date", "date"], ["customer", "Customer *", "text"], ["co", "Company (RCM / RCR)", "select", ["RCM", "RCR"]], ["desc", "Description", "text"], ["qty", "Qty", "text"], ["taxable", "Taxable ₹", "number"], ["total", "Total with GST ₹", "number"], ["fy", "F.Y", "text"], ["link", "Synology file", "text"], ["note", "Remarks", "textarea"]] };
+  REG116.sinv = { t: "Sales invoices register", mod: "accounts", icon: "🧾", due: "", cols: [["invNo", "Invoice no *", "text"], ["date", "Invoice date", "date"], ["customer", "Customer *", "text"], ["co", "Company (RCM / RCR)", "select", ["RCM", "RCR"]], ["taxable", "Taxable ₹", "number"], ["gst", "GST ₹", "number"], ["total", "Invoice total ₹", "number"], ["gstin", "Customer GSTIN", "text"], ["hsn", "HSN / SAC", "text"], ["fy", "F.Y", "text"], ["link", "Synology file", "text"], ["note", "Remarks", "textarea"]] };
+  const M = id => MODS32.find(x => x.id === id);
+  const put = (id, g, c) => { const m = M(id); if (!m) return; const L = (m.groups[g] ||= []); if (!L.some(x => x[1] === c[1] && JSON.stringify(x[2] || {}) === JSON.stringify(c[2] || {}))) L.push(c); try { CARDMOD64.set(c, id); } catch { } };
+  put("sales", "Masters", [REG116.wo.t, "reg116", { rg116: "wo" }, "Every customer PO / work order - RCM & RCR"]);
+  put("accounts", "Masters", [REG116.sinv.t, "reg116", { rg116: "sinv" }, "Every tax invoice - RCM & RCR, by F.Y"]);
+  const _al = allowed21, hasMod = (m, self) => { const MM = MODS32.find(x => x.id === m); return !!MM && Object.values(MM.groups).flat().some(c => c[1] !== "reg116" && _al.call(self, c[1])); };
+  allowed21 = function (r) { if (r === "reg116" && !isAdmin28()) { const m = REG116[BIZ?.ui?.rg116]?.mod; if (m === "sales" || m === "accounts") return hasMod(m, this); } return _al.apply(this, arguments); };
+  HELP110.push([/work order|customer po|purchase order from customer|\bwo\b/i, "Sales ▸ Customer work orders", "reg116", { rg116: "wo" }, "Every customer PO / work order with value, RCM & RCR."], [/sales invoice|tax invoice|invoice register|turnover|sales total/i, "Accounts ▸ Sales invoices register", "reg116", { rg116: "sinv" }, "Every tax invoice with taxable, GST and total, by F.Y."]);
+  /* F.Y totals above the two registers */
+  const _rv = VIEWS.reg116;
+  VIEWS.reg116 = function (v) {
+    _rv.apply(this, arguments);
+    try {
+      const k = BIZ.ui.rg116; if (!["wo", "sinv"].includes(k)) return;
+      const L = regRows116(k), G = {};
+      L.forEach(x => { const key = (x.fy || "—") + " · " + (x.co || ""); (G[key] ||= { n: 0, t: 0, x: 0 }); G[key].n++; G[key].t += Number(x.total) || 0; G[key].x += Number(x.taxable) || 0; });
+      const rows = Object.entries(G).sort((a, b) => b[0].localeCompare(a[0]));
+      if (!rows.length) return;
+      const pnl = $("section.panel", v);
+      pnl && pnl.insertAdjacentHTML("beforebegin", `<section class="panel"><header><h2>${k === "sinv" ? "Sales by financial year" : "Work orders by financial year"}</h2></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>F.Y · company</th><th class="n">${k === "sinv" ? "Invoices" : "Orders"}</th><th class="n">Taxable</th><th class="n">Total with GST</th></tr></thead><tbody>${rows.map(([key, g]) => `<tr><td><b>${esc(key)}</b></td><td class="n">${g.n}</td><td class="n mono">${inr28(Math.round(g.x))}</td><td class="n mono">${inr28(Math.round(g.t))}</td></tr>`).join("")}</tbody></table></div></section>`);
+    } catch (e) { console.warn("p122 fy totals", e); }
+  };
+} catch (e) { console.warn("p122 registers", e); }
+
+/* (1) automatic attendance */
+const lastPd122 = () => { let m = ""; for (const p of all28("pd")) { const t = String(p.at || ""); if (t > m) m = t; } return m; };
+const devOff122 = () => {
+  const last = lastPd122(); if (!last) return "";
+  const now = new Date(), hrs = (now - new Date(last)) / 36e5, ist = new Date(now.getTime() + 5.5 * 36e5), wd = ist.getUTCDay(), h = ist.getUTCHours();
+  const workTime = wd !== 0 && h >= 10 && h < 19;
+  return (workTime && hrs > 3) || hrs > 26 ? last : "";
+};
+async function autoAtt122(force) {
+  try {
+    if (!(typeof can29 === "function" && can29("att")) || !BIZ.loaded) return 0;
+    const key = "rqs.att122", lastRun = +localStorage.getItem(key) || 0;
+    if (!force && Date.now() - lastRun < 20 * 60e3) return 0;
+    localStorage.setItem(key, String(Date.now()));
+    const today = todayISO(), mms = [today.slice(0, 7)];
+    if (+today.slice(8, 10) <= 7) { const d = new Date(today); d.setDate(0); mms.push(d.toISOString().slice(0, 7)); }
+    const E = emps89().filter(e => e.status !== "left"), recs = [];
+    for (const mm of mms) {
+      const P = all28("pd").filter(p => String(p.day).startsWith(mm)), last = new Date(+mm.slice(0, 4), +mm.slice(5, 7), 0).getDate();
+      const devDays = new Set(P.map(p => p.day));
+      for (const e of E) {
+        const cur = { ...attDays29(e.id, mm) }, ch = {};
+        for (let d = 1; d <= last; d++) {
+          const dd = String(d).padStart(2, "0"), iso = `${mm}-${dd}`; if (iso > today) break;
+          if (["L", "WO", "HO", "CL", "SL", "EL", "OD"].includes(cur[dd])) continue;
+          const p = P.find(x => x.day === iso && empOfPd89(x, [e]) === e);
+          if (p) { const h = hrs89(p), code = p.out && h > 0 && h < 4.5 ? "H" : "P"; if (cur[dd] !== code && (cur[dd] === "" || cur[dd] === "A" || cur[dd] === "P" || cur[dd] === "H" || cur[dd] == null)) ch[dd] = code; }
+          else if (iso < today && new Date(iso + "T00:00:00").getDay() !== 0 && !cur[dd] && devDays.has(iso)) ch[dd] = "A";
+        }
+        if (Object.keys(ch).length) { const a = attRec29(e.id, mm) ? JSON.parse(JSON.stringify(attRec29(e.id, mm))) : { kind: "att", emp: e.id, month: mm, days: {} }; a.days = { ...cur, ...(a.days || {}), ...ch }; a.auto122 = new Date().toISOString(); recs.push(a); }
+      }
+    }
+    for (let i = 0; i < recs.length; i += 40) await bizPut28(recs.slice(i, i + 40));
+    return recs.length;
+  } catch (e) { console.warn("p122 auto attendance", e); return 0; }
+}
+window.autoAtt122 = autoAtt122;
+try {
+  const _bs = bizSync28;
+  bizSync28 = function () { const r = _bs.apply(this, arguments); try { Promise.resolve(r).then(() => setTimeout(() => autoAtt122().then(n => { if (n && /hrx|att|hr/.test(location.hash)) render(); }), 1500)).catch(() => { }); } catch { } return r; };
+  DASHK111.push(["hr", "Fingerprint device not sending", () => devOff122() ? 1 : 0, "hr", { hr: "att" }, "bad"]);
+  HELP110.push([/attendance (not|isn)|punch(es)? (not|missing)|fingerprint (not|offline)|device offline/i, "HR ▸ Attendance", "hr", { hr: "att" }, "Attendance fills by itself from the fingerprint device. If the red 'device not sending' note shows, check the device's power and network cable / Wi-Fi (IP 192.168.0.126) and that it still points to the NAS (Comm ▸ Cloud server: NAS IP, port 8095)."]);
+  const _hv = VIEWS.hr;
+  if (_hv) VIEWS.hr = function (v) {
+    _hv.apply(this, arguments);
+    try {
+      if (BIZ.ui.hr !== "att") return;
+      const off = devOff122(), anchor = $(".att89", v) || $("section.panel", v);
+      if (anchor && !$("#dv122", v)) anchor.insertAdjacentHTML("beforebegin", off
+        ? `<div class="note bad" id="dv122" style="margin-bottom:10px"><b>⚠ Fingerprint device not sending punches since ${new Date(off).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" })}.</b> The NAS cannot reach the MB360 (IP 192.168.0.126). Check: device switched on · network cable / Wi-Fi connected · device menu Comm ▸ Ethernet IP is still 192.168.0.126 · Comm ▸ Cloud server = NAS IP, port 8095. Punches are kept in the device and come in by themselves once it is back.</div>`
+        : `<div class="note ok small" id="dv122" style="margin-bottom:10px">✅ Attendance fills by itself from the fingerprint device (P = present, H = half day under 4.5 h, A = absent on a working day). Leave / holiday entered by HR is never overwritten.</div>`);
+    } catch (e) { console.warn("p122 hr att", e); }
+  };
+} catch (e) { console.warn("p122 att hooks", e); }
+
 boot();
 
 </script>
