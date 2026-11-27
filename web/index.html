@@ -18300,6 +18300,49 @@ function askPw120(name) { return new Promise(ok => { const D = panel28({ title: 
   };
 }
 
+
+/* =============== p121: (1) Management ▸ "EMI values documents": every loan / EMI with EMI date, EMI amount, bank, outstanding, next EMI
+   (2) any file type can be attached everywhere (PDF, Excel, Word, photos, CAD, ZIP…)
+   (3) Sales: "Nature of business" for every customer / enquiry - Emergency (urgent) · Regular · May be next - with filters =============== */
+try {
+  REG116.noe = { t: "EMI values documents", mod: "mgmt", icon: "🏦", due: "next", cols: [["name", "Loan / lender *", "text"], ["ltype", "Loan type", "list", ["LAP (property loan)", "Unsecured business loan", "OD / CC", "Business loan", "Jewel loan", "Vehicle loan", "Machinery loan"]], ["borrower", "Borrower (RCM / RCR / person)", "text"], ["emiDay", "EMI date (every month)", "text"], ["emi", "EMI ₹", "number"], ["bank", "EMI paid from (bank)", "text"], ["loanAmt", "Loan amount ₹", "number"], ["roi", "Interest %", "text"], ["os", "Principal outstanding ₹", "number"], ["asOn", "Outstanding as on", "date"], ["next", "Next EMI date", "date"], ["link", "Synology folder", "text"], ["note", "Remarks", "textarea"]] };
+  MODS32.forEach(m => Object.values(m.groups).flat().forEach(c => { if (c[1] === "reg116" && c[2]?.rg116 === "noe") { c[0] = "EMI values documents"; c[3] = "Every loan - EMI, date, bank, outstanding"; } }));
+  DASHK111.forEach(d => { if (d[3] === "reg116" && d[4]?.rg116 === "noe") d[1] = "EMI due this month"; });
+  HELP110.push([/\bemi\b|loan|outstanding loan/i, "Management ▸ EMI values documents", "reg116", { rg116: "noe" }, "Every loan with EMI date, amount, bank and outstanding."]);
+} catch (e) { console.warn("p121 emi", e); }
+
+/* (2) any file type: document / photo pickers accept everything (sheet imports keep their own type) */
+new MutationObserver(() => { try { $$('input[type="file"][accept]').forEach(i => { if (i.dataset.any121) return; const a = i.accept || ""; if (/pdf|image|\.doc/i.test(a) && !/^\.(csv|xlsx?)(,|$)/i.test(a)) { i.removeAttribute("accept"); i.dataset.any121 = 1; } }); } catch { } }).observe(document.documentElement, { childList: true, subtree: true });
+
+/* (3) Nature of business */
+const NOB121 = [["", "—"], ["emergency", "🔴 Emergency (urgent)"], ["regular", "🟢 Regular"], ["next", "🔵 May be next"]];
+const nobOf121 = name => { const k = String(name || "").toLowerCase().trim(); const L = all28("lead").filter(l => String(l.company || "").toLowerCase().trim() === k && l.nob).sort((a, b) => String(b.at || b.date).localeCompare(String(a.at || a.date))); return L[0]?.nob || ""; };
+{
+  const _p = leadPanel28;
+  leadPanel28 = function (src) { const o = _p.apply(this, arguments); try { const D = $("#dr26"), n = D && $('[data-k="need"]', D); if (n && !$('[data-k="nob"]', D)) { const v = src?.nob || ""; n.closest("label").insertAdjacentHTML("beforebegin", `<label class="f">Nature of business<select data-k="nob">${NOB121.map(([a, b]) => `<option value="${a}" ${a === v ? "selected" : ""}>${b}</option>`).join("")}</select></label>`); } } catch (e) { console.warn("p121 nob", e); } return o; };
+}
+{
+  const _v = VIEWS.cust88;
+  if (_v) VIEWS.cust88 = v => {
+    const f = BIZ.ui.nob121 || "", _c = custRepo88;
+    if (f) custRepo88 = function () { return _c.apply(this, arguments).filter(c => nobOf121(c.name) === f); };
+    try { _v(v); } finally { custRepo88 = _c; }
+    try {
+      const all = _c(), cnt = k => all.filter(c => nobOf121(c.name) === k).length, tb = $("table.t", v);
+      const bar = document.createElement("div"); bar.className = "row"; bar.style.cssText = "gap:6px;flex-wrap:wrap;margin:0 0 10px";
+      bar.innerHTML = `<b style="align-self:center;margin-right:4px">Nature of business:</b><button type="button" class="btn sm ${!f ? "primary" : ""}" data-nb="">All (${all.length})</button>${NOB121.slice(1).map(([k, t]) => `<button type="button" class="btn sm ${f === k ? "primary" : ""}" data-nb="${k}">${t} (${cnt(k)})</button>`).join("")}`;
+      tb?.closest("div")?.before(bar);
+      $$("[data-nb]", bar).forEach(b => b.onclick = () => { BIZ.ui.nob121 = b.dataset.nb; render(); });
+      if (tb) { const th = $("thead tr", tb); th.insertAdjacentHTML("beforeend", "<th>Nature of business</th>"); const shown = f ? all.filter(c => nobOf121(c.name) === f) : all; const L = shown.filter(c => has71([c.name, c.contact, c.phone, c.email, c.city], BIZ.ui.c88q || ""));
+        $$("tbody tr[data-c88]", tb).forEach(tr => { const c = L[+tr.dataset.c88], k = c ? nobOf121(c.name) : "", t = (NOB121.find(x => x[0] === k) || [])[1]; tr.insertAdjacentHTML("beforeend", `<td>${k ? `<span class="chip ${k === "emergency" ? "bad" : k === "regular" ? "ok" : "navy"}">${esc(t)}</span>` : '<span class="muted small">set in the lead</span>'}</td>`); }); }
+    } catch (e) { console.warn("p121 cust", e); }
+  };
+}
+try {
+  DASHK111.push(["sales", "Emergency customers (urgent)", () => all28("lead").filter(l => l.nob === "emergency" && !["won", "lost"].includes(l.stage)).length, "cust88", { nob121: "emergency" }, "bad"], ["sales", "May be next (follow later)", () => all28("lead").filter(l => l.nob === "next" && !["won", "lost"].includes(l.stage)).length, "cust88", { nob121: "next" }, ""]);
+  HELP110.push([/nature of business|emergency customer|may be next/i, "Sales ▸ Customer repository", "cust88", {}, "Customers by nature of business - Emergency, Regular, May be next."]);
+} catch { }
+
 boot();
 
 </script>
