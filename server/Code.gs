@@ -1126,7 +1126,7 @@ var REC_NO = { rq: "RCM/RQ/", rn: "RCM/GRN/", mg: "RCM/GP/", vr: "VR/", pl: "PL/
    registers (fire extinguishers, licences, maintenance, kitchen, security, legal, POSH, interviews, shelf life, Management documents)
    are seen and kept by the department whose register it is; Accounts keeps its bank accounts list */
 function empLite119(o) { return { id: o.id, kind: o.kind, no: o.no, by: o.by, at: o.at, name: o.name, code: o.code, dept: o.dept, designation: o.designation, status: o.status, company: o.company, email: o.email, doj: o.doj, lite: 1 }; }
-var REG119 = { fire: "hr", lic: "hr", mnt: "hr", kit: "hr", sec: "hr", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr", wo: "sales", sinv: "accounts" };
+var REG119 = { fire: "hr", lic: "hr", mnt: "hr", kit: "hr", sec: "hr", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr", wo: "sales", sinv: "accounts", vend: "store" };
 var REGPG119 = { admin: /^(dept\.admin|admin|docs71|assets62|vis71|gate71|courier)/, hr: /^(dept\.hr|hr|hrx)/, store: /^(dept\.store|purchase|stock|store|jobs)/, mgmt: /^(dept\.mgmt|mgmt|mis|work\.team)/, sales: /^(dept\.sales|sales|crm|leads|cust|quote)/, accounts: /^(dept\.accounts|accounts|bank|brs)/ };
 function can119(r, me) {
   var x = data62(r), P = userPages(me);
