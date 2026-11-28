@@ -18449,6 +18449,344 @@ try {
   }
 } catch (e) { console.warn("p123 vendors", e); }
 
+/* =============== p124: network-change notes for the fingerprint / door machines · server version check ·
+   PO number you can edit + Packing & forwarding / freight on the PO · HR Employees one page (no repeated tabs) + document checklist ·
+   Sales ▸ Company certificates (renewable / permanent, renewal alerts, used by quotations) · Management ▸ Rental shops + rent receipts ·
+   Sales ▸ Inbox (shared WhatsApp / email inbox, assign, quick replies, broadcast) · Sales ▸ Find clients (research + outreach + meetings) ·
+   Enquiry next steps (follow-up → quotation → order → invoice → payment) on the enquiry itself =============== */
+const SV124 = 124;
+/* ---------- server version: the app tells Admin when Code.gs still needs deploying ---------- */
+try {
+  const _ac = AUTH.call;
+  AUTH.call = async function (action, body, ...a) { const d = await _ac.call(this, action, body, ...a); try { if (action === "recList" && d && typeof d === "object") BIZ.sv124 = Number(d.sv) || 0; } catch { } return d; };
+} catch (e) { console.warn("p124 sv", e); }
+const svOld124 = () => BIZ.loaded && (BIZ.sv124 || 0) < SV124;
+
+/* ---------- PO: own PO number, packing & forwarding, freight ---------- */
+try {
+  const _pt = poTotal28;
+  poTotal28 = function (p) { const b = _pt.apply(this, arguments); if (!p) return b; const ex = (a, g) => (Number(a) || 0) * (1 + (Number(g === "" || g == null ? 18 : g) || 0) / 100); return b + ex(p.pf, p.pfGst) + ex(p.freight, p.frGst); };
+  const _pp = poPanel28;
+  poPanel28 = function (src) {
+    const out = _pp.apply(this, arguments);
+    try {
+      const D = $("#dr26"), f = D && $(".fields", D); if (!f || $('[data-k="pf"]', D)) return out;
+      const r = src ? (BIZ.rows[src.id] || src) : {}, ed = !src || ["draft", "pending", "indent"].includes(r.status) || isAdmin28();
+      const sup = $('[data-k="supplier"]', f)?.closest("label");
+      sup && sup.insertAdjacentHTML("beforebegin", `<label class="f">PO number <span class="small muted">(leave empty = automatic)</span><input data-k="noManual" value="${esc(r.noManual || "")}" placeholder="${esc(src?.no ? src.no : "e.g. RCM/PO/26-27/045")}" ${ed ? "" : "disabled"}></label>`);
+      const lines = $(".po28", D);
+      lines && lines.insertAdjacentHTML("afterend", `<div class="fields pf124" style="margin-top:8px"><label class="f">Packing & forwarding ₹<input type="number" min="0" step="any" data-k="pf" value="${esc(r.pf ?? "")}" placeholder="0"></label><label class="f">GST on P&F %<input type="number" min="0" step="any" data-k="pfGst" value="${esc(r.pfGst ?? 18)}"></label><label class="f">Freight / transport ₹<input type="number" min="0" step="any" data-k="freight" value="${esc(r.freight ?? "")}" placeholder="0"></label><label class="f">GST on freight %<input type="number" min="0" step="any" data-k="frGst" value="${esc(r.frGst ?? 18)}"></label></div>`);
+      const upd = () => { const t = $("#p28tot", D); if (!t) return; const tmp = JSON.parse(JSON.stringify(r)); readForm28(D, tmp); $$(".pl28[data-ln]", D).forEach(tr => { const l = (tmp.lines ||= [])[+tr.dataset.ln] ||= {}; $$("[data-l]", tr).forEach(el => { l[el.dataset.l] = el.type === "number" ? Number(el.value) || 0 : el.value; }); }); t.textContent = "Total with GST: " + inr28(poTotal28(tmp)); };
+      $$(".pf124 input, .pl28 input", D).forEach(i => i.addEventListener("input", upd)); upd();
+    } catch (e) { console.warn("p124 po", e); }
+    return out;
+  };
+  /* the PO print shows P&F and freight as their own rows (with their GST) */
+  if (typeof poPrint85 === "function") { const _pr = poPrint85; poPrint85 = function (r, ...a) { try { if (r && (Number(r.pf) || Number(r.freight))) { const t = JSON.parse(JSON.stringify(r)); t.lines = [...(t.lines || [])]; if (Number(t.pf)) t.lines.push({ desc: "Packing & forwarding", qty: 1, unit: "Lot", rate: Number(t.pf), gst: t.pfGst ?? 18 }); if (Number(t.freight)) t.lines.push({ desc: "Freight / transport", qty: 1, unit: "Lot", rate: Number(t.freight), gst: t.frGst ?? 18 }); t.pf = 0; t.freight = 0; return _pr.call(this, t, ...a); } } catch (e) { console.warn("p124 print", e); } return _pr.call(this, r, ...a); }; }
+} catch (e) { console.warn("p124 po hooks", e); }
+/* own PO number shows everywhere (the server keeps it too once Code.gs is deployed) */
+const noFix124 = () => { try { for (const r of Object.values(BIZ.rows)) if (r && r.noManual && r.no !== r.noManual) { r.noAuto = r.noAuto || r.no; r.no = r.noManual; } } catch { } };
+try { const _r = render; render = function () { noFix124(); return _r.apply(this, arguments); }; } catch (e) { console.warn("p124 render", e); }
+
+/* ---------- HR ▸ Employees: one tab row, certificates + letters inside, document checklist ---------- */
+const DOCREQ124 = [
+  ["aadhaar", "Aadhaar card", 1], ["pan", "PAN card", 1], ["photo", "Passport photo", 1], ["bank", "Bank passbook / cancelled cheque", 1],
+  ["edu", "Education certificates", 1], ["resume", "Resume / bio-data", 1], ["exp", "Experience / relieving letter", 0], ["addr", "Address proof (if not on Aadhaar)", 0],
+  ["offer", "Signed offer letter", 1], ["appt", "Signed appointment letter", 1], ["pfesi", "PF / ESI nomination form", 1], ["med", "Medical fitness", 0],
+  ["dl", "Driving licence (drivers)", 0], ["emerg", "Emergency contact form", 1], ["nda", "Code of conduct / NDA signed", 0]];
+const docKey124 = d => { const t = String(d.label || "") + " " + String(d.name || ""); if (d.k124) return d.k124; if (/aadh?aar/i.test(t)) return "aadhaar"; if (/\bpan\b/i.test(t)) return "pan"; if (/photo/i.test(t)) return "photo"; if (/bank|passbook|cheque/i.test(t)) return "bank"; if (/resume|bio/i.test(t)) return "resume"; if (/relie|experience/i.test(t)) return "exp"; if (/offer/i.test(t)) return "offer"; if (/appoint/i.test(t)) return "appt"; if (/\bpf\b|esi|nominat/i.test(t)) return "pfesi"; if (/medical|fitness/i.test(t)) return "med"; if (/licen[cs]e|\bdl\b/i.test(t)) return "dl"; if (/emergency/i.test(t)) return "emerg"; if (/nda|conduct/i.test(t)) return "nda"; if (/certificate|degree|diploma|sslc|hsc|marksheet|iti/i.test(t)) return "edu"; if (/address/i.test(t)) return "addr"; return ""; };
+const docState124 = e => { const L = docsOf90(e), chk = e.docChk124 || {}, letters = all28("cert").filter(c => c.emp === e.id); return DOCREQ124.map(([k, t, must]) => { const files = L.filter(d => docKey124(d) === k), auto = (k === "offer" && letters.some(c => /offer/i.test(c.type || c.title || ""))) || (k === "appt" && letters.some(c => /appoint/i.test(c.type || c.title || ""))); return { k, t, must, files, ok: !!(files.length || chk[k] || auto), seen: !!chk[k], na: chk[k] === "na" }; }); };
+function docsBlock124(e) {
+  const S = docState124(e), need = S.filter(s => s.must && !s.na), got = need.filter(s => s.ok).length, other = docsOf90(e).filter(d => !docKey124(d));
+  return `<section class="dr26-sec" id="d90"><h3>📎 Documents checklist · ${got} of ${need.length} done</h3><div class="small muted" style="margin-bottom:6px">Every document is kept separately. Tick ✔ when you have seen the original; "N/A" when it does not apply.</div>
+  <table class="t dc124"><tbody>${S.map(s => `<tr class="${s.ok ? "ok124" : s.must && !s.na ? "no124" : ""}"><td style="width:26px">${s.na ? "➖" : s.ok ? "✅" : s.must ? "❌" : "◻️"}</td><td><b>${esc(s.t)}</b>${s.must ? "" : ' <span class="small muted">(if any)</span>'}${s.files.map(d => `<div class="small"><button type="button" class="linkish" data-d124o="${esc(d.id)}">📄 ${esc(d.name || d.label)}</button> <button type="button" class="linkish" data-d124x="${esc(d.id)}" title="Remove">✕</button></div>`).join("")}</td>
+  <td style="white-space:nowrap;text-align:right"><label class="btn sm">⬆ Upload<input type="file" data-d124u="${s.k}" hidden></label> <label class="small"><input type="checkbox" data-d124c="${s.k}" ${s.seen && !s.na ? "checked" : ""}> seen</label> <label class="small"><input type="checkbox" data-d124n="${s.k}" ${s.na ? "checked" : ""}> N/A</label></td></tr>`).join("")}</tbody></table>
+  ${other.length ? `<h3 style="margin-top:10px">Other files (${other.length}) - say what each one is</h3>${other.map(d => `<div class="a89r"><span><button type="button" class="linkish" data-d124o="${esc(d.id)}">📄 ${esc(d.name || d.label)}</button><br><span class="small muted">${esc(d.label || "")}</span></span><span><select data-d124k="${esc(d.id)}"><option value="">— this file is —</option>${DOCREQ124.map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join("")}</select></span></div>`).join("")}` : ""}</section>`;
+}
+async function docSave124(e, fn) { const R = JSON.parse(JSON.stringify(BIZ.rows[e.id] || e)); fn(R); await bizPut28(R); return BIZ.rows[e.id] || R; }
+function wireDocs124(root, e, after) {
+  const L = docsOf90(e);
+  $$("[data-d124o]", root).forEach(b => b.onclick = () => { const d = L.find(x => x.id === b.dataset.d124o); d && openFile62(d.id, d.name); });
+  $$("[data-d124x]", root).forEach(b => b.onclick = () => sure71(b, async () => { after(await docSave124(e, R => { R.docs = docsOf90(R).filter(d => d.id !== b.dataset.d124x); })); toast("Removed"); }, "✕ again"));
+  $$("[data-d124u]", root).forEach(i => i.onchange = async ev => { const f = ev.target.files[0]; if (!f) return; const k = i.dataset.d124u, t = (DOCREQ124.find(x => x[0] === k) || [])[1]; try { toast("Uploading " + f.name + "…"); const up = await upFile71(f, "empdoc"); after(await docSave124(e, R => { (R.docs ||= []).push({ ...up, label: t, k124: k, at: todayISO(), by: me28() }); })); toast(t + " saved"); } catch (er) { toast(er.message, "bad"); } });
+  $$("[data-d124c]", root).forEach(c => c.onchange = async () => after(await docSave124(e, R => { (R.docChk124 ||= {})[c.dataset.d124c] = c.checked ? me28() + " " + todayISO() : ""; })));
+  $$("[data-d124n]", root).forEach(c => c.onchange = async () => after(await docSave124(e, R => { (R.docChk124 ||= {})[c.dataset.d124n] = c.checked ? "na" : ""; })));
+  $$("[data-d124k]", root).forEach(s => s.onchange = async () => { if (!s.value) return; after(await docSave124(e, R => { const d = docsOf90(R).find(x => x.id === s.dataset.d124k); if (d) { d.k124 = s.value; d.label = (DOCREQ124.find(x => x[0] === s.value) || [])[1]; } })); toast("Saved"); });
+}
+try {
+  const _e = empPanel29;
+  empPanel29 = function (src) {
+    const out = _e.apply(this, arguments);
+    try { if (!src?.id) return out; const put = R => { const old = $("#d90"); const html = docsBlock124(R); if (old) old.outerHTML = html; else ($("#dr26 .fields") || {}).insertAdjacentHTML?.("afterend", html); wireDocs124($("#d90"), R, put); }; put(BIZ.rows[src.id] || src); } catch (e) { console.warn("p124 emp docs", e); }
+    return out;
+  };
+} catch (e) { console.warn("p124 emp", e); }
+/* Employees page: certificates and letters are tabs here; the inner tab row is not shown twice */
+try {
+  [["cert", "Certificates", "hrx", { h62: "cert" }], ["letters", "Offer & appointment letters", "hrx", { h62: "letters" }], ["check", "Documents checklist", "doc124", {}]].forEach(t => { if (!EMP118.some(x => x[0] === t[0])) EMP118.splice(3, 0, t); });
+  const di = EMP118.findIndex(x => x[0] === "docs"); if (di >= 0) EMP118[di][1] = "Documents (files)";
+  const _ev = VIEWS.emp118;
+  VIEWS.emp118 = function (v) {
+    _ev.apply(this, arguments);
+    try { const row = $("[data-h62t]", v)?.parentElement; if (row && $(".e118", v)) row.style.display = "none"; } catch { }
+  };
+  const hr = MODS32.find(m => m.id === "hr");
+  if (hr) Object.keys(hr.groups).forEach(g => { hr.groups[g] = hr.groups[g].filter(c => !(c[1] === "hrx" && ["letters", "docs", "cert", "onb", "form4", "bd"].includes(c[2]?.h62))); });
+  ROUTES.push(["doc124", "Documents checklist", "hr29"]);
+  { const _al = allowed21; allowed21 = function (r) { if (r === "doc124") return _al.call(this, "hr") || _al.call(this, "hrx"); return _al.apply(this, arguments); }; }
+  VIEWS.doc124 = v => {
+    bizSync28(); const U = BIZ.ui, q = U.dc124q || "", E = all28("emp").filter(e => e.status !== "left" && has71([e.name, e.code, e.dept, e.designation], q)).sort((a, b) => String(a.name).localeCompare(String(b.name)));
+    const must = DOCREQ124.filter(d => d[2]);
+    v.innerHTML = top62("HR ▸ Employees", "Documents checklist", "Who has given what - every document separately. Tap a name to upload or tick.", `<button class="btn" id="dc124x" type="button">⬇ Sheet</button>`)
+      + `<section class="panel"><header><h2>${E.filter(e => docState124(e).filter(s => s.must && !s.na).every(s => s.ok)).length} of ${E.length} complete</h2>${srch71(U, "dc124q", "Search name, code, department…")}</header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Employee</th>${must.map(d => `<th class="small" style="writing-mode:vertical-rl;transform:rotate(180deg);white-space:nowrap">${esc(d[1])}</th>`).join("")}<th class="n">Done</th></tr></thead><tbody>${E.map(e => { const S = docState124(e), M = S.filter(s => s.must); return `<tr data-dc124="${e.id}" style="cursor:pointer"><td><b>${esc(e.name)}</b><div class="small muted">${esc(e.code || e.no || "")} · ${esc(e.dept || "")}</div></td>${M.map(s => `<td style="text-align:center">${s.na ? "➖" : s.ok ? "✅" : "❌"}</td>`).join("")}<td class="n"><b>${M.filter(s => s.ok || s.na).length}/${M.length}</b></td></tr>`; }).join("")}</tbody></table></div></section>`;
+    wireSrch71(v, U);
+    $$("[data-dc124]", v).forEach(r => r.onclick = () => empPanel29(BIZ.rows[r.dataset.dc124]));
+    $("#dc124x", v).onclick = () => xlsx71("employee-documents-checklist.xlsx", [["Employee", "Code", "Department", ...must.map(d => d[1])], ...E.map(e => { const S = docState124(e); return [e.name, e.code || "", e.dept || "", ...must.map(d => { const s = S.find(x => x.k === d[0]); return s.na ? "N/A" : s.ok ? "Yes" : "MISSING"; })]; })]);
+  };
+} catch (e) { console.warn("p124 hr tabs", e); }
+
+/* ---------- Sales ▸ Company certificates ---------- */
+const CCT124 = [["gst", "GST registration", 0], ["pan", "Company PAN", 0], ["cin", "Certificate of incorporation", 0], ["udyam", "Udyam / MSME", 0], ["iec", "Import export code (IEC)", 0], ["moa", "MoA / AoA", 0], ["tan", "TAN", 0], ["dpiit", "DPIIT start-up", 1], ["iso", "ISO certificate", 1], ["mii", "Make in India / local content", 1], ["lut", "LUT (export without IGST)", 1], ["lei", "LEI certificate", 1], ["elic", "Electrical contractor licence (A / B / C grade)", 1], ["factory", "Factory licence", 1], ["pcb", "Pollution control (TNPCB)", 1], ["fssai", "FSSAI (canteen)", 1], ["fire", "Fire NOC / safety", 1], ["oem", "OEM / dealer authorisation (CG, HEM…)", 1], ["insurance", "Insurance (WC / CAR)", 1], ["bank", "Bank mandate / cancelled cheque", 0], ["other", "Other", 1]];
+const ccAll124 = () => all28("dc").filter(d => d.reg116 === "ccert").sort((a, b) => String(a.name).localeCompare(String(b.name)));
+const ccDays124 = c => c.expiry ? Math.round((new Date(c.expiry) - new Date(todayISO())) / 864e5) : null;
+const ccTone124 = c => { const d = ccDays124(c); if (d == null) return c.renew ? ["warn", "No expiry date"] : ["ok", "Permanent"]; if (d < 0) return ["bad", `Expired ${dmy(c.expiry)}`]; if (d <= 30) return ["warn", `Renew in ${d} day${d === 1 ? "" : "s"}`]; return ["ok", `Valid till ${dmy(c.expiry)}`]; };
+const ccSoon124 = () => ccAll124().filter(c => c.renew && c.expiry && ccDays124(c) <= 30);
+const ccEdit124 = () => isAdmin28() || isMyDept85("mgmt");
+const ccRenew124 = () => ccEdit124() || isMyDept85("sales") || okRoute32("crm");
+async function ccFile124(file) { const id = "ccert_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await DSTORE.put(id, file, { kind: "cert", title: file.name }); return { id, name: file.name, size: file.size }; }
+function ccPanel124(src, preset) {
+  const r = src ? JSON.parse(JSON.stringify(src)) : { kind: "dc", reg116: "ccert", title: "Company certificates", co: "RCM", renew: true, ...(preset || {}) };
+  const full = !src || ccEdit124(), rn = r.renew && ccRenew124(), tone = ccTone124(r);
+  const F = [["name", "Certificate *", "text"], ["ctype", "Type", "select", CCT124.map(([k, t]) => [k, t])], ["co", "Company", "select", [["RCM", "RCM · Rivera Coil Manufacturing"], ["RCR", "RCR · Rivera Coil Rewinding"], ["Both", "Both"]]], ["certNo", "Certificate / registration no", "text"], ["issuer", "Issued by", "text"], ["issued", "Issue date", "date"], ["expiry", "Valid till (empty = permanent)", "date"], ["link", "Synology folder", "text", null, 1], ["note", "Remarks", "textarea"]];
+  const D = panel28({
+    title: src ? r.name : "Add company certificate", chips: src ? `<span class="chip ${tone[0]}">${tone[1]}</span><span class="chip">${r.renew ? "Renewable" : "Permanent"}</span>` : "",
+    body: `${src ? `<div class="dr26-a">${r.fileId ? `<button class="btn" id="cc124o" type="button">👁 Open current copy</button>` : '<span class="small muted">No file uploaded yet.</span>'}${rn || full ? `<label class="btn primary">⬆ ${r.renew ? "Upload renewed certificate" : "Upload copy"}<input type="file" id="cc124u" hidden></label>` : ""}</div>` : ""}
+      ${!full ? `<div class="note small" style="margin-bottom:8px">${r.renew ? "Renewable: you can upload the new certificate and change the dates. Name and type are fixed." : "Permanent certificate: view and download only. Management / Admin can change it."}</div>` : ""}
+      <div class="fields">${F.map(f => field28(f, r)).join("")}<label class="f"><span><input type="checkbox" id="cc124r" ${r.renew ? "checked" : ""} ${full ? "" : "disabled"}> Renewable (has an expiry date)</span></label></div>
+      ${!src ? `<label class="btn" style="margin-top:8px">⬆ Attach certificate file<input type="file" id="cc124u" hidden></label> <span class="small muted" id="cc124fn"></span>` : ""}
+      ${(r.history || []).length ? `<section class="dr26-sec"><h3>Older copies</h3>${r.history.slice().reverse().map(h => `<div class="a89r"><span><b>${esc(h.name || "copy")}</b><br><span class="small muted">valid till ${h.expiry ? dmy(h.expiry) : "—"} · replaced ${dmy(h.replaced || "")}</span></span><button class="btn sm" type="button" data-cc124h="${esc(h.fileId)}">Open</button></div>`).join("")}</section>` : ""}`,
+    foot: `${src && full ? `<button class="btn ghost" id="cc124d" type="button">Delete</button>` : ""}<span style="flex:1"></span><button class="btn" type="button" onclick="closeDrawer26()">Close</button>${full || rn ? `<button class="btn primary" id="cc124s" type="button">Save</button>` : ""}`
+  });
+  if (!full) $$("[data-k]", D).forEach(i => { if (!(rn && ["expiry", "issued", "certNo", "note"].includes(i.dataset.k))) i.disabled = true; });
+  let pending = null;
+  const fin = $("#cc124u", D); fin && (fin.onchange = async ev => { const f = ev.target.files[0]; if (!f) return; if (!src) { pending = f; $("#cc124fn", D).textContent = f.name; return; } try { toast("Uploading " + f.name + "…"); const up = await ccFile124(f); const R = JSON.parse(JSON.stringify(BIZ.rows[r.id])); if (R.fileId) (R.history ||= []).push({ fileId: R.fileId, name: R.fileName, expiry: R.expiry, replaced: todayISO(), by: me28() }); R.fileId = up.id; R.fileName = up.name; R.updated = todayISO(); if (R.renew) R.expiry = ""; logAdd28(R, "New copy uploaded", up.name); await bizPut28(R); toast(R.renew ? "Uploaded - now type the new 'Valid till' date and Save" : "Uploaded"); ccPanel124(BIZ.rows[r.id]); } catch (er) { toast(er.message, "bad"); } });
+  $("#cc124o", D) && ($("#cc124o", D).onclick = () => openFile62(r.fileId, r.fileName));
+  $$("[data-cc124h]", D).forEach(b => b.onclick = () => openFile62(b.dataset.cc124h, "certificate"));
+  $("#cc124s", D) && ($("#cc124s", D).onclick = async e => { const before = JSON.stringify([r.name, r.ctype, r.co]); readForm28(D, r); if (full) r.renew = $("#cc124r", D).checked; else if (JSON.stringify([r.name, r.ctype, r.co]) !== before) return toast("Only Management can change this", "bad"); if (!r.name) return toast("Certificate name is needed", "bad"); if (r.renew && !r.expiry) toast("Tip: add the 'Valid till' date so the renewal reminder works", "warn"); if (pending) { const up = await ccFile124(pending); r.fileId = up.id; r.fileName = up.name; } if (await save28(e.target, r, "Certificate saved")) { closeDrawer26(); render(); } });
+  $("#cc124d", D) && ($("#cc124d", D).onclick = async ev => sure71(ev.target, async () => { await bizDel28(r.id); closeDrawer26(); render(); toast("Deleted"); }, "Tap again to delete"));
+}
+try {
+  REG116.ccert = { t: "Company certificates", mod: "sales", icon: "🏅", due: "expiry", cols: [["name", "Certificate *", "text"], ["certNo", "No", "text"], ["expiry", "Valid till", "date"]] };
+  ROUTES.push(["ccert124", "Company certificates", "folder"]);
+  { const _al = allowed21; allowed21 = function (r) { if (r === "ccert124") return isAdmin28() || _al.call(this, "crm") || _al.call(this, "quotes") || _al.call(this, "mgmt") || isMyDept85("sales"); return _al.apply(this, arguments); }; }
+  const sm = MODS32.find(m => m.id === "sales"); if (sm) { const L = (sm.groups.Masters ||= []), c = ["Company certificates", "ccert124", {}, "GST, PAN, ISO, licences - renew & alerts, used in quotations"]; if (!L.some(x => x[1] === "ccert124")) L.unshift(c); try { CARDMOD64.set(c, "sales"); } catch { } }
+  VIEWS.ccert124 = v => {
+    bizSync28(); const U = BIZ.ui, q = U.cc124q || "", A = ccAll124().filter(c => has71([c.name, c.certNo, c.issuer, (CCT124.find(t => t[0] === c.ctype) || [])[1]], q));
+    const R = A.filter(c => c.renew), P = A.filter(c => !c.renew), soon = ccSoon124();
+    const card = c => { const t = ccTone124(c); return `<button type="button" class="cc124" data-cc124="${c.id}"><span class="chip ${t[0]}">${t[1]}</span><b>${esc(c.name)}</b><small>${esc((CCT124.find(x => x[0] === c.ctype) || [])[1] || "")}${c.certNo ? " · " + esc(c.certNo) : ""} · ${esc(c.co || "")}</small><small>${c.fileId ? "📄 " + esc(c.fileName || "file") : "⚠ no file yet"}</small></button>`; };
+    v.innerHTML = top62("Sales", "Company certificates", "One current copy of every certificate. Quotations and bid packs take the copy from here. Renewable ones: upload the new certificate when renewed. Permanent ones are locked.", `${ccEdit124() ? `<button class="btn primary" id="cc124n" type="button">＋ Add certificate</button>` : ""}`)
+      + (soon.length ? `<div class="note warn" style="margin-bottom:12px"><b>⚠ ${soon.length} certificate${soon.length > 1 ? "s" : ""} to renew:</b> ${soon.map(c => `${esc(c.name)} (${ccTone124(c)[1]})`).join(" · ")}. A mail goes to Sales and Management every morning until renewed.</div>` : "")
+      + `<div class="row" style="margin-bottom:10px">${srch71(U, "cc124q", "Search certificate, number…")}</div>
+      <section class="panel"><header><h2>🔄 Renewable (${R.length})</h2><span class="small muted">Sales can upload the renewed copy</span></header><div class="body cc124g">${R.map(card).join("") || '<p class="muted">None.</p>'}</div></section>
+      <section class="panel" style="margin-top:12px"><header><h2>🔒 Permanent (${P.length})</h2><span class="small muted">View & download only</span></header><div class="body cc124g">${P.map(card).join("") || '<p class="muted">None.</p>'}</div></section>`;
+    wireSrch71(v, U);
+    $$("[data-cc124]", v).forEach(b => b.onclick = () => ccPanel124(BIZ.rows[b.dataset.cc124]));
+    $("#cc124n", v) && ($("#cc124n", v).onclick = () => ccPanel124(null));
+  };
+  DASHK111.push(["sales", "Certificates to renew", () => ccSoon124().length, "ccert124", {}, "bad"], ["mgmt", "Certificates to renew", () => ccSoon124().length, "ccert124", {}, "bad"]);
+  HELP110.push([/certificate|gst copy|iso|licen[cs]e|udyam|pan copy/i, "Sales ▸ Company certificates", "ccert124", {}, "Every company certificate - open, download, or upload the renewed copy. Quotations take the current copy from here."]);
+  /* quotations / bid packs use the current certificate copy first */
+  const MAPT = { elic: "auth", factory: "other", pcb: "other", fssai: "other", fire: "other", insurance: "other" };
+  const _do = docsOf;
+  docsOf = function (type) {
+    const L = _do.apply(this, arguments);
+    try {
+      const mine = ccAll124().filter(c => c.fileId && (c.ctype === type || MAPT[c.ctype] === type) && !(c.renew && c.expiry && ccDays124(c) < 0))
+        .map(c => ({ id: c.fileId, title: c.name + (c.certNo ? " " + c.certNo : ""), type, expiry: c.expiry || "", path: c.link || "", set: "ccert", fromCC: 1 }));
+      return mine.length ? [...mine, ...L.filter(d => !mine.some(m => m.id === d.id))] : L;
+    } catch { return L; }
+  };
+  /* a reminder when a sales person opens the app */
+  setTimeout(() => { try { const s = ccSoon124(); if (s.length && ccRenew124() && sessionStorage.getItem("cc124") !== todayISO()) { sessionStorage.setItem("cc124", todayISO()); toast(`⚠ ${s.length} company certificate${s.length > 1 ? "s" : ""} to renew - Sales ▸ Company certificates`, "warn"); } } catch { } }, 9000);
+} catch (e) { console.warn("p124 ccert", e); }
+
+/* ---------- Management ▸ Rental shops and rent receipts ---------- */
+try {
+  REG116.shop = { t: "Rental shops (tenants)", mod: "mgmt", icon: "🏬", due: "renewal", cols: [["shop", "Shop / brand *", "text"], ["tenant", "Tenant (company)", "text"], ["owner", "Owner (lessor)", "text"], ["rent", "Rent ₹ / month", "number"], ["gst", "GST ₹", "number"], ["tds", "TDS ₹", "number"], ["net", "Received ₹ / month", "number"], ["bank", "Rent comes to", "text"], ["deposit", "Advance / deposit ₹", "number"], ["agree", "Agreement date", "date"], ["period", "Agreement period", "text"], ["renewal", "Rent revision / renewal", "date"], ["panGst", "Tenant PAN / GSTIN", "text"], ["addr", "Shop address", "textarea"], ["status", "Status", "select", ["Occupied", "Vacant", "Closed"]], ["link", "Synology folder", "text"], ["note", "Remarks", "textarea"]] };
+  REG116.rentrc = { t: "Rent receipts (month-wise)", mod: "mgmt", icon: "🧾", due: "", cols: [["month", "Rent month *", "date"], ["shop", "Shop *", "text"], ["rtype", "For", "select", ["Rent", "EB share", "Cleaning", "Deposit"]], ["invNo", "Rent invoice no", "text"], ["amount", "Invoice ₹", "number"], ["tds", "TDS ₹", "number"], ["received", "Received ₹", "number"], ["date", "Received on", "date"], ["mode", "Mode", "text"], ["utr", "UTR / cheque no", "text"], ["note", "Remarks", "textarea"]] };
+  const mm = MODS32.find(m => m.id === "mgmt");
+  if (mm) [["Rental shops (tenants)", "reg116", { rg116: "shop" }, "Every shop - tenant, rent, GST / TDS, deposit, agreement"], ["Rent receipts (month-wise)", "reg116", { rg116: "rentrc" }, "Which month's rent came, how much, when, UTR - pending months"]].forEach(c => { const L = (mm.groups.Masters ||= []); if (!L.some(x => x[1] === "reg116" && x[2]?.rg116 === c[2].rg116)) L.push(c); try { CARDMOD64.set(c, "mgmt"); } catch { } });
+  const _rv = VIEWS.reg116;
+  VIEWS.reg116 = function (v) {
+    _rv.apply(this, arguments);
+    try {
+      if (BIZ.ui.rg116 !== "rentrc" && BIZ.ui.rg116 !== "shop") return;
+      const S = regRows116("shop").filter(s => s.status !== "Closed"), RC = regRows116("rentrc"), cur = todayISO().slice(0, 7);
+      const months = [...Array(6)].map((_, i) => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1 - i); return d.toISOString().slice(0, 7); }).reverse();
+      const cell = (s, m) => { const x = RC.find(r => String(r.month).slice(0, 7) === m && String(r.shop).toLowerCase() === String(s.shop).toLowerCase() && (r.rtype || "Rent") === "Rent"); return x && Number(x.received) > 0 ? `<td style="text-align:center" title="${esc(dmy(x.date))} ${esc(x.utr || "")}">✅<div class="small">${inr28(x.received)}</div></td>` : `<td style="text-align:center;background:#fdecec">⏳</td>`; };
+      const pnl = $("section.panel", v);
+      S.length && pnl && pnl.insertAdjacentHTML("beforebegin", `<section class="panel"><header><h2>Rent received - last 6 months</h2><span class="small muted">⏳ = not received / not entered</span></header><div class="body" style="overflow:auto"><table class="t"><thead><tr><th>Shop</th><th class="n">Rent / month</th>${months.map(m => `<th style="text-align:center">${m}</th>`).join("")}</tr></thead><tbody>${S.map(s => `<tr><td><b>${esc(s.shop)}</b><div class="small muted">${esc(s.tenant || "")}</div></td><td class="n">${s.net ? inr28(s.net) : s.rent ? inr28(s.rent) : "—"}</td>${months.map(m => cell(s, m)).join("")}</tr>`).join("")}</tbody></table></div></section>`);
+    } catch (e) { console.warn("p124 rent", e); }
+  };
+  DASHK111.push(["mgmt", "Rent not received (last month)", () => { const m = (() => { const d = new Date(); d.setDate(1); d.setMonth(d.getMonth() - 1); return d.toISOString().slice(0, 7); })(); const RC = regRows116("rentrc"); return regRows116("shop").filter(s => s.status === "Occupied" && !RC.some(r => String(r.month).slice(0, 7) === m && String(r.shop).toLowerCase() === String(s.shop).toLowerCase() && Number(r.received) > 0)).length; }, "reg116", { rg116: "rentrc" }, "warn"]);
+  HELP110.push([/rent|tenant|shop|lease/i, "Management ▸ Rental shops / Rent receipts", "reg116", { rg116: "rentrc" }, "Every shop, rent, TDS, deposit and month-wise receipts with UTR. Pending months show ⏳."]);
+} catch (e) { console.warn("p124 rental", e); }
+
+/* ---------- Sales ▸ Inbox (shared WhatsApp / email inbox) ---------- */
+const TPL124_DEF = [
+  ["Thanks for enquiry", "Dear {contact}, thank you for your enquiry for {need}. Please share the motor / generator name-plate details and the drawing (if any) so we can send our best offer. - Rivera Coil Manufacturing, Erode"],
+  ["Quotation sent", "Dear {contact}, we have sent our quotation for {need}. Kindly go through it and let us know if you need any clarification. - Rivera"],
+  ["Follow-up", "Dear {contact}, hope you are doing well. Any update on our offer for {need}? We can plan production as per your schedule. - Rivera"],
+  ["Order thanks", "Dear {contact}, thank you for the order. Our team will share the drawing approval / QAP shortly. - Rivera"],
+  ["Payment reminder", "Dear {contact}, a gentle reminder on the pending payment for our invoice. Kindly arrange at the earliest. - Rivera Accounts"],
+  ["Festival greeting", "Warm wishes to you and the {company} team from Rivera Coil Manufacturing, Erode."]];
+const tpl124 = () => { const s = all28("sig").find(x => x.key === "cfg-tpl124"); return (s && s.list) || TPL124_DEF; };
+const fill124 = (t, l) => String(t).replace(/\{contact\}/g, l.contact || "Sir / Madam").replace(/\{company\}/g, l.company || "").replace(/\{need\}/g, l.need || "your requirement").replace(/\{city\}/g, l.city || "");
+const waNo124 = p => String(p || "").replace(/\D/g, "").replace(/^0+/, "").replace(/^(\d{10})$/, "91$1");
+const lastLog124 = l => (l.log || []).slice(-1)[0] || null;
+const needsReply124 = l => { const x = lastLog124(l); return !!(x && x.dir124 === "in"); };
+async function logMsg124(l, type, text, dir) { const R = JSON.parse(JSON.stringify(BIZ.rows[l.id])); logAdd28(R, type, text); const x = R.log[R.log.length - 1]; x.dir124 = dir; R.lastAt = todayISO(); if (dir === "out" && !["won", "lost"].includes(R.stage) && R.stage === "new") R.stage = "contacted"; await bizPut28(R); return BIZ.rows[l.id]; }
+try {
+  ROUTES.push(["inbox124", "Sales inbox", "chat"], ["find124", "Find clients", "search"]);
+  { const _al = allowed21; allowed21 = function (r) { if (r === "inbox124" || r === "find124") return _al.call(this, "crm"); return _al.apply(this, arguments); }; }
+  const sm = MODS32.find(m => m.id === "sales"); if (sm) { const T = (sm.groups.Transactions ||= []); [["Inbox (WhatsApp & email)", "inbox124", {}, "Every customer chat in one place - assign, reply with templates, broadcast"], ["Find clients", "find124", {}, "Who to call today: old customers, cold quotes, tenders - research, mail, meeting"]].forEach(c => { if (!T.some(x => x[1] === c[1])) T.unshift(c); try { CARDMOD64.set(c, "sales"); } catch { } }); }
+  VIEWS.inbox124 = v => {
+    bizSync28(); const U = BIZ.ui, f = U.ib124f || "all", q = U.ib124q || "", me = me28();
+    let L = all28("lead").filter(l => (l.log || []).length || l.phone || l.email);
+    if (f === "mine") L = L.filter(l => l.owner === me); if (f === "reply") L = L.filter(needsReply124); if (f === "open") L = L.filter(l => !["won", "lost"].includes(l.stage));
+    L = L.filter(l => has71([l.company, l.contact, l.phone, l.email, l.need], q)).sort((a, b) => String((lastLog124(b) || {}).at || b.at).localeCompare(String((lastLog124(a) || {}).at || a.at)));
+    const sel = BIZ.rows[U.ib124s] || L[0], cnt = { reply: all28("lead").filter(needsReply124).length, mine: all28("lead").filter(l => l.owner === me).length };
+    const thread = l => (l.log || []).slice(-40).map(x => `<div class="ib124m ${x.dir124 === "in" ? "in" : "out"}"><small>${esc(x.type || "")} · ${esc(who28(x.by))} · ${esc(String(x.at || "").slice(0, 16).replace("T", " "))}</small><div>${esc(x.text || "")}</div></div>`).join("") || '<p class="muted small">No messages yet. Send the first one below.</p>';
+    v.innerHTML = top62("Sales", "Inbox", "WhatsApp, email and calls of every customer in one place. Paste the customer's message to keep the thread; reply with a template. (Fully automatic WhatsApp needs the WhatsApp Business API.)", `<button class="btn" id="ib124b" type="button">📣 Broadcast</button><button class="btn" id="ib124t" type="button">✏ Templates</button><button class="btn primary" id="ib124n" type="button">＋ New enquiry</button>`)
+      + `<div class="row" style="gap:6px;margin-bottom:10px;flex-wrap:wrap">${[["all", "All"], ["reply", `Needs reply (${cnt.reply})`], ["mine", `Mine (${cnt.mine})`], ["open", "Open"]].map(([k, t]) => `<button class="chip ${f === k ? "ok" : ""}" data-ib124f="${k}" type="button">${t}</button>`).join("")}${srch71(U, "ib124q", "Search customer, phone…")}</div>
+      <div class="ib124"><div class="ib124l">${L.slice(0, 200).map(l => { const x = lastLog124(l); return `<button type="button" class="ib124c ${sel && sel.id === l.id ? "on" : ""}" data-ib124="${l.id}"><b>${esc(l.company || "?")}</b>${needsReply124(l) ? '<span class="chip warn">reply</span>' : ""}<small>${esc(x ? (x.type + ": " + String(x.text || "")).slice(0, 70) : l.need || "")}</small><small class="muted">${esc(who28(l.owner))} · ${esc((LEAD_ST.find(s => s[0] === l.stage) || [])[1] || "")}</small></button>`; }).join("") || '<p class="muted">Nothing here.</p>'}</div>
+      <div class="ib124r">${sel ? `<div class="row" style="justify-content:space-between;flex-wrap:wrap;gap:6px"><div><b style="font-size:1.05rem">${esc(sel.company)}</b><div class="small muted">${esc(sel.contact || "")} ${esc(sel.phone || "")} ${esc(sel.email || "")}</div></div><div class="row" style="gap:6px"><label class="small">Assigned to <select id="ib124a">${TEAM28.map(([e, n]) => `<option value="${esc(e)}" ${sel.owner === e ? "selected" : ""}>${esc(n)}</option>`).join("")}</select></label><button class="btn sm" id="ib124o" type="button">Open enquiry ▸</button></div></div>
+        <div class="ib124th">${thread(sel)}</div>
+        <div class="ib124box"><select id="ib124tp"><option value="">Quick reply…</option>${tpl124().map((t, i) => `<option value="${i}">${esc(t[0])}</option>`).join("")}</select><textarea id="ib124x" rows="3" placeholder="Type the reply, or paste what the customer sent"></textarea>
+        <div class="row" style="gap:6px;flex-wrap:wrap">${sel.phone ? `<button class="btn primary" id="ib124w" type="button">🟢 Send on WhatsApp</button>` : ""}${sel.email ? `<button class="btn" id="ib124e" type="button">✉ Send email</button>` : ""}<button class="btn" id="ib124i" type="button">⬅ Log customer's message</button><button class="btn ghost" id="ib124c" type="button">📞 Log call</button></div></div>` : '<p class="muted">Pick a conversation.</p>'}</div></div>`;
+    wireSrch71(v, U);
+    $$("[data-ib124f]", v).forEach(b => b.onclick = () => { U.ib124f = b.dataset.ib124f; render(); });
+    $$("[data-ib124]", v).forEach(b => b.onclick = () => { U.ib124s = b.dataset.ib124; render(); });
+    $("#ib124n", v).onclick = () => leadPanel28(null);
+    $("#ib124t", v).onclick = () => tplPanel124();
+    $("#ib124b", v).onclick = () => bcPanel124();
+    if (!sel) return;
+    const X = $("#ib124x", v), done = () => { X.value = ""; render(); };
+    $("#ib124tp", v).onchange = e => { const t = tpl124()[+e.target.value]; if (t) X.value = fill124(t[1], sel); };
+    $("#ib124o", v).onclick = () => leadPanel28(sel);
+    $("#ib124a", v).onchange = async e => { const R = JSON.parse(JSON.stringify(sel)); R.owner = e.target.value; logAdd28(R, "Assigned", who28(R.owner)); await bizPut28(R); toast("Assigned to " + who28(R.owner)); render(); };
+    $("#ib124w", v) && ($("#ib124w", v).onclick = async () => { const t = X.value.trim(); if (!t) return toast("Type the message", "bad"); openLink("https://wa.me/" + waNo124(sel.phone) + "?text=" + encodeURIComponent(t)); await logMsg124(sel, "WhatsApp", t, "out"); done(); });
+    $("#ib124e", v) && ($("#ib124e", v).onclick = async () => { const t = X.value.trim(); if (!t) return toast("Type the message", "bad"); openLink(`mailto:${encodeURIComponent(sel.email)}?subject=${encodeURIComponent("Rivera - " + (sel.need || sel.company))}&body=${encodeURIComponent(t)}`); await logMsg124(sel, "Email", t, "out"); done(); });
+    $("#ib124i", v).onclick = async () => { const t = X.value.trim(); if (!t) return toast("Paste the customer's message", "bad"); await logMsg124(sel, "Customer message", t, "in"); done(); };
+    $("#ib124c", v).onclick = async () => { const t = X.value.trim() || "Called"; await logMsg124(sel, "Call", t, "out"); done(); };
+  };
+} catch (e) { console.warn("p124 inbox", e); }
+function tplPanel124() {
+  const L = JSON.parse(JSON.stringify(tpl124()));
+  const draw = () => { const D = panel28({ title: "Quick reply templates", body: `<p class="small muted">Use {contact} {company} {need} {city} - they fill in by themselves.</p>${L.map((t, i) => `<div class="fields" style="margin-bottom:8px"><label class="f">Name<input data-t1="${i}" value="${esc(t[0])}"></label><label class="f" style="grid-column:1/-1">Text<textarea data-t2="${i}" rows="2">${esc(t[1])}</textarea></label></div>`).join("")}<button class="btn sm" id="tp124a" type="button">＋ Add</button>`, foot: `<span style="flex:1"></span><button class="btn primary" id="tp124s" type="button">Save templates</button>` });
+    const read = () => { $$("[data-t1]", D).forEach(i => L[+i.dataset.t1][0] = i.value); $$("[data-t2]", D).forEach(i => L[+i.dataset.t2][1] = i.value); };
+    $("#tp124a", D).onclick = () => { read(); L.push(["New", ""]); draw(); };
+    $("#tp124s", D).onclick = async e => { read(); const s = all28("sig").find(x => x.key === "cfg-tpl124"); const R = s ? JSON.parse(JSON.stringify(s)) : { kind: "sig", key: "cfg-tpl124" }; R.list = L.filter(t => t[0] && t[1]); if (await save28(e.target, R, "Templates saved")) { closeDrawer26(); render(); } }; };
+  draw();
+}
+function bcPanel124() {
+  const NOB = typeof NOB121 !== "undefined" ? NOB121 : [["", "—"]];
+  let aud = [], i = 0, tpl = tpl124()[2] || ["", ""];
+  const pick = (f) => all28("lead").filter(l => (f.ch === "wa" ? l.phone : l.email) && (!f.stage || l.stage === f.stage) && (!f.nob || l.nob === f.nob) && (!f.city || String(l.city || "").toLowerCase().includes(f.city.toLowerCase())));
+  const D = panel28({ title: "📣 Broadcast", body: `<div class="fields"><label class="f">Send by<select id="bc124c"><option value="wa">WhatsApp</option><option value="em">Email (one mail, everyone in BCC)</option></select></label><label class="f">Stage<select id="bc124s"><option value="">All</option>${LEAD_ST.map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join("")}</select></label><label class="f">Nature of business<select id="bc124n">${NOB.map(([k, t]) => `<option value="${k}">${esc(t)}</option>`).join("")}</select></label><label class="f">City contains<input id="bc124y"></label><label class="f" style="grid-column:1/-1">Message<select id="bc124t">${tpl124().map((t, j) => `<option value="${j}" ${j === 2 ? "selected" : ""}>${esc(t[0])}</option>`).join("")}</select><textarea id="bc124x" rows="3">${esc(tpl[1])}</textarea></label></div><p id="bc124k" class="small"></p><div id="bc124run"></div>`, foot: `<span style="flex:1"></span><button class="btn primary" id="bc124g" type="button">Start</button>` });
+  const f = () => ({ ch: $("#bc124c", D).value, stage: $("#bc124s", D).value, nob: $("#bc124n", D).value, city: $("#bc124y", D).value.trim() });
+  const count = () => { aud = pick(f()); $("#bc124k", D).textContent = `${aud.length} customers will get it.`; };
+  ["#bc124c", "#bc124s", "#bc124n", "#bc124y"].forEach(s => $(s, D).addEventListener("input", count)); count();
+  $("#bc124t", D).onchange = e => { $("#bc124x", D).value = (tpl124()[+e.target.value] || ["", ""])[1]; };
+  $("#bc124g", D).onclick = async () => {
+    const F = f(), txt = $("#bc124x", D).value.trim(); if (!aud.length || !txt) return toast("No customers / no message", "bad");
+    if (F.ch === "em") { openLink(`mailto:?bcc=${encodeURIComponent(aud.map(l => l.email).join(","))}&subject=${encodeURIComponent("Rivera Coil Manufacturing")}&body=${encodeURIComponent(fill124(txt, { contact: "Sir / Madam" }))}`); for (const l of aud) await logMsg124(l, "Email (broadcast)", fill124(txt, l), "out"); toast(`Logged on ${aud.length} enquiries`); closeDrawer26(); return; }
+    i = 0; const step = () => { const l = aud[i]; $("#bc124run", D).innerHTML = l ? `<div class="note"><b>${i + 1} / ${aud.length}: ${esc(l.company)}</b> ${esc(l.phone)}<div class="row" style="gap:6px;margin-top:6px"><button class="btn primary" id="bc124w" type="button">🟢 Open WhatsApp & next</button><button class="btn" id="bc124k2" type="button">Skip</button></div></div>` : `<div class="note ok">Done - ${aud.length} customers.</div>`;
+      if (!l) return; $("#bc124w", D).onclick = async () => { const t = fill124(txt, l); openLink("https://wa.me/" + waNo124(l.phone) + "?text=" + encodeURIComponent(t)); await logMsg124(l, "WhatsApp (broadcast)", t, "out"); i++; step(); }; $("#bc124k2", D).onclick = () => { i++; step(); }; };
+    step();
+  };
+}
+
+/* ---------- Sales ▸ Find clients (research, outreach, meetings, live numbers) ---------- */
+const gcal124 = (title, when, details) => { const d = String(when || todayISO()).replace(/-/g, ""); return `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(title)}&dates=${d}T050000Z/${d}T060000Z&details=${encodeURIComponent(details || "")}`; };
+try {
+  VIEWS.find124 = v => {
+    bizSync28(); const U = BIZ.ui, tab = U.fd124 || "today", today = todayISO(), dAgo = n => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+    const leads = all28("lead"), sinv = all28("dc").filter(d => d.reg116 === "sinv"), quotes = (STATE.quotes || []);
+    const byCust = {}; sinv.forEach(i => { const k = norm31(i.customer); const g = byCust[k] ||= { name: i.customer, n: 0, total: 0, last: "" }; g.n++; g.total += Number(i.total) || 0; if (String(i.date) > g.last) g.last = String(i.date); });
+    all28("inv").forEach(i => { const k = norm31(i.customer); const g = byCust[k] ||= { name: i.customer, n: 0, total: 0, last: "" }; g.n++; g.total += Number(i.total) || 0; if (String(i.date) > g.last) g.last = String(i.date); });
+    const sleeping = Object.values(byCust).filter(g => g.last && g.last < dAgo(270) && !/rivera|^rcm$|^rcr$/i.test(g.name)).sort((a, b) => b.total - a.total);
+    const cold = quotes.filter(q => q.date && q.date < dAgo(20) && q.date > dAgo(240) && !["won", "lost", "cancelled"].includes(String(q.status || "").toLowerCase())).sort((a, b) => (Number(b.totalINR) || 0) - (Number(a.totalINR) || 0));
+    const stale = leads.filter(l => !["won", "lost"].includes(l.stage) && (l.next ? l.next < today : String(l.lastAt || l.at).slice(0, 10) < dAgo(7)));
+    const out = leads.flatMap(l => (l.log || []).filter(x => x.dir124 === "out" && String(x.at) >= dAgo(30))).length, inn = leads.flatMap(l => (l.log || []).filter(x => x.dir124 === "in" && String(x.at) >= dAgo(30))).length;
+    const meet = leads.filter(l => l.meet124 && l.meet124 >= dAgo(30)).length, won = leads.filter(l => l.stage === "won" && String(l.wonAt || "").slice(0, 10) >= dAgo(30)).length;
+    const row = (t, s, btns) => `<div class="fd124r"><div><b>${t}</b><div class="small muted">${s}</div></div><div class="row" style="gap:6px;flex-wrap:wrap">${btns}</div></div>`;
+    const rs = (name) => `<button class="btn sm" type="button" data-fd124r="${esc(name)}">🔎 Research</button>`;
+    let body = "";
+    if (tab === "today") body = `<section class="panel"><header><h2>Follow-ups due (${stale.length})</h2></header><div class="body">${stale.slice(0, 60).map(l => row(esc(l.company), `${esc(l.need || "")} · last ${dmy(String(l.lastAt || l.at).slice(0, 10))} · ${esc(who28(l.owner))}`, `<button class="btn sm primary" type="button" data-fd124l="${l.id}">Open ▸</button>${rs(l.company)}`)).join("") || '<p class="muted">All follow-ups done 👍</p>'}</div></section>`;
+    if (tab === "sleep") body = `<section class="panel"><header><h2>Old customers - no invoice for 9+ months (${sleeping.length})</h2><span class="small muted">They bought before. A call can bring repeat work.</span></header><div class="body">${sleeping.slice(0, 80).map(g => row(esc(g.name), `${g.n} invoices · ${inr28(Math.round(g.total))} · last ${dmy(g.last)}`, `<button class="btn sm primary" type="button" data-fd124n="${esc(g.name)}">＋ Make enquiry</button>${rs(g.name)}`)).join("") || '<p class="muted">None.</p>'}</div></section>`;
+    if (tab === "cold") body = `<section class="panel"><header><h2>Quotations with no answer (${cold.length})</h2><span class="small muted">Sent 20 days - 8 months ago, still open</span></header><div class="body">${cold.slice(0, 80).map(q => row(`${esc(q.customer || "?")} <span class="small muted">${esc(q.no || "")}</span>`, `${esc(q.subject || q.coilType || "")} · ${q.totalINR ? inr28(Math.round(q.totalINR)) : ""} · ${dmy(q.date)}`, `<button class="btn sm primary" type="button" data-fd124q="${esc(q.customer || "")}">Follow up</button>${rs(q.customer || "")}`)).join("") || '<p class="muted">None.</p>'}</div></section>`;
+    if (tab === "new") body = `<section class="panel"><header><h2>Find new clients</h2></header><div class="body"><p class="small">Type a company or an industry and the research links open in new tabs - tenders, the company website, contacts, news.</p><div class="row" style="gap:6px;flex-wrap:wrap"><input id="fd124x" placeholder="e.g. NTPC, sugar mills Tamil Nadu, steel plant Odisha, cement" style="min-width:320px"><button class="btn primary" id="fd124go" type="button">🔎 Research</button></div>
+      <h3 style="margin-top:14px">Ready searches</h3><div class="row" style="gap:6px;flex-wrap:wrap">${[["GeM bids: stator coil", "https://bidplus.gem.gov.in/all-bids?searchBid=stator%20coil"], ["GeM bids: motor rewinding", "https://bidplus.gem.gov.in/all-bids?searchBid=rewinding"], ["Coal India tenders", "https://coalindiatenders.nic.in/"], ["CPPP tenders: rewinding", "https://eprocure.gov.in/cppp/tendersearch"], ["IndiaMART buy leads: coil", "https://seller.indiamart.com/bltxn/?pref=relevant"], ["TN tenders", "https://tntenders.gov.in/"], ["LinkedIn: maintenance heads, power plants", "https://www.linkedin.com/search/results/people/?keywords=electrical%20maintenance%20head%20power%20plant"]].map(([t, u]) => `<a class="btn sm" href="${u}" target="_blank" rel="noopener">${esc(t)} ↗</a>`).join("")}</div></div></section>`;
+    v.innerHTML = top62("Sales", "Find clients", "Who to talk to today, from Rivera's own data - old customers, quotations without an answer, late follow-ups - plus research links for new clients. Every mail / WhatsApp / meeting is logged on the enquiry.", "")
+      + `<div class="grid g4" style="margin-bottom:12px">${[["Messages sent (30 days)", out], ["Customer replies", inn], ["Meetings fixed", meet], ["Orders won", won]].map(([t, n]) => `<div class="panel kpi"><span class="eyebrow">${t}</span><span class="v">${n}</span></div>`).join("")}</div>
+      <div class="row" style="gap:6px;margin-bottom:12px;flex-wrap:wrap">${[["today", `Today's follow-ups (${stale.length})`], ["sleep", `Old customers (${sleeping.length})`], ["cold", `Cold quotations (${cold.length})`], ["new", "New clients"]].map(([k, t]) => `<button class="chip ${tab === k ? "ok" : ""}" type="button" data-fd124t="${k}">${t}</button>`).join("")}</div>${body}`;
+    $$("[data-fd124t]", v).forEach(b => b.onclick = () => { U.fd124 = b.dataset.fd124t; render(); });
+    $$("[data-fd124l]", v).forEach(b => b.onclick = () => leadPanel28(BIZ.rows[b.dataset.fd124l]));
+    const research = n => { const s = encodeURIComponent(n); [`https://www.google.com/search?q=${s}+electrical+maintenance+contact`, `https://www.google.com/search?q=${s}+tender+motor+rewinding+OR+stator+coil`, `https://www.linkedin.com/search/results/companies/?keywords=${s}`].forEach(u => openLink(u)); };
+    $$("[data-fd124r]", v).forEach(b => b.onclick = () => research(b.dataset.fd124r));
+    const findLead = n => all28("lead").find(l => norm31(l.company) === norm31(n) && !["won", "lost"].includes(l.stage));
+    $$("[data-fd124n]", v).forEach(b => b.onclick = () => { const l = findLead(b.dataset.fd124n); l ? leadPanel28(l) : leadPanel28(null); setTimeout(() => { const c = $('#dr26 [data-k="company"]'); if (c && !c.value) c.value = b.dataset.fd124n; const s = $('#dr26 [data-k="source"]'); if (s) s.value = "Existing customer"; }, 50); });
+    $$("[data-fd124q]", v).forEach(b => b.onclick = () => { const l = findLead(b.dataset.fd124q); if (l) leadPanel28(l); else { leadPanel28(null); setTimeout(() => { const c = $('#dr26 [data-k="company"]'); if (c) c.value = b.dataset.fd124q; }, 50); } });
+    $("#fd124go", v) && ($("#fd124go", v).onclick = () => { const t = $("#fd124x", v).value.trim(); if (t) research(t); });
+  };
+} catch (e) { console.warn("p124 find", e); }
+
+/* ---------- Enquiry: next steps on the enquiry itself ---------- */
+try {
+  const _lp = leadPanel28;
+  leadPanel28 = function (src) {
+    const out = _lp.apply(this, arguments);
+    try {
+      const l = src?.id && BIZ.rows[src.id], D = $("#dr26"); if (!l || !D) return out;
+      const Q = (STATE.quotes || []).filter(q => q.leadId === l.id || norm31(q.customer) === norm31(l.company)).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      const SO = all28("so").filter(s => s.leadId === l.id || (norm31(s.customer) === norm31(l.company) && String(s.date) >= String(l.at).slice(0, 10)) );
+      const INV = all28("inv").filter(i => SO.some(s => s.id === i.so) && i.status !== "cancelled"), due = INV.reduce((a, i) => a + (Number(i.balance) || 0), 0);
+      const fu = (l.log || []).filter(x => /call|whatsapp|email|visit|meeting/i.test(x.type || "")).length;
+      steps86(D, [
+        st86("ns124f", "📞", fu ? `${fu} follow-up${fu > 1 ? "s" : ""}` : "First follow-up", l.next ? `Next: ${dmy(l.next)}` : "Set the next date", fu > 0),
+        st86("ns124m", "📅", l.meet124 ? `Meeting ${dmy(l.meet124)}` : "Fix a meeting / visit", l.meet124 ? "In Google Calendar" : "Adds to Google Calendar", !!l.meet124),
+        st86("ns124q", "📄", Q.length ? `Quotation ${Q[0].no || ""}` : "Make quotation", Q.length ? `${Q.length} sent${Q[0].totalINR ? " · " + inr28(Math.round(Q[0].totalINR)) : ""}` : "Quick quote from this enquiry", Q.length > 0),
+        st86("ns124o", "✅", SO.length ? `Order ${SO.map(s => s.no).join(", ")}` : "Make sales order", SO.length ? (SO[0].status || "") : "When the customer gives PO", SO.length > 0),
+        st86("ns124i", "🧾", INV.length ? (due > 0 ? `To collect ${inr28(due)}` : "Paid") : "Invoice & payment", INV.length ? INV.map(i => i.no).join(", ") : "After delivery", INV.length > 0 && due <= 0)].join(""));
+      $("#ns124f", D).onclick = () => { const t = $("#l28x", D); t && (t.scrollIntoView({ block: "center" }), t.focus()); };
+      $("#ns124m", D).onclick = async () => { const d = prompt("Meeting / visit date (YYYY-MM-DD)", l.meet124 || todayISO()); if (!d || !/^\d{4}-\d{2}-\d{2}$/.test(d)) return; openLink(gcal124(`Rivera meeting - ${l.company}`, d, `${l.need || ""}\n${l.contact || ""} ${l.phone || ""}`)); const R = JSON.parse(JSON.stringify(l)); R.meet124 = d; logAdd28(R, "Meeting", "Fixed for " + dmy(d)); await bizPut28(R); leadPanel28(BIZ.rows[l.id]); };
+      $("#ns124q", D).onclick = () => { if (Q.length) { closeDrawer26(); location.hash = "register"; toast("Quotation register - " + (Q[0].no || "")); } else { closeDrawer26(); quickQuote32({ ...l, leadId: l.id }); } };
+      $("#ns124o", D).onclick = () => SO.length ? soPanel31(SO[0]) : soPanel31({ kind: "so", status: "draft", date: todayISO(), customer: l.company, email: l.email || "", phone: l.phone || "", leadId: l.id, lines: [{ desc: l.need || "", qty: 1, unit: "Nos", rate: Number(l.value) || 0, gst: 18 }], owner: me28() });
+      $("#ns124i", D).onclick = () => INV.length ? invPanel29(INV[0]) : SO.length ? soPanel31(SO[0]) : toast("Make the sales order first", "warn");
+    } catch (e) { console.warn("p124 lead steps", e); }
+    return out;
+  };
+} catch (e) { console.warn("p124 lead", e); }
+
+/* ---------- notes: device moved to the new network, server update pending ---------- */
+try {
+  const _hv = VIEWS.hr;
+  if (_hv) VIEWS.hr = function (v) { _hv.apply(this, arguments); try { const n = $("#dv122", v); if (n && n.classList.contains("bad")) n.innerHTML = `<b>⚠ Fingerprint machine not sending punches since ${esc(new Date(lastPd122()).toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" }))}.</b> The office network was changed - the NAS is now on <b>192.168.29.x</b> but the machine is still set to the old 192.168.0.x network. On the machine: <b>Menu ▸ Comm ▸ Ethernet</b> → IP <b>192.168.29.126</b>, Mask 255.255.255.0, Gateway <b>192.168.29.1</b> (or DHCP ON). Then <b>Comm ▸ Cloud server</b> → server <b>192.168.29.59</b>, port <b>8095</b>. The NAS finds the machine by itself after that and all missed punches come in.`; } catch { } };
+  const _home = VIEWS.home;
+  if (_home) VIEWS.home = function (v) { _home.apply(this, arguments); try { if (isAdmin28() && svOld124() && !$("#sv124", v)) { const t = $(".topbar", v); t && t.insertAdjacentHTML("afterend", `<div class="note warn" id="sv124" style="margin-bottom:12px"><b>Server update pending:</b> paste the new Code.gs in Apps Script and Deploy ▸ Manage deployments ▸ New version. Until then other logins may not see the latest data (accounts, registers, certificates).</div>`); } } catch { } };
+} catch (e) { console.warn("p124 notes", e); }
+
+document.head.insertAdjacentHTML("beforeend", `<style>
+.dc124 td{vertical-align:middle}.dc124 tr.no124 td{background:#fff6f6}.dc124 tr.ok124 td{background:#f4fbf6}.linkish{background:none;border:0;padding:0;color:#0b5cad;cursor:pointer;font:inherit;text-align:left}
+.cc124g{display:grid;grid-template-columns:repeat(auto-fill,minmax(230px,1fr));gap:8px}.cc124{display:flex;flex-direction:column;align-items:flex-start;gap:3px;text-align:left;border:1px solid #d6e0ec;background:#fff;border-radius:12px;padding:10px 12px;cursor:pointer;font:inherit;color:#0b2a57}.cc124:hover{border-color:#e8731a}.cc124 small{color:#5b6b80}
+.ib124{display:grid;grid-template-columns:minmax(240px,320px) 1fr;gap:10px;min-height:60vh}.ib124l{border:1px solid #dfe5ee;border-radius:12px;overflow:auto;max-height:70vh;background:#fff}.ib124c{display:flex;flex-direction:column;gap:2px;width:100%;text-align:left;border:0;border-bottom:1px solid #eef2f7;background:#fff;padding:9px 11px;cursor:pointer;font:inherit;color:#0b2a57}.ib124c.on{background:#eef5ff}.ib124c small{color:#5b6b80}
+.ib124r{border:1px solid #dfe5ee;border-radius:12px;padding:12px;background:#fff;display:flex;flex-direction:column;gap:10px}.ib124th{flex:1;overflow:auto;max-height:48vh;display:flex;flex-direction:column;gap:6px;background:#f6f9fc;border-radius:10px;padding:10px}
+.ib124m{max-width:80%;padding:7px 10px;border-radius:10px;background:#fff;border:1px solid #e1e8f0}.ib124m.out{align-self:flex-end;background:#e7f7ec;border-color:#c5e8d0}.ib124m small{display:block;color:#6b7a90;font-size:.7rem}.ib124box{display:flex;flex-direction:column;gap:6px}
+.fd124r{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #eef2f7;flex-wrap:wrap}
+@media(max-width:760px){.ib124{grid-template-columns:1fr}.ib124l{max-height:30vh}}
+</style>`);
+
 boot();
 
 </script>
