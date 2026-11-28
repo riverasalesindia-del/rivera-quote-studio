@@ -1121,13 +1121,34 @@ function recCan(kind, me) {
   var a = REC_ACCESS[kind]; return !a || a.indexOf(me.role) >= 0;
 }
 var REC_NO = { rq: "RCM/RQ/", rn: "RCM/GRN/", mg: "RCM/GP/", vr: "VR/", pl: "PL/", lv: "LV/", vis: "VS/", onb: "NE/", appt: "AP/", tqs: "RCM/TQ/", cr: "RCM/CR/", pret: "RCM/PR/", pcs: "RCM/CS/", qtr: "RCM/TR/", qap: "RCM/QAP/", ho: "HO/", po: "RCM/PO/", job: "RJ/", inv: "RCM/INV/", svc: "SR/", proj: "PRJ/", sal: "SAL/", so: "RCM/SO/", dn: "RCM/DN/", sr: "RCM/CN/" };
+
+/* p119: every login sees the employee names (for work, leave, handover pickers) - not salary, bank, phone or documents;
+   registers (fire extinguishers, licences, maintenance, kitchen, security, legal, POSH, interviews, shelf life, Management documents)
+   are seen and kept by the department whose register it is; Accounts keeps its bank accounts list */
+function empLite119(o) { return { id: o.id, kind: o.kind, no: o.no, by: o.by, at: o.at, name: o.name, code: o.code, dept: o.dept, designation: o.designation, status: o.status, company: o.company, email: o.email, doj: o.doj, lite: 1 }; }
+var REG119 = { fire: "hr", lic: "hr", mnt: "hr", kit: "hr", sec: "hr", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr", wo: "sales", sinv: "accounts", vend: "store", ccert: "sales", shop: "mgmt", rentrc: "mgmt" };
+var REGPG119 = { admin: /^(dept\.admin|admin|docs71|assets62|vis71|gate71|courier)/, hr: /^(dept\.hr|hr|hrx)/, store: /^(dept\.store|purchase|stock|store|jobs)/, mgmt: /^(dept\.mgmt|mgmt|mis|work\.team)/, sales: /^(dept\.sales|sales|crm|leads|cust|quote)/, accounts: /^(dept\.accounts|accounts|bank|brs)/ };
+function can119(r, me) {
+  var x = data62(r), P = userPages(me);
+  if (r.kind === "dc" && x.reg116) { var m = REG119[x.reg116]; if (!m) return false; if (me.email === md62()) return true; return P.some(function (p) { return REGPG119[m].test(p); }) || (m === "hr" && me.role === "finance") || (m === "accounts" && me.role === "finance") || (m === "sales" && me.role === "sales"); }
+  if (r.kind === "fa" || r.kind === "vlt") return me.role === "finance" || P.some(function (p) { return /^dept\.(mgmt|admin|accounts)$/.test(p); });
+  if (r.kind === "sig" && x.type === "cfg-bank117") return P.some(function (p) { return /^accounts/.test(p); }) || me.role === "finance";
+  return false;
+}
+function flvSees119(x, me) {
+  var cfg = null; recRows().forEach(function (r) { if (r.kind === "sig" && r.del !== "1") { var d = data62(r); if (d.type === "cfg-flv115") cfg = d; } });
+  var P = userPages(me);
+  if (P.some(function (p) { return /^(hr|hrx)/.test(p); })) return true;
+  if (cfg) return ["prod", "ops", "hr"].some(function (k) { return (cfg[k] || []).indexOf(me.email) >= 0; });
+  return P.some(function (p) { return /^(prod|jobs|ops|operation|floorlv|lvappr)/.test(p); }) || /prod|oper/.test(String(me.role || ""));
+}
 function recSheet() { var sh = sheet("Records", RCH); tdbFmt(sh, RCH.length); return sh; }
 function recRows() { return fastRead("Records", RCH, recSheet); }
 function recOut(r) { var o = {}; try { o = JSON.parse(r.data || "{}"); } catch (e) { } o.id = r.id; o.kind = r.kind; o.no = r.no; o.by = r.by; o.at = r.at; return o; }
 function recList(d, me) {
   var kinds = (d.kinds || Object.keys(REC_KINDS)).filter(function (k) { return REC_KINDS[k]; }), since = String(d.since || "");
-  var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (recCan(r.kind, me) || linkedRead(r, me) || r.kind === "sig" || r.kind === "pp") && vis62(r, me) && (!since ? r.del !== "1" : String(r.at) > since); });
-  return { ok: true, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.kind === "po" && !recCan("po", me)) o = poLite(o); if (r.del === "1") o._del = 1; return o; }) };
+  var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (recCan(r.kind, me) || linkedRead(r, me) || r.kind === "sig" || r.kind === "pp" || r.kind === "emp" || can119(r, me)) && vis62(r, me) && (!since ? r.del !== "1" : String(r.at) > since); });
+  return { ok: true, sv: 124, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.kind === "po" && !recCan("po", me)) o = poLite(o); if (r.kind === "emp" && !recCan("emp", me)) o = empLite119(o); if (r.del === "1") o._del = 1; return o; }) };
 }
 /* Order flow: anyone who can see sales orders also sees (read-only) the work orders and indents / POs made for a sales order,
    so every department sees where an order stands; supplier prices are left out for logins without Purchase */
@@ -1161,7 +1182,7 @@ function recPut(d, me) {
     list.forEach(function (rec) {
       var kind = rec.kind; if (!REC_KINDS[kind]) throw "Unknown record type";
       if (kind === "lead" && ["admin", "sales"].indexOf(me.role) < 0) throw "Only sales can change leads";
-      if (!recCan(kind, me) && !roleCan74(kind, me) && !handoffOk(rec, all, me)) { log(me.email, "denied", "save " + kind + " " + (rec.id || "new")); throw "Your login can't save " + (KN74[kind] || kind) + " - ask Admin to give this page"; }
+      if (!recCan(kind, me) && !roleCan74(kind, me) && !handoffOk(rec, all, me) && !can119({ kind: kind, data: JSON.stringify(rec) }, me)) { log(me.email, "denied", "save " + kind + " " + (rec.id || "new")); throw "Your login can't save " + (KN74[kind] || kind) + " - ask Admin to give this page"; }
       var r = rec.id ? all.filter(function (x) { return x.id === rec.id; })[0] : null, before = null;
       if (r) { try { before = JSON.parse(r.data || "{}"); } catch (e) { before = {}; } }
       if (r && OPEN62.indexOf(kind) >= 0 && !vis62(r, me)) { log(me.email, "denied", "change " + kind + " " + r.id); throw "This " + (KN74[kind] || kind) + " belongs to someone else - only they (or Admin) can change it"; }
@@ -1174,6 +1195,7 @@ function recPut(d, me) {
       var data = {}; Object.keys(rec).forEach(function (k) { if (["id", "kind", "no", "by", "at", "_del"].indexOf(k) < 0) data[k] = rec[k]; });
       var js = JSON.stringify(data); if (js.length > 45000) throw "Record too large";
       r.data = js; r.by = me.email; r.at = now;
+      if (kind === "po" && data.noManual) r.no = String(data.noManual).slice(0, 40);
       out.push(recOut(r));
       try { mails62(kind, data, before, r, me, mails); } catch (e62) { }
       if (kind === "task" && /@/.test(data.assignee || "") && data.assignee !== me.email && (!before || before.assignee !== data.assignee)) mails.push([data.assignee, "New task for you: " + clean(data.title, 120), "<p><b>" + esc(me.name || me.email) + "</b> gave you a task:</p><p style=\"font-size:16px\"><b>" + esc(data.title || "") + "</b></p><p>" + esc(data.note || "") + "</p><p>Due: <b>" + esc(data.due || "—") + "</b></p><p>" + btn(LINKS.site + "#tasks", "Open My work", "#02315B") + "</p>"]);
@@ -1197,7 +1219,7 @@ function recDel(d, me) {
     var sh = recSheet(), all = readTableRaw(sh, RCH), r = all.filter(function (x) { return x.id === d.id; })[0]; if (!r) throw "Not found";
     if (r.kind === "lead" && ["admin", "sales"].indexOf(me.role) < 0) throw "Only sales can change leads";
     if (OPEN62.indexOf(r.kind) >= 0 && me.role !== "admin" && r.by !== me.email && !own62(r, me)) throw "Your login can't remove this";
-    if (["vlt", "fa", "qap", "qtr", "pret", "pcs", "cert"].indexOf(r.kind) >= 0 && !recCan(r.kind, me)) throw "Your login can't remove this";
+    if (["vlt", "fa", "qap", "qtr", "pret", "pcs", "cert"].indexOf(r.kind) >= 0 && !recCan(r.kind, me) && !can119(r, me)) throw "Your login can't remove this";
     r.del = "1"; r.at = new Date().toISOString(); r.by = me.email; writeTable(sh, RCH, all);
   } finally { lock.releaseLock(); }
   log(me.email, "record-delete", d.id);
@@ -1254,6 +1276,7 @@ function vis62(r, me) {
   if (me.role === "admin" || me.email === ADMIN || me.role === "viewer" || me.email === md62()) return true;
   var P = userPages(me);
   if (r.kind === "cr" && P.indexOf("courier.all") >= 0) return true;
+  if (r.kind === "lv" && data62(r).fl115 && flvSees119(data62(r), me)) return true;
   if (r.kind === "ho" && P.indexOf("handover.approve") >= 0) return true;
   if (r.kind === "ho" && (me.email === "agm@rivera.co.in" || me.email === "hr@rivera.co.in")) return true;
   if ((r.kind === "vis" || r.kind === "appt") && P.indexOf("courier.all") >= 0) return true;
@@ -1283,6 +1306,12 @@ function mails62(kind, x, before, r, me, mails) {
     var md = md62();
     if (x.status === "done" && (!before || before.status !== "done") && /@/.test(x.from || "") && x.from !== me.email && x.from !== md && x.src !== "plan" && x.src !== "courier")
       mails.push([x.from, "Completed: " + clean(x.title, 110), "<p><b>" + nm + "</b> completed the work you gave:</p><p><b>" + esc(x.title) + "</b></p>" + btn(link62("work"), "Open", "#1e8e3e")]);
+  }
+  if (kind === "rm" && x.ap117) {
+    /* Work Board ▸ Approval: Management decides → the person gets a mail; the person answers a question → Management gets a mail */
+    if (before && before.status !== x.status && ["approved", "rejected", "query"].indexOf(x.status) >= 0 && /@/.test(x.who || "") && x.who !== me.email)
+      mails.push([x.who, (x.status === "approved" ? "Approved: " : x.status === "rejected" ? "Rejected: " : "Management has a question: ") + clean(x.subject, 100), "<p>Your approval request <b>" + esc(x.subject) + "</b> is <b>" + (x.status === "query" ? "waiting for your answer" : x.status) + "</b>.</p>" + (x.mdNote ? "<p><i>" + esc(x.mdNote) + "</i></p>" : "") + btn(link62("work"), "Open Work Board ▸ Approval", "#02315B")]);
+    if (before && before.status === "query" && x.status === "pending" && x.reply) mails.push([md62(), "Answer: " + clean(x.subject, 100), "<p><b>" + esc(x.whoName || x.who) + "</b> answered:</p><p><i>" + esc(x.reply) + "</i></p>" + btn(link62("work"), "Open Work Board ▸ Approval", "#02315B")]);
   }
   if (kind === "cr" && !before && (x.dir === "in" || x.sendTo)) {
     /* courier app: big "Send to AGM" / "Send to HR" buttons; the phone may also name rivera.co.in addresses */
@@ -1404,6 +1433,7 @@ function regs71() {
 }
 /* 8:30 — AGM and HR: birthdays and wedding anniversaries today */
 function hrDates71() {
+  try { certExpiry124(); } catch (e124) { log("automation", "cert-expiry", String(e124)); }
   var md = Utilities.formatDate(new Date(), "Asia/Kolkata", "MM-dd"), E = rows62("emp").filter(function (e) { return e.status !== "left"; });
   var b = E.filter(function (e) { return String(e.dob || "").slice(5, 10) === md; }), a = E.filter(function (e) { return e.marital === "Married" && String(e.marDate || "").slice(5, 10) === md; });
   if (!b.length && !a.length) return;
@@ -1449,7 +1479,7 @@ function workMorning62() {
     var prev = WD.filter(function (w) { return w.who === u.email && w.day < t && (w.items || []).length; }).sort(function (a, b) { return String(b.day).localeCompare(String(a.day)); })[0];
     var P = prev ? prev.items.filter(function (i) { return i.title && ["done", "dropped"].indexOf(i.state) < 0; }) : [];
     var L = open.filter(function (x) { return x.to === u.email && !P.some(function (i) { return i.wk && i.wk === x.id; }); }), over = L.filter(function (x) { return x.due && String(x.due).slice(0, 10) < t; }).length;
-    var html = "<p>Good morning " + esc(u.name) + ",</p><p style='font-size:15px'>Open <b>Work update</b> and add today's work with <b>From</b> and <b>To</b> time. MD sir sees the plans at 10:45.</p>" + btn(SITE + "#plan", "Open my Work update", "#7b3fa0") +
+    var html = "<p>Good morning " + esc(u.name) + ",</p><p style='font-size:15px'>Open <b>Work update</b> and add today's work with <b>From</b> and <b>To</b> time. Management sees the plans at 10:45.</p>" + btn(SITE + "#plan", "Open my Work update", "#7b3fa0") +
       (P.length ? "<p style='margin-top:16px'><b>Still pending</b> from " + esc(prev.day.split("-").reverse().join(".")) + " (" + P.length + "):</p><table style='border-collapse:collapse;font-size:14px'>" + P.slice(0, 30).map(function (i) { var p = Number(i.pct) || 0; return "<tr><td style='padding:4px 8px 4px 0'>" + esc(i.title) + "</td><td style='padding:4px 0;white-space:nowrap'><b style='color:" + col(p) + "'>" + p + "%</b> · " + (i.state === "progress" ? "In progress" : "Pending") + "</td></tr>"; }).join("") + "</table>" : "<p style='margin-top:16px;color:#1e8e3e'>Nothing pending from your last update.</p>") +
       (L.length ? "<p style='margin-top:12px'><b>Work given to you</b>" + (over ? " (<b style='color:#c0392b'>" + over + " overdue</b>)" : "") + ":</p><ul style='padding-left:18px'>" + L.slice(0, 25).map(wkLine62).join("") + "</ul>" : "");
     var cnt = P.length + L.length;
@@ -1457,7 +1487,7 @@ function workMorning62() {
   });
   log("automation", "work-morning", n + " mails");
 }
-/* 10:45 — MD sir: everyone's plan for today with From–To time, and who has not written one */
+/* 10:45 — Management: everyone's plan for today with From–To time, and who has not written one */
 function workPlans62() {
   if (!workday62()) return;
   var t = todayIST(), md = md62(), P = rows62("wk").filter(function (x) { return x.src === "plan" && x.day === t && x.status !== "cancelled"; });
@@ -1480,7 +1510,7 @@ function workRemind62() {
   team62().forEach(function (u) { if (u.email === md62() || done.indexOf(u.email) >= 0) return; try { mail(u.email, "Reminder: send today's work update", "<p>Hi " + esc(u.name) + ",</p><p>Please send today's daily work update before <b>6:30 PM</b>. Every work needs a From and To time.</p>" + btn(SITE + "#plan", "Open my Work update", "#E26A0C")); n++; } catch (e) { } });
   log("automation", "work-remind", n + " reminders");
 }
-/* 18:35 — one clean report to MD sir: who sent the update, every work with its time, work completed today, overdue work */
+/* 18:35 — one clean report to Management: who sent the update, every work with its time, work completed today, overdue work */
 function workEvening62() {
   if (!workday62()) return;
   var t = todayIST(), team = team62(), W = rows62("wd").filter(function (x) { return x.day === t && x.submittedAt; }), K = rows62("wk");
@@ -1508,7 +1538,7 @@ function work62Api(d, me) {
   if (d.op === "pubkeys") { if (!(me.role === "admin" || me.email === ADMIN || userPages(me).some(function (p) { return /^(hrx|courier\.all)/.test(p); }))) throw "Only admin, HR or security"; return { ok: true, onb: pubKey71("onb"), vis: pubKey71("vis"), cr: pubKey71("cr"), att: pubKey71("att") }; }
   if (d.op === "lvappr") return { ok: true, list: lvApprovers71() };
   if (d.op === "regs") { if (!(me.role === "admin" || me.email === ADMIN || me.role === "finance")) throw "Only admin"; return regs71(); }
-  /* Reminder / pending-approval list: the person taps "Send to email" — it goes to MD sir only, as an image + table */
+  /* Reminder / pending-approval list: the person taps "Send to email" — it goes to Management only, as an image + table */
   if (d.op === "shareImg") {
     var b64 = String(d.b64 || ""); if (!b64 || b64.length > 7e6) throw "Image missing or too large";
     var title = clean(d.title || "Pending approval list", 120), who = esc(me.name || me.email);
@@ -1524,4 +1554,15 @@ function work62Api(d, me) {
   if (d.op === "courier") { var cl = String(d.to || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(s); }); if (!cl.length) throw "Enter at least one email"; props().setProperty("COURIER_NOTIFY", cl.join(",")); return { ok: true, to: cl }; }
   if (d.op === "run") { var f = { morning: workMorning62, plans: workPlans62, remind: workRemind62, evening: workEvening62, hrdates: hrDates71 }[d.job]; if (!f) throw "Unknown job"; f(); return { ok: true }; }
   throw "Unknown";
+}
+
+/* p124: company certificates - mail Sales + Management every morning while a renewable certificate expires within 30 days (or has expired) */
+function certExpiry124() {
+  var today = Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyy-MM-dd"), t0 = new Date(today).getTime();
+  var L = rows62("dc").filter(function (c) { return c.reg116 === "ccert" && c.renew && c.expiry && !c.del; }).map(function (c) { c.days = Math.round((new Date(c.expiry).getTime() - t0) / 864e5); return c; }).filter(function (c) { return c.days <= 30; });
+  if (!L.length) return;
+  L.sort(function (a, b) { return a.days - b.days; });
+  var html = "<p>These company certificates need renewal. After renewing, open <b>Sales ▸ Company certificates</b>, upload the new copy and type the new 'Valid till' date - quotations then use the new copy.</p><table style='border-collapse:collapse'>" + L.map(function (c) { return "<tr><td style='padding:4px 10px;border-bottom:1px solid #eee'><b>" + esc(c.name) + "</b>" + (c.certNo ? " · " + esc(c.certNo) : "") + "</td><td style='padding:4px 10px;border-bottom:1px solid #eee;color:" + (c.days < 0 ? "#b00020" : "#b35c00") + "'>" + (c.days < 0 ? "EXPIRED " + c.expiry : "expires " + c.expiry + " (" + c.days + " days)") + "</td></tr>"; }).join("") + "</table>";
+  String(props().getProperty("CERT_TO") || "crm@rivera.co.in,agm@rivera.co.in,sales@rivera.co.in").split(",").forEach(function (to) { to = to.trim(); if (/@/.test(to)) try { mail(to, "Certificates to renew: " + L.length + " (" + L[0].name + (L.length > 1 ? " +" + (L.length - 1) : "") + ")", html); } catch (e) { } });
+  log("automation", "cert-expiry", L.length + " certificates");
 }
