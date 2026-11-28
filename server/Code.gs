@@ -236,6 +236,7 @@ function hourlyWatch() {
     var keys = Object.keys(sent).sort(function (x, y) { return sent[y] - sent[x]; }).slice(0, 800), keep = {}; keys.forEach(function (k) { keep[k] = sent[k]; });
     P.setProperty("ALERTED", JSON.stringify(keep));
   }
+  try { wkDue126(); } catch (e) { log("automation", "wk-due-error", String(e)); }
   CacheService.getScriptCache().remove("tenderAlerts");
   log("automation", "hourly-watch", alerts.length + " alerts, " + res.added.length + " added, " + res.changed.length + " date changes, " + hot.length + " mailed; database +" + tw.email + " email, +" + tw.gem + " GeM, +" + tw.results + " results");
   return { alerts: alerts.length, added: res.added.length, changed: res.changed.length, mailed: hot.length, db: { email: tw.email, gem: tw.gem, results: tw.results } };
@@ -1126,7 +1127,7 @@ var REC_NO = { rq: "RCM/RQ/", rn: "RCM/GRN/", mg: "RCM/GP/", vr: "VR/", pl: "PL/
    registers (fire extinguishers, licences, maintenance, kitchen, security, legal, POSH, interviews, shelf life, Management documents)
    are seen and kept by the department whose register it is; Accounts keeps its bank accounts list */
 function empLite119(o) { return { id: o.id, kind: o.kind, no: o.no, by: o.by, at: o.at, name: o.name, code: o.code, dept: o.dept, designation: o.designation, status: o.status, company: o.company, email: o.email, doj: o.doj, lite: 1 }; }
-var REG119 = { fire: "hr", lic: "hr", mnt: "hr", kit: "hr", sec: "hr", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr", wo: "sales", sinv: "accounts", vend: "store", ccert: "sales", shop: "mgmt", rentrc: "mgmt" };
+var REG119 = { fire: "hr", lic: "hr", mnt: "hr", kit: "hr", sec: "hr", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr", wo: "sales", sinv: "accounts", vend: "store", ccert: "sales", shop: "mgmt", rentrc: "mgmt", cv: "hr" };
 var REGPG119 = { admin: /^(dept\.admin|admin|docs71|assets62|vis71|gate71|courier)/, hr: /^(dept\.hr|hr|hrx)/, store: /^(dept\.store|purchase|stock|store|jobs)/, mgmt: /^(dept\.mgmt|mgmt|mis|work\.team)/, sales: /^(dept\.sales|sales|crm|leads|cust|quote)/, accounts: /^(dept\.accounts|accounts|bank|brs)/ };
 function can119(r, me) {
   var x = data62(r), P = userPages(me);
@@ -1148,7 +1149,7 @@ function recOut(r) { var o = {}; try { o = JSON.parse(r.data || "{}"); } catch (
 function recList(d, me) {
   var kinds = (d.kinds || Object.keys(REC_KINDS)).filter(function (k) { return REC_KINDS[k]; }), since = String(d.since || "");
   var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (recCan(r.kind, me) || linkedRead(r, me) || r.kind === "sig" || r.kind === "pp" || r.kind === "emp" || can119(r, me)) && vis62(r, me) && (!since ? r.del !== "1" : String(r.at) > since); });
-  return { ok: true, sv: 124, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.kind === "po" && !recCan("po", me)) o = poLite(o); if (r.kind === "emp" && !recCan("emp", me)) o = empLite119(o); if (r.del === "1") o._del = 1; return o; }) };
+  return { ok: true, sv: 126, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.kind === "po" && !recCan("po", me)) o = poLite(o); if (r.kind === "emp" && !recCan("emp", me)) o = empLite119(o); if (r.del === "1") o._del = 1; return o; }) };
 }
 /* Order flow: anyone who can see sales orders also sees (read-only) the work orders and indents / POs made for a sales order,
    so every department sees where an order stands; supplier prices are left out for logins without Purchase */
@@ -1302,7 +1303,7 @@ function mails62(kind, x, before, r, me, mails) {
   }
   if (kind === "wk") {
     if (/@/.test(x.to || "") && x.to !== me.email && (!before || before.to !== x.to) && x.src !== "plan" && x.src !== "courier")
-      mails.push([x.to, "New work for you: " + clean(x.title, 110), "<p><b>" + nm + "</b> gave you this work:</p><p style='font-size:16px'><b>" + esc(x.title) + "</b></p>" + (x.details ? "<p>" + esc(x.details) + "</p>" : "") + (x.due ? "<p>Finish by <b>" + esc(String(x.due).replace("T", " ")) + "</b></p>" : "") + btn(SITE + "#plan", "Open my work", "#02315B")]);
+      mails.push([x.to, "New work for you: " + clean(x.title, 110) + (x.due ? " (by " + String(x.due).replace("T", " ").slice(0, 16) + ")" : ""), "<p><b>" + nm + "</b> gave you this work on <b>" + Utilities.formatDate(new Date(), "Asia/Kolkata", "dd MMM yyyy, h:mm a") + "</b>:</p><p style='font-size:16px'><b>" + esc(x.title) + "</b></p>" + (x.details ? "<p>" + esc(x.details) + "</p>" : "") + (x.due ? "<p>Finish by <b>" + esc(String(x.due).replace("T", " ")) + "</b></p>" : "") + btn(SITE + "#plan", "Open my work", "#02315B")]);
     var md = md62();
     if (x.status === "done" && (!before || before.status !== "done") && /@/.test(x.from || "") && x.from !== me.email && x.from !== md && x.src !== "plan" && x.src !== "courier")
       mails.push([x.from, "Completed: " + clean(x.title, 110), "<p><b>" + nm + "</b> completed the work you gave:</p><p><b>" + esc(x.title) + "</b></p>" + btn(link62("work"), "Open", "#1e8e3e")]);
@@ -1565,4 +1566,23 @@ function certExpiry124() {
   var html = "<p>These company certificates need renewal. After renewing, open <b>Sales ▸ Company certificates</b>, upload the new copy and type the new 'Valid till' date - quotations then use the new copy.</p><table style='border-collapse:collapse'>" + L.map(function (c) { return "<tr><td style='padding:4px 10px;border-bottom:1px solid #eee'><b>" + esc(c.name) + "</b>" + (c.certNo ? " · " + esc(c.certNo) : "") + "</td><td style='padding:4px 10px;border-bottom:1px solid #eee;color:" + (c.days < 0 ? "#b00020" : "#b35c00") + "'>" + (c.days < 0 ? "EXPIRED " + c.expiry : "expires " + c.expiry + " (" + c.days + " days)") + "</td></tr>"; }).join("") + "</table>";
   String(props().getProperty("CERT_TO") || "crm@rivera.co.in,agm@rivera.co.in,sales@rivera.co.in").split(",").forEach(function (to) { to = to.trim(); if (/@/.test(to)) try { mail(to, "Certificates to renew: " + L.length + " (" + L[0].name + (L.length > 1 ? " +" + (L.length - 1) : "") + ")", html); } catch (e) { } });
   log("automation", "cert-expiry", L.length + " certificates");
+}
+
+/* p126: work deadline reminders - mail the person 24 hours before, 2 hours before and when overdue (once each); the giver gets the overdue mail too */
+function wkDue126() {
+  var P = props(), sent = {}; try { sent = JSON.parse(P.getProperty("WKREM126") || "{}"); } catch (e) { }
+  var now = Date.now(), live = {}, n = 0;
+  rows62("wk").forEach(function (x) {
+    if (!x.due || !/@/.test(x.to || "") || ["done", "cancelled"].indexOf(x.status) >= 0 || x.src === "plan") return;
+    var ds = String(x.due), t = new Date((ds.length <= 10 ? ds + "T18:00" : ds.replace(" ", "T").slice(0, 16)) + ":00+05:30").getTime(); if (isNaN(t)) return;
+    var left = t - now, st = left < 0 ? "od" : left < 2 * 36e5 ? "2h" : left < 24 * 36e5 ? "24h" : ""; live[x.id] = 1; if (!st) return;
+    var k = x.id + ":" + st; if (sent[k]) return; if (st === "24h" && sent[x.id + ":2h"]) return; if (st !== "od" && left < -36e5) return;
+    var when = ds.replace("T", " ").slice(0, 16), head = st === "od" ? "OVERDUE: " : st === "2h" ? "Due in 2 hours: " : "Due within 24 hours: ";
+    var html = "<p style='font-size:16px'><b>" + esc(x.title) + "</b></p><p>Finish by <b style='color:#c0392b'>" + esc(when) + "</b>" + (x.from ? " &middot; given by <b>" + esc(x.fromName || x.from) + "</b>" : "") + "</p>" + (x.details ? "<p>" + esc(x.details) + "</p>" : "") + btn(SITE + "#work", "Open my work", "#02315B");
+    try { mail(x.to, head + clean(x.title, 100), html); n++; if (st === "od" && /@/.test(x.from || "") && x.from !== x.to) mail(x.from, "Not finished on time: " + clean(x.title, 90) + " (" + (x.toName || x.to) + ")", html); } catch (e) { log("automation", "wk-due-mail", String(e)); }
+    sent[k] = now;
+  });
+  var keep = {}; Object.keys(sent).forEach(function (k) { if (live[k.split(":")[0]]) keep[k] = sent[k]; });
+  P.setProperty("WKREM126", JSON.stringify(keep));
+  return n;
 }

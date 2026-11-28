@@ -6639,7 +6639,7 @@ async function bizSync28(force) {
 }
 async function bizPut28(recs) { const d = await AUTH.call("recPut", { recs: [].concat(recs) }, 45000); d.recs.forEach(r => { BIZ.rows[r.id] = r; }); bizSave28(); return d.recs; }
 async function bizDel28(id) { await AUTH.call("recDel", { id }); delete BIZ.rows[id]; bizSave28(); }
-const all28 = k => Object.values(BIZ.rows).filter(r => r.kind === k);
+const all28 = k => Object.values(BIZ.rows).filter(r => r.kind === k && !(k === "dn" && r.status === "cancelled"));
 const stockOf28 = id => all28("move").filter(m => m.item === id).reduce((a, m) => a + (Number(m.qty) || 0), 0);
 const lastRate28 = id => { const L = all28("move").filter(m => m.item === id && Number(m.rate) > 0).sort((a, b) => String(b.date || b.at).localeCompare(String(a.date || a.at))); return L[0] ? Number(L[0].rate) : Number(BIZ.rows[id]?.rate) || 0; };
 
@@ -7726,7 +7726,7 @@ function invFromSo31(so, dn) {
     } else {
       btn = "";
       const pend = live.flatMap(o => (o.lines || []).map((l, i) => ({ o, l, i, left: (Number(l.qty) || 0) - (Number(l.delivered) || 0) })).filter(x => x.left > 0)).sort((a, b) => String(a.o.deliveryDate || "9").localeCompare(String(b.o.deliveryDate || "9")));
-      const dns = qf29(all28("dn"), x => `${x.no} ${x.customer} ${x.soNo} ${x.vehicle}`).sort((a, b) => String(b.date).localeCompare(String(a.date)));
+      const dns = qf29(Object.values(BIZ.rows).filter(r => r.kind === "dn"), x => `${x.no} ${x.customer} ${x.soNo} ${x.vehicle}`).sort((a, b) => String(b.date).localeCompare(String(a.date)));
       body = `<section class="panel"><header><h2>Delivery planner</h2><span class="small muted">what is still to go, by promised date</span></header><div class="tablewrap"><table class="t"><thead><tr><th>Order</th><th>Customer</th><th>Item</th><th class="n">Pending</th><th class="n">In stock</th><th>Promised</th><th></th></tr></thead><tbody>${pend.map(x => `<tr><td class="mono" style="font-size:.75rem">${esc(x.o.no)}</td><td><b>${esc(x.o.customer)}</b></td><td>${esc(String(x.l.desc).slice(0, 80))}</td><td class="n">${x.left} ${esc(x.l.unit || "")}</td><td class="n">${x.l.item ? `<span class="chip ${stockOf28(x.l.item) >= x.left ? "ok" : "bad"}">${stockOf28(x.l.item)}</span>` : '<span class="muted small">made to order</span>'}</td><td>${dueChip28(x.o.deliveryDate)}</td><td><button class="btn sm" data-dnmk="${x.o.id}" type="button">Deliver</button></td></tr>`).join("") || '<tr><td colspan="7" class="muted">Nothing pending.</td></tr>'}</tbody></table></div></section><div style="height:12px"></div>
         ${tbl29(["Delivery note", "Customer", "Order", "Date", "Vehicle / LR", "Invoice"], dns.map(d => `<tr class="r26" data-dn="${d.id}" tabindex="0"><td class="mono" style="font-size:.75rem">${esc(d.no)}</td><td><b>${esc(d.customer)}</b></td><td>${esc(d.soNo || "")}</td><td>${dmy(d.date)}</td><td>${esc(d.vehicle || "")}</td><td>${d.inv ? `<span class="chip ok">${esc(BIZ.rows[d.inv]?.no || "done")}</span>` : '<span class="chip warn">to invoice</span>'}</td></tr>`), "No delivery notes yet")}`;
     }
@@ -9611,7 +9611,7 @@ function list50(G) {
     g = grid50("so", [["Order", r => ({ t: r.no, h: `<span class="mono">${esc(r.no || "")}</span>` })], ["Date", r => date50(r.date)], ["Customer", r => ({ t: r.customer, h: `<b>${esc(r.customer || "")}</b>` })], ["Customer PO", r => r.poNo || ""], ["Quotation", r => r.quoteNo || ""], ["Delivery", r => ({ t: r.deliveryDate ? dmy(r.deliveryDate) : "", h: r.deliveryDate && ["confirmed", "part"].includes(r.status) ? dueChip28(r.deliveryDate) : r.deliveryDate ? dmy(r.deliveryDate) : "—" })], ["Total ₹", r => money50(r.total || soTotal31(r)), "n"], ["Status", r => { const s = soSt31(r.status); return st50(s[1], s[2]); }]], R, r => soPanel31(r));
     newBtn = `<button class="btn primary" id="n50" type="button">${icon("plus")}New sales order</button>`;
   } else if (G.tab === "dn") {
-    const R = all28("dn").filter(filt).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
+    const R = Object.values(BIZ.rows).filter(r => r.kind === "dn").filter(filt).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")));
     g = grid50("dn", [["Delivery note", r => ({ t: r.no, h: `<span class="mono">${esc(r.no || "")}</span>` })], ["Date", r => date50(r.date)], ["Customer", r => ({ t: r.customer, h: `<b>${esc(r.customer || "")}</b>` })], ["Order", r => r.soNo || BIZ.rows[r.so]?.no || ""], ["Items", r => (r.lines || []).map(l => `${l.desc} × ${l.qty}`).join(", ").slice(0, 80), "w"], ["Vehicle / LR", r => r.vehicle || ""], ["Status", r => r.inv ? st50("Invoiced " + (BIZ.rows[r.inv]?.no || ""), "ok") : st50("Not invoiced", "warn")]], R, r => dnPanel31(r));
   } else if (G.tab === "inv") {
     const R = all28("inv").filter(filt).sort((a, b) => String(b.date || "").localeCompare(String(a.date || "")) || String(b.no).localeCompare(String(a.no)));
@@ -17821,7 +17821,7 @@ try {
       if (g) g.insertAdjacentHTML("afterbegin", `${md ? `<button type="button" class="md111k ${wait ? "warn" : ""}" data-ap117g="wait"><b>${wait}</b><span>Waiting for my approval</span></button>` : ""}<button type="button" class="md111k ${q ? "warn" : ""}" data-ap117g="mine"><b>${myA.filter(x => ["pending", "query"].includes(x.status)).length}</b><span>My approvals with Management${q ? ` · ${q} question` : ""}${okN ? ` · ${okN} newly approved` : ""}</span></button>`);
       $$("[data-ap117g]", v).forEach(b => b.onclick = () => { W117.tab = b.dataset.ap117g; if (b.dataset.ap117g === "mine") localStorage.setItem("rqs.ap117seen", now62()); BIZ.ui.w62 = "rem"; location.hash = "work"; render(); });
       if (nw.length) {
-        const sec = document.createElement("section"); sec.className = "panel nw117"; sec.innerHTML = `<header><h2>🆕 New work for you</h2><span class="chip warn">${nw.length}</span></header><div class="body stack" style="gap:8px">${nw.slice(0, 8).map(x => `<div class="nw117r"><div style="flex:1;min-width:200px"><b>${esc(x.title)}</b><div class="small muted">from ${esc(x.fromName || nm62(x.from))}${x.due ? ` · finish by ${esc(dt62(x.due))}` : ""}${x.pri && x.pri !== "Normal" ? ` · <b style="color:#c0392b">${esc(x.pri)}</b>` : ""}</div>${x.details ? `<div class="small">${esc(x.details)}</div>` : ""}</div><button type="button" class="btn sm primary" data-nwa="${x.id}">✔ Accept</button><button type="button" class="btn sm" data-nwo="${x.id}">Open</button></div>`).join("")}</div>`;
+        const sec = document.createElement("section"); sec.className = "panel nw117"; sec.innerHTML = `<header><h2>🆕 New work for you</h2><span class="chip warn">${nw.length}</span></header><div class="body stack" style="gap:8px">${nw.slice(0, 8).map(x => `<div class="nw117r"><div style="flex:1;min-width:200px"><b>${esc(x.title)}</b><div class="small muted">from ${esc(x.fromName || nm62(x.from))}${x.due ? ` · <b style="font-weight:800;color:#c0392b">finish by ${esc(dt62(x.due))}</b>` : ""}${x.pri && x.pri !== "Normal" ? ` · <b style="color:#c0392b">${esc(x.pri)}</b>` : ""}</div>${x.details ? `<div class="small">${esc(x.details)}</div>` : ""}</div><button type="button" class="btn sm primary" data-nwa="${x.id}">✔ Accept</button><button type="button" class="btn sm" data-nwo="${x.id}">Open</button></div>`).join("")}</div>`;
         const first = $(".md111s", v); if (first) first.before(sec); else v.append(sec);
         $$("[data-nwa]", sec).forEach(b => b.onclick = async () => { const x = BIZ.rows[b.dataset.nwa]; if (!x) return; const r = { ...x, status: "accepted", acceptedAt: now62() }; logAdd28(r, "Accepted", ""); if (await save28(b, r, "Accepted - it is in your Work update")) render(); });
         $$("[data-nwo]", sec).forEach(b => b.onclick = () => wkPanel62(BIZ.rows[b.dataset.nwo]));
@@ -18454,7 +18454,7 @@ try {
    Sales ▸ Company certificates (renewable / permanent, renewal alerts, used by quotations) · Management ▸ Rental shops + rent receipts ·
    Sales ▸ Inbox (shared WhatsApp / email inbox, assign, quick replies, broadcast) · Sales ▸ Find clients (research + outreach + meetings) ·
    Enquiry next steps (follow-up → quotation → order → invoice → payment) on the enquiry itself =============== */
-const SV124 = 124;
+const SV124 = 126;
 /* ---------- server version: the app tells Admin when Code.gs still needs deploying ---------- */
 try {
   const _ac = AUTH.call;
@@ -18824,6 +18824,367 @@ try {
   };
 } catch (e) { console.warn("p125", e); }
 
+
+/* ===================== p126: cancel delivery note & PO, PO verified by AGM + Finance, HR CV repository (resume → name, post, education,
+   experience, gender, photo), work deadlines bold + reminders before the deadline, differential backup before every Excel import and daily,
+   any file format on every upload, next steps on delivery note / invoice ===================== */
+const all28x126 = k => Object.values(BIZ.rows).filter(r => r.kind === k);
+const who126 = () => AUTH.user?.name || me28();
+/* a small "why?" box inside the drawer footer - no browser pop-ups */
+function reason126(D, label, onOk) {
+  const f = $(".dr28-f", D) || D; if ($(".rs126", D)) return;
+  f.insertAdjacentHTML("beforebegin", `<div class="rs126"><label class="f" style="flex:1">${esc(label)}<input id="rs126i" placeholder="Reason (needed)"></label><button class="btn" type="button" id="rs126n">Keep it</button><button class="btn primary" type="button" id="rs126y" style="background:#c0392b;border-color:#c0392b">Yes, cancel</button></div>`);
+  $("#rs126i", D).focus();
+  $("#rs126n", D).onclick = () => $(".rs126", D)?.remove();
+  $("#rs126y", D).onclick = async e => { const t = $("#rs126i", D).value.trim(); if (!t) return toast("Write the reason", "bad"); e.target.disabled = true; try { await onOk(t, e.target); } catch (er) { toast(er.message || String(er), "bad"); e.target.disabled = false; } };
+}
+
+/* ---------- 1. Cancel a delivery note: the order quantity and the stock come back ---------- */
+async function dnCancel126(d, reason, btn) {
+  const inv = d.inv && BIZ.rows[d.inv];
+  if (inv && inv.status !== "cancelled") throw new Error(`Invoice ${inv.no} is made from this delivery note - cancel the invoice first`);
+  const D2 = JSON.parse(JSON.stringify(d)); D2.status = "cancelled"; D2.cancelReason = reason; D2.cancelledBy = me28(); D2.cancelledAt = now62(); delete D2.inv; logAdd28(D2, "Cancelled", reason);
+  const recs = [D2], so = BIZ.rows[d.so];
+  if (so) {
+    const S = JSON.parse(JSON.stringify(so));
+    (d.lines || []).forEach(l => { let i = Number.isInteger(l.li) ? l.li : (S.lines || []).findIndex(x => x.desc === l.desc); const L = S.lines?.[i]; if (L) L.delivered = Math.max(0, (Number(L.delivered) || 0) - (Number(l.qty) || 0)); });
+    const any = (S.lines || []).some(l => (Number(l.delivered) || 0) > 0), full = (S.lines || []).every(l => (Number(l.delivered) || 0) >= (Number(l.qty) || 0));
+    if (!["cancelled", "closed", "invoiced"].includes(S.status)) S.status = full ? "delivered" : any ? "part" : "confirmed";
+    logAdd28(S, "Delivery note cancelled", `${d.no} · ${reason}`); recs.push(S);
+  }
+  (d.lines || []).filter(l => l.item).forEach(l => recs.push({ kind: "move", item: l.item, qty: Number(l.qty) || 0, rate: lastRate28(l.item), type: "return", ref: d.no, jobNo: d.soNo || "", date: todayISO(), note: "Delivery note cancelled - back in stock" }));
+  const out = await save28(btn, recs, "Delivery note cancelled - order and stock corrected");
+  if (out) { closeDrawer26(); render(); }
+}
+{
+  const _dn = dnPanel31;
+  dnPanel31 = function (src, so) {
+    const out = _dn.apply(this, arguments);
+    try {
+      const D = $("#dr26"), r = src?.id && BIZ.rows[src.id]; if (!D || !r) return out;
+      const h = $(".dr26-h .row", D);
+      if (r.status === "cancelled") {
+        h && h.insertAdjacentHTML("afterbegin", '<span class="chip bad">CANCELLED</span>');
+        $(".dr26-b", D).insertAdjacentHTML("afterbegin", `<div class="note bad" style="margin-bottom:10px"><b>Cancelled</b> by ${esc(nm62(r.cancelledBy || ""))} on ${esc(dt62(r.cancelledAt || ""))} - ${esc(r.cancelReason || "")}. Quantity went back to the order and stock.</div>`);
+        $$("#dn31i,#dn31p", D).forEach(b => b.remove());
+        return out;
+      }
+      const inv = r.inv && BIZ.rows[r.inv], blocked = inv && inv.status !== "cancelled";
+      const f = $(".dr28-f", D);
+      f && f.insertAdjacentHTML("afterbegin", `<button class="btn ghost" id="dn126x" type="button" ${blocked ? `title="Invoice ${esc(inv.no)} is made - cancel the invoice first"` : ""}>Cancel delivery note</button>`);
+      $("#dn126x", D).onclick = () => blocked ? toast(`Invoice ${inv.no} is made from this - cancel the invoice first`, "bad") : reason126(D, "Why cancel " + r.no + "?", (t, b) => dnCancel126(r, t, b));
+      /* next steps */
+      const s = BIZ.rows[r.so], pays = inv ? all28("rcpt").filter(p => p.inv === inv.id) : [], F = typeof fin86 === "function" ? fin86() : isAdmin28();
+      steps86(D, [
+        st86("ns126o", "📋", s ? "Order " + s.no : "No order", s ? (s.status || "") : "", !!s),
+        st86("ns126i", "🧾", inv ? "Invoice " + inv.no : F ? "Make invoice" : "Ask Finance: invoice", inv ? (Number(inv.balance) > 0 ? "To collect " + inr28(inv.balance) : "Paid") : "From this delivery note", !!inv),
+        inv ? st86("ns126p", "💰", Number(inv.balance) > 0 ? (F ? "Record payment" : "Payment pending") : "Payment received", pays.map(p => p.no).join(", ") || dmy(inv.due), !(Number(inv.balance) > 0)) : ""].join(""));
+      $("#ns126o", D) && s && ($("#ns126o", D).onclick = () => soPanel31(s));
+      $("#ns126i", D).onclick = () => inv ? invPanel29(inv) : F ? invFromSo31(s || { customer: r.customer, lines: [] }, r) : rqPanel85(null, { type: "gen", link: r.id, subject: `Make invoice - ${r.no} ${r.customer || ""}` });
+      $("#ns126p", D) && ($("#ns126p", D).onclick = () => Number(inv.balance) > 0 && F ? rcptPanel29(null, { customer: inv.customer, inv: inv.id }) : pays[0] ? rcptPanel29(pays[0]) : invPanel29(inv));
+    } catch (e) { console.warn("p126 dn", e); }
+    return out;
+  };
+  /* invoice: next steps */
+  const _iv = invPanel29;
+  invPanel29 = function (src) {
+    const out = _iv.apply(this, arguments);
+    try {
+      const D = $("#dr26"), r = src?.id && BIZ.rows[src.id]; if (!D || !r || r.status === "cancelled") return out;
+      const so = BIZ.rows[r.so], dns = (r.dns || []).map(i => BIZ.rows[i]).filter(Boolean), pays = all28("rcpt").filter(p => p.inv === r.id), bal = Number(r.balance) || 0, od = bal > 0 && r.due && r.due < todayISO();
+      steps86(D, [
+        so ? st86("ns126s", "📋", "Order " + so.no, so.status || "", true) : "",
+        dns.length ? st86("ns126d", "🚚", "Delivery " + dns.map(d => d.no).join(", "), "", true) : "",
+        st86("ns126r", "💰", bal > 0 ? (od ? "OVERDUE - collect " : "Collect ") + inr28(bal) : "Fully paid", pays.length ? pays.map(p => p.no).join(", ") : "Due " + dmy(r.due), bal <= 0),
+        bal > 0 && r.phone ? st86("ns126w", "💬", "Remind on WhatsApp", r.phone) : ""].join(""));
+      $("#ns126s", D) && ($("#ns126s", D).onclick = () => soPanel31(so));
+      $("#ns126d", D) && ($("#ns126d", D).onclick = () => dnPanel31(dns[0]));
+      $("#ns126r", D).onclick = () => bal > 0 ? rcptPanel29(null, { customer: r.customer, inv: r.id }) : pays[0] && rcptPanel29(pays[0]);
+      $("#ns126w", D) && ($("#ns126w", D).onclick = () => window.open(`https://wa.me/91${String(r.phone).replace(/\D/g, "").slice(-10)}?text=${encodeURIComponent(`Dear Sir, a gentle reminder: invoice ${r.no} dated ${dmy(r.date)} - balance ${inr28(bal)}. Kindly arrange payment. - ${SETTINGS.company?.name || "Rivera"}`)}`, "_blank"));
+    } catch (e) { console.warn("p126 inv", e); }
+    return out;
+  };
+}
+
+/* ---------- 2. PO: cancel with reason + Verified by Gowthami (AGM) + Verified by Finance ---------- */
+const AGM126 = "agm@rivera.co.in";
+const canAgm126 = () => isAdmin28() || me28() === AGM126 || /gowthami/i.test(AUTH.user?.name || "");
+const canFin126 = () => isAdmin28() || me28() === "finance@rivera.co.in" || AUTH.user?.role === "finance" || (myD85() || []).includes("accounts");
+const vChip126 = (v, t) => v ? `<span class="chip ok">✓ ${t}</span>` : `<span class="chip warn">⏳ ${t}</span>`;
+async function poVerify126(r, who, undo, btn) {
+  const R = JSON.parse(JSON.stringify(BIZ.rows[r.id])), k = who === "agm" ? "vAgm" : "vFin", t = who === "agm" ? "Verified by AGM" : "Verified by Finance";
+  if (undo) { delete R[k]; logAdd28(R, t + " removed", who126()); } else { R[k] = { by: me28(), name: who126(), at: now62() }; logAdd28(R, t, who126()); }
+  const out = await save28(btn, R, undo ? "Verification removed" : t); if (out) { render(); poPanel28(BIZ.rows[r.id]); }
+}
+{
+  const _p = poPanel28;
+  poPanel28 = function (src) {
+    const out = _p.apply(this, arguments);
+    try {
+      const D = $("#dr26"), r = src?.id && BIZ.rows[src.id]; if (!D || !r || r.kind !== "po") return out;
+      const h = $(".dr26-h .row", D), b = $(".dr26-b", D);
+      if (r.status === "cancelled") {
+        b.insertAdjacentHTML("afterbegin", `<div class="note bad" style="margin-bottom:10px"><b>Cancelled</b>${r.cancelledBy ? ` by ${esc(nm62(r.cancelledBy))} on ${esc(dt62(r.cancelledAt))}` : ""}${r.cancelReason ? " - " + esc(r.cancelReason) : ""}</div>`);
+        return out;
+      }
+      if (r.status === "indent") return out;
+      h && h.insertAdjacentHTML("beforeend", vChip126(r.vAgm, "AGM") + vChip126(r.vFin, "Finance"));
+      const row = (k, who, label, can) => { const v = r[k]; return `<div class="v126r ${v ? "ok" : ""}"><span class="v126i">${v ? "✓" : "⏳"}</span><span style="flex:1"><b>${label}</b><br><span class="small muted">${v ? `${esc(v.name || nm62(v.by))} · ${esc(dt62(v.at))}` : can ? "Check rate, supplier, quantity and GST - then verify" : "Waiting"}</span></span>${can ? (v ? (v.by === me28() || isAdmin28() ? `<button class="btn sm ghost" type="button" data-v126u="${who}">Undo</button>` : "") : `<button class="btn sm primary" type="button" data-v126="${who}">✓ Verify</button>`) : ""}</div>`; };
+      b.insertAdjacentHTML("afterbegin", `<section class="dr26-sec v126"><h3>Verification</h3>${row("vAgm", "agm", "Verified by Gowthami (AGM)", canAgm126())}${row("vFin", "fin", "Verified by Finance", canFin126())}</section>`);
+      $$("[data-v126]", D).forEach(x => x.onclick = e => poVerify126(r, x.dataset.v126, false, e.target));
+      $$("[data-v126u]", D).forEach(x => x.onclick = e => poVerify126(r, x.dataset.v126u, true, e.target));
+      /* Approve: tell if not verified yet */
+      $$("#p28ap,#p85ap", D).forEach(a => a.addEventListener("click", ev => { if ((!r.vAgm || !r.vFin) && !a.dataset.ok126) { ev.stopImmediatePropagation(); ev.preventDefault(); a.dataset.ok126 = 1; toast(`Not verified yet by ${[!r.vAgm && "AGM", !r.vFin && "Finance"].filter(Boolean).join(" and ")} - tap Approve again to approve anyway`, "warn"); } }, true));
+      /* cancel */
+      const recd = (r.lines || []).some(l => (Number(l.recd) || 0) > 0) || all28("rn").some(x => x.po === r.id);
+      if (!["received", "closed", "part"].includes(r.status) && !recd && (isAdmin28() || r.by === me28() || canAgm126() || canFin126() || isMyDept85("store"))) {
+        const f = $(".dr28-f", D); f && f.insertAdjacentHTML("afterbegin", `<button class="btn ghost" id="po126x" type="button">Cancel PO</button>`);
+        $("#po126x", D).onclick = () => reason126(D, "Why cancel " + (r.no || "this PO") + "?", async (t, btn) => {
+          const R = JSON.parse(JSON.stringify(BIZ.rows[r.id])); R.status = "cancelled"; R.cancelReason = t; R.cancelledBy = me28(); R.cancelledAt = now62(); logAdd28(R, "Cancelled", t);
+          if (await save28(btn, R, "PO cancelled")) { closeDrawer26(); render(); if (R.supplierEmail && ["sent", "approved"].includes(r.status)) toast("Tell the supplier too - the PO was already sent", "warn"); }
+        });
+      }
+    } catch (e) { console.warn("p126 po", e); }
+    return out;
+  };
+  DASHK111.push(["mgmt", "POs to verify (AGM)", () => all28("po").filter(p => ["pending", "approved", "sent"].includes(p.status) && !p.vAgm).length, "purchase", { pur: "po" }, "warn"],
+    ["accounts", "POs to verify (Finance)", () => all28("po").filter(p => ["pending", "approved", "sent"].includes(p.status) && !p.vFin).length, "purchase", { pur: "po" }, "warn"]);
+}
+
+/* ---------- 3. HR ▸ CV repository ---------- */
+const CVST126 = [["new", "New", ""], ["short", "Shortlisted", "navy"], ["intv", "Interview", "warn"], ["sel", "Selected", "ok"], ["joined", "Joined", "ok"], ["hold", "On hold", ""], ["rej", "Rejected", "bad"]];
+const CVPOS126 = [[/\bcrm\b|customer relation/i, "CRM executive"], [/design engineer|\bde\b/i, "Design engineer"], [/\bscm\b|supply chain/i, "Supply chain (SCM)"], [/\bsfm\b|shop ?floor/i, "Shop floor manager"], [/\bshre\b|senior hr|sr\.? hr/i, "Senior HR executive"], [/\bhr\b|human resource/i, "HR executive"], [/\bae\b|application engineer/i, "Application engineer"], [/account/i, "Accounts executive"], [/sales|marketing/i, "Sales / marketing"], [/winder|winding/i, "Winder"], [/electrician/i, "Electrician"], [/purchase/i, "Purchase executive"], [/quality|\bqc\b|\bqa\b/i, "Quality engineer"], [/production/i, "Production engineer"], [/maintenance/i, "Maintenance engineer"], [/draught|drafts|autocad/i, "Draughtsman"], [/intern/i, "Intern"]];
+const cvAll126 = () => all28("dc").filter(d => d.reg116 === "cv");
+const EDU126 = [[/\bph\.?\s?d\b/i, "PhD", 9], [/\bm\.?\s?e\b\.?(?![a-z])|\bm\.?\s?tech\b/i, "M.E / M.Tech", 8], [/\bm\.?\s?b\.?\s?a\b/i, "MBA", 8], [/\bm\.?\s?c\.?\s?a\b/i, "MCA", 7], [/\bm\.?\s?com\b/i, "M.Com", 7], [/\bm\.?\s?sc\b/i, "M.Sc", 7], [/\bm\.?\s?a\b\.?\s+(?:english|economics|tamil|hr)/i, "M.A", 7], [/\bmsw\b/i, "MSW", 7],
+  [/\bb\.?\s?e\b\.?(?![a-z])|\bb\.?\s?tech\b/i, "B.E / B.Tech", 6], [/\bb\.?\s?b\.?\s?a\b/i, "BBA", 5], [/\bb\.?\s?c\.?\s?a\b/i, "BCA", 5], [/\bb\.?\s?com\b/i, "B.Com", 5], [/\bb\.?\s?sc\b/i, "B.Sc", 5], [/\bb\.?\s?a\b\.?\s+(?:english|economics|tamil|history)/i, "B.A", 5], [/diploma|\bd\.?\s?e\.?\s?e\.?\s?e\b|\bd\.?m\.?e\b|polytechnic/i, "Diploma", 4], [/\biti\b/i, "ITI", 3], [/\bh\.?\s?s\.?\s?c\b|12th|higher secondary/i, "HSC (12th)", 2], [/\bs\.?\s?s\.?\s?l\.?\s?c\b|10th/i, "SSLC (10th)", 1]];
+const PLACE126 = ["Erode", "Perundurai", "Coimbatore", "Tiruppur", "Salem", "Namakkal", "Karur", "Trichy", "Tiruchirappalli", "Madurai", "Chennai", "Gobichettipalayam", "Gobi", "Bhavani", "Sathyamangalam", "Dharapuram", "Kangeyam", "Pollachi", "Dindigul", "Thanjavur", "Theni", "Tirunelveli", "Vellore", "Hosur", "Krishnagiri", "Dharmapuri", "Nilgiris", "Ooty", "Bangalore", "Bengaluru", "Kerala", "Palakkad", "Pudukkottai", "Villupuram", "Cuddalore", "Kanchipuram", "Thoothukudi", "Nagercoil", "Sivakasi", "Virudhunagar", "Ramanathapuram", "Mettupalayam", "Attur", "Rasipuram", "Tiruchengode", "Kumarapalayam", "Anthiyur", "Chennimalai", "Modakurichi", "Kodumudi"];
+function cvParse126(text, fileName, folder) {
+  const T = String(text || "").replace(/\r/g, ""), L = T.split("\n").map(s => s.replace(/\s+/g, " ").trim()).filter(Boolean), low = T.toLowerCase(), o = {};
+  const lab = re => { for (const l of L) { const m = l.match(re); if (m && m[1] && m[1].trim().length > 1) return m[1].trim(); } return ""; };
+  o.email = (T.match(/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/) || [""])[0].toLowerCase();
+  const ph = T.replace(/[\s()-]/g, "").match(/(?:\+?91)?([6-9]\d{9})(?!\d)/); o.phone = ph ? ph[1] : "";
+  let nm = lab(/^(?:name|full name|candidate name)\s*[:\-–]\s*([A-Za-z .]{3,40})/i);
+  if (!nm) for (const l of L.slice(0, 12)) { if (/resume|curriculum|vitae|bio[- ]?data|profile|objective|career|contact|address|mobile|phone|email|@|\d{4}/i.test(l)) continue; const w = l.replace(/[^A-Za-z. ]/g, "").trim(); if (w.length >= 3 && w.length <= 36 && w.split(/\s+/).length <= 4 && /^[A-Z]/.test(w)) { nm = w; break; } }
+  if (!nm) nm = String(fileName || "").replace(/\.[a-z0-9]+$/i, "").replace(/[_]+/g, " ").replace(/\(\d+\)/g, "").replace(/resume|cv|naukri|indeed/ig, "").replace(/([a-z])([A-Z])/g, "$1 $2").trim();
+  o.name = nm.replace(/\s+/g, " ").replace(/\b([a-z])/g, c => c.toUpperCase()).slice(0, 40);
+  const g = lab(/(?:gender|sex)\s*[:\-–]?\s*(male|female|m|f)\b/i);
+  o.gender = /^f/i.test(g) ? "Female" : /^m/i.test(g) ? "Male" : /\bd\/o\b|\bw\/o\b|daughter of|\bms\.\s|\bmrs\.\s|\bmiss\b/i.test(T) ? "Female" : /\bs\/o\b|son of|\bmr\.\s/i.test(T) ? "Male" : "";
+  const dob = lab(/(?:date of birth|d\.?o\.?b\.?|birth date)\s*[:\-–]?\s*([0-9]{1,2}[\s./-][0-9A-Za-z]{1,9}[\s./-][0-9]{2,4})/i); o.dob = dob;
+  const age = lab(/\bage\s*[:\-–]\s*(\d{2})\b/i); if (age) o.age = age;
+  let best = null; for (const [re, t, s] of EDU126) { const l = L.find(x => re.test(x)); if (l && (!best || s > best.s)) best = { t, s, l }; }
+  if (best) { o.edu = best.t; o.eduLine = best.l.slice(0, 110); }
+  const yrs = [...T.matchAll(/(\d{1,2}(?:\.\d)?)\s*\+?\s*(?:years?|yrs?)(?:\s*(?:of)?\s*(?:experience|exp|work))?/ig)].map(m => ({ n: parseFloat(m[1]), c: /exp|work/i.test(m[0]) })).filter(x => x.n > 0 && x.n <= 40);
+  o.exp = /\bfresher\b/i.test(T) && !yrs.some(x => x.c) ? "Fresher" : (yrs.find(x => x.c) || yrs.sort((a, b) => b.n - a.n)[0])?.n ? String((yrs.find(x => x.c) || yrs[0]).n) + " yrs" : "";
+  let pos = lab(/(?:position|post)\s*(?:applied(?:\s*for)?)?\s*[:\-–]\s*(.{3,50})/i) || lab(/(?:applying for|applied for|designation)\s*[:\-–]\s*(.{3,50})/i);
+  if (!pos) { const f = String(folder || "") + " " + String(fileName || ""); const hit = CVPOS126.find(([re]) => re.test(f)) || CVPOS126.find(([re]) => re.test(L.slice(0, 25).join(" "))); pos = hit ? hit[1] : ""; }
+  o.position = pos.replace(/\s+/g, " ").slice(0, 50);
+  o.place = PLACE126.find(p => new RegExp("\\b" + p + "\\b", "i").test(T)) || "";
+  const SK = ["AutoCAD", "SolidWorks", "Creo", "CATIA", "Tally", "SAP", "ERP", "Excel", "MS Office", "Python", "Java", "PLC", "SCADA", "Winding", "Motor rewinding", "Transformer", "Electrical maintenance", "Welding", "CNC", "Lathe", "GST", "Payroll", "Recruitment", "Inventory", "Procurement", "Logistics", "Quality control", "ISO", "5S", "Kaizen", "Lean", "Six Sigma", "Customer service", "CRM", "Sales", "Marketing", "Communication", "Power BI", "Photoshop", "Canva"];
+  o.skills = SK.filter(s => new RegExp("\\b" + s.replace(/[.+]/g, "\\$&") + "\\b", "i").test(T)).slice(0, 12).join(", ");
+  o.lang = ["Tamil", "English", "Hindi", "Malayalam", "Telugu", "Kannada"].filter(s => new RegExp("\\b" + s + "\\b", "i").test(T)).join(", ");
+  o.summary = L.slice(0, 60).join(" ").slice(0, 600);
+  return o;
+}
+async function cvThumb126(src) { /* src: Blob or ImageBitmap → small JPEG data URL */
+  const bm = src instanceof Blob ? await createImageBitmap(src) : src, W = bm.width || bm.displayWidth || bm.codedWidth, H = bm.height || bm.displayHeight || bm.codedHeight; if (!W || !H) return ""; const s = 140 / Math.max(W, H), c = document.createElement("canvas");
+  c.width = Math.max(1, Math.round(W * s)); c.height = Math.max(1, Math.round(H * s)); c.getContext("2d").drawImage(bm, 0, 0, c.width, c.height); return c.toDataURL("image/jpeg", 0.8);
+}
+const photoish126 = (w, h) => w >= 50 && h >= 60 && h / w >= 0.9 && h / w <= 1.8 && w < 1400;
+async function cvPhoto126(file, buf) {
+  const ext = extOf(file.name);
+  try {
+    if (["jpg", "jpeg", "png", "webp"].includes(ext)) { const bm = await createImageBitmap(file); return photoish126(bm.width, bm.height) ? cvThumb126(bm) : ""; }
+    if (ext === "docx") {
+      const z = await (await getZip()).loadAsync(buf); const media = Object.keys(z.files).filter(n => /^word\/media\/.+\.(jpe?g|png)$/i.test(n));
+      for (const n of media) { const b = await z.file(n).async("blob"); if (b.size < 800) continue; try { const bm = await createImageBitmap(b); if (photoish126(bm.width, bm.height)) return cvThumb126(bm); } catch { } }
+      return "";
+    }
+    if (ext === "pdf") {
+      const lib = await getPdfjs(), pdf = await lib.getDocument({ data: new Uint8Array(buf.slice(0)), isEvalSupported: false }).promise, page = await pdf.getPage(1);
+      const ops = await page.getOperatorList(), O = lib.OPS, names = [];
+      ops.fnArray.forEach((f, i) => { if (f === O.paintImageXObject || f === O.paintJpegXObject) names.push(ops.argsArray[i][0]); });
+      for (const n of names.slice(0, 6)) {
+        const img = await new Promise(ok => { const t = setTimeout(() => ok(null), 2500); try { const got = x => { clearTimeout(t); ok(x); }; (n.startsWith("g_") ? page.commonObjs : page.objs).get(n, got); } catch { clearTimeout(t); ok(null); } });
+        if (!img) continue; const w = img.width, h = img.height; if (!photoish126(w, h)) continue;
+        if (img.bitmap) return cvThumb126(img.bitmap);
+        if (img.data) { const c = document.createElement("canvas"); c.width = w; c.height = h; const x = c.getContext("2d"), d = x.createImageData(w, h), src = img.data;
+          if (src.length === w * h * 4) d.data.set(src); else if (src.length === w * h * 3) { for (let i = 0, j = 0; i < w * h; i++, j += 3) { d.data[i * 4] = src[j]; d.data[i * 4 + 1] = src[j + 1]; d.data[i * 4 + 2] = src[j + 2]; d.data[i * 4 + 3] = 255; } } else continue;
+          x.putImageData(d, 0, 0); return cvThumb126(await createImageBitmap(c)); }
+      }
+    }
+  } catch (e) { console.warn("cv photo", e); }
+  return "";
+}
+async function cvRead126(file, folder) {
+  const buf = await file.arrayBuffer(); let text = "";
+  try { const r = await readFileAny(new File([buf], file.name, { type: file.type })); text = r.text || ""; } catch { }
+  const o = cvParse126(text, file.name, folder); o.photo = await cvPhoto126(file, buf); o.chars = text.length; return o;
+}
+async function cvSave126(file, meta, folder, src) {
+  const up = file.size <= 8e6 ? await (async () => { const id = "cv_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 6); await DSTORE.put(id, file, { kind: "cv", title: file.name }); return id; })() : "";
+  const dup = cvAll126().find(c => (meta.email && c.email === meta.email) || (meta.phone && c.phone === meta.phone) || c.fileName === file.name && c.size === file.size);
+  const r = { ...(dup || {}), kind: "dc", reg116: "cv", title: "CV repository", status: dup?.status || "new", ...Object.fromEntries(Object.entries(meta).filter(([, v]) => v !== "" && v != null)), fileId: up || dup?.fileId || "", fileName: file.name, size: file.size, folder: folder || dup?.folder || "", src: src || dup?.src || "Upload", added: dup?.added || now62(), addedBy: dup?.addedBy || me28() };
+  if (!dup) logAdd28(r, "Resume added", file.name); else logAdd28(r, "Resume updated", file.name);
+  return r;
+}
+const cvTone126 = s => (CVST126.find(x => x[0] === s) || CVST126[0]);
+const cvAv126 = (c, n = 56) => c.photo ? `<img src="${c.photo}" alt="" style="width:${n}px;height:${n}px;border-radius:12px;object-fit:cover;flex:none">` : `<span class="cv126av" style="width:${n}px;height:${n}px;background:${c.gender === "Female" ? "#f7e1ea" : c.gender === "Male" ? "#dde9f7" : "#eceff3"}">${esc((c.name || "?").split(/\s+/).map(w => w[0]).slice(0, 2).join("").toUpperCase())}</span>`;
+function cvPanel126(c) {
+  const r = JSON.parse(JSON.stringify(c)), st = cvTone126(r.status);
+  const F = [["name", "Name *", "text"], ["position", "Position / post", "list", [...new Set(CVPOS126.map(x => x[1]))]], ["gender", "Gender", "select", [["", "—"], ["Male", "Male"], ["Female", "Female"]]], ["phone", "Phone", "tel"], ["email", "Email", "email"], ["edu", "Education", "list", EDU126.map(x => x[1])], ["eduLine", "Degree / college", "text"], ["exp", "Experience", "text"], ["place", "Place", "text"], ["dob", "Date of birth", "text"], ["expSal", "Expected salary ₹ / month", "number"], ["notice", "Notice period", "text"], ["skills", "Skills", "text", null, 1], ["lang", "Languages", "text"], ["src", "Source", "list", ["Indeed", "LinkedIn", "Naukri", "Walk-in", "Reference", "College", "Upload"]], ["status", "Status", "select", CVST126.map(x => [x[0], x[1]])], ["intvAt", "Interview on", "datetime-local"], ["note", "Remarks", "textarea"]];
+  const next = { new: ["Shortlist", "short"], short: ["Schedule interview", "intv"], intv: ["Selected", "sel"], sel: ["Make employee (joined)", "joined"], hold: ["Shortlist again", "short"] }[r.status];
+  const D = panel28({
+    title: r.name || "Candidate", chips: `<span class="chip ${st[2]}">${st[1]}</span>${r.position ? `<span class="chip">${esc(r.position)}</span>` : ""}${r.gender ? `<span class="chip">${esc(r.gender)}</span>` : ""}`,
+    body: `<div class="row" style="gap:12px;align-items:center;margin-bottom:10px">${cvAv126(r, 84)}<div style="flex:1;min-width:0"><b style="font-size:1.05rem">${esc(r.name || "")}</b><div class="small muted">${esc([r.edu, r.exp, r.place].filter(Boolean).join(" · "))}</div><div class="row" style="gap:6px;margin-top:6px;flex-wrap:wrap">${r.fileId ? `<button class="btn sm primary" id="cv126o" type="button">📄 Open resume</button>` : r.nas ? `<span class="small muted">Resume on Synology: ${esc(r.nas)}</span>` : ""}<label class="btn sm">📷 Photo<input type="file" id="cv126ph" hidden></label><label class="btn sm">⬆ New resume<input type="file" id="cv126u" hidden></label>${r.phone ? `<a class="btn sm" href="tel:${esc(r.phone)}">📞 Call</a><a class="btn sm" target="_blank" href="https://wa.me/91${esc(String(r.phone).slice(-10))}">💬 WhatsApp</a>` : ""}${r.email ? `<a class="btn sm" href="mailto:${esc(r.email)}">✉ Mail</a>` : ""}</div></div></div>
+      ${next ? `<section class="ns86"><h3>Next step</h3><div>${st86("cv126n", "➡", next[0], r.status === "short" ? "Pick date & time below, then tap" : r.status === "sel" ? "Opens a new employee with these details" : "Moves the candidate on", false)}${r.status !== "rej" ? st86("cv126r", "✖", "Reject", "Keeps the resume") : ""}</div></section>` : ""}
+      <div class="fields">${F.map(f => field28(f, r)).join("")}</div>
+      <section class="dr26-sec"><h3>History</h3>${timeline28(r.log)}</section>`,
+    foot: `${isAdmin28() ? `<button class="btn ghost" id="cv126d" type="button">Delete</button>` : ""}<span style="flex:1"></span><button class="btn" type="button" onclick="closeDrawer26()">Close</button><button class="btn primary" id="cv126s" type="button">Save</button>`
+  });
+  const save = async (btn, extra) => { readForm28(D, r); Object.assign(r, extra || {}); if (!r.name) return toast("Name is needed", "bad"); const out = await save28(btn, r, "Saved"); if (out) { render(); cvPanel126(BIZ.rows[out[0].id] || out[0]); } return out; };
+  $("#cv126s", D).onclick = e => save(e.target);
+  $("#cv126o", D) && ($("#cv126o", D).onclick = () => openFile62(r.fileId, r.fileName));
+  $("#cv126ph", D).onchange = async ev => { const f = ev.target.files[0]; if (!f) return; try { r.photo = await cvThumb126(f); save(null); } catch { toast("Could not read that picture", "bad"); } };
+  $("#cv126u", D).onchange = async ev => { const f = ev.target.files[0]; if (!f) return; toast("Reading " + f.name + "…"); const m = await cvRead126(f, r.folder); const n = await cvSave126(f, Object.fromEntries(Object.entries(m).filter(([k]) => !r[k] || ["photo"].includes(k) && !r.photo)), r.folder, r.src); Object.assign(r, { fileId: n.fileId, fileName: n.fileName, size: n.size, photo: r.photo || n.photo }); save(null); };
+  $("#cv126r", D) && ($("#cv126r", D).onclick = e => { logAdd28(r, "Rejected", ""); save(e.target.closest("button"), { status: "rej" }); });
+  $("#cv126n", D) && ($("#cv126n", D).onclick = async e => {
+    const b = e.target.closest("button"), to = next[1];
+    if (to === "intv") { const at = $('[data-k="intvAt"]', D).value; if (!at) { $('[data-k="intvAt"]', D).focus(); return toast("Pick the interview date & time", "warn"); } logAdd28(r, "Interview fixed", at.replace("T", " ")); await save(b, { status: "intv" });
+      const s = new Date(at), e2 = new Date(s.getTime() + 36e5), f = d => d.toISOString().replace(/[-:]/g, "").replace(/\.\d+/, "");
+      window.open(`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent("Interview: " + r.name + " - " + (r.position || ""))}&dates=${f(s)}/${f(e2)}&details=${encodeURIComponent(`${r.phone || ""} ${r.email || ""}\n${r.edu || ""} ${r.exp || ""}`)}${r.email ? "&add=" + encodeURIComponent(r.email) : ""}`, "_blank");
+      try { await bizPut28([{ kind: "dc", reg116: "intv", title: "Interview forms", cand: r.name, post: r.position || "", date: at.slice(0, 10), phone: r.phone || "", qual: r.edu || "", exp: parseFloat(r.exp) || "", cv: r.id }]); } catch { }
+      return;
+    }
+    if (to === "joined") { logAdd28(r, "Joined", ""); await save(b, { status: "joined" }); empPanel29(null); const set = (k, v) => { const i = $(`#dr26 [data-k="${k}"]`); if (i && v) i.value = v; }; set("name", r.name); set("designation", r.position); set("phone", r.phone); set("email", r.email); toast("Fill salary & joining date and Save - the resume stays in the CV repository", "ok"); return; }
+    logAdd28(r, cvTone126(to)[1], ""); save(b, { status: to });
+  });
+  $("#cv126d", D) && ($("#cv126d", D).onclick = ev => sure71(ev.target, async () => { await bizDel28(r.id); closeDrawer26(); render(); toast("Deleted"); }));
+}
+async function cvUpload126(files, folder, srcName) {
+  const L = [...files]; if (!L.length) return; let ok = 0; const recs = [];
+  const bar = document.createElement("div"); bar.className = "note"; bar.style.cssText = "position:fixed;left:50%;bottom:18px;transform:translateX(-50%);z-index:99;background:#fff;box-shadow:0 6px 24px #0003;min-width:280px"; document.body.append(bar);
+  for (const f of L) { bar.textContent = `Reading resume ${ok + 1} of ${L.length}: ${f.name}`; try { const m = await cvRead126(f, folder); recs.push(await cvSave126(f, m, folder, srcName)); ok++; if (recs.length >= 5) { await bizPut28(recs.splice(0)); } } catch (e) { toast(f.name + ": " + e.message, "bad"); } }
+  if (recs.length) await bizPut28(recs); bar.remove(); toast(`${ok} resume${ok === 1 ? "" : "s"} added to the CV repository`); render();
+}
+try {
+  REG116.cv = { t: "CV repository", mod: "hr", icon: "🧑‍💼", due: "", cols: [["name", "Name *", "text"], ["position", "Position", "text"], ["edu", "Education", "text"], ["exp", "Experience", "text"]] };
+  ROUTES.push(["cv126", "CV repository", "hr29"]);
+  { const _al = allowed21; allowed21 = function (r) { if (r === "cv126") return _al.call(this, "hr") || _al.call(this, "hrx") || isMyDept85("hr"); return _al.apply(this, arguments); }; }
+  const hr = MODS32.find(m => m.id === "hr"); if (hr) { const L = (hr.groups.Transactions ||= []), c = ["CV repository", "cv126", {}, "Every resume - photo, post, education, experience; shortlist → interview → join"]; if (!L.some(x => x[1] === "cv126")) L.unshift(c); try { CARDMOD64.set(c, "hr"); } catch { } }
+  HELP110.push([/resume|cv\b|candidate|recruit|interview|hiring/i, "HR ▸ CV repository", "cv126", {}, "Upload resumes in any format - name, post, education, experience, gender and photo are read by themselves."]);
+  DASHK111.push(["hr", "Interviews today", () => cvAll126().filter(c => c.status === "intv" && String(c.intvAt || "").slice(0, 10) === todayISO()).length, "cv126", {}, "warn"], ["hr", "New resumes to screen", () => cvAll126().filter(c => c.status === "new").length, "cv126", {}, ""]);
+  VIEWS.cv126 = v => {
+    bizSync28(); const U = BIZ.ui, q = U.cv126q || "", fs = U.cv126s || "", fp = U.cv126p || "", fg = U.cv126g || "", fe = U.cv126e || "";
+    const A = cvAll126(), pos = [...new Set(A.map(c => c.position).filter(Boolean))].sort(), edus = [...new Set(A.map(c => c.edu).filter(Boolean))];
+    const R = A.filter(c => (!fs || c.status === fs) && (!fp || c.position === fp) && (!fg || c.gender === fg) && (!fe || c.edu === fe) && has71([c.name, c.position, c.edu, c.eduLine, c.place, c.skills, c.phone, c.email, c.folder], q)).sort((a, b) => String(b.added || "").localeCompare(String(a.added || "")));
+    const sel = (k, all, L) => `<select data-cv126f="${k}"><option value="">${all}</option>${L.map(o => { const [a, b] = Array.isArray(o) ? o : [o, o]; return `<option value="${esc(a)}" ${U[k] === a ? "selected" : ""}>${esc(b)}</option>`; }).join("")}</select>`;
+    v.innerHTML = top62("HR ▸ Recruitment", "CV repository", "Drop resumes (PDF, Word, photo - any format). Name, post, education, experience, gender and photo are read by themselves; the resume is kept inside.", `<label class="btn primary">⬆ Upload resumes<input type="file" id="cv126up" multiple hidden></label><button class="btn" id="cv126x" type="button">⬇ Sheet</button>`)
+      + `<div class="cv126k">${CVST126.map(s => `<button type="button" class="${fs === s[0] ? "on" : ""}" data-cv126k="${s[0]}"><span>${s[1]}</span><b>${A.filter(c => c.status === s[0]).length}</b></button>`).join("")}</div>
+      <section class="panel cv126p"><header style="flex-wrap:wrap;gap:8px"><h2>${R.length} of ${A.length} candidates</h2><span style="flex:1"></span>${sel("cv126p", "All positions", pos)}${sel("cv126e", "All education", edus)}${sel("cv126g", "Male & female", ["Male", "Female"])}${sel("cv126s", "All status", CVST126.map(x => [x[0], x[1]]))}${srch71(U, "cv126q", "Search name, skill, place, college…")}</header>
+      <div class="body"><div class="cv126g">${R.slice(0, 300).map(c => { const s = cvTone126(c.status); return `<button type="button" class="cv126c" data-cv126="${c.id}">${cvAv126(c)}<span style="min-width:0;flex:1"><b>${esc(c.name || "—")}</b><span class="small">${esc(c.position || "Position ?")}</span><span class="small muted">${esc([c.edu, c.exp, c.gender, c.place].filter(Boolean).join(" · "))}</span><span class="chip ${s[2]}" style="align-self:flex-start;margin-top:3px">${s[1]}${c.status === "intv" && c.intvAt ? " · " + esc(dt62(c.intvAt)) : ""}</span></span></button>`; }).join("") || '<p class="muted">No resumes yet - tap “Upload resumes”. You can select many files at once.</p>'}</div>${R.length > 300 ? `<p class="small muted">Showing 300 - search or filter to find others.</p>` : ""}</div></section>`;
+    wireSrch71(v, U);
+    $$("[data-cv126f]", v).forEach(s => s.onchange = () => { U[s.dataset.cv126f] = s.value; render(); });
+    $$("[data-cv126k]", v).forEach(b => b.onclick = () => { U.cv126s = U.cv126s === b.dataset.cv126k ? "" : b.dataset.cv126k; render(); });
+    $$("[data-cv126]", v).forEach(b => b.onclick = () => cvPanel126(BIZ.rows[b.dataset.cv126]));
+    $("#cv126up", v).onchange = ev => cvUpload126(ev.target.files, "", "Upload");
+    $("#cv126x", v).onclick = () => xlsx71("cv-repository.xlsx", [["Name", "Position", "Gender", "Phone", "Email", "Education", "Degree / college", "Experience", "Place", "Skills", "Status", "Source", "Folder", "Added"], ...R.map(c => [c.name, c.position || "", c.gender || "", c.phone || "", c.email || "", c.edu || "", c.eduLine || "", c.exp || "", c.place || "", c.skills || "", cvTone126(c.status)[1], c.src || "", c.folder || "", String(c.added || "").slice(0, 10)])]);
+    v.ondragover = e => { e.preventDefault(); }; v.ondrop = e => { e.preventDefault(); cvUpload126(e.dataTransfer.files, "", "Upload"); };
+  };
+} catch (e) { console.warn("p126 cv", e); }
+
+/* ---------- 4. Work: title & deadline bold, reminders before the deadline (app + phone notification; the server mails too) ---------- */
+wkCard62 = function (x, mine) {
+  const st = WST62[x.status] || WST62.new, open = !["done", "cancelled"].includes(x.status), dms = x.due ? new Date(String(x.due).length <= 10 ? x.due + "T18:00" : String(x.due).replace(" ", "T")) - Date.now() : null, od = open && dms != null && dms < 0, soon = open && dms != null && dms >= 0 && dms < 864e5;
+  return `<button type="button" class="wk62" data-wk="${x.id}"><span class="wk62-p" style="--c:${pcol62(x.pct)}">${x.pct || 0}%</span><span class="wk62-m"><b style="font-size:.98rem;font-weight:800">${esc(x.title)}</b>
+    <small>${mine ? "from <b>" + esc(nm62(x.from)) + "</b>" : "to <b>" + esc(nm62(x.to)) + "</b>"}${x.created || x.at ? " · given <b>" + esc(dt62(x.created || x.at)) + "</b>" : ""}${x.due ? ` · <b style="font-weight:800;color:${od ? "#c0392b" : soon ? "#d9480f" : "#02315B"}">${od ? "⚠ OVERDUE " : soon ? "⏰ due " : "due "}${esc(dt62(x.due))}</b>` : ""}${x.src === "plan" ? " · today's plan" : x.src === "meeting" ? " · meeting" : ""}</small></span><span class="chip ${st[1]}">${st[0]}</span></button>`;
+};
+const dueMs126 = x => x.due ? new Date(String(x.due).length <= 10 ? x.due + "T18:00" : String(x.due).replace(" ", "T")).getTime() : null;
+function wkRemind126() {
+  try {
+    if (!AUTH.user || !BIZ.rows) return; const me = me28(), now = Date.now(), seen = JSON.parse(localStorage.getItem("rqs.wk126") || "{}"); let ch = false;
+    all28("wk").filter(x => x.to === me && !["done", "cancelled"].includes(x.status) && x.due).forEach(x => {
+      const left = dueMs126(x) - now; if (isNaN(left)) return; const stage = left < 0 ? "od" : left < 2 * 36e5 ? "2h" : left < 24 * 36e5 ? "24h" : ""; if (!stage) return;
+      const k = x.id + ":" + stage; if (seen[k]) return; seen[k] = now; ch = true;
+      const msg = stage === "od" ? `OVERDUE: ${x.title} (was due ${dt62(x.due)})` : `${stage === "2h" ? "Due in 2 hours" : "Due tomorrow / within 24 h"}: ${x.title} - finish by ${dt62(x.due)}`;
+      toast("⏰ " + msg, stage === "od" ? "bad" : "warn");
+      try { if ("Notification" in window && Notification.permission === "granted") { const n = new Notification("Rivera ERP - work reminder", { body: msg, tag: k, icon: "icon-192.png" }); n.onclick = () => { focus(); location.hash = "work"; }; } } catch { }
+    });
+    if (ch) { const keep = Object.fromEntries(Object.entries(seen).filter(([, t]) => now - t < 20 * 864e5)); localStorage.setItem("rqs.wk126", JSON.stringify(keep)); }
+  } catch (e) { console.warn("wk126", e); }
+}
+setInterval(wkRemind126, 10 * 6e4); setTimeout(wkRemind126, 15000);
+/* ask once for phone / desktop notifications (only after the person taps something) */
+addEventListener("pointerdown", function nt126() { removeEventListener("pointerdown", nt126); try { if (AUTH.user && "Notification" in window && Notification.permission === "default" && !localStorage.getItem("rqs.nt126")) { localStorage.setItem("rqs.nt126", 1); Notification.requestPermission(); } } catch { } });
+
+/* ---------- 5. Differential backup: before every Excel import (many rows at once) and once a day ---------- */
+async function gz126(obj) { const s = new Blob([JSON.stringify(obj)]).stream().pipeThrough(new CompressionStream("gzip")); return await new Response(s).blob(); }
+async function ungz126(blob) { const s = blob.stream().pipeThrough(new DecompressionStream("gzip")); return JSON.parse(await new Response(s).text()); }
+async function bkSave126(type, reason, before, added) {
+  const at = now62(), id = "bk126_" + at.replace(/\D/g, "").slice(0, 14) + Math.random().toString(36).slice(2, 5);
+  const blob = await gz126({ v: 1, type, reason, at, by: me28(), before, added });
+  await DSTORE.put(id, new File([blob], `backup-${type}-${at.slice(0, 16).replace(/[T:]/g, "-")}.json.gz`, { type: "application/gzip" }), { kind: "backup126", type, reason, at, by: me28(), n: before.length, added: added.length, day: at.slice(0, 10) });
+  return id;
+}
+{
+  const _bp = bizPut28;
+  bizPut28 = async function (recs) {
+    const L = Array.isArray(recs) ? recs : [recs];
+    if (L.length < 15 || window.__bk126off) return _bp.apply(this, arguments);
+    const before = L.filter(r => r && r.id && BIZ.rows[r.id]).map(r => JSON.parse(JSON.stringify(BIZ.rows[r.id])));
+    const out = await _bp.apply(this, arguments);
+    try { const had = new Set(before.map(r => r.id)), added = (out || []).filter(r => r && r.id && !had.has(r.id)).map(r => r.id); const kinds = [...new Set(L.map(r => r.reg116 || r.kind))].join(", ");
+      bkSave126("import", `${L.length} rows saved at once (${kinds}) - ${location.hash.slice(1) || "home"}`, before, added).catch(e => console.warn("bk126", e)); } catch { }
+    return out;
+  };
+}
+const bkCan126 = () => isAdmin28() || isMyDept85("mgmt") && !!myD85();
+async function bkDaily126() {
+  try {
+    if (!bkCan126() || !DSTORE.online() || !Object.keys(BIZ.rows || {}).length) return; const t = todayISO(); if (localStorage.getItem("rqs.bk126d") === t) return;
+    await DSTORE.load(); const L = DSTORE.list.filter(f => f.kind === "backup126" && f.meta?.type !== "import").sort((a, b) => String(b.meta?.at || "").localeCompare(String(a.meta?.at || "")));
+    if (L.some(f => f.meta?.day === t)) { localStorage.setItem("rqs.bk126d", t); return; }
+    const last = L[0]?.meta?.at || "", full = !last || !L.some(f => f.meta?.type === "full" && String(f.meta?.at) > new Date(Date.now() - 30 * 864e5).toISOString());
+    const rows = Object.values(BIZ.rows).filter(r => r && r.id && (full || String(r.at || r.updated || "") > last));
+    await bkSave126(full ? "full" : "daily", full ? "Full backup (monthly)" : "Changes since " + last.slice(0, 16).replace("T", " "), rows, []);
+    localStorage.setItem("rqs.bk126d", t);
+  } catch (e) { console.warn("bk126 daily", e); }
+}
+setTimeout(bkDaily126, 60000);
+try {
+  ROUTES.push(["bk126", "Backups", "lock"]);
+  { const _al = allowed21; allowed21 = function (r) { if (r === "bk126") return bkCan126(); return _al.apply(this, arguments); }; }
+  const mm = MODS32.find(m => m.id === "mgmt"); if (mm) { const L = (mm.groups.Reports ||= []), c = ["Backups (differential)", "bk126", {}, "Automatic copy before every Excel import + daily changes - download or put back"]; if (!L.some(x => x[1] === "bk126")) L.push(c); try { CARDMOD64.set(c, "mgmt"); } catch { } }
+  VIEWS.bk126 = v => {
+    const L = DSTORE.list.filter(f => f.kind === "backup126").sort((a, b) => String(b.meta?.at || "").localeCompare(String(a.meta?.at || "")));
+    v.innerHTML = top62("Management", "Backups", "A copy is taken automatically <b>before every Excel import</b> (the old rows + which rows were added) and <b>every day</b> (only what changed - a full copy once a month). Download any copy, or put the old rows back.", `<button class="btn primary" id="bk126n" type="button">Take full backup now</button><button class="btn" id="bk126r" type="button">Refresh</button>`)
+      + `<section class="panel"><header><h2>${L.length} backups</h2></header><div class="body"><table class="t"><thead><tr><th>When</th><th>Type</th><th>What</th><th class="n">Rows</th><th>By</th><th></th></tr></thead><tbody>${L.map(f => { const m = f.meta || {}; return `<tr><td>${esc(dt62(m.at))}</td><td><span class="chip ${m.type === "import" ? "warn" : m.type === "full" ? "ok" : ""}">${esc(m.type === "import" ? "Before import" : m.type === "full" ? "Full" : "Daily changes")}</span></td><td class="small">${esc(m.reason || "")}</td><td class="n">${m.n || 0}${m.added ? ` <span class="small muted">+${m.added} new</span>` : ""}</td><td class="small">${esc(nm62(m.by || ""))}</td><td style="white-space:nowrap"><button class="btn sm" data-bk126d="${f.id}" type="button">⬇ Download</button>${m.type === "import" ? ` <button class="btn sm" data-bk126p="${f.id}" type="button">↩ Put back</button>` : ""}</td></tr>`; }).join("") || '<tr><td colspan="6" class="muted">No backups yet - the first one is taken automatically today.</td></tr>'}</tbody></table></div></section>`;
+    $("#bk126r", v).onclick = async () => { await DSTORE.load(true); render(); };
+    $("#bk126n", v).onclick = async e => { e.target.disabled = true; e.target.textContent = "Saving…"; try { await bkSave126("full", "Full backup (by hand)", Object.values(BIZ.rows).filter(r => r && r.id), []); toast("Full backup saved"); render(); } catch (er) { toast(er.message, "bad"); e.target.disabled = false; } };
+    const get = async id => { const f = await DSTORE.get(id); if (!f) throw new Error("Backup file not found"); return ungz126(f.blob); };
+    $$("[data-bk126d]", v).forEach(b => b.onclick = async () => { try { const d = await get(b.dataset.bk126d); const u = URL.createObjectURL(new Blob([JSON.stringify(d, null, 1)], { type: "application/json" })); const a = document.createElement("a"); a.href = u; a.download = `rivera-backup-${String(d.at).slice(0, 16).replace(/[T:]/g, "-")}.json`; a.click(); } catch (e) { toast(e.message, "bad"); } });
+    $$("[data-bk126p]", v).forEach(b => b.onclick = async () => {
+      try { const d = await get(b.dataset.bk126p); const add = (d.added || []).filter(id => BIZ.rows[id]);
+        const D = panel28({ title: "Put back - " + dt62(d.at), body: `<p>${esc(d.reason || "")}</p><p><b>${d.before.length}</b> rows go back to how they were before the import.${add.length ? ` The import also added <b>${add.length}</b> new rows - you can remove them too.` : ""}</p>${add.length ? `<label class="f"><span><input type="checkbox" id="bk126a"> Also remove the ${add.length} rows the import added</span></label>` : ""}`, foot: `<span style="flex:1"></span><button class="btn" type="button" onclick="closeDrawer26()">Cancel</button><button class="btn primary" id="bk126go" type="button">Put back</button>` });
+        $("#bk126go", D).onclick = async e => { window.__bk126off = 1; try { if (d.before.length) await save28(e.target, d.before, "Old rows put back"); if ($("#bk126a", D)?.checked) for (const id of add) await bizDel28(id); } finally { window.__bk126off = 0; } closeDrawer26(); render(); };
+      } catch (e) { toast(e.message, "bad"); } });
+  };
+} catch (e) { console.warn("p126 bk", e); }
+
+/* ---------- 6. Every upload takes any file format ---------- */
+{
+  const free = root => { try { (root.querySelectorAll ? root : document).querySelectorAll('input[type="file"][accept]:not([data-keep-accept])').forEach(i => i.removeAttribute("accept")); } catch { } };
+  free(document); new MutationObserver(ms => { for (const m of ms) for (const n of m.addedNodes) if (n.nodeType === 1) { if (n.matches?.('input[type="file"][accept]')) n.removeAttribute("accept"); else free(n); } }).observe(document.documentElement, { childList: true, subtree: true });
+}
+
+document.head.insertAdjacentHTML("beforeend", `<style>
+.rs126{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap;padding:10px 16px;background:#fff4f2;border-top:1px solid #f3c7bf}
+.v126 .v126r{display:flex;gap:10px;align-items:center;padding:8px 10px;border:1px solid #e3e8ef;border-radius:10px;margin-top:6px;background:#fffaf2}.v126 .v126r.ok{background:#effaf3;border-color:#b8e0c6}.v126i{font-size:1.1rem;width:22px;text-align:center}
+.cv126g{display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:10px}.cv126c{display:flex;gap:10px;align-items:flex-start;text-align:left;border:1px solid #dfe5ee;background:#fff;border-radius:14px;padding:10px;cursor:pointer}.cv126c:hover{border-color:#e8590c;background:#fff8f2}.cv126c>span{display:flex;flex-direction:column;gap:1px}.cv126c b{font-size:.95rem}
+.cv126k{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:8px;margin-bottom:12px}.cv126k button{display:flex;flex-direction:column;align-items:flex-start;border:1px solid #dfe5ee;background:#fff;border-radius:12px;padding:8px 12px;cursor:pointer}.cv126k button.on{border-color:#e8590c;background:#fff4ec}.cv126k span{font-size:.75rem;color:#5b6b80}.cv126k b{font-size:1.3rem}
+.cv126p header select,.cv126p header input{width:auto;max-width:200px;flex:0 1 auto}
+.cv126av{display:inline-flex;align-items:center;justify-content:center;border-radius:12px;font-weight:800;color:#02315B;flex:none}
+.nw117r b{font-weight:800}
+</style>`);
 boot();
 
 </script>
