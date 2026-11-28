@@ -18787,6 +18787,43 @@ document.head.insertAdjacentHTML("beforeend", `<style>
 @media(max-width:760px){.ib124{grid-template-columns:1fr}.ib124l{max-height:30vh}}
 </style>`);
 
+/* =============== p125: draft sales orders - the order flow says "confirm the order first" (not a red "not sent to factory");
+   a work-order request can't be marked Done until the work order really exists; the same request is not raised twice =============== */
+try {
+  const _st = steps53;
+  steps53 = function (r) {
+    const S = _st.apply(this, arguments);
+    try {
+      if (r && r.status === "draft") {
+        const s = S.find(x => x[0] === "sales"); if (s) { s[1] = "doing"; s[2] = `${r.no || "Order"} is a DRAFT - press "Confirm order"`; }
+        const o = S.find(x => x[0] === "ops"); if (o && !all28("job").some(j => j.soId === r.id)) { o[1] = "todo"; o[2] = "Goes to the factory after the order is confirmed"; }
+      }
+    } catch (e) { console.warn("p125 steps", e); }
+    return S;
+  };
+  const _h = handoff53;
+  handoff53 = async function (so, ...a) { if (so && so.status === "draft") throw new Error(`${so.no || "This order"} is still a draft - Sales must press "Confirm order" first`); return _h.call(this, so, ...a); };
+  const _rq = rqPanel85;
+  rqPanel85 = function (src, preset) {
+    if (!src && preset?.link && preset?.type) {
+      const dup = all28("rq").find(x => x.link === preset.link && x.type === preset.type && !["cancelled", "rejected"].includes(x.status));
+      if (dup) { toast(`${dup.no} for this is already ${dup.status === "done" ? "done" : "raised"} - opening it`, "warn"); return _rq.call(this, dup); }
+    }
+    const out = _rq.apply(this, arguments);
+    try {
+      const r = src && (BIZ.rows[src.id] || src), b = $("#rq85d"), link = r && BIZ.rows[r.link];
+      if (r && b && r.type === "wo" && link?.kind === "so") {
+        b.addEventListener("click", ev => {
+          if (all28("job").some(j => j.soId === link.id)) return;
+          ev.stopImmediatePropagation(); ev.preventDefault();
+          toast(link.status === "draft" ? `${link.no} is still a draft - Sales must confirm the order, then press "Make work order"` : `Press "Make work order" first - no work order exists for ${link.no} yet`, "bad");
+        }, true);
+      }
+    } catch (e) { console.warn("p125 rq", e); }
+    return out;
+  };
+} catch (e) { console.warn("p125", e); }
+
 boot();
 
 </script>
