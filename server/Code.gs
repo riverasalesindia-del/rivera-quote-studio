@@ -1126,7 +1126,7 @@ var REC_NO = { rq: "RCM/RQ/", rn: "RCM/GRN/", mg: "RCM/GP/", vr: "VR/", pl: "PL/
    registers (fire extinguishers, licences, maintenance, kitchen, security, legal, POSH, interviews, shelf life, Management documents)
    are seen and kept by the department whose register it is; Accounts keeps its bank accounts list */
 function empLite119(o) { return { id: o.id, kind: o.kind, no: o.no, by: o.by, at: o.at, name: o.name, code: o.code, dept: o.dept, designation: o.designation, status: o.status, company: o.company, email: o.email, doj: o.doj, lite: 1 }; }
-var REG119 = { fire: "hr", lic: "hr", mnt: "hr", kit: "hr", sec: "hr", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr", wo: "sales", sinv: "accounts", vend: "store" };
+var REG119 = { fire: "hr", lic: "hr", mnt: "hr", kit: "hr", sec: "hr", legal: "hr", posh: "hr", intv: "hr", shelf: "store", noe: "mgmt", rent: "mgmt", skillcfg: "hr", wo: "sales", sinv: "accounts", vend: "store", ccert: "sales", shop: "mgmt", rentrc: "mgmt" };
 var REGPG119 = { admin: /^(dept\.admin|admin|docs71|assets62|vis71|gate71|courier)/, hr: /^(dept\.hr|hr|hrx)/, store: /^(dept\.store|purchase|stock|store|jobs)/, mgmt: /^(dept\.mgmt|mgmt|mis|work\.team)/, sales: /^(dept\.sales|sales|crm|leads|cust|quote)/, accounts: /^(dept\.accounts|accounts|bank|brs)/ };
 function can119(r, me) {
   var x = data62(r), P = userPages(me);
@@ -1148,7 +1148,7 @@ function recOut(r) { var o = {}; try { o = JSON.parse(r.data || "{}"); } catch (
 function recList(d, me) {
   var kinds = (d.kinds || Object.keys(REC_KINDS)).filter(function (k) { return REC_KINDS[k]; }), since = String(d.since || "");
   var rows = recRows().filter(function (r) { return kinds.indexOf(r.kind) >= 0 && (recCan(r.kind, me) || linkedRead(r, me) || r.kind === "sig" || r.kind === "pp" || r.kind === "emp" || can119(r, me)) && vis62(r, me) && (!since ? r.del !== "1" : String(r.at) > since); });
-  return { ok: true, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.kind === "po" && !recCan("po", me)) o = poLite(o); if (r.kind === "emp" && !recCan("emp", me)) o = empLite119(o); if (r.del === "1") o._del = 1; return o; }) };
+  return { ok: true, sv: 124, at: new Date().toISOString(), rows: rows.map(function (r) { var o = recOut(r); if (r.kind === "po" && !recCan("po", me)) o = poLite(o); if (r.kind === "emp" && !recCan("emp", me)) o = empLite119(o); if (r.del === "1") o._del = 1; return o; }) };
 }
 /* Order flow: anyone who can see sales orders also sees (read-only) the work orders and indents / POs made for a sales order,
    so every department sees where an order stands; supplier prices are left out for logins without Purchase */
@@ -1195,6 +1195,7 @@ function recPut(d, me) {
       var data = {}; Object.keys(rec).forEach(function (k) { if (["id", "kind", "no", "by", "at", "_del"].indexOf(k) < 0) data[k] = rec[k]; });
       var js = JSON.stringify(data); if (js.length > 45000) throw "Record too large";
       r.data = js; r.by = me.email; r.at = now;
+      if (kind === "po" && data.noManual) r.no = String(data.noManual).slice(0, 40);
       out.push(recOut(r));
       try { mails62(kind, data, before, r, me, mails); } catch (e62) { }
       if (kind === "task" && /@/.test(data.assignee || "") && data.assignee !== me.email && (!before || before.assignee !== data.assignee)) mails.push([data.assignee, "New task for you: " + clean(data.title, 120), "<p><b>" + esc(me.name || me.email) + "</b> gave you a task:</p><p style=\"font-size:16px\"><b>" + esc(data.title || "") + "</b></p><p>" + esc(data.note || "") + "</p><p>Due: <b>" + esc(data.due || "—") + "</b></p><p>" + btn(LINKS.site + "#tasks", "Open My work", "#02315B") + "</p>"]);
@@ -1432,6 +1433,7 @@ function regs71() {
 }
 /* 8:30 — AGM and HR: birthdays and wedding anniversaries today */
 function hrDates71() {
+  try { certExpiry124(); } catch (e124) { log("automation", "cert-expiry", String(e124)); }
   var md = Utilities.formatDate(new Date(), "Asia/Kolkata", "MM-dd"), E = rows62("emp").filter(function (e) { return e.status !== "left"; });
   var b = E.filter(function (e) { return String(e.dob || "").slice(5, 10) === md; }), a = E.filter(function (e) { return e.marital === "Married" && String(e.marDate || "").slice(5, 10) === md; });
   if (!b.length && !a.length) return;
@@ -1552,4 +1554,15 @@ function work62Api(d, me) {
   if (d.op === "courier") { var cl = String(d.to || "").split(",").map(function (s) { return s.trim().toLowerCase(); }).filter(function (s) { return /^[^@\s]+@[^@\s]+\.[a-z]{2,}$/.test(s); }); if (!cl.length) throw "Enter at least one email"; props().setProperty("COURIER_NOTIFY", cl.join(",")); return { ok: true, to: cl }; }
   if (d.op === "run") { var f = { morning: workMorning62, plans: workPlans62, remind: workRemind62, evening: workEvening62, hrdates: hrDates71 }[d.job]; if (!f) throw "Unknown job"; f(); return { ok: true }; }
   throw "Unknown";
+}
+
+/* p124: company certificates - mail Sales + Management every morning while a renewable certificate expires within 30 days (or has expired) */
+function certExpiry124() {
+  var today = Utilities.formatDate(new Date(), "Asia/Kolkata", "yyyy-MM-dd"), t0 = new Date(today).getTime();
+  var L = rows62("dc").filter(function (c) { return c.reg116 === "ccert" && c.renew && c.expiry && !c.del; }).map(function (c) { c.days = Math.round((new Date(c.expiry).getTime() - t0) / 864e5); return c; }).filter(function (c) { return c.days <= 30; });
+  if (!L.length) return;
+  L.sort(function (a, b) { return a.days - b.days; });
+  var html = "<p>These company certificates need renewal. After renewing, open <b>Sales ▸ Company certificates</b>, upload the new copy and type the new 'Valid till' date - quotations then use the new copy.</p><table style='border-collapse:collapse'>" + L.map(function (c) { return "<tr><td style='padding:4px 10px;border-bottom:1px solid #eee'><b>" + esc(c.name) + "</b>" + (c.certNo ? " · " + esc(c.certNo) : "") + "</td><td style='padding:4px 10px;border-bottom:1px solid #eee;color:" + (c.days < 0 ? "#b00020" : "#b35c00") + "'>" + (c.days < 0 ? "EXPIRED " + c.expiry : "expires " + c.expiry + " (" + c.days + " days)") + "</td></tr>"; }).join("") + "</table>";
+  String(props().getProperty("CERT_TO") || "crm@rivera.co.in,agm@rivera.co.in,sales@rivera.co.in").split(",").forEach(function (to) { to = to.trim(); if (/@/.test(to)) try { mail(to, "Certificates to renew: " + L.length + " (" + L[0].name + (L.length > 1 ? " +" + (L.length - 1) : "") + ")", html); } catch (e) { } });
+  log("automation", "cert-expiry", L.length + " certificates");
 }
