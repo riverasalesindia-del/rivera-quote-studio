@@ -19027,6 +19027,65 @@ th.s106 .s106-a{font-style:normal;margin-left:4px;font-size:.75em;color:var(--mu
 .hero-strip>.h106.on{box-shadow:inset 0 -3px 0 var(--copper,#E26A0C)}
 </style>`);
 
+/* ===================== p131: Tender search — "Not for us" (Tender247-style hide): a small ✕ on every untracked row hides that tender from your list,
+   so only tenders worth a look stay on screen. A bar on top says how many are hidden on this page, with "Show hidden" and "Bring all back".
+   Saved on this device for this login only (nothing is deleted from the database, no server change) ===================== */
+{
+  const key131 = () => "tdbHide131:" + (AUTH.user?.email || "-");
+  const get131 = () => { try { const o = LS.get(key131(), {}); return o && typeof o === "object" && !Array.isArray(o) ? o : {}; } catch { return {}; } };
+  const put131 = o => {
+    try {
+      const old = Date.now() - 365 * 864e5, E = Object.entries(o).filter(([, t]) => num(t) > old).sort((a, b) => b[1] - a[1]).slice(0, 3000);
+      LS.set(key131(), Object.fromEntries(E));
+    } catch { }
+  };
+  function hide131(B, S) {
+    const d = S.cache["q:" + JSON.stringify({ ...S.f, page: S.page, size: 50 })]?.d; if (!d?.rows?.length) return;
+    const tbl = $("table.t", B); if (!tbl || tbl.dataset.h131) return;
+    const trs = $$("tbody > tr", tbl); if (trs.length !== d.rows.length) return;
+    tbl.dataset.h131 = "1";
+    const H = get131(), mine = new Set((STATE.data.tenders || []).map(t => t.bid));
+    let n = 0;
+    trs.forEach((tr, i) => {
+      const r = d.rows[i]; if (!r?.bid) return;
+      const td = tr.lastElementChild; if (!td) return;
+      const tracked = !!(r.tracked || mine.has(r.bid)), hid = !!H[r.bid] && !tracked;
+      if (hid) { n++; tr.classList.add("h131"); }
+      if (tracked) return;
+      const b = document.createElement("button"); b.type = "button"; b.className = "x131";
+      b.textContent = hid ? "↺" : "✕"; b.title = hid ? "Bring this tender back" : "Not for us — hide this tender";
+      b.setAttribute("aria-label", (hid ? "Bring back " : "Hide ") + r.bid);
+      b.addEventListener("click", e => {
+        e.preventDefault(); e.stopPropagation();
+        const o = get131(); if (o[r.bid]) delete o[r.bid]; else o[r.bid] = Date.now(); put131(o);
+        toast(o[r.bid] ? r.bid + " hidden — “Show hidden” on top brings it back" : r.bid + " is back in the list");
+        render();
+      });
+      td.appendChild(b);
+    });
+    tbl.classList.toggle("show131", !!S.show131);
+    const head = tbl.closest("section.panel")?.querySelector("header"), total = Object.keys(H).length;
+    if (!head || (!n && !total) || $(".b131", B)) return;
+    head.insertAdjacentHTML("afterend", `<div class="b131" role="status">${n ? `<b>${n}</b> tender${n > 1 ? "s" : ""} on this page hidden as “not for us”` : `No hidden tenders on this page`}<span class="muted small"> · ${total} hidden in all on this device</span>
+      ${n ? `<button type="button" class="btn sm" id="sh131">${S.show131 ? "Hide them again" : "Show hidden"}</button>` : ""}<button type="button" class="btn sm ghost" id="cl131">Bring all back</button></div>`);
+    $("#sh131", B)?.addEventListener("click", () => { S.show131 = !S.show131; render(); });
+    $("#cl131", B)?.addEventListener("click", () => { if (!confirm(`Bring back all ${total} hidden tenders?`)) return; put131({}); S.show131 = false; toast("All hidden tenders are back"); render(); });
+  }
+  const _tdb131 = VIEWS.tdb;
+  VIEWS.tdb = v => {
+    _tdb131(v);
+    const S = TDB(), B = $("#tdbBody"); if (!B || S.tab !== "search" || !AUTH.api || !AUTH.user) return;
+    try { hide131(B, S); } catch (e) { console.warn("p131", e); }
+  };
+}
+document.head.insertAdjacentHTML("beforeend", `<style>
+table.t tr.h131{display:none}table.t.show131 tr.h131{display:table-row;opacity:.5}table.t.show131 tr.h131:hover{opacity:.85}
+button.x131{margin-left:6px;padding:1px 7px;border:1px solid var(--line,#e5e7eb);border-radius:6px;background:var(--surface,#fff);color:var(--muted,#6b7280);font-size:.8rem;line-height:1.4;cursor:pointer;vertical-align:middle}
+button.x131:hover,button.x131:focus-visible{color:#b42318;border-color:#b42318;outline:none}
+tr.h131 button.x131:hover{color:var(--copper,#E26A0C);border-color:var(--copper,#E26A0C)}
+.b131{display:flex;flex-wrap:wrap;align-items:center;gap:8px;padding:8px 16px;border-bottom:1px solid var(--line,#e5e7eb);font-size:.88rem;background:var(--soft,#f4f6f9)}
+</style>`);
+
 boot();
 
 </script>
